@@ -1,0 +1,22 @@
+!--- use 'ff', 'dr', 'ia' and 'ja'
+
+xx = ff(1)*dr(1)*0.5d0
+yy = ff(2)*dr(2)*0.5d0
+zz = ff(3)*dr(3)*0.5d0
+yz = ff(2)*dr(3)*0.5d0
+zx = ff(1)*dr(3)*0.5d0
+xy = ff(1)*dr(2)*0.5d0
+
+astr(1,ia) = astr(1,ia) - xx
+astr(2,ia) = astr(2,ia) - yy
+astr(3,ia) = astr(3,ia) - zz
+astr(4,ia) = astr(4,ia) - yz
+astr(5,ia) = astr(5,ia) - zx
+astr(6,ia) = astr(6,ia) - xy
+
+astr(1,ja) = astr(1,ja) - xx
+astr(2,ja) = astr(2,ja) - yy
+astr(3,ja) = astr(3,ja) - zz
+astr(4,ja) = astr(4,ja) - yz
+astr(5,ja) = astr(5,ja) - zx
+astr(6,ja) = astr(6,ja) - xy
