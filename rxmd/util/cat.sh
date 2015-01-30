@@ -11,7 +11,6 @@ fi
 # delete all of  $suf files
 rm -f *.$suf
 
-#for n0 in `seq -f %09g $1 $2 $3`;do 
 for n0 in `seq -f %1.f $1 $2 $3`;do 
    n=`printf "%09d" ${n0}`
    echo $n -----------------------------------------
