@@ -8,7 +8,7 @@
 
 FC = mpif90 
 #FC = mpixlf2003_r
-OPT = -O2 -g
+OPT = -O3 -g
 #CPP = -DSTRESS
 CPP =
 

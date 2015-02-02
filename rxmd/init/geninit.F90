@@ -220,7 +220,7 @@ do i=1, nprocs-1
    lnatoms1(i)=lnatoms1(i-1)+lnatoms(i-1)
 enddo
 
-!--- sort atom data using disk
+!--- To avoid opening too many files, sort atom data using disk
 lbox(1:3)=1.d0/vprocs(1:3)
 lnatoms2(:)=0 ! for atom counting & result check
 open(1,file="all.bin",form="unformatted",access="stream")

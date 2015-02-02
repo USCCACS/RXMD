@@ -94,7 +94,8 @@ integer :: ncmp
 real(8) :: acmp(0:10)
 
 real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
-integer :: NATOMS,GNATOMS     !local/global # of atoms
+integer :: NATOMS         !local # of atoms
+integer(8) :: GNATOMS     !global # of atoms
 
 !<header> header atom of linkedlist cell.
 !<nacell> Nr of atoms in a likedlist cell.
@@ -235,7 +236,7 @@ integer :: ia,ja
 REAL(8) :: ftol   ! tolerance of energy convergence 
 
 !--- cutoff range calculation. 
-integer,allocatable :: natoms_per_type(:)
+integer(8),allocatable :: natoms_per_type(:)
 
 !--- dthm=dt/(2*mass), hmas=mass/2
 real(8),allocatable :: dthm(:), hmas(:)
@@ -246,6 +247,7 @@ real(8),allocatable :: TBL_Eclmb(:,:,:), TBL_Evdw(:,:,:), TBL_Eclmb_QEq(:,:)
 real(8) :: UDR, UDRi
 
 integer,allocatable :: ibuf(:), ibuf1(:)
+integer(8),allocatable :: ibuf8(:)
 
 end module atoms
 

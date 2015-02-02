@@ -10,6 +10,7 @@ integer :: i,j,k, ix,iy,iz,ii, n, m, m3, p,s, inxn, ity, jty, l(3), sID, ist=0
 real(8) :: dr, dr2, rr(3), mm, gmm, dns, mat(3,3)
 real(8) :: rcsize(3),maxrcell, rcmesh2
 integer :: imesh(3), maximesh, uflag
+integer(8) :: i8
 character(8) :: fname0
 character(2) :: ctype
 character(6) :: a6
@@ -115,16 +116,16 @@ enddo; enddo
 
 !--- get total number of atoms per type. This will be used to determine
 !--- subroutine cutofflength() 
-allocate(natoms_per_type(nso),ibuf(nso))
+allocate(natoms_per_type(nso),ibuf8(nso))
 natoms_per_type(:)=0
 do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
 enddo
 
-call MPI_ALLREDUCE(natoms_per_type, ibuf, nso, MPI_INTEGER, MPI_SUM,  MPI_COMM_WORLD, ierr)
-natoms_per_type(1:nso)=ibuf(1:nso)
-deallocate(ibuf)
+call MPI_ALLREDUCE(natoms_per_type, ibuf8, nso, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+natoms_per_type(1:nso)=ibuf8(1:nso)
+deallocate(ibuf8)
 
 !--- determine cutoff distances only for exsiting atom pairs
 call CUTOFFLENGTH()
@@ -136,7 +137,8 @@ call updatebox()
 call xs2xu()
 
 !--- get global number of atoms
-call MPI_ALLREDUCE(NATOMS, GNATOMS, 1, MPI_INTEGER, MPI_SUM,  MPI_COMM_WORLD, ierr)
+i8=NATOMS ! Convert 4 byte to 8 byte
+call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 !--- Give some number to atype(0). This is necessary to do vectorial operation since 0th element does not have atom type.
 atype(0)=1 
@@ -369,7 +371,7 @@ if(myid==0) then
    write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
    write(6,'(a30,1x,i10)') "CURRENTSTEP:", current_step
    write(6,'(a30,3x,i10)') "NTIMESTPE:", ntime_step
-   write(6,'(a30,i12,3x,i12)') "NATOMS GNATOMS:", NATOMS, GNATOMS
+   write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
    write(6,'(a30,2i10)') "NBUFFER_N, NBUFFER_P:", NBUFFER_N, NBUFFER_P
    write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
    write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
