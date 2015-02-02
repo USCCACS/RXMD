@@ -18,7 +18,6 @@ CALL GETPARAMS()
 CALL INITSYSTEM()
 call OUTPUT(0)
 
-
 if(mdmode==10) call conjugate_gradient()
 
 call QEq(NCELL10)
@@ -39,7 +38,7 @@ do nstep=0, ntime_step-1
       v(1:3,1:NATOMS)=sqrt(ctmp)*v(1:3,1:NATOMS)
    endif
 
-   if(mod(nstep,sstep)==0.and.mdmode==6) &
+   if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY()
 
 !--- correct the c.o.m motion
@@ -149,7 +148,7 @@ use atoms; use parameters
 !----------------------------------------------------------------------------------------
 implicit none
 integer :: i,j,ity, cstep
-real(8) :: qq,tt,ss,buf(0:20),Gbuf(0:20)
+real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:20),Gbuf(0:20)
 
 i=nstep/pstep+1
 maxas(i,1)=NATOMS
@@ -182,7 +181,9 @@ GKE = Gbuf(14); ss = Gbuf(15); qq = Gbuf(16)
 GPE(:)=GPE(:)/GNATOMS
 GKE=GKE/GNATOMS
 tt=GKE*UTEMP
+#ifdef STRESS
 ss=ss/3.d0/MDBOX*USTRS
+#endif 
 
 !--- total energy
 GTE = GKE + GPE(0)

@@ -35,6 +35,14 @@ if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
   stop
 endif
 
+!--- initialize charge with QEq
+if(mdmode==0) then
+  if(myid==0) then
+    print'(a,f12.3,a,i6,a)', 'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities is scaled to ', treq, ' [K] every ', sstep, ' steps.'
+  endif
+  isQEq=1
+endif
+
 !--- time unit conversion from [fs] -> time unit
 dt = dt/UTIME
 
@@ -356,12 +364,12 @@ if(myid==0) then
    write(6,'(a30,i5)') "MDMODE:", mdmode
    write(6,'(a30,i6,es10.1,i6,i6)') "isQEq,QEq_tol,NMAXQEq,qstep:", &
                                      isQEq,QEq_tol,NMAXQEq,qstep
-   write(6,'(a30,f8.3,es12.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
+   write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
    write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
    write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
    write(6,'(a30,1x,i10)') "CURRENTSTEP:", current_step
    write(6,'(a30,3x,i10)') "NTIMESTPE:", ntime_step
-   write(6,'(a30,i9,i12)') "NATOMS GNATOMS:", NATOMS, GNATOMS
+   write(6,'(a30,i12,3x,i12)') "NATOMS GNATOMS:", NATOMS, GNATOMS
    write(6,'(a30,2i10)') "NBUFFER_N, NBUFFER_P:", NBUFFER_N, NBUFFER_P
    write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
    write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
@@ -382,7 +390,6 @@ if(myid==0) then
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 
 endif
-
 
 !--- set initial time
 wt0 = MPI_WTIME()
