@@ -39,7 +39,8 @@ endif
 !--- initialize charge with QEq
 if(mdmode==0) then
   if(myid==0) then
-    print'(a,f12.3,a,i6,a)', 'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities is scaled to ', treq, ' [K] every ', sstep, ' steps.'
+    print'(a,f12.3,a,i6,a)', 'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities is scaled to ', &
+                              treq, ' [K] every ', sstep, ' steps.'
   endif
   isQEq=1
 endif
