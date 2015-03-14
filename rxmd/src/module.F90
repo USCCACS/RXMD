@@ -62,15 +62,15 @@ integer,parameter :: is_idEh = 1
 !real(8),parameter :: cutof2_bo = 1d-4
 !integer,parameter :: is_idEh = 0
 
-integer :: NBUFFER_N=91102
-integer :: NBUFFER_P=86016
-integer,parameter :: MAXNEIGHBS=12  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=447 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+!integer :: NBUFFER_N=91102
+!integer :: NBUFFER_P=86016
+!integer,parameter :: MAXNEIGHBS=12  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+!integer,parameter :: MAXNEIGHBS10=447 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-!integer :: NBUFFER_N=50000
-!integer :: NBUFFER_P=10000
-!integer,parameter :: MAXNEIGHBS=60  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-!integer,parameter :: MAXNEIGHBS10=600 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer :: NBUFFER_N=50000
+integer :: NBUFFER_P=10000
+integer,parameter :: MAXNEIGHBS=60  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer,parameter :: MAXNEIGHBS10=600 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 integer :: NCELL10               !<NCELL10>: Nr of linkedlist cell to cover up 10[A].
