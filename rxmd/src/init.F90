@@ -15,8 +15,31 @@ character(8) :: fname0
 character(2) :: ctype
 character(6) :: a6
 
+character(64) :: argv
+
+!--- read FF file, output dir, MD parameter file paths from command line
+do i=1, command_argument_count()
+   call get_command_argument(i,argv)
+   select case(adjustl(argv))
+     case("--help","-h")
+       if(myid==0) print'(a)', "-ff ffield -dat output_dir -parm rxmd.in"
+       stop
+     case("-ff")
+       call get_command_argument(i+1,argv)
+       FFPath=adjustl(argv)
+     case("-data")
+       call get_command_argument(i+1,argv)
+       DataPath=adjustl(argv)
+     case("-parm")
+       call get_command_argument(i+1,argv)
+       ParmPath=adjustl(argv)
+     case default
+   end select
+
+enddo
+
 !--- read MD control parameters
-open(1, file="rxmd.in", status="old")
+open(1, file=trim(ParmPath), status="old")
 read(1,*) mdmode
 read(1,*) dt, ntime_step
 read(1,*) treq, vsfact, sstep
@@ -39,8 +62,9 @@ endif
 !--- initialize charge with QEq
 if(mdmode==0) then
   if(myid==0) then
-    print'(a,f12.3,a,i6,a)', 'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities is scaled to ', &
-                              treq, ' [K] every ', sstep, ' steps.'
+    print'(a,f12.3,a,i6,a)', &
+         'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities is scaled to ', &
+          treq, ' [K] every ', sstep, ' steps.'
   endif
   isQEq=1
 endif
@@ -106,8 +130,8 @@ allocate(qsfp(-NBUFFER_N:NBUFFER_P), qsfv(-NBUFFER_N:NBUFFER_P), stat=ast); ist=
 allocate(qtfp(-NBUFFER_N:NBUFFER_P), qtfv(-NBUFFER_N:NBUFFER_P), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
-!call coio_read()
-call benchmarkio_read()
+call coio_read()
+!call benchmarkio_read()
 
 call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
@@ -387,8 +411,10 @@ if(myid==0) then
    write(6,'(a30,2i6)') "NMINCELL, NCELL10:", NMINCELL, NCELL10
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS, MAXNEIGHBS10
    write(6,'(a30,2i9)') "NBUFFER_P, NBUFFER_N:", NBUFFER_P, NBUFFER_N
+   write(6,'(a30,3(a,1x))') "FFPath, DataPath, ParmPath: ", &
+                          trim(FFPath), trim(DataPath), trim(ParmPath)
 
-   if(myid==0) print'(a)', "----------------------------------------------------------------"
+   print'(a)', "----------------------------------------------------------------"
    write(6,'(a)')  &
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 
@@ -754,7 +780,7 @@ write(a6(1:6),'(i6.6)') myid
 if(mod(myid,nio)==0) then
 
 !--- read master node data first
-  open(10,file="DAT/rxff"//a6,form="unformatted",access="stream",status="old")
+  open(10,file=trim(DataPath)//"/rxff"//a6,form="unformatted",access="stream",status="old")
 
   read(10) NATOMS
   read(10) current_step
@@ -847,9 +873,9 @@ write(a9(1:9),'(i9.9)') nstep + current_step
 if(mod(myid,nio)==0) then
 
   if(imode==-1) then ! last MD step 
-    open(10,file="DAT/rxff"//a6,form="unformatted",access="stream")
+    open(10,file=trim(DataPath)//"/rxff"//a6,form="unformatted",access="stream")
   else ! check pointing
-    open(10,file="DAT/"//a6//"/rxff"//a6//"-"//a9//".bin", &
+    open(10,file=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9//".bin", &
          form="unformatted",access="stream")
   endif
 
@@ -929,7 +955,7 @@ character(6) :: a6
 character(9) :: a9
 
 write(a6(1:6),'(i6.6)') 0 !for benchmark
-open(10,file="DAT/rxff"//a6,form="unformatted",access="stream")
+open(10,file=trim(DataPath)//"/rxff"//a6,form="unformatted",access="stream")
 
 read(10) NATOMS
 read(10) nstep 

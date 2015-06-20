@@ -2,6 +2,9 @@
 module atoms
 include 'mpif.h'
 !-------------------------------------------------------------------------------------------
+!--- command arguments 
+logical :: isFF=.false., isData=.false., isMDparm=.false.
+character(64) :: FFPath="ffield", DataPath="DAT", ParmPath="rxmd.in"
 
 !--- Size of I/O group for collective I/O 
 integer,parameter :: nio=1
@@ -62,10 +65,10 @@ integer,parameter :: is_idEh = 1
 !real(8),parameter :: cutof2_bo = 1d-4
 !integer,parameter :: is_idEh = 0
 
-!integer :: NBUFFER_N=91102
-!integer :: NBUFFER_P=86016
-!integer,parameter :: MAXNEIGHBS=12  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-!integer,parameter :: MAXNEIGHBS10=447 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+!integer :: NBUFFER_N=10000
+!integer :: NBUFFER_P=5000
+!integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer :: NBUFFER_N=50000
 integer :: NBUFFER_P=10000

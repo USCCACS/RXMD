@@ -31,7 +31,7 @@ real(8),allocatable :: rvdw1(:), eps(:), alf(:), vop(:)
 
 dnull = 0.d0
 !--- Start Getting Parameters
-open(4,file="ffield",status="old")
+open(4,file=trim(adjustl(FFPath)),status="old")
 read(4,'(a70)') pfile
 
 read(4,*) npar  !num of parameters (independ of atom choice)

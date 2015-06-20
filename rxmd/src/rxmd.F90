@@ -223,9 +223,11 @@ integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
 character(8) :: fname0
 character(6) :: a6
 character(9) :: a9
+character(128) :: FileName
 
 write(a6(1:6),'(i6.6)') myid
 write(a9(1:9),'(i9.9)') nstep + current_step
+FileName=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9
 
 !--- binary ------------------------------------------------------------------
 if(isBinary) then
@@ -239,8 +241,7 @@ endif
 !--- BondFile -------------------------------------------------------------
 if(isBondFile) then
 
-   !open(10,file="DAT/rxff"//a6//"-"//a9//".bnd")
-   open(10,file="DAT/"//a6//"/rxff"//a6//"-"//a9//".bnd")
+   open(10,file=trim(FileName)//".bnd")
 
    do i=1, NATOMS
       ity=atype(i)
@@ -275,7 +276,7 @@ endif
 
 !--- PDB ---------------------------------------------------------------------
 if(isPDB) then
-   open(10,file="DAT/"//a6//"/rxff"//a6//"-"//a9//".pdb")
+   open(10,file=trim(FileName)//".pdb")
 
    do i=1, NATOMS
 
