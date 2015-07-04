@@ -1,16 +1,18 @@
 # suffix rules
-.SUFFIXES: .o .F90
-.F90.o:
+.SUFFIXES: .o .F90 .cpp
+.F90.o: 
 	$(FC) -c $(CPP) $(OPT) $<
+.cpp.o: 
+	$(CC) -c $(CPP) $(OPT) $<
 
 # macros    
 # available options -DTIMING, -DSTRESS, -DDEBUG
 
 FC = mpif90 
-#FC = mpixlf2003_r
+CC = mpic++
 OPT = -O3 -g
 #CPP = -DSTRESS
-CPP =
+CPP = -DCFINTEROP
 
 #OPT = -O3 -qhot=level=0 -qimd=auto
 #LDFLAGS = -L/soft/perftools/hpctw -lmpihpm -L/soft/perftools/bgpm/lib -lbgpm 
@@ -23,6 +25,10 @@ OBJ = module.o init.o bo.o pot.o qeq.o param.o cg.o stress.o
 # explicit rules
 $(EXE): $(OBJ) $(EXE).o
 	$(FC) -o $(EXE) $(OBJ) $(EXE).o
+	mv $(EXE) ../rxmd
+
+interop: $(OBJ) $(EXE).o cpp_interop.o
+	$(FC) -o $(EXE) $(OBJ) $(EXE).o cpp_interop.o -lstdc++
 	mv $(EXE) ../rxmd
 
 clean:

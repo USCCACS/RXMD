@@ -1,5 +1,9 @@
 !-------------------------------------------------------------------------------------------
 module atoms
+#ifdef CFINTEROP
+use iso_c_binding 
+#endif
+
 include 'mpif.h'
 !-------------------------------------------------------------------------------------------
 !--- command arguments 
@@ -84,9 +88,16 @@ real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to d
 
 real(8),parameter :: pi=3.14159265358979d0
 
-real(8),allocatable :: pos(:,:),v(:,:), f(:,:), q(:)  !position, velocity, force & charge
-!atom type, local stress, atomic stress tensor, temperature
-real(8),allocatable :: atype(:), astr(:,:)
+! position, atom type, velocity, force & charge
+! local stress, atomic stress tensor
+#ifdef CFINTEROP
+real(c_double),allocatable,target :: pos(:,:),atype(:)
+#else
+real(8),allocatable :: pos(:,:),atype(:)
+#endif
+
+real(8),allocatable :: v(:,:), f(:,:), q(:)
+real(8),allocatable :: astr(:,:) 
 real(8) :: pint(3,3)
 
 !--- coefficient of bonding energy derivative 
@@ -373,3 +384,51 @@ real(8) :: ul(3,3)               !<ul> unit lattice vector
 real(8),parameter :: rshift = 0.0d0 !<rshift> shift atoms coordinate (not used)
 
 end module ustruct
+
+!------------------------------------------------------------------------------------------
+module interop
+!------------------------------------------------------------------------------------------
+use iso_c_binding
+implicit none
+
+interface
+    subroutine cpp_interop(param_ptr, pos_ptr, atype_ptr) bind(c, name="cpp_interop")
+        use iso_c_binding
+            type(c_ptr),value :: param_ptr
+            type(c_ptr),value :: pos_ptr
+            type(c_ptr),value :: atype_ptr
+    end subroutine
+end interface
+
+contains
+
+!-------------------------------------------------------------------------
+   subroutine print_atom()
+!-------------------------------------------------------------------------
+   use atoms
+   use iso_c_binding
+   implicit none
+   
+   integer,parameter :: NumInterOpParams=32
+   
+   type(c_ptr) :: param_ptr
+   type(c_ptr) :: pos_ptr
+   type(c_ptr) :: atype_ptr
+   
+   integer(c_int),allocatable,target :: param(:)
+   
+   allocate(param(NumInterOpParams))
+   
+   param(1)=NATOMS
+   param(2)=NBUFFER_P
+   param(3)=NBUFFER_N
+   
+   param_ptr = c_loc(param(1))
+   pos_ptr = c_loc(pos(1,1))
+   atype_ptr = c_loc(atype(1))
+   
+   call cpp_interop(param_ptr, pos_ptr, atype_ptr)
+   
+   end subroutine
+
+end module

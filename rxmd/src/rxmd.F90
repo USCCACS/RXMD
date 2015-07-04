@@ -1,6 +1,12 @@
 !------------------------------------------------------------------------------
 program rxmd
-use atoms;use parameters
+use atoms
+use parameters
+
+#ifdef CFINTEROP
+use interop
+#endif
+
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,i1, j,j1, k, n,ity,jty,it1,it2,irt
@@ -17,6 +23,13 @@ CALL GETPARAMS()
 !--- initialize the MD system
 CALL INITSYSTEM()
 call OUTPUT(0)
+
+#ifdef CFINTEROP
+!--- A test for Fortran03/C++ interoperability
+call print_atom()
+call MPI_FINALIZE(ierr)
+stop
+#endif
 
 if(mdmode==10) call conjugate_gradient()
 
