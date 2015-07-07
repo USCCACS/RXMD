@@ -1,12 +1,9 @@
 !------------------------------------------------------------------------------
 program rxmd
-use atoms
-use parameters
-
-#ifdef CFINTEROP
-use interop
+use atoms; use parameters
+#ifdef INTEROP
+use interop 
 #endif
-
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,i1, j,j1, k, n,ity,jty,it1,it2,irt
@@ -24,17 +21,15 @@ CALL GETPARAMS()
 CALL INITSYSTEM()
 call OUTPUT(0)
 
-#ifdef CFINTEROP
-!--- A test for Fortran03/C++ interoperability
-call print_atom()
-call MPI_FINALIZE(ierr)
-stop
-#endif
-
 if(mdmode==10) call conjugate_gradient()
 
 call QEq(NCELL10)
 call FORCE()
+
+#ifdef INTEROP
+!--- A test for Fortran03/C++ interoperability
+call print_atom()
+#endif
 
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
@@ -231,7 +226,7 @@ implicit none
 integer,intent(IN) :: imode 
 integer :: i, ity, j, j1, jty, m, n,n3, cstep
 integer :: l2g
-real(8) :: ri(3), rj(3), bndordr(MAXNEIGHBS), tt, ss
+real(8) :: ri(3), rj(3), bndordr(MAXNEIGHBS), tt=0.d0, ss=0.d0
 integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
 character(8) :: fname0
 character(6) :: a6
