@@ -1,11 +1,15 @@
 !-------------------------------------------------------------------------------------------
 module atoms
-#ifdef CFINTEROP
+!-------------------------------------------------------------------------------------------
+#ifdef INTEROP
 use iso_c_binding 
+#else 
+#define c_double 8
+#define c_int 4
 #endif
 
 include 'mpif.h'
-!-------------------------------------------------------------------------------------------
+
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 character(64) :: FFPath="ffield", DataPath="DAT", ParmPath="rxmd.in"
@@ -90,11 +94,7 @@ real(8),parameter :: pi=3.14159265358979d0
 
 ! position, atom type, velocity, force & charge
 ! local stress, atomic stress tensor
-#ifdef CFINTEROP
-real(c_double),allocatable,target :: pos(:,:),atype(:)
-#else
-real(8),allocatable :: pos(:,:),atype(:)
-#endif
+real(kind=c_double),allocatable,target :: pos(:,:),atype(:)
 
 real(8),allocatable :: v(:,:), f(:,:), q(:)
 real(8),allocatable :: astr(:,:) 
@@ -116,7 +116,7 @@ integer(8) :: GNATOMS     !global # of atoms
 integer,allocatable :: header(:,:,:), nacell(:,:,:)
 
 !<nbrlist> neighbor list, <nbrindx> neighbor index
-integer,allocatable :: nbrlist(:,:), nbrindx(:,:)
+integer(kind=c_int),allocatable,target :: nbrlist(:,:), nbrindx(:,:)
 !<nbblist> neighbor list of nonbonding interaction
 !<nbbr2> distances of all nonbonding pairs
 integer,allocatable :: nbblist(:)
@@ -126,7 +126,7 @@ real(8),allocatable :: nbbr2(:)
 integer,allocatable :: llist(:)
 
 !<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
-real(8),allocatable :: BO(:,:,:) 
+real(kind=c_double),allocatable,target :: BO(:,:,:) 
 real(8),allocatable :: delta(:)
 
 !--- Output variables from the BOp_CALC() subroutine:
@@ -385,6 +385,7 @@ real(8),parameter :: rshift = 0.0d0 !<rshift> shift atoms coordinate (not used)
 
 end module ustruct
 
+#ifdef INTEROP
 !------------------------------------------------------------------------------------------
 module interop
 !------------------------------------------------------------------------------------------
@@ -392,11 +393,14 @@ use iso_c_binding
 implicit none
 
 interface
-    subroutine cpp_interop(param_ptr, pos_ptr, atype_ptr) bind(c, name="cpp_interop")
+    subroutine CppInterface(param_ptr, pos_ptr, atype_ptr, nbrlist_ptr, bo_ptr) &
+               bind(c, name="CppInterface")
         use iso_c_binding
             type(c_ptr),value :: param_ptr
             type(c_ptr),value :: pos_ptr
             type(c_ptr),value :: atype_ptr
+            type(c_ptr),value :: nbrlist_ptr
+            type(c_ptr),value :: bo_ptr
     end subroutine
 end interface
 
@@ -411,24 +415,33 @@ contains
    
    integer,parameter :: NumInterOpParams=32
    
-   type(c_ptr) :: param_ptr
-   type(c_ptr) :: pos_ptr
-   type(c_ptr) :: atype_ptr
+   type(c_ptr) :: param_ptr, pos_ptr, atype_ptr
+   type(c_ptr) :: nbrlist_ptr, bo_ptr
    
-   integer(c_int),allocatable,target :: param(:)
+   integer(c_int),allocatable,target :: ParamCppInterface(:)
    
-   allocate(param(NumInterOpParams))
+   allocate(ParamCppInterface(NumInterOpParams))
    
-   param(1)=NATOMS
-   param(2)=NBUFFER_P
-   param(3)=NBUFFER_N
+   ParamCppInterface(1)=myid
+   ParamCppInterface(2)=NATOMS
+   ParamCppInterface(3)=NBUFFER_P
+   ParamCppInterface(4)=NBUFFER_N
+   ParamCppInterface(5)=MAXNEIGHBS
    
-   param_ptr = c_loc(param(1))
+   param_ptr = c_loc(paramCppInterface(1))
    pos_ptr = c_loc(pos(1,1))
    atype_ptr = c_loc(atype(1))
+   nbrlist_ptr = c_loc(nbrlist(1,0))
+   bo_ptr = c_loc(bo(0,1,1))
    
-   call cpp_interop(param_ptr, pos_ptr, atype_ptr)
+   call CppInterface(param_ptr, pos_ptr, atype_ptr, nbrlist_ptr, bo_ptr)
+
+   deallocate(ParamCppInterface)
+
+   call MPI_FINALIZE(ierr)
+   stop
    
    end subroutine
 
 end module
+#endif
