@@ -7,7 +7,7 @@
 %.o: %.mod
 
 FC = mpif90 
-CC = mpic++ -std=c++11
+CC = mpic++
 OPT = -O3 -g
 
 SRCS := module.F90 main.F90 init.F90 bo.F90 pot.F90 qeq.F90 param.F90 cg.F90 stress.F90
@@ -17,7 +17,7 @@ CPP =
 #OPT = -O3 -qhot=level=0 -qimd=auto
 #LDFLAGS = -L/soft/perftools/hpctw -lmpihpm -L/soft/perftools/bgpm/lib -lbgpm 
 
-EXE = rxmd-cpp
+EXE = rxmd
 
 ifeq ($(EXE),rxmd-cpp)
   CPPSRCS := Basic.cpp cpp_interface.cpp
