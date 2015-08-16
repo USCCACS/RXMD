@@ -1,0 +1,6 @@
+#!/bin/sh
+
+mode=$1
+nprocs=$2
+AP_OUTPUT_LOCAL=1
+runjob -p ${mode} --np ${nprocs} --block ${COBALT_PARTNAME} --verbose=INFO : ./rxmd > log

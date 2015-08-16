@@ -1,0 +1,17 @@
+#!/bin/sh
+nodes=1
+mode=4
+nprocs=`bc <<<${nodes}*${mode}`
+proj=PetaSimNano
+queue=default
+output=adj-${nodes}-${mode}
+
+export nodes mode nprocs
+
+if [ -z $1 ]; then
+  dep=""
+else
+  dep="--dependencies $1"
+fi
+
+qsub -t 30  ${dep} -A ${proj} -q ${queue} -n ${nodes} --mode script -O ${output} run.sh_ap $mode $nprocs
