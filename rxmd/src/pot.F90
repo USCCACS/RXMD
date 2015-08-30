@@ -563,7 +563,7 @@ integer :: i,j,k, i1,j1,k1, ii,jj,kk, c1,c2,c3,c4,c5,c6, mn
 integer :: ity,jty,kty,inxnhb
 real(8) :: rij(0:3), rjk(0:3), rik(3), rik2
 real(8) :: theta_ijk, cos_ijk, sin_ijk_half
-real(8) :: sin_ijk, cos_xhz3, sin_xhz8, exp_hb2, exp_hb3
+real(8) :: sin_ijk, cos_xhz1, sin_xhz4, exp_hb2, exp_hb3
 real(8) :: PEhb, CEhb(3), ff(3), dr(3)
 real(8) :: get_exp
 
@@ -616,18 +616,18 @@ do c3=0, cc(3)-1
                      theta_ijk = acos(cos_ijk)
       
                      sin_ijk_half = sin(0.5d0*theta_ijk)
-                     sin_xhz8 = sin_ijk_half**8
-                     cos_xhz3 = ( 1.d0 - cos_ijk )**3
+                     sin_xhz4 = sin_ijk_half**4
+                     cos_xhz1 = ( 1.d0 - cos_ijk )
       
                      exp_hb2 = exp( -phb2(inxnhb)*BO(0,i,j1) )
                      exp_hb3 = exp( -phb3(inxnhb)*(r0hb(inxnhb)/rjk(0) + rjk(0)/r0hb(inxnhb) - 2.d0) )
       
-                     PEhb = phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*sin_xhz8
+                     PEhb = phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*sin_xhz4
 
                      PE(10) = PE(10) + PEhb
       
-                     CEhb(1) = phb1(inxnhb)*phb2(inxnhb)*exp_hb2*exp_hb3*sin_xhz8
-                     CEhb(2) =-0.25d0*phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*cos_xhz3
+                     CEhb(1) = phb1(inxnhb)*phb2(inxnhb)*exp_hb2*exp_hb3*sin_xhz4
+                     CEhb(2) =-0.5d0*phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*cos_xhz1
                      CEhb(3) =-PEhb*phb3(inxnhb)*( -r0hb(inxnhb)/rjk(0)**2 + 1.d0/r0hb(inxnhb) )*(1.d0/rjk(0))
 
                      i1 = nbrindx(i,j1)
