@@ -233,6 +233,13 @@ character(6) :: a6
 character(9) :: a9
 character(128) :: FileName
 
+integer,parameter :: PDBLineSize=67
+character(PDBLineSize) :: PDBOneLine
+integer (kind=MPI_OFFSET_KIND) :: offsetIO
+integer :: localDataSize
+integer :: fh ! file handler
+
+
 write(a6(1:6),'(i6.6)') myid
 write(a9(1:9),'(i9.9)') nstep + current_step
 FileName=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9
@@ -284,9 +291,20 @@ endif
 
 !--- PDB ---------------------------------------------------------------------
 if(isPDB) then
-   open(10,file=trim(FileName)//".pdb")
 
-   do i=1, NATOMS
+    ! get local datasize
+    localDataSize=NATOMS*PDBLineSize
+
+    ! offsetIO will point the end of local write after the scan
+    call MPI_Scan(localDataSize,offsetIO,1,MPI_Int,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    ! set offsetIO at the beginning of the local write
+    offsetIO=offsetIO-localDataSize
+
+    call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".pdb", &
+        MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+    do i=1, NATOMS
 
       ity = atype(i)
 !--- calculate atomic temperature 
@@ -304,22 +322,31 @@ if(isPDB) then
       igd = l2g(atype(i))
       select case(ity)
         case(1) 
-          write(10,100)'ATOM  ',0, 'C', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0, 'C', igd, pos(1:3,i), tt, ss
         case(2) 
-          write(10,100)'ATOM  ',0, 'H', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0, 'H', igd, pos(1:3,i), tt, ss
         case(3) 
-          write(10,100)'ATOM  ',0, 'O', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0, 'O', igd, pos(1:3,i), tt, ss
         case(4) 
-          write(10,100)'ATOM  ',0, 'N', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0, 'N', igd, pos(1:3,i), tt, ss
         case(5) 
-          write(10,100)'ATOM  ',0, 'S', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0, 'S', igd, pos(1:3,i), tt, ss
         case(6) 
-          write(10,100)'ATOM  ',0,'Si', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0,'Si', igd, pos(1:3,i), tt, ss
         case(7) 
-          write(10,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
+          write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
       end select
-   enddo
-   close(10)
+        PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
+
+        call MPI_File_Seek(fh,offsetIO,MPI_SEEK_SET,ierr)
+        call MPI_File_Write(fh,PDBOneLine,PDBLineSize, &
+            MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+
+        offsetIO=offsetIO+PDBLineSize
+    enddo
+
+    call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+    call MPI_File_Close(fh,ierr)
 endif
 100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
 !-------------------------------------------------------------------- PDB ----
