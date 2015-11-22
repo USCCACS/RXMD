@@ -71,6 +71,7 @@ do nstep=0, ntime_step-1
    if(mod(nstep,qstep)==0) call QEq(NCELL10)
    call FORCE()
 
+
 !--- update velocity
    call vkick(1.d0) 
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
@@ -233,12 +234,17 @@ character(6) :: a6
 character(9) :: a9
 character(128) :: FileName
 
-integer,parameter :: PDBLineSize=67
-character(PDBLineSize) :: PDBOneLine
 integer (kind=MPI_OFFSET_KIND) :: offsetIO
 integer :: localDataSize
 integer :: fh ! file handler
 
+integer,parameter :: PDBLineSize=67
+character(PDBLineSize) :: PDBOneLine
+
+integer :: BNDLineSize
+integer,parameter :: MaxBNDLineSize=512
+character(MaxBNDLineSize) :: BNDOneLine
+real(8),parameter :: BNDcutoff=0.3d0
 
 write(a6(1:6),'(i6.6)') myid
 write(a9(1:9),'(i9.9)') nstep + current_step
@@ -256,10 +262,35 @@ endif
 !--- BondFile -------------------------------------------------------------
 if(isBondFile) then
 
-   open(10,file=trim(FileName)//".bnd")
+    ! precompute the total # of neighbors
+    m=0
+    do i=1, NATOMS
+        do j1 = 1, nbrlist(i,0)
+!--- don't count if BO is less than BNDcutoff.
+            if(BO(0,i,j1) > BNDcutoff) then 
+                m=m+1
+            endif
+        enddo
+    enddo
+
+200 format(i9,1x,3f9.3,1x,2i3,20(i9,f6.3)) 
+
+    ! get local datasize based on above format and the total # of neighbors
+    localDataSize=NATOMS*(9+1+3*9+1+2*3 +1)+m*(9+6)
+
+    ! offsetIO will point the end of local write after the scan
+    call MPI_Scan(localDataSize,offsetIO,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    ! set offsetIO at the beginning of the local write
+    offsetIO=offsetIO-localDataSize
+
+    call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bnd", &
+        MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+   !open(10,file=trim(FileName)//".bnd")
 
    do i=1, NATOMS
-      ity=atype(i)
+      ity = atype(i)
 !--- get global ID for i-atom
       igd = l2g(atype(i))
 
@@ -280,11 +311,23 @@ if(isBondFile) then
          bndordr(bndlist(0)) = BO(0,i,j1)
       enddo
 
-      write(10,'(i9,1x,3f9.3,1x,2i3,30(i9,f6.3))') &
-      igd, pos(1:3,i),int(atype(i)),bndlist(0),(bndlist(j1),bndordr(j1),j1=1,bndlist(0))
+        BNDOneLine=""
+        write(BNDOneLine,200) igd, pos(1:3,i),int(atype(i)),bndlist(0), &
+            (bndlist(j1),bndordr(j1),j1=1,bndlist(0))
+        ! remove space and add new_line
+        BNDOneLine=trim(BNDOneLine)//NEW_LINE('A')
+        BNDLineSize=len(trim(BNDOneLine))
+
+        call MPI_File_Seek(fh,offsetIO,MPI_SEEK_SET,ierr)
+        call MPI_File_Write(fh,BNDOneLine,BNDLineSize, &
+            MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+
+        offsetIO=offsetIO+BNDLineSize
 
    enddo
-   close(10)
+   !close(10)
+    call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+    call MPI_File_Close(fh,ierr)
 
 endif
 !------------------------------------------------------------ BondFile ----
@@ -296,7 +339,9 @@ if(isPDB) then
     localDataSize=NATOMS*PDBLineSize
 
     ! offsetIO will point the end of local write after the scan
-    call MPI_Scan(localDataSize,offsetIO,1,MPI_Int,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call MPI_Scan(localDataSize,offsetIO,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    if(myid==nprocs-1) print*,'offsetIO',offsetIO
 
     ! set offsetIO at the beginning of the local write
     offsetIO=offsetIO-localDataSize

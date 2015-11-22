@@ -34,10 +34,3 @@ $(EXE): $(OBJS)
 
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h
-
-# implicit rules
-init.o: module.o
-bo.o: module.o
-pot.o: module.o
-qeq.o: module.o
-param.o: module.o
