@@ -234,7 +234,8 @@ character(6) :: a6
 character(9) :: a9
 character(128) :: FileName
 
-integer (kind=MPI_OFFSET_KIND) :: offsetIO
+integer (kind=MPI_OFFSET_KIND) :: offset
+integer (kind=MPI_OFFSET_KIND) :: fileSize
 integer :: localDataSize
 integer :: fh ! file handler
 
@@ -278,14 +279,20 @@ if(isBondFile) then
     ! get local datasize based on above format and the total # of neighbors
     localDataSize=NATOMS*(9+1+3*9+1+2*3 +1)+m*(9+6)
 
-    ! offsetIO will point the end of local write after the scan
-    call MPI_Scan(localDataSize,offsetIO,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-    ! set offsetIO at the beginning of the local write
-    offsetIO=offsetIO-localDataSize
-
     call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bnd", &
         MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+    ! offset will point the end of local write after the scan
+    call MPI_Scan(localDataSize,offset,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    ! nprocs-1 rank has the total data size
+    fileSize=offset
+    call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+    call MPI_File_set_size(fh, fileSize, ierr)
+
+    ! set offset at the beginning of the local write
+    offset=offset-localDataSize
+
 
    !open(10,file=trim(FileName)//".bnd")
 
@@ -318,11 +325,11 @@ if(isBondFile) then
         BNDOneLine=trim(BNDOneLine)//NEW_LINE('A')
         BNDLineSize=len(trim(BNDOneLine))
 
-        call MPI_File_Seek(fh,offsetIO,MPI_SEEK_SET,ierr)
+        call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
         call MPI_File_Write(fh,BNDOneLine,BNDLineSize, &
             MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
 
-        offsetIO=offsetIO+BNDLineSize
+        offset=offset+BNDLineSize
 
    enddo
    !close(10)
@@ -338,16 +345,19 @@ if(isPDB) then
     ! get local datasize
     localDataSize=NATOMS*PDBLineSize
 
-    ! offsetIO will point the end of local write after the scan
-    call MPI_Scan(localDataSize,offsetIO,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-    if(myid==nprocs-1) print*,'offsetIO',offsetIO
-
-    ! set offsetIO at the beginning of the local write
-    offsetIO=offsetIO-localDataSize
-
     call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".pdb", &
         MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+    ! offset will point the end of local write after the scan
+    call MPI_Scan(localDataSize,offset,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    ! nprocs-1 rank has the total data size
+    fileSize=offset
+    call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+    call MPI_File_set_size(fh, fileSize, ierr)
+
+    ! set offset at the beginning of the local write
+    offset=offset-localDataSize
 
     do i=1, NATOMS
 
@@ -383,11 +393,11 @@ if(isPDB) then
       end select
         PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
 
-        call MPI_File_Seek(fh,offsetIO,MPI_SEEK_SET,ierr)
+        call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
         call MPI_File_Write(fh,PDBOneLine,PDBLineSize, &
             MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
 
-        offsetIO=offsetIO+PDBLineSize
+        offset=offset+PDBLineSize
     enddo
 
     call MPI_BARRIER(MPI_COMM_WORLD, ierr)

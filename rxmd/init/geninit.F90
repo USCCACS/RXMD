@@ -1,12 +1,12 @@
 module params
 implicit none
-!integer,parameter :: vprocs(3)=(/2,2,2/)
-!integer,parameter :: nio=1
-!integer,parameter :: mc(3)=(/2,3,3/)
-
-integer,parameter :: vprocs(3)=(/8,8,8/)
+integer,parameter :: vprocs(3)=(/2,2,2/)
 integer,parameter :: nio=1
-integer,parameter :: mc(3)=(/16,14,14/)
+integer,parameter :: mc(3)=(/2,3,3/)
+
+!integer,parameter :: vprocs(3)=(/8,8,8/)
+!integer,parameter :: nio=1
+!integer,parameter :: mc(3)=(/16,14,14/)
 
 integer,parameter :: nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 integer,parameter :: mctot=mc(1)*mc(2)*mc(3)
