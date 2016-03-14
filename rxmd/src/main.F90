@@ -225,7 +225,7 @@ use atoms; use parameters
 !----------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: imode 
-integer :: i, ity, j, j1, jty, m, n,n3, cstep
+integer :: i, ity, j, j1, jty, m, n,n3, cstep, iscan
 integer :: l2g
 real(8) :: ri(3), rj(3), bndordr(MAXNEIGHBS), tt=0.d0, ss=0.d0
 integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
@@ -247,15 +247,72 @@ integer,parameter :: MaxBNDLineSize=512
 character(MaxBNDLineSize) :: BNDOneLine
 real(8),parameter :: BNDcutoff=0.3d0
 
+! buffers for .bin file
+integer :: i2(2), scanbuf
+real(8) :: d10(10)
+
 write(a6(1:6),'(i6.6)') myid
 write(a9(1:9),'(i9.9)') nstep + current_step
 FileName=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9
 
 !--- binary ------------------------------------------------------------------
 if(isBinary) then
-  call xu2xs()
-  call coio_write(imode)
-  call xs2xu()
+  !call xu2xs()
+  !call coio_write(imode)
+  !call xs2xu()
+
+  ! Get local datasize:
+  ! 2 integers for Natoms & MDstep + 6 doubles for lattice parameters, 
+  ! and 10 doubles for each atoms
+  localDataSize = 2*4 + 6*8 + 10*8*NATOMS
+
+  call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bin", &
+      MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+  ! offset will point the end of local write after the scan
+  call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+  ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+  offset=scanbuf
+
+  ! nprocs-1 rank has the total data size
+  fileSize=offset
+  call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+  call MPI_File_set_size(fh, fileSize, ierr)
+
+  ! set offset at the beginning of the local write
+  offset=offset-localDataSize
+  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+
+  i2(1:2)=(/NATOMS, nstep + current_step/)
+  call MPI_File_Write(fh,i2,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+
+  offset=offset+2*4 ! 2 x 4bytes
+  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+
+  d10(1:6)=(/lata,latb,latc,lalpha,lbeta,lgamma/)
+  call MPI_File_Write(fh,d10,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
+  offset=offset+6*8 ! 6 x 8bytes
+  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+
+  do i=1, NATOMS
+     d10(1:3)=pos(1:3,i)
+     d10(4:6)=v(1:3,i)
+     d10(7)=q(i)
+     d10(8)=atype(i)
+     d10(9)=qsfp(i)
+     d10(10)=qsfv(i)
+
+     call MPI_File_Write(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
+     offset=offset+10*8 ! 10 x 8bytes
+     call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+  enddo
+
+  call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+  call MPI_File_Close(fh,ierr)
+
 endif
 !------------------------------------------------------------------ binary ---
 
@@ -283,7 +340,10 @@ if(isBondFile) then
         MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
     ! offset will point the end of local write after the scan
-    call MPI_Scan(localDataSize,offset,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+    offset=scanbuf
 
     ! nprocs-1 rank has the total data size
     fileSize=offset
@@ -349,7 +409,10 @@ if(isPDB) then
         MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
     ! offset will point the end of local write after the scan
-    call MPI_Scan(localDataSize,offset,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+    call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+    ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+    offset=scanbuf
 
     ! nprocs-1 rank has the total data size
     fileSize=offset
