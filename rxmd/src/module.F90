@@ -78,9 +78,9 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER_N=50000
-integer :: NBUFFER_P=10000
-integer,parameter :: MAXNEIGHBS=60  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer :: NBUFFER_N=20000
+integer :: NBUFFER_P=5000
+integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=600 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
@@ -116,7 +116,8 @@ integer(8) :: GNATOMS     !global # of atoms
 integer,allocatable :: header(:,:,:), nacell(:,:,:)
 
 !<nbrlist> neighbor list, <nbrindx> neighbor index
-integer(kind=c_int),allocatable,target :: nbrlist(:,:), nbrindx(:,:)
+integer(kind=c_int),pointer :: nbrlist(:,:), nbrindx(:,:)
+
 !<nbblist> neighbor list of nonbonding interaction
 !<nbbr2> distances of all nonbonding pairs
 integer,allocatable :: nbblist(:)
@@ -126,19 +127,24 @@ real(8),allocatable :: nbbr2(:)
 integer,allocatable :: llist(:)
 
 !<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
-real(kind=c_double),allocatable,target :: BO(:,:,:) 
+real(kind=c_double),pointer :: BO(:,:,:) 
+
 real(8),allocatable :: delta(:)
+
 
 !--- Output variables from the BOp_CALC() subroutine:
 real(8),allocatable :: deltap(:,:)
-real(8),allocatable :: dln_BOp(:,:,:)
-real(8),allocatable :: dBOp(:,:)
+
+real(8),pointer :: dln_BOp(:,:,:)
+
+real(8),pointer :: dBOp(:,:)
+
 
 !--- For NEW DBO calc:
 real(8),allocatable :: exp_delt1(:,:), exp_delt2(:,:)  ! exp( -pboc#(inxn) * deltap(i,1) ) - {inxn, i}   
 
 !--- A[0123] coefficients for force calculation 
-real(8),allocatable :: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
+real(8),pointer:: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
 
 !--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
 real(8),allocatable :: switch(:,:) 

@@ -112,7 +112,7 @@ do c3=-nlayer, cc(3)-1+nlayer
                 bo(0:3,j,i1) = 0.d0
              endif
            endif
-!           call checker(i,j,0,0,BOp(0,i,j1),dBOp(i,j1)*dr(1:3)) 
+
          endif
       enddo
  
@@ -325,6 +325,8 @@ do c3=-nlayer, cc(3)-1+nlayer
       i=llist(i)
    enddo
 enddo; enddo; enddo
+
+!call UpdateNeighborlist(NMINCELL)
 
 END SUBROUTINE
 

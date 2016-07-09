@@ -183,6 +183,7 @@ allocate(nacell(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAX
 
 !--- Bond Order Prime and deriv terms:
 allocate(dln_BOp(3,-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), dBOp(-NBUFFER_N:NBUFFER_P,MAXNEIGHBS), stat=ast); ist=ist+ast
+
 allocate(deltap(-NBUFFER_N:NBUFFER_P, 3), stat=ast); ist=ist+ast
 
 !--- Bond Order terms
@@ -191,6 +192,7 @@ allocate(A0(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast
 allocate(A1(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast 
 allocate(A2(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast 
 allocate(A3(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast 
+
 allocate(nlp(-NBUFFER_N:NBUFFER_P), dDlp(-NBUFFER_N:NBUFFER_P), stat=ast); ist=ist+ast
 
 allocate(ccbnd(-NBUFFER_N:NBUFFER_P), stat=ast); ist=ist+ast

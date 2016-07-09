@@ -496,8 +496,8 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine NEIGHBORLIST(nlayer)
-! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 use atoms; use parameters
+! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 !----------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: nlayer
@@ -563,21 +563,122 @@ if(mod(nstep,pstep)==0) then
   maxas(nstep/pstep+1,2)=maxval(nbrlist(1:NATOMS,0))
 endif
 
-!do n=1,NATOMS
-!  print*,'------------------------------------------'
-!  print*,l2g(atype(n)),nbrlist(n,0),  nbrlist(n,-1), atype(n)
-!  print*,(mod(l2g(atype(nbrlist(n,m)))-1,168)+1,m=1,nbrlist(n,0) )
-!  print*,int(atype(nbrlist(n,1:nbrlist(n,0))))
-!  print*,nbrindx(n,1:nbrlist(n,0))
-!enddo
-!stop 'neighbor'
+end subroutine
+
+!----------------------------------------------------------------------
+subroutine UpdateNeighborlist(nlayer)
+use atoms; use parameters
+! Update neighborlist and associated variables based on bond-order
+!----------------------------------------------------------------------
+implicit none
+integer,intent(IN) :: nlayer
+integer :: n,i,j,i1,ii,jj,ii1,jj1,j1,c1,c2,c3
+
+integer,pointer,dimension(:,:) :: nbrlist_,nbrindx_
+real(8),pointer,dimension(:,:) :: dBOp_, A0_, A1_, A2_, A3_
+real(8),pointer,dimension(:,:,:) :: dln_BOp_, BO_
+
+real(8),parameter :: BORC = 1.d-4
+
+allocate(nbrlist_(-NBUFFER_N:NBUFFER_P,0:MAXNEIGHBS))
+allocate(nbrindx_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+
+allocate(dln_BOp_(3,-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+allocate(dBOp_(-NBUFFER_N:NBUFFER_P,MAXNEIGHBS))
+allocate(BO_(0:3,-NBUFFER_N:NBUFFER_P,MAXNEIGHBS))
+allocate(A0_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+allocate(A1_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+allocate(A2_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+allocate(A3_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+
+nbrlist_(:,0)=0
+
+DO c1=-nlayer, cc(1)-1+nlayer
+DO c2=-nlayer, cc(2)-1+nlayer
+DO c3=-nlayer, cc(3)-1+nlayer
+
+  i = header(c1, c2, c3)
+  do n = 1, nacell(c1, c2, c3)
+
+     do j1 = 1, nbrlist(i,0)
+        j = nbrlist(i,j1)
+
+        if(i<j) then
+        if(BO(0,i,j1)>BORC) then
+           nbrlist_(i, 0) = nbrlist_(i, 0) + 1
+           nbrlist_(j, 0) = nbrlist_(j, 0) + 1
+           nbrlist_(i, nbrlist_(i, 0)) = j
+           nbrlist_(j, nbrlist_(j, 0)) = i
+           nbrindx_(i, nbrlist_(i, 0)) = nbrlist_(j, 0)
+           nbrindx_(j, nbrlist_(j, 0)) = nbrlist_(i, 0)
+        endif
+        endif
+
+     enddo
+
+     i = llist(i)
+  enddo
+enddo; enddo; enddo
+
+DO c1=-nlayer, cc(1)-1+nlayer
+DO c2=-nlayer, cc(2)-1+nlayer
+DO c3=-nlayer, cc(3)-1+nlayer
+
+  i = header(c1, c2, c3)
+  do n = 1, nacell(c1, c2, c3)
+
+     do j1 = 1, nbrlist(i,0)
+        j = nbrlist(i,j1)
+        i1 = nbrindx(i,j1)
+
+        if(i<j) then
+           do jj1 = 1, nbrlist_(i,0)
+              jj = nbrlist_(i,jj1)
+              ii1 = nbrindx_(i,jj1)
+   
+              if(j==jj) then
+                 BO_(0:3,i,jj1)=BO(0:3,i,j1)
+                 dln_BOp_(1:3,i,jj1)=dln_BOp(1:3,i,j1)
+                 dBOp_(i,jj1)=dBOp(i,j1)
+                 A0_(i,jj1)=A0(i,j1)
+                 A1_(i,jj1)=A1(i,j1)
+                 A2_(i,jj1)=A2(i,j1)
+                 A3_(i,jj1)=A3(i,j1)
+   
+                 BO_(0:3,j,ii1)=BO(0:3,j,i1)
+                 dln_BOp_(1:3,j,ii1)=dln_BOp(1:3,j,i1)
+                 dBOp_(j,ii1)=dBOp(j,i1)
+                 A0_(j,ii1)=A0(j,i1)
+                 A1_(j,ii1)=A1(j,i1)
+                 A2_(j,ii1)=A2(j,i1)
+                 A3_(j,ii1)=A3(j,i1)
+              endif
+   
+           enddo
+        endif
+
+     enddo
+
+     i = llist(i)
+  enddo
+enddo; enddo; enddo
+
+deallocate(nbrlist, nbrindx)
+deallocate(dln_BOp, dBOp, BO)
+deallocate(A0, A1, A2, A3)
+
+nbrlist=>nbrlist_
+nbrindx=>nbrindx_
+BO=>BO_;  dBOp=>dBOp_;  dln_BOp=>dln_BOp_
+A0=>A0_;  A1=>A1_;  A2=>A2_;  A3=>A3_
 
 end subroutine
 
-!--------------------------------------------------------------------------------------------------------------
+
+!----------------------------------------------------------------------
 subroutine angular_momentum()
 use atoms; use parameters
-!--------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------
 implicit none
 integer :: i,ity
 real(8) :: com(3), Gcom(3), intsr(3,3), Gintsr(3,3), intsr_i(3,3), angm(3), Gangm(3), angv(3), mm, Gmm
