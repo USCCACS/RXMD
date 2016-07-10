@@ -10,8 +10,6 @@ integer :: i,i1, j,j1, k, n,ity,jty,it1,it2,irt
 real(8) :: ctmp
 integer :: l2g, igd
 
-call omp_set_num_threads(2)
-
 call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
@@ -248,9 +246,12 @@ FileName=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9
 
 !--- binary ------------------------------------------------------------------
 if(isBinary) then
-  !call xu2xs()
-  !call coio_write(imode)
-  !call xs2xu()
+  call xu2xs()
+  call coio_write(imode)
+  call xs2xu()
+
+  ! TODO: MPI-IO for binary files is still under development.
+  return
 
   ! Get local datasize:
   ! 2 integers for Natoms & MDstep + 6 doubles for lattice parameters, 
@@ -463,7 +464,7 @@ end subroutine
 !----------------------------------------------------------------------------------------
 subroutine LINKEDLIST()
 use atoms
-! partitions the volume into linked-list cells with minimum cless size <lcsize>
+! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
 integer :: n,n0,l(3), c1,c2,c3, j
@@ -479,6 +480,40 @@ do n=1, NATOMS
    header(l(1), l(2), l(3)) = n
    nacell(l(1), l(2), l(3)) = nacell(l(1), l(2), l(3)) + 1
 enddo
+
+end subroutine 
+
+!----------------------------------------------------------------------------------------
+subroutine NBLINKEDLIST()
+use atoms
+! partitions the volume into linked-list cells <lcsize> for non-bonding interactions
+!----------------------------------------------------------------------------------------
+implicit none
+integer :: n,n1, l(3), c1,c2,c3, j
+
+nbheader(:,:,:) = -1; nbllist(:) = 0; nbnacell(:,:,:)=0
+
+! TODO: NCELL10 is used here mainly because COPYATOMS is tightly coupled with the linkedlist
+! logic. just give cutoff lengths to COPYATOMS instead of # of LL cells?
+do c1=-NCELL10, cc(1)-1+NCELL10
+do c2=-NCELL10, cc(2)-1+NCELL10
+do c3=-NCELL10, cc(3)-1+NCELL10
+
+  n = header(c1, c2, c3)
+  do n1=1, nacell(c1, c2, c3)
+
+     l(1:3) = pos(1:3,n)/nblcsize(1:3)
+     do j=1,3
+        if(pos(j,n)<0.d0) l(j) = l(j) - 1
+     enddo
+     nbllist(n) = nbheader(l(1), l(2), l(3))
+     nbheader(l(1), l(2), l(3)) = n
+     nbnacell(l(1), l(2), l(3)) = nbnacell(l(1), l(2), l(3)) + 1
+
+     n = llist(n)
+  enddo
+
+enddo; enddo; enddo
 
 end subroutine 
 

@@ -1,6 +1,7 @@
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITSYSTEM( )
-use parameters; use atoms; use ustruct
+!use parameters; use atoms; use ustruct
+use parameters; use atoms
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
@@ -8,9 +9,10 @@ implicit none
 
 integer :: i,j,k, ix,iy,iz,ii, n, m, m3, p,s, inxn, ity, jty, l(3), sID, ist=0
 real(8) :: dr, dr2, rr(3), mm, gmm, dns, mat(3,3)
-real(8) :: rcsize(3),maxrcell, rcmesh2
-integer :: imesh(3), maximesh, uflag
 integer(8) :: i8
+real(8) :: rcsize(3), maxrcell, rcmesh2
+integer :: imesh(3), maximesh
+
 character(8) :: fname0
 character(2) :: ctype
 character(6) :: a6
@@ -63,7 +65,7 @@ endif
 if(mdmode==0) then
   if(myid==0) then
     print'(a,f12.3,a,i6,a)', &
-         'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities is scaled to ', &
+         'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities are scaled to ', &
           treq, ' [K] every ', sstep, ' steps.'
   endif
   isQEq=1
@@ -332,7 +334,6 @@ scl2(1:3,1:2, 4, 0:MAXLAYERS) = scl1(1:3,1:2, 3, 0:MAXLAYERS)
 scl2(1:3,1:2, 5, 0:MAXLAYERS) = scl1(1:3,1:2, 6, 0:MAXLAYERS)
 scl2(1:3,1:2, 6, 0:MAXLAYERS) = scl1(1:3,1:2, 5, 0:MAXLAYERS)
 
-
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 !--- get real size of linked list cell
 rcsize(1) = lata/vprocs(1)/cc(1)
@@ -370,6 +371,8 @@ do k=-imesh(3), imesh(3)
 enddo
 enddo
 enddo
+
+!call GetNonbondingMesh()
 
 !--- get density 
 mm = 0.d0
@@ -496,7 +499,6 @@ GKE = GKE/GNATOMS
 vfactor = sqrt(1.5d0*treq/GKE)
 v(:,:) = vfactor * v(:,:)
 
-
 end subroutine
 
 !------------------------------------------------------------------------------------------
@@ -508,8 +510,11 @@ integer :: i,j,nn,ity,jty,inxn
 real(8) :: dr,BOsig
 
 !--- get the cutoff length based on sigma bonding interaction.
+
+! --- Remark --- 
+! sigma bond before correction is the longest, namely longer than than pi and double-pi bonds
+! thus check only sigma bond convergence.
 allocate(rc(nboty), rc2(nboty), stat=ast)
-!allocate(rcpi(nboty), rcpp(nboty), stat=ast)
 
 rc(:)=0.d0; rc2(:)=0.d0
 do ity=1,nso
@@ -530,51 +535,10 @@ do jty=ity, nso
 enddo
 enddo
 
-!rcpi(:)=0.d0
-!do ity=1,nso
-!do jty=ity, nso
-!
-!   inxn=inxn2(ity,jty)
-!   if(inxn==0) cycle
-!   if(pbo3(inxn)>=0.d0) cycle
-!   if(r0p(ity,jty) <=0.d0) cycle
-!
-!   dr = 1.0d0
-!   BOsig=1.d0
-!   do while (BOsig > MINBOSIG) 
-!      dr = dr + 0.1d0
-!      BOsig = exp( pbo3(inxn)*(dr/r0p(ity,jty))**pbo4(inxn) ) !<- pi bond prime
-!   enddo
-!
-!   rcpi(inxn)  = dr
-!enddo
-!enddo
-!
-!rcpp(:)=0.d0
-!do ity=1,nso
-!do jty=ity, nso
-!
-!   inxn=inxn2(ity,jty)
-!   if(inxn==0) cycle
-!   if(pbo5(inxn)>=0.d0) cycle
-!   if(r0pp(ity,jty)<=0.d0) cycle
-!
-!   dr = 1.d0
-!   BOsig=1.d0
-!   do while (BOsig > MINBOSIG) 
-!      dr = dr + 0.1d0
-!      BOsig = exp( pbo5(inxn)*(dr/r0pp(ity,jty))**pbo6(inxn) ) !<- pipi bond prime
-!   enddo
-!
-!   rcpp(inxn)  = dr
-!enddo
-!enddo
-
-
 !----------------------------------------------------------------------------
-! In some cases, an atom which don't exist in a simulation gives
-! the longest bond-order cutoff length. The purpose here is to ignore
-! those atoms to have linked list cell size as small as possible.
+! In some cases, an atom that do not exist in simulation gives
+! the longest bond-order cutoff length. the check below is to ignore
+! such atoms to keep the linkedlist cell dimensions as small as possible.
 !----------------------------------------------------------------------------
 do ity=1, nso
    if(natoms_per_type(ity)==0) then
@@ -587,8 +551,11 @@ do ity=1, nso
    endif
 enddo
 
-! get the max cutoff length 
+!--- get the max cutoff length 
 maxrc=maxval(rc(:))
+
+!--- NCELL10 is used in QEq
+NCELL10 = int(rctap/maxrc)+1
 
 if(myid==0) then
    do ity=1, nso
@@ -686,6 +653,62 @@ enddo
 end subroutine
 
 !----------------------------------------------------------------
+subroutine GetNonbondingMesh()
+use atoms; use parameters
+! setup 10[A] radius mesh to avoid visiting unecessary cells 
+!----------------------------------------------------------------
+implicit none
+
+integer :: i,j,k
+
+real(8) :: latticePerNode(3), rr(3), dr2
+real(8) :: rcsize(3),maxrcell,rcmesh2
+integer :: ilc(3), imesh(3), maximesh 
+
+!--- initial estimate of LL cell dims
+nblcsize(1:3)=2.d0
+
+!--- get mesh resolution which is close to the initial value of rlc.
+latticePerNode(1)=lata/vprocs(1)
+latticePerNode(2)=latb/vprocs(2)
+latticePerNode(3)=latc/vprocs(3)
+nbcc(1:3)=latticePerNode(1:3)/nblcsize(1:3)
+nblcsize(1:3)=latticePerNode(1:3)/nbcc(1:3)
+maxrcell = maxval(nblcsize(1:3))
+
+!--- get # of linked list cell to cover up the non-bonding (10[A]) cutoff length
+imesh(1:3)  = int(rctap/nblcsize(1:3)) + 1
+maximesh = maxval(imesh(1:3))
+
+!--- List up only cell indices within the cutoff range.
+!--- pre-compute nmesh to get exact array size.
+nmesh=0
+do i=-imesh(1), imesh(1)
+do j=-imesh(2), imesh(2)
+do k=-imesh(3), imesh(3)
+   rr(1:3) = (/i,j,k/)*nblcsize(1:3)
+   dr2 = sum(rr(1:3)*rr(1:3))
+   if(dr2 <= rctap*rctap) nmesh = nmesh + 1
+enddo; enddo; enddo
+
+allocate(mesh(3,nmesh),stat=ast)
+
+mesh(:,:)=0
+do i=-imesh(1), imesh(1)
+do j=-imesh(2), imesh(2)
+do k=-imesh(3), imesh(3)
+   rr(1:3) = (/i,j,k/)*nblcsize(1:3)
+   dr2 = sum(rr(1:3)*rr(1:3))
+   if(dr2 <= rctap*rctap) mesh(1:3,nmesh) = (/i, j, k/)
+enddo; enddo; enddo
+
+allocate(nbllist(-NBUFFER_N:NBUFFER_P),stat=ast)
+allocate(nbheader(-MAXLAYERS:nbcc(1)-1+MAXLAYERS, -MAXLAYERS:nbcc(2)-1+MAXLAYERS, -MAXLAYERS:nbcc(3)-1+MAXLAYERS), stat=ast)
+allocate(nbnacell(-MAXLAYERS:nbcc(1)-1+MAXLAYERS, -MAXLAYERS:nbcc(2)-1+MAXLAYERS, -MAXLAYERS:nbcc(3)-1+MAXLAYERS), stat=ast)
+
+end subroutine
+
+!----------------------------------------------------------------
 subroutine getbox(H,la,lb,lc,angle1,angle2,angle3)
 !----------------------------------------------------------------
 implicit none
@@ -715,7 +738,6 @@ H(1,3)=lc*cos(lbe); H(2,3)=hh1;         H(3,3)=hh2
 
 return
 end subroutine
-
 
 !----------------------------------------------------------------
 subroutine updatebox()

@@ -50,7 +50,7 @@ integer :: scl1(3,2,6,0:MAXLAYERS), scl2(3,2,6,0:MAXLAYERS)
 ! <target_node> stores partner node ID in the 6-communications. 
 ! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
 integer :: target_node(6)
-!integer,parameter :: vprocs(3)=(/8,4,4/)
+
 ! For benchmarking, <vprocs> and <mc> will be read from vprocs.in
 integer :: vprocs(3)
 
@@ -111,9 +111,15 @@ real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD 
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
 
+!<llist> Linked List
 !<header> header atom of linkedlist cell.
 !<nacell> Nr of atoms in a likedlist cell.
-integer,allocatable :: header(:,:,:), nacell(:,:,:)
+integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
+
+!<nbllist> Linked List for non-bonding interaction
+!<nbheader> header atom of linkedlist cell for non-bonding interaction
+!<nbnacell> Nr of atoms in a likedlist cell for non-bonding interaction
+integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
 
 !<nbrlist> neighbor list, <nbrindx> neighbor index
 integer(kind=c_int),pointer :: nbrlist(:,:), nbrindx(:,:)
@@ -121,8 +127,6 @@ integer(kind=c_int),pointer :: nbrlist(:,:), nbrindx(:,:)
 !<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
 integer,allocatable :: nbplist(:,:)
 
-!<llist> Linked List
-integer,allocatable :: llist(:)
 
 !<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
 real(kind=c_double),pointer :: BO(:,:,:) 
@@ -174,11 +178,11 @@ real(8) :: Lex_fqs=1.0, Lex_w=1.d0, Lex_w2=1.d0, Lex_k=2.d0
 integer :: ast ! Allocation STatus of allocatable variables.
 
 ! <lcsize> Linked list Cell SIZE. <cc> Nr of likedlist cell in local node.
-real(8) :: lcsize(3)
-integer :: cc(3)
+real(8) :: lcsize(3), nblcsize(3)
+integer :: cc(3), nbcc(3)
 
-integer :: nmesh
-integer,allocatable :: mesh(:,:)
+integer :: nmesh, nbnmesh
+integer,allocatable :: mesh(:,:), nbmesh(:,:)
 
 !--- Unit convetors. In original ReaxFF program, the units of length is [A]
 !--- energy is [kcal/mol] and mass is [amu] respectively.
@@ -326,15 +330,13 @@ real(8),allocatable :: phb1(:), phb2(:), phb3(:), r0hb(:)   !Hydrogren Bond Ener
 real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waals Energy (eq. 21ab)
 real(8) :: pvdW1, pvdW1h, pvdW1inv
 
-
-
 !Taper function 
 real(8),parameter :: rctap0 = 10.d0 ![A]
 real(8) :: rctap, rctap2, CTap(0:7)
 
 ! hydrogen bonding interaction cutoff
 real(8),parameter :: rchb = 10.d0 ![A]
-real(8),parameter :: rchb2  = rchb*rchb
+real(8),parameter :: rchb2 = rchb*rchb
 
 !Coulomb Energy (eq. 22)  
 real(8),parameter:: Cclmb0 = 332.0638d0 ! [kcal/mol/A] line 2481 in poten.f
@@ -373,19 +375,19 @@ real(8)  :: vpar30,vpar1,vpar2
 
 end module parameters 
 
-!------------------------------------------------------------------------------------------
-module ustruct
-!  unit cell variables 
-!------------------------------------------------------------------------------------------
-integer :: unitN                 !<unitN> # of atoms in a unit cell
-real(8),allocatable :: pos0(:,:) !<x0> atom coordinate array for unit cell
-integer,allocatable :: atype0(:) !<atype0> atom type array for unit cell
-                                 ! 1=C, 2=H, 3=O, 4=N, 5=S, 6=Si, 7=Al, X=8
-real(8),allocatable :: q0(:)     ! Initial charge distributin (not used) 
-real(8) :: ul(3,3)               !<ul> unit lattice vector
-real(8),parameter :: rshift = 0.0d0 !<rshift> shift atoms coordinate (not used)
-
-end module ustruct
+!!------------------------------------------------------------------------------------------
+!module ustruct
+!!  unit cell variables 
+!!------------------------------------------------------------------------------------------
+!integer :: unitN                 !<unitN> # of atoms in a unit cell
+!real(8),allocatable :: pos0(:,:) !<x0> atom coordinate array for unit cell
+!integer,allocatable :: atype0(:) !<atype0> atom type array for unit cell
+!                                 ! 1=C, 2=H, 3=O, 4=N, 5=S, 6=Si, 7=Al, X=8
+!real(8),allocatable :: q0(:)     ! Initial charge distributin (not used) 
+!real(8) :: ul(3,3)               !<ul> unit lattice vector
+!real(8),parameter :: rshift = 0.0d0 !<rshift> shift atoms coordinate (not used)
+!
+!end module ustruct
 
 #ifdef INTEROP
 !------------------------------------------------------------------------------------------
