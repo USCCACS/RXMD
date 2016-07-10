@@ -6,7 +6,7 @@
 	$(CC) -c $(CPP) $(OPT) $<
 %.o: %.mod
 
-FC = mpif90 
+FC = mpif90 -openmp
 CC = mpic++
 OPT = -O3 -g
 

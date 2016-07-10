@@ -79,7 +79,7 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer :: NBUFFER_N=20000
-integer :: NBUFFER_P=5000
+integer :: NBUFFER_P=2000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=600 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
@@ -93,10 +93,10 @@ real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to d
 real(8),parameter :: pi=3.14159265358979d0
 
 ! position, atom type, velocity, force & charge
-! local stress, atomic stress tensor
 real(kind=c_double),allocatable,target :: pos(:,:),atype(:)
-
 real(8),allocatable :: v(:,:), f(:,:), q(:)
+
+! atomic stress tensor
 real(8),allocatable :: astr(:,:) 
 real(8) :: pint(3,3)
 
@@ -118,10 +118,8 @@ integer,allocatable :: header(:,:,:), nacell(:,:,:)
 !<nbrlist> neighbor list, <nbrindx> neighbor index
 integer(kind=c_int),pointer :: nbrlist(:,:), nbrindx(:,:)
 
-!<nbblist> neighbor list of nonbonding interaction
-!<nbbr2> distances of all nonbonding pairs
-integer,allocatable :: nbblist(:)
-real(8),allocatable :: nbbr2(:)
+!<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
+integer,allocatable :: nbplist(:,:)
 
 !<llist> Linked List
 integer,allocatable :: llist(:)
@@ -130,7 +128,6 @@ integer,allocatable :: llist(:)
 real(kind=c_double),pointer :: BO(:,:,:) 
 
 real(8),allocatable :: delta(:)
-
 
 !--- Output variables from the BOp_CALC() subroutine:
 real(8),allocatable :: deltap(:,:)
@@ -336,7 +333,7 @@ real(8),parameter :: rctap0 = 10.d0 ![A]
 real(8) :: rctap, rctap2, CTap(0:7)
 
 ! hydrogen bonding interaction cutoff
-real(8),parameter :: rchb  = 10.d0 ![A]
+real(8),parameter :: rchb = 10.d0 ![A]
 real(8),parameter :: rchb2  = rchb*rchb
 
 !Coulomb Energy (eq. 22)  
@@ -344,7 +341,6 @@ real(8),parameter:: Cclmb0 = 332.0638d0 ! [kcal/mol/A] line 2481 in poten.f
 real(8),parameter:: Cclmb0_qeq = 14.4d0 ! [ev]
 real(8),parameter:: CEchrge = 23.02d0   ! [ev]
 real(8) :: Cclmb = Cclmb0
-
 
 real(8),allocatable :: gam(:), gamij(:,:)  
 

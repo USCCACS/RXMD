@@ -177,6 +177,8 @@ astr(:,:)=0.d0;
 !--- Linked List & Near Neighb Parameters
 allocate(nbrlist(-NBUFFER_N:NBUFFER_P,0:MAXNEIGHBS), nbrindx(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS),stat=ast); ist=ist+ast
 
+allocate(nbplist(-NBUFFER_N:NBUFFER_P,0:MAXNEIGHBS10),stat=ast); ist=ist+ast
+
 allocate(llist(-NBUFFER_N:NBUFFER_P),stat=ast);ist=ist+ast 
 allocate(header(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
 allocate(nacell(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast

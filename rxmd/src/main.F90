@@ -10,6 +10,8 @@ integer :: i,i1, j,j1, k, n,ity,jty,it1,it2,irt
 real(8) :: ctmp
 integer :: l2g, igd
 
+call omp_set_num_threads(2)
+
 call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
@@ -71,7 +73,6 @@ do nstep=0, ntime_step-1
    if(mod(nstep,qstep)==0) call QEq(NCELL10)
    call FORCE()
 
-
 !--- update velocity
    call vkick(1.d0) 
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
@@ -100,16 +101,6 @@ if(myid==0) then
                       ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4), ibuf1(5)
 endif
 
-!do i=1,nmaxas
-!   ibuf(i)=minval(maxas(:,i))
-!enddo
-!call MPI_ALLREDUCE (ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
-!if(myid==0) then
-!   !print'(a,10i12)', '2. min array size: ', ibuf1(1:nmaxas)
-!   print'(a,10i12)', 'Min MAXNEIGHBS, Min MAXNEIGHBS10, Min NBUFFER_P, Min NBUFFER_N: ', &
-!                      ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4), ibuf1(5)
-!endif
-
 deallocate(ibuf,ibuf1)
 
 if(myid==0) then
@@ -118,6 +109,8 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','LINKEDLIST: ',  dble(it_timer_max(3))/irt, dble(it_timer_min(3))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS: ',    dble(it_timer_max(4))/irt, dble(it_timer_min(4))/irt
    print'(a20,f12.4,3x,f12.4)','NEIGHBORLIST: ', dble(it_timer_max(5))/irt, dble(it_timer_min(5))/irt
+   print'(a20,f12.4,3x,f12.4)','GetNonbondingPairs: ', dble(it_timer_max(15))/irt, dble(it_timer_min(15))/irt
+
    print'(a20,f12.4,3x,f12.4)','BOCALC: ', dble(it_timer_max(6))/irt, dble(it_timer_min(6))/irt
    print'(a20,f12.4,3x,f12.4)','ENbond: ', dble(it_timer_max(7))/irt, dble(it_timer_min(7))/irt
    print'(a20,f12.4,3x,f12.4)','Ebond: ', dble(it_timer_max(8))/irt, dble(it_timer_min(8))/irt
@@ -127,6 +120,7 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','E4b: ', dble(it_timer_max(12))/irt, dble(it_timer_min(12))/irt
    print'(a20,f12.4,3x,f12.4)','ForceBondedTerms: ', dble(it_timer_max(13))/irt, dble(it_timer_min(13))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS(-1): ', dble(it_timer_max(14))/irt, dble(it_timer_min(14))/irt
+
    print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(Ntimer))/irt, dble(it_timer_min(Ntimer))/irt
    print'(a20)', 'program finished'
 endif
@@ -216,12 +210,9 @@ wt0 = MPI_WTIME()
 
 end subroutine
 
-
 !----------------------------------------------------------------------------------------
 subroutine OUTPUT(imode)
 use atoms; use parameters
-! imode == 0: finalize
-!
 !----------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: imode 
@@ -316,7 +307,6 @@ if(isBinary) then
 endif
 !------------------------------------------------------------------ binary ---
 
-
 !--- BondFile -------------------------------------------------------------
 if(isBondFile) then
 
@@ -353,8 +343,7 @@ if(isBondFile) then
     ! set offset at the beginning of the local write
     offset=offset-localDataSize
 
-
-   !open(10,file=trim(FileName)//".bnd")
+    !open(10,file=trim(FileName)//".bnd")
 
    do i=1, NATOMS
       ity = atype(i)
@@ -492,7 +481,6 @@ do n=1, NATOMS
 enddo
 
 end subroutine 
-
 
 !----------------------------------------------------------------------
 subroutine NEIGHBORLIST(nlayer)
@@ -663,10 +651,12 @@ DO c3=-nlayer, cc(3)-1+nlayer
   enddo
 enddo; enddo; enddo
 
+! deallocate old arrays
 deallocate(nbrlist, nbrindx)
 deallocate(dln_BOp, dBOp, BO)
 deallocate(A0, A1, A2, A3)
 
+! point to the updated neighbor lists and associated vars
 nbrlist=>nbrlist_
 nbrindx=>nbrindx_
 BO=>BO_;  dBOp=>dBOp_;  dln_BOp=>dln_BOp_
@@ -1032,7 +1022,6 @@ if(nlayer<0) then
 
 endif
 !=========================================================== FORCE COPYBACK MODE ====
-
 
 !--- if myid is the same of target-node ID, don't use MPI call.
 !--- Just copy <sbuffer> to <rbuffer>. Because <send_recv()> will not be used,

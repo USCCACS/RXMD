@@ -27,7 +27,6 @@ integer :: c1,c2,c3,ic(3)
 real(8) :: dr(3), dr2, arg_BOpij(3)
 integer :: l2g
 
-!<kn>
 real(8) :: cutoff_vpar30
 cutoff_vpar30 = cutof2_bo*vpar30
 
@@ -43,7 +42,6 @@ do c3=-nlayer, cc(3)-1+nlayer
      i=llist(i)
   enddo 
 enddo; enddo; enddo
-
 
 do c1=-nlayer, cc(1)-1+nlayer
 do c2=-nlayer, cc(2)-1+nlayer
@@ -165,7 +163,6 @@ do c3=-nlayer, cc(3)-1+nlayer
      i=llist(i)
   enddo 
 enddo; enddo; enddo
-
 
 do c1= -nlayer, cc(1)-1+nlayer
 do c2= -nlayer, cc(2)-1+nlayer
@@ -326,8 +323,4 @@ do c3=-nlayer, cc(3)-1+nlayer
    enddo
 enddo; enddo; enddo
 
-!call UpdateNeighborlist(NMINCELL)
-
 END SUBROUTINE
-
-!--------------------------------------------------------------------------------------------

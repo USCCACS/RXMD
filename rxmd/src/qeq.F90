@@ -167,7 +167,6 @@ endif
 
 nn=0
 nbrlist(0,:) = 0
-!A0(:,:)=0.d0
 do c1=0, cc(1)-1
 do c2=0, cc(2)-1
 do c3=0, cc(3)-1

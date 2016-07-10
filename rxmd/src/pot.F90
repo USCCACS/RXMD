@@ -29,6 +29,28 @@ it_timer(4)=it_timer(4)+(j-i)
 call xs2xu()
 !--- scaled to unscaled coordinate
 
+!$omp parallel default(shared), private(i,j,k)
+!$omp sections
+
+!$omp section
+
+call system_clock(i,k)
+call GetNonbondingPairs()
+call system_clock(j,k)
+it_timer(15)=it_timer(15)+(j-i)
+
+call system_clock(i,k)
+CALL ENbond()
+call system_clock(j,k)
+it_timer(7)=it_timer(7)+(j-i)
+
+call system_clock(i,k)
+CALL Ehb()
+call system_clock(j,k)
+it_timer(10)=it_timer(10)+(j-i)
+
+!$omp section
+
 call system_clock(i,k)
 CALL NEIGHBORLIST(NMINCELL)
 call system_clock(j,k)
@@ -38,11 +60,6 @@ call system_clock(i,k)
 CALL BOCALC(NMINCELL)
 call system_clock(j,k)
 it_timer(6)=it_timer(6)+(j-i)
-
-call system_clock(i,k)
-CALL ENbond()
-call system_clock(j,k)
-it_timer(7)=it_timer(7)+(j-i)
 
 call system_clock(i,k)
 CALL Ebond()
@@ -55,11 +72,6 @@ call system_clock(j,k)
 it_timer(9)=it_timer(9)+(j-i)
 
 call system_clock(i,k)
-CALL Ehb()
-call system_clock(j,k)
-it_timer(10)=it_timer(10)+(j-i)
-
-call system_clock(i,k)
 CALL E3b()
 call system_clock(j,k)
 it_timer(11)=it_timer(11)+(j-i)
@@ -68,6 +80,9 @@ call system_clock(i,k)
 CALL E4b()
 call system_clock(j,k)
 it_timer(12)=it_timer(12)+(j-i)
+
+!$omp end sections
+!$omp end parallel
 
 call system_clock(i,k)
 CALL ForceBondedTerms(NMINCELL)
@@ -78,13 +93,6 @@ call system_clock(i,k)
 CALL COPYATOMS(-1) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
-
-!do i=1,NATOMS
-!!   print'(3i5,3d25.13)', mod(l2g(atype(i))-1,168)+1,nstep,int(atype(i)), f(1:3,i)
-!   print'(2i5,3d25.13)', l2g(atype(i)),int(atype(i)), f(1:3,i)
-!enddo 
-!call MPI_FINALIZE(ierr)
-!stop
 
 !--- calculate kinetic part of stress components and add to <astr>.
 #ifdef STRESS
@@ -585,13 +593,18 @@ do c3=0, cc(3)-1
 
          if( (jty==2) .and. (BO(0,i,j1)>MINBO0) ) then
 
-         do mn = 1, nmesh
-            c4 = c1 + mesh(1,mn)
-            c5 = c2 + mesh(2,mn)
-            c6 = c3 + mesh(3,mn)
+!         do mn = 1, nmesh
+!            c4 = c1 + mesh(1,mn)
+!            c5 = c2 + mesh(2,mn)
+!            c6 = c3 + mesh(3,mn)
 
-            k=header(c4,c5,c6)
-            do kk=1,nacell(c4,c5,c6)
+!            k=header(c4,c5,c6)
+!            do kk=1,nacell(c4,c5,c6)
+
+             do kk=1, nbplist(i,0)
+
+               k = nbplist(i,kk)
+
                kty = atype(k)
 
                inxnhb = inxn3hb(ity, jty, kty)
@@ -647,9 +660,11 @@ do c3=0, cc(3)-1
                   endif ! if(rik2<rchb2)
                endif
 
-               k=llist(k)
-            enddo
-          enddo
+           enddo !do kk=1, nbplist(i,0)
+
+!               k=llist(k)
+!            enddo
+!          enddo
 
          endif ! if(BO(0,j,i1)>MINBO0)
       enddo 
@@ -686,21 +701,26 @@ do c3=0, cc(3)-1
 
    i = header(c1,c2,c3)
    do m = 1, nacell(c1,c2,c3)
-      iid=l2g(atype(i))
+      iid = l2g(atype(i))
       ity = atype(i) 
       
       PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
 
-      do mn = 1, nmesh
-         c4 = c1 + mesh(1,mn)
-         c5 = c2 + mesh(2,mn)
-         c6 = c3 + mesh(3,mn)
+!      do mn = 1, nmesh
+!         c4 = c1 + mesh(1,mn)
+!         c5 = c2 + mesh(2,mn)
+!         c6 = c3 + mesh(3,mn)
 
-         j = header(c4,c5,c6)
-         do n=1, nacell(c4,c5,c6)
+!         j = header(c4,c5,c6)
+!         do n=1, nacell(c4,c5,c6)
 
-            jid=l2g(atype(j))
+       do j1 = 1, nbplist(i,0) 
+            j = nbplist(i,j1)
+
+            jid = l2g(atype(j))
+
             if(jid<iid) then
+
                dr(1:3) = pos(1:3,i) - pos(1:3,j)
                dr2 = sum(dr(1:3)*dr(1:3))
 
@@ -749,9 +769,11 @@ do c3=0, cc(3)-1
 
             endif
 
-            j=llist(j)
-         enddo
-       enddo
+       enddo  !do j1 = 1, nbplist(i,0) 
+!            j=llist(j)
+!         enddo
+
+!       enddo
 !      enddo; enddo; enddo
 
       i=llist(i)
@@ -1063,63 +1085,6 @@ enddo
 end subroutine
 
 !-----------------------------------------------------------------------------------------
-subroutine ForceD0(i, coeff)
- use atoms
-! Calculate force from derivative of delta(i). 
-!-----------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: i
-real(8),intent(IN) :: coeff
-integer :: i1, j,j1, n,n1, inbrs, jnbrs
-real(8) :: Cbond(3), dr(3), ff(3)
-
-do j1=1, nbrlist(i,0)
-  j  = nbrlist(i,j1)
-  i1 = nbrindx(i,j1)
-
-  Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
-  dr(1:3) = pos(1:3,i)-pos(1:3,j)
-  ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
-  f(1:3,i) = f(1:3,i) - ff(1:3) 
-  f(1:3,j) = f(1:3,j) + ff(1:3) 
-
-#ifdef STRESS
-  ia=i; ja=j
-  include 'stress'
-#endif
-
-  Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
-  Cbond(3)=coeff*BO(0,i,j1)*A2(j,i1) ! Coeff of deltap_j
-
-  do n1=1, nbrlist(i,0)
-     n=nbrlist(i,n1)
-     dr(1:3) = pos(1:3,i)-pos(1:3,n)
-     ff(1:3) = Cbond(2)*dBOp(i,n1)*dr(1:3)
-     f(1:3,i) = f(1:3,i) - ff(1:3) 
-     f(1:3,n) = f(1:3,n) + ff(1:3) 
-#ifdef STRESS
-     ia=i; ja=n
-     include 'stress'
-#endif
-  enddo
-  
-  do n1=1, nbrlist(j,0)
-     n=nbrlist(j,n1)
-     dr(1:3) = pos(1:3,j)-pos(1:3,n)
-     ff(1:3) = Cbond(3)*dBOp(j,n1)*dr(1:3)
-     f(1:3,j) = f(1:3,j) - ff(1:3) 
-     f(1:3,n) = f(1:3,n) + ff(1:3) 
-#ifdef STRESS
-     ia=j; ja=n
-     include 'stress'
-#endif
-  enddo
-
-enddo
-
-end subroutine
-
-!-----------------------------------------------------------------------------------------
 subroutine ForceD(i, coeff)
 use atoms
 ! Calculate force from derivative of delta(i). 
@@ -1157,14 +1122,11 @@ enddo
 return
 end subroutine
 
-
 !-----------------------------------------------------------------------------------------
 subroutine ForceB(i,j1, j,i1,coeff)
 use atoms
-! Derivative of BOij using new bond order definition. Only difference is that
-! sigma BO
-! prime is replaced with full BOp. The derivative of BO becomes a bit simpler
-! due to 
+! Derivative of BOij using new bond order definition. Only difference is that sigma BO
+! prime is replaced with full BOp. The derivative of BO becomes a bit simpler due to 
 ! the new definition.
 !-----------------------------------------------------------------------------------------
 implicit none
@@ -1398,8 +1360,6 @@ use atoms
    
 end subroutine 
 
-
-
 !-----------------------------------------------------------------------------------------
 subroutine ForceB0(i,j1, j,i1,coeff) 
  use atoms
@@ -1457,67 +1417,56 @@ enddo
 
 end subroutine
 
-
-!-----------------------------------------------------------------------------------------
-subroutine ForceBbo0(i,j1, j,i1, coeff)
- use atoms; use parameters
-! Calculate force from derivative of BOij using different coefficient values 
-!-----------------------------------------------------------------------------------------
+!----------------------------------------------------------------------
+subroutine GetNonbondingPairs()
+use atoms; use parameters
+!----------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: i,j1, j,i1
-real(8),intent(IN) :: coeff(3)
-integer :: n,n1
-real(8) :: Cbond(3),dr(3), ff(3),cBO(3),cf(3)
+integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
+integer :: l2g
+real(8) :: dr(3), dr2
 
-! optimization
-real(8) :: ri(3),rj(3),fi(3),fj(3)
+! reset non-bonding pair list
+nbplist(:,0)=0
 
-!--- With the new bond-order definition, 1st term is the derivative of "full"-bond order,
-!--- 2nd is for pi-bond order and 3rd is for pipi-bond order.
-cf(1:3) = (/ coeff(1), coeff(2)-coeff(1), coeff(3)-coeff(1) /)
+do c1=0, cc(1)-1
+do c2=0, cc(2)-1
+do c3=0, cc(3)-1
 
-Cbond(1) = cf(1)*(A0(i,j1) + BO(0,i,j1)*A1(i,j1))*dBOp(i,j1)        & !full BO
-         + cf(2)*BO(2,i,j1)*( dln_BOp(2,i,j1)+A1(i,j1)*dBOp(i,j1) ) & !pi   BO
-         + cf(3)*BO(3,i,j1)*( dln_BOp(3,i,j1)+A1(i,j1)*dBOp(i,j1) )   !pipi BO
+   i = header(c1,c2,c3)
+   do m = 1, nacell(c1,c2,c3)
+      iid = l2g(atype(i))
 
-dr(1:3) = pos(1:3,i)-pos(1:3,j)
-ff(1:3) = Cbond(1)*dr(1:3)
-f(1:3,i) = f(1:3,i) - ff(1:3) 
-f(1:3,j) = f(1:3,j) + ff(1:3) 
-#ifdef STRESS
-ia=i; ja=j
-include 'stress'
-#endif
+      do mn = 1, nmesh
+         c4 = c1 + mesh(1,mn)
+         c5 = c2 + mesh(2,mn)
+         c6 = c3 + mesh(3,mn)
 
-!--- 1st element is "full"-bond order.
-cBO(1:3) = (/cf(1)*BO(0,i,j1),  cf(2)*BO(2,i,j1),  cf(3)*BO(3,i,j1) /)
+         j = header(c4,c5,c6)
+         do n=1, nacell(c4,c5,c6)
 
-Cbond(2)=cBO(1)*A2(i,j1) + (cBO(2)+cBO(3))*A3(i,j1)
-Cbond(3)=cBO(1)*A2(j,i1) + (cBO(2)+cBO(3))*A3(j,i1)
+            jid = l2g(atype(j))
 
-do n1=1, nbrlist(i,0)
-   n=nbrlist(i,n1)
-   dr(1:3) = pos(1:3,i)-pos(1:3,n)
-   ff(1:3) = Cbond(2)*dBOp(i,n1)*dr(1:3)
-   f(1:3,i) = f(1:3,i) - ff(1:3) 
-   f(1:3,n) = f(1:3,n) + ff(1:3) 
-#ifdef STRESS
-   ia=i; ja=n
-   include 'stress'
-#endif
-enddo
+            if(jid<iid) then
+               dr(1:3) = pos(1:3,i) - pos(1:3,j)
+               dr2 = sum(dr(1:3)*dr(1:3))
 
-do n1=1, nbrlist(j,0)
-   n=nbrlist(j,n1)
-   dr(1:3) = pos(1:3,j)-pos(1:3,n)
-   ff(1:3) = Cbond(3)*dBOp(j,n1)*dr(1:3)
-   f(1:3,j) = f(1:3,j) - ff(1:3) 
-   f(1:3,n) = f(1:3,n) + ff(1:3) 
-#ifdef STRESS
-   ia=j; ja=n
-   include 'stress'
-#endif
-enddo
+               if(dr2<=rctap2) then
+                 nbplist(i,0)=nbplist(i,0)+1
+                 nbplist(j,0)=nbplist(j,0)+1
+                 nbplist(i,nbplist(i,0))=j
+                 nbplist(j,nbplist(j,0))=i
+               endif
+
+            endif
+
+            j=llist(j)
+         enddo
+       enddo
+
+      i=llist(i)
+   enddo
+enddo; enddo; enddo
 
 end subroutine
 
