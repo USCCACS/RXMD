@@ -2,9 +2,9 @@
 ReaxFF MD code repository 
 
 ## Currently tested env
-source /usr/usc/intel/14.0/setup.sh
+> source /usr/usc/intel/16.0/setup.sh
 
-source /usr/usc/openmpi/1.8.7/setup.sh.intel
+> source /usr/usc/openmpi/1.8.7/setup.sh.intel
 
 
 ## threaded non-bonding pair support 
