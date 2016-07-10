@@ -39,16 +39,6 @@ call GetNonbondingPairs()
 call system_clock(j,k)
 it_timer(15)=it_timer(15)+(j-i)
 
-call system_clock(i,k)
-CALL ENbond()
-call system_clock(j,k)
-it_timer(7)=it_timer(7)+(j-i)
-
-call system_clock(i,k)
-CALL Ehb()
-call system_clock(j,k)
-it_timer(10)=it_timer(10)+(j-i)
-
 !$omp section
 
 call system_clock(i,k)
@@ -83,6 +73,16 @@ it_timer(12)=it_timer(12)+(j-i)
 
 !$omp end sections
 !$omp end parallel
+
+call system_clock(i,k)
+CALL ENbond()
+call system_clock(j,k)
+it_timer(7)=it_timer(7)+(j-i)
+
+call system_clock(i,k)
+CALL Ehb()
+call system_clock(j,k)
+it_timer(10)=it_timer(10)+(j-i)
 
 call system_clock(i,k)
 CALL ForceBondedTerms(NMINCELL)
