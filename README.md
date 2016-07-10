@@ -8,13 +8,11 @@ source /usr/usc/openmpi/1.8.7/setup.sh.intel
 
 
 ## threaded non-bonding pair support 
-this version requires OpenMP enabled as default. If you are going to use Infiniband nodes in priya queue,
+this version requires OpenMP enabled as default. If you are going to use two Infiniband nodes in priya queue to run a 16 MPIrank rxmd job,
 
-example: run a 16 MPIrank rxmd job on two IB nodes
+> qsub -I -d . -l nodes=2:ppn=16:priya_IB,walltime=2:00:00
 
-qsub -I -d . -l nodes=2:ppn=16:priya_IB,walltime=2:00:00
-
-mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 8 -np 16 ./rxmd
+> mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 8 -np 16 ./rxmd
 
 ###sample output
 
