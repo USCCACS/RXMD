@@ -17,7 +17,8 @@ qsub -I -d . -l nodes=2:ppn=16:priya_IB,walltime=2:00:00
 mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 8 -np 16 ./rxmd
 
 ###sample output
-'''
+
+```
 [knomura@hpc4018 rxmd]$ mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 8 -np 16 ./rxmd
 INFO: mdmode==0, setting isQEQ is 1. Atomic velocities are scaled to      300.000 [K] every    100 steps.
          # of atoms per type:   1           1536
@@ -85,4 +86,5 @@ GetNonbondingPairs:      21.4818        15.8759
      COPYATOMS(-1):      19.8682         2.1551
        total (sec):      74.9829        74.9627
     program finished
-'''
+```
+
