@@ -65,7 +65,7 @@ do nstep=0, ntime_step-1
 !--- migrate atoms after positions are updated
    call xu2xs()
    call LINKEDLIST()
-   call COPYATOMS(0)
+   call COPYATOMS(0,lcsize)
    call xs2xu()
    
    if(mod(nstep,qstep)==0) call QEq(NCELL10)
@@ -250,60 +250,60 @@ if(isBinary) then
   call coio_write(imode)
   call xs2xu()
 
-  ! TODO: MPI-IO for binary files is still under development.
-  return
-
-  ! Get local datasize:
-  ! 2 integers for Natoms & MDstep + 6 doubles for lattice parameters, 
-  ! and 10 doubles for each atoms
-  localDataSize = 2*4 + 6*8 + 10*8*NATOMS
-
-  call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bin", &
-      MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
-
-  ! offset will point the end of local write after the scan
-  call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-  ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
-  offset=scanbuf
-
-  ! nprocs-1 rank has the total data size
-  fileSize=offset
-  call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
-  call MPI_File_set_size(fh, fileSize, ierr)
-
-  ! set offset at the beginning of the local write
-  offset=offset-localDataSize
-  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-
-  i2(1:2)=(/NATOMS, nstep + current_step/)
-  call MPI_File_Write(fh,i2,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-
-  offset=offset+2*4 ! 2 x 4bytes
-  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-
-  d10(1:6)=(/lata,latb,latc,lalpha,lbeta,lgamma/)
-  call MPI_File_Write(fh,d10,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-
-  offset=offset+6*8 ! 6 x 8bytes
-  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-
-  do i=1, NATOMS
-     d10(1:3)=pos(1:3,i)
-     d10(4:6)=v(1:3,i)
-     d10(7)=q(i)
-     d10(8)=atype(i)
-     d10(9)=qsfp(i)
-     d10(10)=qsfv(i)
-
-     call MPI_File_Write(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-
-     offset=offset+10*8 ! 10 x 8bytes
-     call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-  enddo
-
-  call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-  call MPI_File_Close(fh,ierr)
+!  ! TODO: MPI-IO for binary files is still under development.
+!  return
+!
+!  ! Get local datasize:
+!  ! 2 integers for Natoms & MDstep + 6 doubles for lattice parameters, 
+!  ! and 10 doubles for each atoms
+!  localDataSize = 2*4 + 6*8 + 10*8*NATOMS
+!
+!  call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bin", &
+!      MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+!
+!  ! offset will point the end of local write after the scan
+!  call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+!
+!  ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+!  offset=scanbuf
+!
+!  ! nprocs-1 rank has the total data size
+!  fileSize=offset
+!  call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+!  call MPI_File_set_size(fh, fileSize, ierr)
+!
+!  ! set offset at the beginning of the local write
+!  offset=offset-localDataSize
+!  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+!
+!  i2(1:2)=(/NATOMS, nstep + current_step/)
+!  call MPI_File_Write(fh,i2,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+!
+!  offset=offset+2*4 ! 2 x 4bytes
+!  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+!
+!  d10(1:6)=(/lata,latb,latc,lalpha,lbeta,lgamma/)
+!  call MPI_File_Write(fh,d10,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+!
+!  offset=offset+6*8 ! 6 x 8bytes
+!  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+!
+!  do i=1, NATOMS
+!     d10(1:3)=pos(1:3,i)
+!     d10(4:6)=v(1:3,i)
+!     d10(7)=q(i)
+!     d10(8)=atype(i)
+!     d10(9)=qsfp(i)
+!     d10(10)=qsfv(i)
+!
+!     call MPI_File_Write(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+!
+!     offset=offset+10*8 ! 10 x 8bytes
+!     call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+!  enddo
+!
+!  call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!  call MPI_File_Close(fh,ierr)
 
 endif
 !------------------------------------------------------------------ binary ---
@@ -603,16 +603,16 @@ real(8),pointer,dimension(:,:,:) :: dln_BOp_, BO_
 
 real(8),parameter :: BORC = 1.d-4
 
-allocate(nbrlist_(-NBUFFER_N:NBUFFER_P,0:MAXNEIGHBS))
-allocate(nbrindx_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+allocate(nbrlist_(NBUFFER_P,0:MAXNEIGHBS))
+allocate(nbrindx_(NBUFFER_P, MAXNEIGHBS))
 
-allocate(dln_BOp_(3,-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
-allocate(dBOp_(-NBUFFER_N:NBUFFER_P,MAXNEIGHBS))
-allocate(BO_(0:3,-NBUFFER_N:NBUFFER_P,MAXNEIGHBS))
-allocate(A0_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
-allocate(A1_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
-allocate(A2_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
-allocate(A3_(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS))
+allocate(dln_BOp_(3,NBUFFER_P, MAXNEIGHBS))
+allocate(dBOp_(NBUFFER_P,MAXNEIGHBS))
+allocate(BO_(0:3,NBUFFER_P,MAXNEIGHBS))
+allocate(A0_(NBUFFER_P, MAXNEIGHBS))
+allocate(A1_(NBUFFER_P, MAXNEIGHBS))
+allocate(A2_(NBUFFER_P, MAXNEIGHBS))
+allocate(A3_(NBUFFER_P, MAXNEIGHBS))
 
 nbrlist_(:,0)=0
 
@@ -798,7 +798,7 @@ m2(:,:) = m2(:,:)/detm
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(nlayer)
+subroutine COPYATOMS(nlayer, dr)
 use atoms
 ! In this subroutine, boundary atoms are copied to neighbour nodes. Three subroutines, 
 ! <store_atoms()>, <send_recv()> and  <append_atoms()> work together, shareing variables 
@@ -824,6 +824,7 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 
+real(8),intent(IN) :: dr(3)
 integer,intent(IN) :: nlayer
 integer :: i,tn, dflag, parity
 integer :: ni, ity
@@ -831,8 +832,14 @@ integer :: i1,j1,k1
 
 integer :: c1,c2,c3,n
 
+!if(myid==0) print*,'dr: ', dr(1:3)
+
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
+
+!--- since cached atoms are stored after the resident atoms (i.e. after NATOMS), 
+!--- initialize force index pointer with NATOMS as the reference
+frcptr(0)=NATOMS
 
 !--- set Nr of elements during this communication. 
 if(nlayer==0) ne=NE_MOVE
@@ -1040,9 +1047,11 @@ endif
 if(nlayer<0) then
 
    is = 7 - dflag !<- [654321] reversed order direction flag
-   allocate(sbuffer(size(frcindx)*ne),stat=ast)
 
-   do n=frcindx(is-1)-1, frcindx(is), -1
+   n = frcptr(is) - frcptr(is-1) + 1
+   allocate(sbuffer(n*ne),stat=ast)
+
+   do n=frcptr(is-1)+1, frcptr(is)
       sbuffer(ni+1) = dble(frcindx(n))
       sbuffer(ni+2:ni+4) = f(1:3,n)
 #ifdef STRESS
@@ -1083,8 +1092,9 @@ implicit none
 integer,intent(IN) :: dflag, parity, nlayer
 integer :: m, i, ine, j, l(3)
 
-if( (na+nr)/ne > NBUFFER_N) then
-    print'(a26,i4,5i8)', "over capacity @append_atoms",myid,na,nr,ne,(na+nr)/ne, NBUFFER_N
+if( (na+nr)/ne > NBUFFER_P) then
+    print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER_P: ", &
+         myid,na,nr,ne,(na+nr)/ne, NBUFFER_P
     call MPI_FINALIZE(ierr)
     stop
 endif
@@ -1130,8 +1140,9 @@ if(nlayer>0) then
       do i=0, nr/ne-1
 !--- get current index <ine> in <rbuffer(1:nr)>.
          ine=i*ne
-!--- Transferred atoms will be appended to the negative direction from <m>=-1. 
-         m = -(na/ne+i) - 1
+
+!--- Transferred atoms will be appended to the positive direction after <NATOMS>. 
+         m = NATOMS + 1 + (na/ne+i)
 
          pos(1:3,m) = rbuffer(ine+1:ine+3)
          atype(m) = rbuffer(ine+4)
@@ -1156,8 +1167,8 @@ if(nlayer>0) then
       enddo
 
 !--- Save the last transfered atom index to <dflag> direction.
-      if(nr==0) m = frcindx(dflag-1)
-      frcindx(dflag) = m
+      if(nr==0) m = frcptr(dflag-1)
+      frcptr(dflag) = m
 
 endif
 !========================================================================  COPY MODE  ===
@@ -1182,9 +1193,6 @@ endif
 
 !--- update the total # of transfered elements.
 na=na+nr
-
-!--- update the total Nr of transfered atoms.
-llist(0) = na/ne
 
 !--- In case node doesn't have a partner node for certain directions, <sbuffer> and <rbuffer> will not be allocated. 
 !--- check the allocation status of <sbuffer> and <rbuffer>.
@@ -1238,7 +1246,7 @@ use atoms
 real(8) :: rr(3)
 real(8) :: rx,ry,rz
 
-do i=-NBUFFER_N, NBUFFER_P
+do i=1, NBUFFER_P
    rr(1:3) = pos(1:3,i)
    pos(1,i)=sum(HHi(1,1:3)*rr(1:3))
    pos(2,i)=sum(HHi(2,1:3)*rr(1:3))
@@ -1255,7 +1263,7 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
 
-do i=-NBUFFER_N, NBUFFER_P
+do i=1, NBUFFER_P
    rr(1:3) = pos(1:3,i) + OBOX(1:3)
    pos(1,i)=sum(HH(1,1:3,0)*rr(1:3))
    pos(2,i)=sum(HH(2,1:3,0)*rr(1:3))

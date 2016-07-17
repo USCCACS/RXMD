@@ -1,4 +1,4 @@
-0                    <mdmod>
+1                    <mdmod>
 0.25    1000           <dt> <ntime_step> 
 300  1.0   100       <treq> <vsfact> <sstep>
 1000   100            <fstep>  <pstep>

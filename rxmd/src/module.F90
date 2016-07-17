@@ -18,8 +18,8 @@ character(64) :: FFPath="ffield", DataPath="DAT", ParmPath="rxmd.in"
 integer,parameter :: nio=1
 
 !--- For array size statistics
-!  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER_P, 5-NBUFFER_N, 
-!  6-NBUFFER_N for qeq
+!  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER_P, 5-not used, 
+!  6-NBUFFER_P for qeq
 integer,parameter :: nmaxas=5
 integer,allocatable :: maxas(:,:)
 
@@ -73,13 +73,11 @@ integer,parameter :: is_idEh = 1
 !real(8),parameter :: cutof2_bo = 1d-4
 !integer,parameter :: is_idEh = 0
 
-!integer :: NBUFFER_N=10000
 !integer :: NBUFFER_P=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER_N=20000
-integer :: NBUFFER_P=2000
+integer :: NBUFFER_P=20000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=600 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
@@ -244,6 +242,7 @@ integer :: fstep, pstep
 
 !--- <frcindx> FoRCe INDeX. Index to return calculated force to original atoms.
 integer,allocatable :: frcindx(:)
+integer :: frcptr(0:6)
 
 !--- parameter & structure file description
 character(70) :: pfile
@@ -429,7 +428,7 @@ contains
    ParamCppInterface(1)=myid
    ParamCppInterface(2)=NATOMS
    ParamCppInterface(3)=NBUFFER_P
-   ParamCppInterface(4)=NBUFFER_N
+   ParamCppInterface(4)=NBUFFER_P
    ParamCppInterface(5)=MAXNEIGHBS
    
    param_ptr = c_loc(paramCppInterface(1))

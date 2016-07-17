@@ -7,6 +7,7 @@ integer :: i, j, j1, ity, l(3),k
 real(8) :: fsum(3), ss, vv(3), rr(3)
 integer :: l2g
 real(8) :: gasdev
+real(8) :: dr(3)
 
 f(:,:) = 0.d0
 ccbnd(:) = 0.d0
@@ -23,7 +24,8 @@ call system_clock(j,k)
 it_timer(3)=it_timer(3)+(j-i)
 
 call system_clock(i,k)
-CALL COPYATOMS(NMINCELL) 
+dr(1:3)=-NMINCELL*lcsize(1:3)
+CALL COPYATOMS(NMINCELL,dr) 
 call system_clock(j,k)
 it_timer(4)=it_timer(4)+(j-i)
 call xs2xu()
@@ -90,7 +92,8 @@ call system_clock(j,k)
 it_timer(13)=it_timer(13)+(j-i)
 
 call system_clock(i,k)
-CALL COPYATOMS(-1) 
+dr(1:3)=0.d0
+CALL COPYATOMS(-1,dr) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
 
@@ -174,7 +177,7 @@ real(8) :: div_expovun2, div_expovun2n, div_expovun1, div_expovun8
 
 real(8) :: get_exp
 
-allocate(deltalp(-NBUFFER_N:NBUFFER_P),stat=ast)
+allocate(deltalp(NBUFFER_P),stat=ast)
 
 !=== preparation ==============================================================
 do c1=-nlayer, cc(1)-1+nlayer

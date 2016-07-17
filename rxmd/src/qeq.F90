@@ -18,6 +18,8 @@ real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
 real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, Gssum, Gtsum, qsum, gqsum, mu
 real(8) :: qwtime
+real(8) :: dr(3)
+dr(1:3)=10d0/(/lata,latb,latc/)
 
 call system_clock(i1,k1)
 
@@ -53,7 +55,7 @@ end select
 
 call xu2xs()
 call LINKEDLIST()
-call COPYATOMS(nlayer)
+call COPYATOMS(nlayer, dr)
 call xs2xu()
 
 call COPYATOMS_QEq(nlayer,1)
@@ -239,15 +241,15 @@ integer :: iast
 deallocate(A0, nbrlist,stat=ast)
 
 iast=0
-allocate(BO(0:3,  -NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A0(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A1(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A2(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A3(-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(dln_BOp(3,-NBUFFER_N:NBUFFER_P, MAXNEIGHBS), dBOp(-NBUFFER_N:NBUFFER_P,MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(BO(0:3,NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A0(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A1(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A2(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A3(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(dln_BOp(3,NBUFFER_P, MAXNEIGHBS), dBOp(NBUFFER_P,MAXNEIGHBS), stat=ast); iast=iast+ast
 
-allocate(nbrlist(-NBUFFER_N:NBUFFER_P,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(nbrindx(-NBUFFER_N:NBUFFER_P,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(nbrlist(NBUFFER_P,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(nbrindx(NBUFFER_P,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
 
 if (iast/=0) then
    if (myid==0) print*, 'ERROR: qeq_finalize', iast
@@ -457,8 +459,9 @@ implicit none
 integer,intent(IN) :: dflag, parity, nlayer, imode
 integer :: m, i, ine, j, l(3)
 
-if( (na+nr)/ne > NBUFFER_N) then
-    print'(a,i4,5i10)',"over capacity @append_atoms",myid,na,nr,ne,(na+nr)/ne, NBUFFER_N
+if( (na+nr)/ne > NBUFFER_P) then
+    print'(a,i4,5i10)',"over capacity @append_atoms_qeq; myid,na,nr,ne,(na+nr)/ne, NBUFFER_P",&
+          myid,na,nr,ne,(na+nr)/ne, NBUFFER_P
     call MPI_FINALIZE(ierr)
     stop
 endif
@@ -468,8 +471,9 @@ if(imode==1) then
 do i=0, nr/ne-1
 !--- get current index <ine> in <rbuffer(1:nr)>.
    ine=i*ne
-!--- Transferred atoms will be appended to the negative direction from <m>=-1. 
-   m = -(na/ne+i) - 1
+
+!--- Transferred atoms will be appended to the positive direction after !<NATOMS>. 
+   m = NATOMS + 1 + (na/ne+i)
 
    qs(m) = rbuffer(ine+1)
    qt(m) = rbuffer(ine+2)
@@ -482,8 +486,9 @@ if(imode==2) then
 do i=0, nr/ne-1
 !--- get current index <ine> in <rbuffer(1:nr)>.
    ine=i*ne
-!--- Transferred atoms will be appended to the negative direction from <m>=-1. 
-   m = -(na/ne+i) - 1
+
+!--- Transferred atoms will be appended to the positive direction after !<NATOMS>. 
+   m = NATOMS + 1 + (na/ne+i)
 
    hs(m) = rbuffer(ine+1)
    ht(m) = rbuffer(ine+2)
@@ -494,9 +499,6 @@ endif
 
 !--- update the total # of transfered elements.
 na=na+nr
-
-!--- update the total Nr of transfered atoms.
-llist(0) = na/ne
 
 !--- In case node doesn't have a partner node for certain directions, <sbuffer> and <rbuffer> will not be allocated. 
 !--- check the allocation status of <sbuffer> and <rbuffer>.

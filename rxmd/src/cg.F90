@@ -379,14 +379,13 @@ pos(1:3,1:NATOMS)=cg_pos(1:3,1:NATOMS)
 q(1:NATOMS)=cg_q(1:NATOMS)
 atype(1:NATOMS)=cg_atype(1:NATOMS)
 
-
 end subroutine
 !----------------------------------------------------------------------------------------------------------------------
 subroutine cg_init()
 use atoms; use cg
 !----------------------------------------------------------------------------------------------------------------------
-allocate(cg_pos(3,-NBUFFER_N:NBUFFER_P),cg_q(-NBUFFER_N:NBUFFER_P),cg_atype(-NBUFFER_N:NBUFFER_P), stat=ast)
-allocate(h(3,-NBUFFER_N:NBUFFER_P),g(3,-NBUFFER_N:NBUFFER_P), stat=ast)
+allocate(cg_pos(3,NBUFFER_P),cg_q(NBUFFER_P),cg_atype(NBUFFER_P), stat=ast)
+allocate(h(3,NBUFFER_P),g(3,NBUFFER_P), stat=ast)
 
 end subroutine
 
