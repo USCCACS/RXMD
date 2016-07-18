@@ -124,7 +124,7 @@ enddo
 
 !--- Particle Parameters
 allocate(pos(3,NBUFFER_P),f(3,NBUFFER_P),v(3,NBUFFER_P),stat=ast); ist=ist+ast
-allocate(atype(NBUFFER_P),q(NBUFFER_P), stat=ast); ist=ist+ast
+allocate(atype(0:NBUFFER_P),q(NBUFFER_P), stat=ast); ist=ist+ast
 f(:,:)=0.d0
 
 !--- Varaiable for extended Lagrangian method
@@ -322,7 +322,6 @@ scl1(1,1,6,0)= 0;      scl1(1,2,6,0)=cc(1)-1
 scl1(2,1,6,0)= 0;      scl1(2,2,6,0)=cc(2)-1
 scl1(3,1,6,0)=-1;      scl1(3,2,6,0)=-1
 
-
 !-- flip the direction in <scl1> for odd parity node. 
 scl2(1:3,1:2, 1, 0:MAXLAYERS) = scl1(1:3,1:2, 2, 0:MAXLAYERS)
 scl2(1:3,1:2, 2, 0:MAXLAYERS) = scl1(1:3,1:2, 1, 0:MAXLAYERS)
@@ -365,11 +364,9 @@ do k=-imesh(3), imesh(3)
       nmesh = nmesh + 1
       mesh(1:3,nmesh) = (/ i, j, k/)
    endif
-enddo
-enddo
-enddo
+enddo; enddo; enddo
 
-!call GetNonbondingMesh()
+call GetNonbondingMesh()
 
 !--- get density 
 mm = 0.d0
@@ -678,29 +675,36 @@ maximesh = maxval(imesh(1:3))
 
 !--- List up only cell indices within the cutoff range.
 !--- pre-compute nmesh to get exact array size.
-nmesh=0
+nbnmesh=0
 do i=-imesh(1), imesh(1)
 do j=-imesh(2), imesh(2)
 do k=-imesh(3), imesh(3)
    rr(1:3) = (/i,j,k/)*nblcsize(1:3)
    dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rctap*rctap) nmesh = nmesh + 1
+   if(dr2 <= rctap*rctap) nbnmesh = nbnmesh + 1
 enddo; enddo; enddo
 
-allocate(mesh(3,nmesh),stat=ast)
+allocate(nbmesh(3,nbnmesh),stat=ast)
 
-mesh(:,:)=0
+nbmesh(:,:)=0
+nbnmesh=0
 do i=-imesh(1), imesh(1)
 do j=-imesh(2), imesh(2)
 do k=-imesh(3), imesh(3)
    rr(1:3) = (/i,j,k/)*nblcsize(1:3)
    dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rctap*rctap) mesh(1:3,nmesh) = (/i, j, k/)
+   if(dr2 <= rctap*rctap) then
+      nbnmesh = nbnmesh + 1
+      nbmesh(1:3,nbnmesh) = (/i, j, k/)
+   endif
 enddo; enddo; enddo
 
 allocate(nbllist(NBUFFER_P),stat=ast)
 allocate(nbheader(-MAXLAYERS:nbcc(1)-1+MAXLAYERS, -MAXLAYERS:nbcc(2)-1+MAXLAYERS, -MAXLAYERS:nbcc(3)-1+MAXLAYERS), stat=ast)
 allocate(nbnacell(-MAXLAYERS:nbcc(1)-1+MAXLAYERS, -MAXLAYERS:nbcc(2)-1+MAXLAYERS, -MAXLAYERS:nbcc(3)-1+MAXLAYERS), stat=ast)
+
+!--- normalize nblcsize, like lcsize.
+nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)
 
 end subroutine
 

@@ -1,5 +1,5 @@
 !------------------------------------------------------------------------------
-subroutine QEq(nlayer)
+subroutine QEq()
 use atoms; use parameters
 ! Two vector electronegativity equilization routine
 !
@@ -11,20 +11,20 @@ use atoms; use parameters
 !<Est> :: ElectroSTatic energy
 !-------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: nlayer
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
 real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, Gssum, Gtsum, qsum, gqsum, mu
 real(8) :: qwtime
-real(8) :: dr(3)
-dr(1:3)=10d0/(/lata,latb,latc/)
+real(8) :: QCopyDr(3)
 
 call system_clock(i1,k1)
 
+QCopyDr(1:3)=10d0/(/lata,latb,latc/)
+
 !--- Initialize <s> vector with current charge and <t> vector with zero.
-!isQEq==1 Normal QEq, isQEq==2 Extended Lagrangian method, DEFAULT skip QEq 
+!--- isQEq==1 Normal QEq, isQEq==2 Extended Lagrangian method, DEFAULT skip QEq 
 select case(isQEq)
 
 !=== original QEq ===!
@@ -53,19 +53,26 @@ select case(isQEq)
 
 end select
 
+!--- copy atomic coords and types from neighbors, used in qeq_initialize()
 call xu2xs()
+!call LINKEDLIST()
+call COPYATOMS(MODE_COPY, QCopyDr)
 call LINKEDLIST()
-call COPYATOMS(nlayer, dr)
 call xs2xu()
 
-call COPYATOMS_QEq(nlayer,1)
-call qeq_initialize(nlayer)
+call qeq_initialize()
+
+!--- after the initialization, only the normalized coords are necessary for COPYATOMS()
+!--- The atomic coords are converted back to real at the end of this function.
+call xu2xs()
+call COPYATOMS(MODE_QCOPY1,QCopyDr)
 call get_gradient(Gnew)
 
 !--- Let the initial CG direction be the initial gradient direction
 hs(1:NATOMS) = gs(1:NATOMS)
 ht(1:NATOMS) = gt(1:NATOMS)
-call COPYATOMS_QEq(nlayer,2)
+
+call COPYATOMS(MODE_QCOPY2,QCopyDr)
 
 GEst2=1.d99
 !do nstep_qeq=0, NMAXQEq-1
@@ -77,7 +84,7 @@ do nstep_qeq=0, nmax-1
   call get_hsh(Est)
 
   call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-  !if(myid==0) print'(i5,4e25.15)',nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2
+  !if(myid==0) print'(i5,4es25.15)',nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2
 
   if( ( 0.5d0*(abs(GEst2)+abs(GEst1))<QEq_tol) .or. (abs(GEst1/GEst2-1.d0) < QEq_tol) ) exit
   GEst2 = GEst1
@@ -118,7 +125,7 @@ do nstep_qeq=0, nmax-1
   q(1:NATOMS) = qs(1:NATOMS) - mu*qt(1:NATOMS)
 
 !--- update new charges of buffered atoms.
-  call COPYATOMS_QEq(nlayer,1)
+  call COPYATOMS(MODE_QCOPY1,QCopyDr)
 
 !--- save old residues.  
   Gold(:) = Gnew(:)
@@ -129,11 +136,13 @@ do nstep_qeq=0, nmax-1
   ht(1:NATOMS) = gt(1:NATOMS) + (Gnew(2)/Gold(2))*ht(1:NATOMS)
 
 !--- update new conjugate direction for buffered atoms.
-  call COPYATOMS_QEq(nlayer,2)
+  call COPYATOMS(MODE_QCOPY2,QCopyDr)
 
 enddo
 
 call qeq_finalize()
+
+call xs2xu()
 
 call system_clock(j1,k1)
 it_timer(1)=it_timer(1)+(j1-i1)
@@ -141,13 +150,12 @@ it_timer(1)=it_timer(1)+(j1-i1)
 CONTAINS
 
 !-----------------------------------------------------------------------------------------------------------------------
-subroutine qeq_initialize(nlayer)
+subroutine qeq_initialize()
 use atoms; use parameters
 ! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <A0>.  
 ! <nbrlist> and <A0> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: nlayer
 integer :: i,j,k, ity, jty, n, m, mn, nn,nn1, ist=0
 integer :: c1,c2,c3, c4,c5,c6, ic(3)
 real(8) :: dr(3), dr1,dr2,dr3,dr4, Tap, CEst, eta_ity, hsan
@@ -326,184 +334,3 @@ call MPI_ALLREDUCE(ggnew, Gnew, size(ggnew), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI
 end subroutine
 
 end subroutine QEq
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS_QEq(nlayer,imode)
-use atoms 
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: nlayer, imode
-integer :: i,tn, dflag, parity
-integer :: ni, ity
-integer :: i1,j1,k1
-
-call system_clock(i1,k1)
-!--- clear total # of copied atoms, sent atoms, recieved atoms
-na=0; ns=0; nr=0
-
-!--- set Nr of elements during this communication. 
-if(imode==1) ne=2
-if(imode==2) ne=3
-
-do dflag=1, 6
-   tn = target_node(dflag)
-   i=(dflag+1)/2  !<- [123]
-   parity=myparity(i)
-
-   call store_atoms_qeq(tn, dflag, parity, nlayer, imode)
-   call send_recv(tn, dflag, parity)
-   call append_atoms_qeq(dflag, parity, nlayer, imode)
-enddo
-
-call system_clock(j1,k1)
-it_timer(2)=it_timer(2)+(j1-i1)
-
-!--- for array size stat
-if(mod(nstep,pstep)==0) then
-  ni=nstep/pstep+1
-  maxas(ni,5)=na/ne
-endif
-
-end subroutine COPYATOMS_QEq
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine store_atoms_qeq(tn, dflag, parity, nlayer, imode)
-use atoms 
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: tn, dflag, parity, nlayer, imode
-integer :: i,j,k,m,n,n1,ni,is,l(3,2)
-real(8) :: sft, xshift
-
-if(nlayer>=0) then
-!--- if node parity is even, the node starts communicating in positive direction first. use <scl1>.
-!--- if it's odd, negative direction first. use <scl2>. 
-   if(parity==0) l(1:3, 1:2)=scl1(1:3, 1:2, dflag, nlayer)
-   if(parity==1) l(1:3, 1:2)=scl2(1:3, 1:2, dflag, nlayer)
-
-!--- get the Number of atoms to be Sent in the subjected layer. 
-   ns=sum(nacell(l(1,1):l(1,2), l(2,1):l(2,2), l(3,1):l(3,2)))
-
-!--- get the Number of Elements to be sent.
-   ns=ns*ne
-
-!--- <sbuffer> will deallocated in store_atoms.
-   if(ns>0) allocate(sbuffer(ns),stat=ast)
-
-endif
-
-!--- Initialize index of array <sbuffer>
-ni=0
-
-!===== MODE 1=====================================================================
-if(imode==1) then
-do i=l(1,1), l(1,2)
-do j=l(2,1), l(2,2)
-do k=l(3,1), l(3,2)
-
-   n=header(i,j,k)
-   do n1=1, nacell(i,j,k)
-      sbuffer(ni+1) = qs(n)
-      sbuffer(ni+2) = qt(n)
-
-!--- chenge index to point next atom
-      ni=ni+ne
-
-      n=llist(n)
-   enddo
-enddo; enddo; enddo
-endif
-!====================================================================== MODE 1===
-
-!===== MODE 2=====================================================================
-if(imode==2) then
-do i=l(1,1), l(1,2)
-do j=l(2,1), l(2,2)
-do k=l(3,1), l(3,2)
-
-   n=header(i,j,k)
-   do n1=1, nacell(i,j,k)
-      sbuffer(ni+1) = hs(n)
-      sbuffer(ni+2) = ht(n)
-      sbuffer(ni+3) = q(n)
-
-!--- chenge index to point next atom
-      ni=ni+ne
-
-      n=llist(n)
-   enddo
-enddo; enddo; enddo
-endif
-!====================================================================== MODE 2===
-
-!--- if myid is the same of target-node ID, don't use MPI call.
-!--- Just copy <sbuffer> to <rbuffer>. Because <send_recv()> will not be used,
-!--- <nr> has to be updated here for <append_atoms()>.
-   if(myid==tn) then
-     if(ns>0) then
-        nr=ns
-        allocate(rbuffer(nr), stat=ast)
-        rbuffer(:) = sbuffer(:)
-     else
-        nr=0
-     endif
-   endif
-
-end subroutine store_atoms_qeq
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine  append_atoms_qeq(dflag, parity, nlayer, imode)
-use atoms 
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: dflag, parity, nlayer, imode
-integer :: m, i, ine, j, l(3)
-
-if( (na+nr)/ne > NBUFFER_P) then
-    print'(a,i4,5i10)',"over capacity @append_atoms_qeq; myid,na,nr,ne,(na+nr)/ne, NBUFFER_P",&
-          myid,na,nr,ne,(na+nr)/ne, NBUFFER_P
-    call MPI_FINALIZE(ierr)
-    stop
-endif
-
-!=== MODE 1========================================================================
-if(imode==1) then
-do i=0, nr/ne-1
-!--- get current index <ine> in <rbuffer(1:nr)>.
-   ine=i*ne
-
-!--- Transferred atoms will be appended to the positive direction after !<NATOMS>. 
-   m = NATOMS + 1 + (na/ne+i)
-
-   qs(m) = rbuffer(ine+1)
-   qt(m) = rbuffer(ine+2)
-enddo
-endif
-!======================================================================== MODE 1===
-
-!=== MODE 2========================================================================
-if(imode==2) then
-do i=0, nr/ne-1
-!--- get current index <ine> in <rbuffer(1:nr)>.
-   ine=i*ne
-
-!--- Transferred atoms will be appended to the positive direction after !<NATOMS>. 
-   m = NATOMS + 1 + (na/ne+i)
-
-   hs(m) = rbuffer(ine+1)
-   ht(m) = rbuffer(ine+2)
-   q(m)  = rbuffer(ine+3)
-enddo
-endif
-!======================================================================== MODE 2===
-
-!--- update the total # of transfered elements.
-na=na+nr
-
-!--- In case node doesn't have a partner node for certain directions, <sbuffer> and <rbuffer> will not be allocated. 
-!--- check the allocation status of <sbuffer> and <rbuffer>.
-if(allocated(sbuffer)) deallocate(sbuffer)
-if(allocated(rbuffer)) deallocate(rbuffer)
-
-end subroutine append_atoms_qeq
-

@@ -19,16 +19,18 @@ astr(:,:) = 0.d0
 !--- unscaled to scaled coordinate
 call xu2xs()
 call system_clock(i,k)
-CALL LINKEDLIST()
-call system_clock(j,k)
-it_timer(3)=it_timer(3)+(j-i)
-
-call system_clock(i,k)
-dr(1:3)=-NMINCELL*lcsize(1:3)
-CALL COPYATOMS(NMINCELL,dr) 
+dr(1:3)=NMINCELL*lcsize(1:3)
+call COPYATOMS(MODE_COPY,dr) 
 call system_clock(j,k)
 it_timer(4)=it_timer(4)+(j-i)
+
+call system_clock(i,k)
+call LINKEDLIST()
+call NBLINKEDLIST()
+call system_clock(j,k)
+it_timer(3)=it_timer(3)+(j-i)
 call xs2xu()
+
 !--- scaled to unscaled coordinate
 
 !$omp parallel default(shared), private(i,j,k)
@@ -41,10 +43,15 @@ call GetNonbondingPairs()
 call system_clock(j,k)
 it_timer(15)=it_timer(15)+(j-i)
 
+call system_clock(i,k)
+CALL ENbond()
+call system_clock(j,k)
+it_timer(7)=it_timer(7)+(j-i)
+
 !$omp section
 
 call system_clock(i,k)
-CALL NEIGHBORLIST(NMINCELL)
+call NEIGHBORLIST(NMINCELL)
 call system_clock(j,k)
 it_timer(5)=it_timer(5)+(j-i)
 
@@ -52,6 +59,9 @@ call system_clock(i,k)
 CALL BOCALC(NMINCELL)
 call system_clock(j,k)
 it_timer(6)=it_timer(6)+(j-i)
+
+!$omp end sections
+!$omp end parallel
 
 call system_clock(i,k)
 CALL Ebond()
@@ -73,13 +83,6 @@ CALL E4b()
 call system_clock(j,k)
 it_timer(12)=it_timer(12)+(j-i)
 
-!$omp end sections
-!$omp end parallel
-
-call system_clock(i,k)
-CALL ENbond()
-call system_clock(j,k)
-it_timer(7)=it_timer(7)+(j-i)
 
 call system_clock(i,k)
 CALL Ehb()
@@ -93,7 +96,7 @@ it_timer(13)=it_timer(13)+(j-i)
 
 call system_clock(i,k)
 dr(1:3)=0.d0
-CALL COPYATOMS(-1,dr) 
+CALL COPYATOMS(MODE_CPBK,dr) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
 
@@ -736,6 +739,18 @@ do c3=0, cc(3)-1
        
                   f(1:3,i) = f(1:3,i) - ff(1:3)
                   f(1:3,j) = f(1:3,j) + ff(1:3)
+!!$omp atomic update
+!                  f(1,i) = f(1,i) - ff(1)
+!!$omp atomic update
+!                  f(2,i) = f(2,i) - ff(2)
+!!$omp atomic update
+!                  f(3,i) = f(3,i) - ff(3)
+!!$omp atomic update
+!                  f(1,j) = f(1,j) + ff(1)
+!!$omp atomic update
+!                  f(2,j) = f(2,j) + ff(2)
+!!$omp atomic update
+!                  f(3,j) = f(3,j) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -1232,6 +1247,34 @@ f(1:3,j) = f(1:3,j) - fij(1:3) + fjk(1:3)
 f(1:3,k) = f(1:3,k) - fjk(1:3) + fkl(1:3)
 f(1:3,l) = f(1:3,l) - fkl(1:3)
 
+!!$omp atomic update
+!f(1,i) = f(1,i) + fij(1) 
+!!$omp atomic update
+!f(2,i) = f(2,i) + fij(2) 
+!!$omp atomic update
+!f(3,i) = f(3,i) + fij(3) 
+!
+!!$omp atomic update
+!f(1,j) = f(1,j) - fij(1) + fjk(1) 
+!!$omp atomic update
+!f(2,j) = f(2,j) - fij(2) + fjk(2) 
+!!$omp atomic update
+!f(3,j) = f(3,j) - fij(3) + fjk(3) 
+!
+!!$omp atomic update
+!f(1,k) = f(1,k) - fjk(1) + fkl(1)
+!!$omp atomic update
+!f(2,k) = f(2,k) - fjk(2) + fkl(2)
+!!$omp atomic update
+!f(3,k) = f(3,k) - fjk(3) + fkl(3)
+!
+!!$omp atomic update
+!f(1,l) = f(1,l) - fkl(1)
+!!$omp atomic update
+!f(2,l) = f(2,l) - fkl(2)
+!!$omp atomic update
+!f(3,l) = f(3,l) - fkl(3)
+
 !--- stress calculation
 #ifdef STRESS
 ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)
@@ -1288,6 +1331,27 @@ f(1:3,i) = f(1:3,i) + fij(1:3)
 f(1:3,j) = f(1:3,j) - fij(1:3) + fjk(1:3)
 f(1:3,k) = f(1:3,k) - fjk(1:3)
 
+!!$omp atomic update
+!f(1,i) = f(1,i) + fij(1)
+!!$omp atomic update
+!f(2,i) = f(2,i) + fij(2)
+!!$omp atomic update
+!f(3,i) = f(3,i) + fij(3)
+!
+!!$omp atomic update
+!f(1,j) = f(1,j) - fij(1) + fjk(1)
+!!$omp atomic update
+!f(2,j) = f(2,j) - fij(2) + fjk(2)
+!!$omp atomic update
+!f(3,j) = f(3,j) - fij(3) + fjk(3)
+!
+!!$omp atomic update
+!f(1,k) = f(1,k) - fjk(1)
+!!$omp atomic update
+!f(2,k) = f(2,k) - fjk(2)
+!!$omp atomic update
+!f(3,k) = f(3,k) - fjk(3)
+
 #ifdef STRESS
 ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)
 include 'stress'
@@ -1335,21 +1399,21 @@ real(8) :: dr(3), dr2
 ! reset non-bonding pair list
 nbplist(:,0)=0
 
-do c1=0, cc(1)-1
-do c2=0, cc(2)-1
-do c3=0, cc(3)-1
+do c1=0, nbcc(1)-1
+do c2=0, nbcc(2)-1
+do c3=0, nbcc(3)-1
 
-   i = header(c1,c2,c3)
-   do m = 1, nacell(c1,c2,c3)
+   i = nbheader(c1,c2,c3)
+   do m = 1, nbnacell(c1,c2,c3)
       iid = l2g(atype(i))
 
-      do mn = 1, nmesh
-         c4 = c1 + mesh(1,mn)
-         c5 = c2 + mesh(2,mn)
-         c6 = c3 + mesh(3,mn)
+      do mn = 1, nbnmesh
+         c4 = c1 + nbmesh(1,mn)
+         c5 = c2 + nbmesh(2,mn)
+         c6 = c3 + nbmesh(3,mn)
 
-         j = header(c4,c5,c6)
-         do n=1, nacell(c4,c5,c6)
+         j = nbheader(c4,c5,c6)
+         do n=1, nbnacell(c4,c5,c6)
 
             jid = l2g(atype(j))
 
@@ -1366,11 +1430,11 @@ do c3=0, cc(3)-1
 
             endif
 
-            j=llist(j)
+            j=nbllist(j)
          enddo
        enddo
 
-      i=llist(i)
+      i=nbllist(i)
    enddo
 enddo; enddo; enddo
 

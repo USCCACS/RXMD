@@ -37,8 +37,12 @@ real(8),allocatable :: sbuffer(:), rbuffer(:)
 integer :: ns, nr, na, ne
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
+integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
+
 !  integer,parameter :: NE_COPY=6, NE_MOVE=10, NE_CPBK=10
-integer,parameter :: NE_COPY=13, NE_MOVE=12, NE_CPBK=10
+integer,parameter :: NE_COPY = 13, NE_MOVE = 12, NE_CPBK = 10
+integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
 
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
@@ -242,7 +246,7 @@ integer :: fstep, pstep
 
 !--- <frcindx> FoRCe INDeX. Index to return calculated force to original atoms.
 integer,allocatable :: frcindx(:)
-integer :: frcptr(0:6)
+integer :: copyptr(0:6)
 
 !--- parameter & structure file description
 character(70) :: pfile
