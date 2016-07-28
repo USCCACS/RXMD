@@ -69,7 +69,7 @@ call system_clock(j,k)
 it_timer(8)=it_timer(8)+(j-i)
 
 call system_clock(i,k)
-CALL Elnpr(NMINCELL)
+CALL Elnpr()
 call system_clock(j,k)
 it_timer(9)=it_timer(9)+(j-i)
 
@@ -82,7 +82,6 @@ call system_clock(i,k)
 CALL E4b()
 call system_clock(j,k)
 it_timer(12)=it_timer(12)+(j-i)
-
 
 call system_clock(i,k)
 CALL Ehb()
@@ -106,7 +105,6 @@ call stress()
 #endif
 
 return
-
 END subroutine
 
 !----------------------------------------------------------------------
@@ -149,12 +147,11 @@ end subroutine
 
 
 !-------------------------------------------------------------------------------------
-subroutine Elnpr(nlayer)
+subroutine Elnpr()
 use parameters;use atoms
 !-------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(IN) :: nlayer
 integer :: c1,c2,c3,ii
 integer :: i,i1,j,j1,j2,ity, jty, inxn, idEh
 real(8) :: coeff(3)
@@ -183,39 +180,44 @@ real(8) :: get_exp
 allocate(deltalp(NBUFFER_P),stat=ast)
 
 !=== preparation ==============================================================
-do c1=-nlayer, cc(1)-1+nlayer
-do c2=-nlayer, cc(2)-1+nlayer
-do c3=-nlayer, cc(3)-1+nlayer
+!do c1=-nlayer, cc(1)-1+nlayer
+!do c2=-nlayer, cc(2)-1+nlayer
+!do c3=-nlayer, cc(3)-1+nlayer
+!
+!  i=header(c1,c2,c3)
+!  do ii = 1, nacell(c1,c2,c3)
 
-  i=header(c1,c2,c3)
-  do ii = 1, nacell(c1,c2,c3)
+do i = 1, NBUFFER_P
+   ity = atype(i)
 
-     ity = atype(i)
+   if(ity==0) cycle
 
-     deltaE = -Vale(ity) + Val(ity) + delta(i)
+   deltaE = -Vale(ity) + Val(ity) + delta(i)
 
-     dEh = deltaE*0.5d0
-     idEh = is_idEH*int(dEh)
-     explp1 = exp( -plp1(ity)*(2.d0 + deltaE - 2*idEh)**2 )
-     Clp = 2.d0*plp1(ity)*explp1*(2.d0 + deltaE - 2*idEh)
+   dEh = deltaE*0.5d0
+   idEh = is_idEH*int(dEh)
+   explp1 = exp( -plp1(ity)*(2.d0 + deltaE - 2*idEh)**2 )
+   Clp = 2.d0*plp1(ity)*explp1*(2.d0 + deltaE - 2*idEh)
 
-     dDlp(i) = Clp
+   dDlp(i) = Clp
 
 !--- delta function ver.
 !     dDlp(i) = Clp + (0.5d0 - Clp)*( epsrn*abs(mdEh)**(epsrn-1.d0) )
 
-     nlp(i) = explp1 - dble(idEh)
-     deltalp(i) = nlpopt(ity) - nlp(i)
+   nlp(i) = explp1 - dble(idEh)
+   deltalp(i) = nlpopt(ity) - nlp(i)
 
 !--- if mass is greater than 21.0, deltalp(i) becomes zero. see poten.f line 750.
 !--- if (amas(ity1).gt.21.0) dfvl=0.0d0
 !--- diffvlph=dfvl*(voptlp-vlptemp(i1))
 
-     if(mass(ity)>21.d0) deltalp(i) = 0.d0
+   if(mass(ity)>21.d0) deltalp(i) = 0.d0
 
-     i=llist(i)
-  enddo
-enddo; enddo; enddo
+enddo
+
+!     i=llist(i)
+!  enddo
+!enddo; enddo; enddo
 !============================================================== preparation ===
 
 PE(2:4)=0.d0
@@ -1417,7 +1419,7 @@ do c3=0, nbcc(3)-1
 
             jid = l2g(atype(j))
 
-            if(jid<iid) then
+            if(i<j .or. NATOMS<j) then
                dr(1:3) = pos(1:3,i) - pos(1:3,j)
                dr2 = sum(dr(1:3)*dr(1:3))
 

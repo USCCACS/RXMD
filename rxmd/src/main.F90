@@ -467,13 +467,15 @@ use atoms
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
-integer :: n,n0,l(3), c1,c2,c3, j
+integer :: n, l(3), j
 
 header(:,:,:) = -1; llist(:) = 0; nacell(:,:,:)=0
 
 !--- copyptr(6) stores the last atom index copied in COPYATOMS.
-!do n=1, NATOMS
-do n=1, copyptr(6) 
+do n=1, NBUFFER_P
+
+   if(nint(atype(n))==0) cycle
+
    l(1:3) = pos(1:3,n)/lcsize(1:3)
    do j=1,3
       if(pos(j,n)<0.d0) l(j) = l(j) - 1
@@ -491,12 +493,15 @@ use atoms
 ! partitions the volume into linked-list cells <lcsize> for non-bonding interactions
 !----------------------------------------------------------------------------------------
 implicit none
-integer :: n,n1, l(3), c1,c2,c3, j
+integer :: n, l(3), j
 
 nbheader(:,:,:) = -1; nbllist(:) = 0; nbnacell(:,:,:)=0
 
 !--- copyptr(6) stores the last atom index copied in COPYATOMS.
-do n=1, copyptr(6) 
+do n=1, NBUFFER_P
+
+   if(nint(atype(n))==0) cycle
+
    l(1:3) = pos(1:3,n)/nblcsize(1:3)
    do j=1,3
       if(pos(j,n)<0.d0) l(j) = l(j) - 1
@@ -825,11 +830,15 @@ integer :: i1,j1,k1
 
 integer :: c1,c2,c3,n
 
+integer :: j
+
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
 
-!--- since cached atoms are stored after the resident atoms (i.e. after NATOMS), 
-!--- initialize force index pointer with NATOMS as the reference
+!--- TODO: note that MODE_CPBK depends on copyptr generated during MODE_COPY,
+!--- remove this dependency.
+!--- Since cached atoms are stored after the resident atoms (i.e. i > NATOMS), 
+!--- initialize force index pointer with NATOMS as the reference.
 copyptr(0)=NATOMS
 
 !--- set the number of data per atom 
@@ -860,7 +869,10 @@ do dflag=1, 6
    call store_atoms(tn, dflag, myparity(i), imode, dr)
    call send_recv(tn, dflag, myparity(i))
    call append_atoms(dflag, myparity(i), imode)
+
 enddo
+
+
 
 if(imode==MODE_MOVE) then
 !--- remove atoms which are transfered to neighbor nodes.
@@ -949,7 +961,7 @@ use atoms
 implicit none
 integer,intent(IN) :: tn, dflag, parity, imode 
 real(8),intent(IN) :: dr
-logical :: toBeSent
+logical :: inBuffer
 
 integer :: i,j,k,m,n,n1,ni,is,l(3,2)
 real(8) :: sft, xshift
@@ -978,7 +990,7 @@ if(imode/=MODE_CPBK) then
 !--- start buffering data depending on modes. all copy&move modes use dr() to select atoms.
    do n=1, copyptr(cptridx)
 
-      if(toBeSent(dflag,n,dr)) then
+      if(inBuffer(dflag,parity,n,dr)) then
 
         select case(imode)
         case(MODE_MOVE)
@@ -1137,12 +1149,10 @@ endif
 !============================================================== FORCE COPYBACK MODE  ===
 
 !--- store the last transfered atom index to <dflag> direction.
-if(imode == MODE_COPY .or. imode == MODE_MOVE) then
-
-   !--- if no data have been received, use the index of previous direction.
-   if(nr==0) m = copyptr(dflag-1)
-
-   copyptr(dflag) = m
+!--- if no data have been received, use the index of previous direction.
+if(imode /= MODE_CPBK) then
+  if(nr==0) m = copyptr(dflag-1)
+  copyptr(dflag) = m
 endif
 
 !--- update the total # of transfered elements.
@@ -1167,39 +1177,65 @@ integer :: i, j
   i = mod(dflag,2)  !<- i=1 positive, i=0 negative for even parity nodes
   j = int((dflag+1)/2)  !<- [123] means [xyz]
   if(parity==0) then
-    if(i==1) xshift =-LBOX(j)
-    if(i==0) xshift = LBOX(j)
+    if(i==1) xshift =-lbox(j)
+    if(i==0) xshift = lbox(j)
   else if(parity==1) then
-    if(i==1) xshift = LBOX(j)
-    if(i==0) xshift =-LBOX(j)
+    if(i==1) xshift = lbox(j)
+    if(i==0) xshift =-lbox(j)
   endif
    
 !print'(a,i,3f10.3)',"shift: ",myid, xshift
  
 end function
 !--------------------------------------------------------------------------------------------------------------
-logical function toBeSent(dflag, idx, dr)
+logical function inBuffer(dflag, parity, idx, dr)
 use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: dflag, idx
+integer,intent(IN) :: dflag, parity, idx
 real(8),intent(IN) :: dr(3)
+integer :: i,j
 
+i = mod(dflag,2)  !<- i=1 positive, i=0 negative for even parity nodes
 select case(dflag)
    case(1) 
-      toBeSent = lbox(1) - dr(1) < pos(1,idx)
+      if(parity==0) then 
+         inBuffer = lbox(1) - dr(1) < pos(1,idx)
+      else if(parity==1) then
+         inBuffer = pos(1,idx) <= dr(1)
+      endif
    case(2) 
-      toBeSent = pos(1,idx) < dr(1)
+      if(parity==0) then
+         inBuffer = pos(1,idx) <= dr(1)
+      else if(parity==1) then
+         inBuffer = lbox(1) - dr(1) < pos(1,idx)
+      endif
    case(3) 
-      toBeSent = lbox(2) - dr(2) < pos(2,idx)
+      if(parity==0) then
+         inBuffer = lbox(2) - dr(2) < pos(2,idx)
+      else if(parity==1) then
+         inBuffer = pos(2,idx) <= dr(2)
+      endif
    case(4) 
-      toBeSent = pos(2,idx) < dr(2)
+      if(parity==0) then
+         inBuffer = pos(2,idx) <= dr(2)
+      else if(parity==1)then
+         inBuffer = lbox(2) - dr(2) < pos(2,idx)
+      endif
    case(5) 
-      toBeSent = lbox(3) - dr(3) < pos(3,idx)
+      if(parity==0) then
+         inBuffer = lbox(3) - dr(3) < pos(3,idx)
+      else if(parity==1) then
+         inBuffer = pos(3,idx) <= dr(3)
+      endif
    case(6) 
-      toBeSent = pos(3,idx) < dr(3)
+      if(parity==0) then
+         inBuffer = pos(3,idx) <= dr(3)
+      else if(parity==1) then
+         inBuffer = lbox(3) - dr(3) < pos(3,idx)
+      endif
    case default
-      write(6,*) "ERROR: no matching directional flag in toBeSent: ", dflag
+      write(6,*) "ERROR: no matching directional flag in inBuffer: ", dflag
 end select
 
 end function

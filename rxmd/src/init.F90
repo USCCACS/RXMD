@@ -700,8 +700,8 @@ do k=-imesh(3), imesh(3)
 enddo; enddo; enddo
 
 allocate(nbllist(NBUFFER_P),stat=ast)
-allocate(nbheader(-MAXLAYERS:nbcc(1)-1+MAXLAYERS, -MAXLAYERS:nbcc(2)-1+MAXLAYERS, -MAXLAYERS:nbcc(3)-1+MAXLAYERS), stat=ast)
-allocate(nbnacell(-MAXLAYERS:nbcc(1)-1+MAXLAYERS, -MAXLAYERS:nbcc(2)-1+MAXLAYERS, -MAXLAYERS:nbcc(3)-1+MAXLAYERS), stat=ast)
+allocate(nbheader(-MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
+allocate(nbnacell(-MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
 
 !--- normalize nblcsize, like lcsize.
 nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)
@@ -731,11 +731,6 @@ H(1,1)=la;          H(2,1)=0.d0;        H(3,1)=0.d0
 H(1,2)=lb*cos(lga); H(2,2)=lb*sin(lga); H(3,2)=0.d0
 H(1,3)=lc*cos(lbe); H(2,3)=hh1;         H(3,3)=hh2
 
-!print'(a)','getbox() --- '
-!print'(a,3f12.5)', ' H(1:3,1): ', H(1:3,1)
-!print'(a,3f12.5)', ' H(1:3,2): ', H(1:3,2)
-!print'(a,3f12.5)', ' H(1:3,3): ', H(1:3,3)
-
 return
 end subroutine
 
@@ -750,24 +745,14 @@ MDBOX = &
 HH(1,1,0)*(HH(2,2,0)*HH(3,3,0) - HH(3,2,0)*HH(2,3,0)) + &
 HH(2,1,0)*(HH(3,2,0)*HH(1,3,0) - HH(1,2,0)*HH(3,3,0)) + &
 HH(3,1,0)*(HH(1,2,0)*HH(2,3,0) - HH(2,2,0)*HH(1,3,0))
-!if(myid==0) print'(a,f)', 'MDBOX', MDBOX
 
 !--- get inverse of H-matrix
 call matinv(HH,HHi)
-!if(myid==0) then
-!print'(a,3f12.5)', 'HHi(1:3,1): ', HHi(1:3,1)
-!print'(a,3f12.5)', 'HHi(1:3,2): ', HHi(1:3,2)
-!print'(a,3f12.5)', 'HHi(1:3,3): ', HHi(1:3,3)
-!endif
 
 !--- local box dimensions (a temporary use of lbox)
 LBOX(1)=lata/vprocs(1)
 LBOX(2)=latb/vprocs(2)
 LBOX(3)=latc/vprocs(3)
-
-!if(myid==0) then
-!print'(a,3f12.5)','LBOX(1:3): ', LBOX(1:3)
-!endif
 
 !--- get the number of linkedlist cell per domain
 cc(1:3)=LBOX(1:3)/maxrc
@@ -781,12 +766,6 @@ lcsize(1:3) = LBOX(1:3)/cc(1:3)
 !--- get origin of local MD box in the scaled coordiate.
 OBOX(1:3) = LBOX(1:3)*vID(1:3)
 
-!if(myid==0) then
-!print'(a,3i6)','cc(1:3): ', cc(1:3)
-!print'(a,3f12.5)','lcsize(1:3): ', lcsize(1:3)
-!print'(a,3f12.5)','LBOX(1:3): ', LBOX(1:3)
-!print'(a,3f12.5)','OBOX(1:3): ', OBOX(1:3)
-!endif
 
 return
 end
@@ -811,6 +790,7 @@ if(mod(myid,nio)==0) then
   read(10) NATOMS
   read(10) current_step
   read(10) lata,latb,latc,lalpha,lbeta,lgamma
+
   do i=1,NATOMS
      read(10) pos(1:3,i)
      read(10) v(1:3,i)

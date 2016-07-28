@@ -41,11 +41,12 @@ integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
 
 !  integer,parameter :: NE_COPY=6, NE_MOVE=10, NE_CPBK=10
-integer,parameter :: NE_COPY = 13, NE_MOVE = 12, NE_CPBK = 10
+integer,parameter :: NE_COPY = 10, NE_MOVE = 12, NE_CPBK = 4
 integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
 
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
+integer,parameter :: MAXLAYERS_NB=10
         
 !<scl([xyz], start-end cell, direction flag, # of layers)> :: cell indices to be sent
 !<scl1()> <scl2()> store opposite side layer indices.
@@ -83,7 +84,7 @@ integer,parameter :: is_idEh = 1
 
 integer :: NBUFFER_P=20000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=600 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 integer :: NCELL10               !<NCELL10>: Nr of linkedlist cell to cover up 10[A].
@@ -112,6 +113,7 @@ real(8) :: acmp(0:10)
 real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
+integer :: ALLATOMS
 
 !<llist> Linked List
 !<header> header atom of linkedlist cell.

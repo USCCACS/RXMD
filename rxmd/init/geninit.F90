@@ -1,8 +1,8 @@
 module params
 implicit none
-integer,parameter :: vprocs(3)=(/1,1,1/)
+integer,parameter :: vprocs(3)=(/1,1,2/)
 integer,parameter :: nio=1
-integer,parameter :: mc(3)=(/1,2,2/)
+integer,parameter :: mc(3)=(/2,2,2/)
 
 !integer,parameter :: vprocs(3)=(/8,8,8/)
 !integer,parameter :: nio=1

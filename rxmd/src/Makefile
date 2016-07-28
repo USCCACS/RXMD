@@ -7,7 +7,8 @@
 %.o: %.mod
 
 #FC = mpif90 -openmp -check all -traceback
-FC = mpif90 -openmp 
+#FC = mpif90 -check all -traceback
+FC = mpif90 -openmp
 CC = mpic++
 OPT = -O3 -g
 
