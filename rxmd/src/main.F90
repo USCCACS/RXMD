@@ -472,7 +472,7 @@ integer :: n, l(3), j
 header(:,:,:) = -1; llist(:) = 0; nacell(:,:,:)=0
 
 !--- copyptr(6) stores the last atom index copied in COPYATOMS.
-do n=1, NBUFFER_P
+do n=1, copyptr(6) 
 
    if(nint(atype(n))==0) cycle
 
@@ -498,7 +498,7 @@ integer :: n, l(3), j
 nbheader(:,:,:) = -1; nbllist(:) = 0; nbnacell(:,:,:)=0
 
 !--- copyptr(6) stores the last atom index copied in COPYATOMS.
-do n=1, NBUFFER_P
+do n=1, copyptr(6) 
 
    if(nint(atype(n))==0) cycle
 
@@ -835,10 +835,9 @@ integer :: j
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
 
-!--- TODO: note that MODE_CPBK depends on copyptr generated during MODE_COPY,
-!--- remove this dependency.
+!--- REMARK: note that MODE_CPBK depends on copyptr() generated during MODE_COPY.
 !--- Since cached atoms are stored after the resident atoms (i.e. i > NATOMS), 
-!--- initialize force index pointer with NATOMS as the reference.
+!--- initialize the cache atom pointer 0th elem with NATOMS.
 copyptr(0)=NATOMS
 
 !--- set the number of data per atom 
@@ -853,6 +852,8 @@ select case(imode)
       ne = NE_QCOPY1
    case(MODE_QCOPY2)
       ne = NE_QCOPY2
+   case(MODE_STRESSCALC)
+      ne = NE_STRESSCALC
    case default
       print'(a,i)', "ERROR: imode doesn't match in COPYATOMS: ", imode
 end select
@@ -871,7 +872,6 @@ do dflag=1, 6
    call append_atoms(dflag, myparity(i), imode)
 
 enddo
-
 
 
 if(imode==MODE_MOVE) then
@@ -1026,6 +1026,10 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+1) = hs(n)
            sbuffer(ns+2) = ht(n)
            sbuffer(ns+3) = q(n)
+
+        case(MODE_STRESSCALC)
+           sbuffer(ns+1:ns+6) = astr(1:6,n)
+
         end select 
 
 !--- increment the number of atoms to be sent 
@@ -1126,6 +1130,9 @@ if(imode /= MODE_CPBK) then
               hs(m) = rbuffer(ine+1)
               ht(m) = rbuffer(ine+2)
               q(m)  = rbuffer(ine+3)
+
+           case(MODE_STRESSCALC)
+              astr(1:6,m) = rbuffer(ine+1:ine+6)
       
       end select
 

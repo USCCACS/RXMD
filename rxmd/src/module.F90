@@ -36,21 +36,24 @@ real(8),allocatable :: sbuffer(:), rbuffer(:)
 !     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
 integer :: ns, nr, na, ne
 
+
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
-integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5, MODE_STRESSCALC = 6
 
-!  integer,parameter :: NE_COPY=6, NE_MOVE=10, NE_CPBK=10
-integer,parameter :: NE_COPY = 10, NE_MOVE = 12, NE_CPBK = 4
-integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
+integer,parameter :: NE_COPY = 10, NE_MOVE = 12
+integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3, NE_STRESSCALC = 6
+
+#ifdef STRESS
+integer,parameter :: NE_CPBK = 10
+#else
+integer,parameter :: NE_CPBK = 4
+#endif
+
 
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
 integer,parameter :: MAXLAYERS_NB=10
-        
-!<scl([xyz], start-end cell, direction flag, # of layers)> :: cell indices to be sent
-!<scl1()> <scl2()> store opposite side layer indices.
-integer :: scl1(3,2,6,0:MAXLAYERS), scl2(3,2,6,0:MAXLAYERS)
         
 ! <target_node> stores partner node ID in the 6-communications. 
 ! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
@@ -83,11 +86,10 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer :: NBUFFER_P=20000
-integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
-integer :: NCELL10               !<NCELL10>: Nr of linkedlist cell to cover up 10[A].
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
 real(8),parameter :: MINANGLE=-0.999999999999d0
 real(8),parameter :: NSMALL = 1.d-10
@@ -105,10 +107,6 @@ real(8) :: pint(3,3)
 
 !--- coefficient of bonding energy derivative 
 real(8),allocatable :: ccbnd(:)
-
-!--- weight of each component on stress calculation. These numbers depends on which system been computed.
-integer :: ncmp
-real(8) :: acmp(0:10)
 
 real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
 integer :: NATOMS         !local # of atoms

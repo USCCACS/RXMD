@@ -39,7 +39,7 @@ call xs2xu()
 !$omp section
 
 call system_clock(i,k)
-call GetNonbondingPairs()
+call GetNonbondingPairList()
 call system_clock(j,k)
 it_timer(15)=it_timer(15)+(j-i)
 
@@ -98,6 +98,14 @@ dr(1:3)=0.d0
 CALL COPYATOMS(MODE_CPBK,dr) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
+
+!rr(1:3)=0.d0
+!do i=1, NATOMS
+!   rr(1:3)=rr(1:3)+f(1:3,i)
+!   print'(i,6f)',i,f(1:3,i),q(i)
+!enddo
+!print'(a,3f)','frcsum: ', rr(1:3)
+!stop
 
 !--- calculate kinetic part of stress components and add to <astr>.
 #ifdef STRESS
@@ -741,18 +749,6 @@ do c3=0, cc(3)-1
        
                   f(1:3,i) = f(1:3,i) - ff(1:3)
                   f(1:3,j) = f(1:3,j) + ff(1:3)
-!!$omp atomic update
-!                  f(1,i) = f(1,i) - ff(1)
-!!$omp atomic update
-!                  f(2,i) = f(2,i) - ff(2)
-!!$omp atomic update
-!                  f(3,i) = f(3,i) - ff(3)
-!!$omp atomic update
-!                  f(1,j) = f(1,j) + ff(1)
-!!$omp atomic update
-!                  f(2,j) = f(2,j) + ff(2)
-!!$omp atomic update
-!                  f(3,j) = f(3,j) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -1390,7 +1386,7 @@ use atoms
 end subroutine 
 
 !----------------------------------------------------------------------
-subroutine GetNonbondingPairs()
+subroutine GetNonbondingPairList()
 use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none

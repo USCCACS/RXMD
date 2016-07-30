@@ -167,9 +167,6 @@ call xs2xu()
 i8=NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
-!--- Give some number to atype(0). This is necessary to do vectorial operation since 0th element does not have atom type.
-atype(0)=1 
-
 #ifdef STRESS
 !--- stress variables
 allocate(astr(6,NBUFFER_P),stat=ast); ist=ist+ast
@@ -259,77 +256,6 @@ do i=1,nso
    enddo
 enddo
 
-do m=1, MAXLAYERS ! # of maximum layers. 
-!--- positive x-direction
-   scl1(1,1,1,m)=cc(1)-m; scl1(1,2,1,m)=cc(1)-1
-   scl1(2,1,1,m)=0;       scl1(2,2,1,m)=cc(2)-1
-   scl1(3,1,1,m)=0;       scl1(3,2,1,m)=cc(3)-1
-
-!--- negative x-direction
-   scl1(1,1,2,m)=0;       scl1(1,2,2,m)=m-1
-   scl1(2,1,2,m)=0;       scl1(2,2,2,m)=cc(2)-1
-   scl1(3,1,2,m)=0;       scl1(3,2,2,m)=cc(3)-1
-
-!--- posivtive y-direction + expanded layer in x.
-   scl1(1,1,3,m)=-m;      scl1(1,2,3,m)=cc(1)+m-1
-   scl1(2,1,3,m)=cc(2)-m; scl1(2,2,3,m)=cc(2)-1
-   scl1(3,1,3,m)=0;       scl1(3,2,3,m)=cc(3)-1
-
-!--- negative y-direction + expanded layer in x.
-   scl1(1,1,4,m)=-m;      scl1(1,2,4,m)=cc(1)+m-1
-   scl1(2,1,4,m)= 0;      scl1(2,2,4,m)=m-1
-   scl1(3,1,4,m)= 0;      scl1(3,2,4,m)=cc(3)-1
-
-!--- positive z-direction + expanded layer in x&y.
-   scl1(1,1,5,m)=-m;      scl1(1,2,5,m)=cc(1)+m-1
-   scl1(2,1,5,m)=-m;      scl1(2,2,5,m)=cc(2)+m-1
-   scl1(3,1,5,m)=cc(3)-m; scl1(3,2,5,m)=cc(3)-1
-
-!--- negative z-direction + expanded layer in x&y.
-   scl1(1,1,6,m)=-m;      scl1(1,2,6,m)=cc(1)+m-1
-   scl1(2,1,6,m)=-m;      scl1(2,2,6,m)=cc(2)+m-1
-   scl1(3,1,6,m)= 0;      scl1(3,2,6,m)=m-1
-enddo
-
-!--- Get cell indices for atom migration mode and store them into scl1(:,:,:,0).
-!--- positive x-direction
-scl1(1,1,1,0)=cc(1);    scl1(1,2,1,0)=cc(1)
-scl1(2,1,1,0)=-1;       scl1(2,2,1,0)=cc(2)
-scl1(3,1,1,0)=-1;       scl1(3,2,1,0)=cc(3)
-
-!--- negative x-direction
-scl1(1,1,2,0)=-1;       scl1(1,2,2,0)=-1
-scl1(2,1,2,0)=-1;       scl1(2,2,2,0)=cc(2)
-scl1(3,1,2,0)=-1;       scl1(3,2,2,0)=cc(3)
-
-!--- posivtive y-direction + shrinked layer in x.
-scl1(1,1,3,0)=0;       scl1(1,2,3,0)=cc(1)-1
-scl1(2,1,3,0)=cc(2);   scl1(2,2,3,0)=cc(2)
-scl1(3,1,3,0)=-1;      scl1(3,2,3,0)=cc(3)
-
-!--- negative y-direction + shrinked layer in x.
-scl1(1,1,4,0)= 0;      scl1(1,2,4,0)=cc(1)-1
-scl1(2,1,4,0)=-1;      scl1(2,2,4,0)=-1
-scl1(3,1,4,0)=-1;      scl1(3,2,4,0)=cc(3)
-
-!--- positive z-direction + shrinked layer in x&y.
-scl1(1,1,5,0)=0;       scl1(1,2,5,0)=cc(1)-1
-scl1(2,1,5,0)=0;       scl1(2,2,5,0)=cc(2)-1
-scl1(3,1,5,0)=cc(3);   scl1(3,2,5,0)=cc(3)
-
-!--- negative z-direction + shrinked layer in x&y.
-scl1(1,1,6,0)= 0;      scl1(1,2,6,0)=cc(1)-1
-scl1(2,1,6,0)= 0;      scl1(2,2,6,0)=cc(2)-1
-scl1(3,1,6,0)=-1;      scl1(3,2,6,0)=-1
-
-!-- flip the direction in <scl1> for odd parity node. 
-scl2(1:3,1:2, 1, 0:MAXLAYERS) = scl1(1:3,1:2, 2, 0:MAXLAYERS)
-scl2(1:3,1:2, 2, 0:MAXLAYERS) = scl1(1:3,1:2, 1, 0:MAXLAYERS)
-scl2(1:3,1:2, 3, 0:MAXLAYERS) = scl1(1:3,1:2, 4, 0:MAXLAYERS)
-scl2(1:3,1:2, 4, 0:MAXLAYERS) = scl1(1:3,1:2, 3, 0:MAXLAYERS)
-scl2(1:3,1:2, 5, 0:MAXLAYERS) = scl1(1:3,1:2, 6, 0:MAXLAYERS)
-scl2(1:3,1:2, 6, 0:MAXLAYERS) = scl1(1:3,1:2, 5, 0:MAXLAYERS)
-
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 !--- get real size of linked list cell
 rcsize(1) = lata/vprocs(1)/cc(1)
@@ -340,9 +266,6 @@ maxrcell = maxval(rcsize(1:3))
 !--- get # of linked list cell to coverup 10[A] cutoff range
 imesh(1:3)  = int(rctap/rcsize(1:3)) + 1
 maximesh = maxval(imesh(1:3))
-
-!--- <NCELL10> is used in energy/potential calculation. 
-NCELL10 = maximesh
 
 !--- get max length in one direction, used as mesh cutoff.
 rcmesh2 = ((maxrcell+1)*maximesh)**2
@@ -389,14 +312,13 @@ if(myid==0) then
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
    write(6,'(a30,a70)')      "parameter set:", pfile
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
-   write(6,'(a30,i5)') "MDMODE:", mdmode
+   write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
+                                  mdmode, current_step, ntime_step
    write(6,'(a30,i6,es10.1,i6,i6)') "isQEq,QEq_tol,NMAXQEq,qstep:", &
                                      isQEq,QEq_tol,NMAXQEq,qstep
    write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
    write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
    write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
-   write(6,'(a30,1x,i10)') "CURRENTSTEP:", current_step
-   write(6,'(a30,3x,i10)') "NTIMESTPE:", ntime_step
    write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
    write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
    write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
@@ -408,11 +330,16 @@ if(myid==0) then
    write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
    maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
-   write(6,'(a30,2i6)') "NMINCELL, NCELL10:", NMINCELL, NCELL10
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
-   write(6,'(a30,i9)') "NBUFFER_P:", NBUFFER_P
-   write(6,'(a30,3(a,1x))') "FFPath, DataPath, ParmPath: ", &
+   write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER_P
+   write(6,'(a30,3(a12,1x))') "FFPath, DataPath, ParmPath:", &
                           trim(FFPath), trim(DataPath), trim(ParmPath)
+
+   print'(a30 $)','# of atoms per type:'
+   do ity=1, nso
+      if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
+   enddo
+   print*
 
    print'(a)', "----------------------------------------------------------------"
    write(6,'(a)')  &
@@ -547,15 +474,6 @@ enddo
 !--- get the max cutoff length 
 maxrc=maxval(rc(:))
 
-!--- NCELL10 is used in QEq
-NCELL10 = int(rctap/maxrc)+1
-
-if(myid==0) then
-   do ity=1, nso
-   print'(a30,i3,3x,i12)','# of atoms per type: ', ity, natoms_per_type(ity)
-   enddo
-endif
-
 end subroutine
 
 !------------------------------------------------------------------------------------------
@@ -681,7 +599,8 @@ do j=-imesh(2), imesh(2)
 do k=-imesh(3), imesh(3)
    rr(1:3) = (/i,j,k/)*nblcsize(1:3)
    dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rctap*rctap) nbnmesh = nbnmesh + 1
+   if(dr2 <= (rctap*1.2d0)**2) nbnmesh = nbnmesh + 1
+   !if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
 enddo; enddo; enddo
 
 allocate(nbmesh(3,nbnmesh),stat=ast)
@@ -693,7 +612,8 @@ do j=-imesh(2), imesh(2)
 do k=-imesh(3), imesh(3)
    rr(1:3) = (/i,j,k/)*nblcsize(1:3)
    dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rctap*rctap) then
+   if(dr2 <= (rctap*1.2d0)**2) then
+   !if(dr2 <= rctap**2) then
       nbnmesh = nbnmesh + 1
       nbmesh(1:3,nbnmesh) = (/i, j, k/)
    endif

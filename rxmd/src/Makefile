@@ -7,8 +7,7 @@
 %.o: %.mod
 
 #FC = mpif90 -openmp -check all -traceback
-#FC = mpif90 -check all -traceback
-FC = mpif90 -openmp
+FC = mpif90 
 CC = mpic++
 OPT = -O3 -g
 
@@ -33,6 +32,12 @@ endif
 $(EXE): $(OBJS) 
 	$(FC) -o $(EXE) $(LDFLAGS) $(OBJS) 
 	mv $(EXE) ../$(EXE)
+
+$(OBJS) : atoms.mod
+
+atoms.mod: module.F90
+	$(FC) -c $(CPP) $(OPT) module.F90
+
 
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h

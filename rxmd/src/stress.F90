@@ -13,7 +13,8 @@ real(8) :: dbuf(6), Gdbuf(6)
 real(8) :: rcstr2 = 5.d0**2
 
 !--- update buffer atom's stress value
-call COPYATOMS_str(4)
+dr=4*lcsize(1:3)
+call COPYATOMS(MODE_STRESSCALC, dr)
 
 !--- get the potential contribution of internal pressure 
 do i=1, NATOMS
@@ -56,90 +57,3 @@ pint(2,1)=dbuf(6) !yx
 return
 end subroutine
 !--------------------------------------------------------------------------------------------------------------
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS_str(nlayer)
-! subset of <COPYATOMS>. Just let buffer atoms have stress value. 
-use atoms 
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: nlayer
-integer :: i,tn, dflag, parity
-
-na=0;ns=0;nr=0
-
-!--- set Nr of elements during this communication. 
-ne=6
-do dflag=1, 6
-   tn = target_node(dflag)
-   i=(dflag+1)/2  !<- [123]
-   parity=myparity(i)
-
-   call store_atoms_str(tn, dflag, parity, nlayer)
-   call send_recv(tn, dflag, parity)
-   call append_atoms_str(dflag, parity, nlayer)
-enddo
-
-end subroutine 
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine store_atoms_str(tn, dflag, parity, nlayer)
-use atoms 
-! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: tn, dflag, parity, nlayer
-integer :: i,j,k,m,n,n1,ni,is,l(3,2)
-
-if(parity==0) l(1:3, 1:2)=scl1(1:3, 1:2, dflag, nlayer)
-if(parity==1) l(1:3, 1:2)=scl2(1:3, 1:2, dflag, nlayer)
-ns=sum(nacell(l(1,1):l(1,2), l(2,1):l(2,2), l(3,1):l(3,2)))
-ns=ns*ne
-if(ns>0) allocate(sbuffer(ns),stat=ast)
-
-ni=0
-do i=l(1,1), l(1,2)
-do j=l(2,1), l(2,2)
-do k=l(3,1), l(3,2)
-
-   n=header(i,j,k)
-   do n1=1, nacell(i,j,k)
-      sbuffer(ni+1:ni+6) = astr(1:6,n)
-      ni=ni+ne
-      n=llist(n)
-   enddo
-enddo; enddo; enddo
-
-if(myid==tn) then
-  if(ns>0) then
-     nr=ns
-     allocate(rbuffer(nr), stat=ast)
-     rbuffer(:) = sbuffer(:)
-  else
-     nr=0
-  endif
-endif
-
-end subroutine
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine  append_atoms_str(dflag, parity, nlayer)
-use atoms
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: dflag, parity, nlayer
-integer :: m, i, ine
-
-do i=0, nr/ne-1
-   ine=i*ne
-   m = -(na/ne+i) - 1
-   astr(1:6,m) = rbuffer(ine+1:ine+6)
-enddo
-
-na=na+nr
-llist(0) = na/ne
-
-if(allocated(sbuffer)) deallocate(sbuffer)
-if(allocated(rbuffer)) deallocate(rbuffer)
-
-end subroutine 
