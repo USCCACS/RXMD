@@ -1245,34 +1245,6 @@ f(1:3,j) = f(1:3,j) - fij(1:3) + fjk(1:3)
 f(1:3,k) = f(1:3,k) - fjk(1:3) + fkl(1:3)
 f(1:3,l) = f(1:3,l) - fkl(1:3)
 
-!!$omp atomic update
-!f(1,i) = f(1,i) + fij(1) 
-!!$omp atomic update
-!f(2,i) = f(2,i) + fij(2) 
-!!$omp atomic update
-!f(3,i) = f(3,i) + fij(3) 
-!
-!!$omp atomic update
-!f(1,j) = f(1,j) - fij(1) + fjk(1) 
-!!$omp atomic update
-!f(2,j) = f(2,j) - fij(2) + fjk(2) 
-!!$omp atomic update
-!f(3,j) = f(3,j) - fij(3) + fjk(3) 
-!
-!!$omp atomic update
-!f(1,k) = f(1,k) - fjk(1) + fkl(1)
-!!$omp atomic update
-!f(2,k) = f(2,k) - fjk(2) + fkl(2)
-!!$omp atomic update
-!f(3,k) = f(3,k) - fjk(3) + fkl(3)
-!
-!!$omp atomic update
-!f(1,l) = f(1,l) - fkl(1)
-!!$omp atomic update
-!f(2,l) = f(2,l) - fkl(2)
-!!$omp atomic update
-!f(3,l) = f(3,l) - fkl(3)
-
 !--- stress calculation
 #ifdef STRESS
 ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)
@@ -1282,7 +1254,6 @@ include 'stress'
 ia=k; ja=l; dr(1:3)=rkl(1:3); ff(1:3)=-fkl(1:3)
 include 'stress'
 #endif
-
 
 !--- Check N3rd ---
 !  print'(a,5f20.13)','N3rd: ',Cwi(1)-Cwi(2)+Cwj(1), Cwi(2)-Cwi(3)+Cwk(1), &
@@ -1329,27 +1300,6 @@ f(1:3,i) = f(1:3,i) + fij(1:3)
 f(1:3,j) = f(1:3,j) - fij(1:3) + fjk(1:3)
 f(1:3,k) = f(1:3,k) - fjk(1:3)
 
-!!$omp atomic update
-!f(1,i) = f(1,i) + fij(1)
-!!$omp atomic update
-!f(2,i) = f(2,i) + fij(2)
-!!$omp atomic update
-!f(3,i) = f(3,i) + fij(3)
-!
-!!$omp atomic update
-!f(1,j) = f(1,j) - fij(1) + fjk(1)
-!!$omp atomic update
-!f(2,j) = f(2,j) - fij(2) + fjk(2)
-!!$omp atomic update
-!f(3,j) = f(3,j) - fij(3) + fjk(3)
-!
-!!$omp atomic update
-!f(1,k) = f(1,k) - fjk(1)
-!!$omp atomic update
-!f(2,k) = f(2,k) - fjk(2)
-!!$omp atomic update
-!f(3,k) = f(3,k) - fjk(3)
-
 #ifdef STRESS
 ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)
 include 'stress'
@@ -1384,57 +1334,3 @@ use atoms
    if(crs(0)<NSMALL) crs(0) = NSMALL
    
 end subroutine 
-
-!----------------------------------------------------------------------
-subroutine GetNonbondingPairList()
-use atoms; use parameters
-!----------------------------------------------------------------------
-implicit none
-integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
-integer :: l2g
-real(8) :: dr(3), dr2
-
-! reset non-bonding pair list
-nbplist(:,0)=0
-
-do c1=0, nbcc(1)-1
-do c2=0, nbcc(2)-1
-do c3=0, nbcc(3)-1
-
-   i = nbheader(c1,c2,c3)
-   do m = 1, nbnacell(c1,c2,c3)
-      iid = l2g(atype(i))
-
-      do mn = 1, nbnmesh
-         c4 = c1 + nbmesh(1,mn)
-         c5 = c2 + nbmesh(2,mn)
-         c6 = c3 + nbmesh(3,mn)
-
-         j = nbheader(c4,c5,c6)
-         do n=1, nbnacell(c4,c5,c6)
-
-            jid = l2g(atype(j))
-
-            if(i<j .or. NATOMS<j) then
-               dr(1:3) = pos(1:3,i) - pos(1:3,j)
-               dr2 = sum(dr(1:3)*dr(1:3))
-
-               if(dr2<=rctap2) then
-                 nbplist(i,0)=nbplist(i,0)+1
-                 nbplist(j,0)=nbplist(j,0)+1
-                 nbplist(i,nbplist(i,0))=j
-                 nbplist(j,nbplist(j,0))=i
-               endif
-
-            endif
-
-            j=nbllist(j)
-         enddo
-       enddo
-
-      i=nbllist(i)
-   enddo
-enddo; enddo; enddo
-
-end subroutine
-

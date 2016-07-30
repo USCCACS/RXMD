@@ -55,9 +55,9 @@ end select
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
 call xu2xs()
-!call LINKEDLIST()
 call COPYATOMS(MODE_COPY, QCopyDr)
 call LINKEDLIST()
+call NBLINKEDLIST()
 call xs2xu()
 
 call qeq_initialize()
@@ -141,7 +141,6 @@ do nstep_qeq=0, nmax-1
 enddo
 
 call qeq_finalize()
-
 call xs2xu()
 
 call system_clock(j1,k1)
@@ -177,22 +176,22 @@ endif
 
 nn=0
 nbrlist(0,:) = 0
-do c1=0, cc(1)-1
-do c2=0, cc(2)-1
-do c3=0, cc(3)-1
+do c1=0, nbcc(1)-1
+do c2=0, nbcc(2)-1
+do c3=0, nbcc(3)-1
 
-   i = header(c1,c2,c3)
-   do m = 1, nacell(c1,c2,c3)
+   i = nbheader(c1,c2,c3)
+   do m = 1, nbnacell(c1,c2,c3)
 
    ity=atype(i)
 
-   do mn = 1, nmesh
-      c4 = c1 + mesh(1,mn)
-      c5 = c2 + mesh(2,mn)
-      c6 = c3 + mesh(3,mn)
+   do mn = 1, nbnmesh
+      c4 = c1 + nbmesh(1,mn)
+      c5 = c2 + nbmesh(2,mn)
+      c6 = c3 + nbmesh(3,mn)
 
-      j=header(c4,c5,c6)
-      do n=1, nacell(c4,c5,c6)
+      j = nbheader(c4,c5,c6)
+      do n=1, nbnacell(c4,c5,c6)
 
          if(i/=j) then
             dr(1:3) = pos(1:3,i) - pos(1:3,j)
@@ -223,11 +222,11 @@ if(itb==0) print'(5i,6f10.5)',myid,l2g(atype(i)),l2g(atype(j)),i,j,pos(1:3,i), p
             endif
          endif
 
-         j=llist(j)
+         j=nbllist(j)
       enddo
-   enddo
+   enddo !   do mn = 1, nbnmesh
 
-   i=llist(i)
+   i=nbllist(i)
    enddo
 enddo; enddo; enddo
 

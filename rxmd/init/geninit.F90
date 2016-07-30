@@ -2,7 +2,7 @@ module params
 implicit none
 integer,parameter :: vprocs(3)=(/2,2,2/)
 integer,parameter :: nio=1
-integer,parameter :: mc(3)=(/3,3,3/)
+integer,parameter :: mc(3)=(/2,2,2/)
 
 !integer,parameter :: vprocs(3)=(/8,8,8/)
 !integer,parameter :: nio=1
@@ -252,19 +252,16 @@ enddo
 qq=0.d0; vv(:)=0.d0; qfsp0=0.d0; qfsv0=0.d0
 open(1,file="all.bin",form="unformatted",access="stream")
 open(20,file="geninit.xyz")
+open(30,file="rxff.bin",form="unformatted",access="stream")
+write(30) nprocs, vprocs(1:3)
+write(30) lnatoms(0:nprocs-1)
+write(30) 0
+write(30) L1, L2, L3, Lalpha, Lbeta, Lgamma
+
 write(20,'(i12)') sum(lnatoms(:))
 write(20,'(a)') trim(fname)
 do myid=0,nprocs-1
    write(a6(1:6),'(i6.6)') myid
-
-   if(mod(myid,nio)==0) then
-      print'(a,2i9)', 'new coio file opened, myid, nio: ', myid, nio
-      open(10,file="rxff"//a6,form="unformatted",access="stream")
-   endif 
-
-   write(10) lnatoms(myid)
-   write(10) 0 ! <- current MDstep.  
-   write(10) L1, L2, L3, Lalpha, Lbeta, Lgamma
 
    i=mod(myid,vprocs(1))
    j=mod(myid/vprocs(1),vprocs(2))
@@ -273,12 +270,13 @@ do myid=0,nprocs-1
 
    do n=1,lnatoms(myid)
       read(1) rr(1:3),dtype
-      write(10)rr(1:3)
-      write(10)vv(1:3)
-      write(10)qq
-      write(10)dtype
-      write(10)qfsp0
-      write(10)qfsv0
+
+      write(30)rr(1:3)
+      write(30)vv(1:3)
+      write(30)qq
+      write(30)dtype
+      write(30)qfsp0
+      write(30)qfsv0
 
       rr1(1:3)=rr(1:3)+obox(1:3)
       rr(1)=sum(H(1,1:3)*rr1(1:3))
@@ -299,14 +297,10 @@ do myid=0,nprocs-1
       write(20,'(3f12.5)') rr(1:3)
    enddo
 
-   if(mod(myid,nio)==nio-1) then
-      print'(a,2i9)', 'coio file closed, myid, nio: ', myid, nio
-      close(10)
-   endif
-   
 enddo
 close(1)
 close(20)
+close(30)
 
 print*,'sum(lnatoms), lnatoms: ',sum(lnatoms),lnatoms(:)
 print'(a,3x,6f12.3)','L1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 

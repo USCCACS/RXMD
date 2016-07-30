@@ -36,6 +36,8 @@ real(8),allocatable :: sbuffer(:), rbuffer(:)
 !     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
 integer :: ns, nr, na, ne
 
+!--- buffer layer for bonding and non-bonding interactions
+real(8) :: bobuffer(3), nbbuffer(3)
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
@@ -129,7 +131,6 @@ integer(kind=c_int),pointer :: nbrlist(:,:), nbrindx(:,:)
 !<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
 integer,allocatable :: nbplist(:,:)
 
-
 !<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
 real(kind=c_double),pointer :: BO(:,:,:) 
 
@@ -141,7 +142,6 @@ real(8),allocatable :: deltap(:,:)
 real(8),pointer :: dln_BOp(:,:,:)
 
 real(8),pointer :: dBOp(:,:)
-
 
 !--- For NEW DBO calc:
 real(8),allocatable :: exp_delt1(:,:), exp_delt2(:,:)  ! exp( -pboc#(inxn) * deltap(i,1) ) - {inxn, i}   
@@ -185,6 +185,7 @@ integer :: cc(3), nbcc(3)
 
 integer :: nmesh, nbnmesh
 integer,allocatable :: mesh(:,:), nbmesh(:,:)
+
 
 !--- Unit convetors. In original ReaxFF program, the units of length is [A]
 !--- energy is [kcal/mol] and mass is [amu] respectively.

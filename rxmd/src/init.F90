@@ -106,13 +106,6 @@ do i=1,3
       target_node(k) = l(1)+l(2)*vprocs(1)+l(3)*vprocs(1)*vprocs(2) 
    enddo         
                    
-!--- if parity is odd, swap target node
-   if(myparity(i) == 1) then
-      n=target_node(k)
-      target_node(k)=target_node(k-1)
-      target_node(k-1)=n
-   endif
-                   
 enddo    
 
 !--- dt/2*mass, mass/2
@@ -133,7 +126,6 @@ allocate(qtfp(NBUFFER_P), qtfv(NBUFFER_P), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
 call coio_read()
-!call benchmarkio_read()
 
 call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
@@ -256,39 +248,13 @@ do i=1,nso
    enddo
 enddo
 
-!--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 !--- get real size of linked list cell
 rcsize(1) = lata/vprocs(1)/cc(1)
 rcsize(2) = latb/vprocs(2)/cc(2)
 rcsize(3) = latc/vprocs(3)/cc(3)
 maxrcell = maxval(rcsize(1:3))
 
-!--- get # of linked list cell to coverup 10[A] cutoff range
-imesh(1:3)  = int(rctap/rcsize(1:3)) + 1
-maximesh = maxval(imesh(1:3))
-
-!--- get max length in one direction, used as mesh cutoff.
-rcmesh2 = ((maxrcell+1)*maximesh)**2
-
-!--- There are still some cells out of 10[A] interaction range.
-!--- List up only cell indices within the cutoff range.
-allocate(mesh(3,(2*imesh(1)+1)*(2*imesh(2)+1)*(2*imesh(3)+1)),stat=ast)
-
-nmesh=0
-mesh(:,:)=0
-do i=-imesh(1), imesh(1)
-do j=-imesh(2), imesh(2)
-do k=-imesh(3), imesh(3)
-   rr(1) = i*rcsize(1)
-   rr(2) = j*rcsize(2)
-   rr(3) = k*rcsize(3)
-   dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rcmesh2) then
-      nmesh = nmesh + 1
-      mesh(1:3,nmesh) = (/ i, j, k/)
-   endif
-enddo; enddo; enddo
-
+!--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()
 
 !--- get density 
@@ -349,10 +315,6 @@ endif
 
 !--- set initial time
 wt0 = MPI_WTIME()
-
-!--- wait until all of processes print out their information.
-if(myid==0) write(6,*)
-call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
 END SUBROUTINE
 
@@ -686,7 +648,6 @@ lcsize(1:3) = LBOX(1:3)/cc(1:3)
 !--- get origin of local MD box in the scaled coordiate.
 OBOX(1:3) = LBOX(1:3)*vID(1:3)
 
-
 return
 end
 
@@ -699,86 +660,79 @@ integer :: i,j,k,k1,c1,n1,isnd
 integer :: recv_stat(MPI_STATUS_SIZE)=0
 real(8),allocatable :: abuf(:)
 character(6) :: a6
+character(9) :: a9
+
+integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
+integer (kind=MPI_OFFSET_KIND) :: fileSize
+integer :: localDataSize, metaDataSize, scanbuf
+integer :: fh ! file handler
+
+integer :: idata(4+nprocs+1)
+real(8) :: ddata(6), d10(10)
+
+character(128) :: FileName
 
 write(a6(1:6),'(i6.6)') myid
+write(a9(1:9),'(i9.9)') current_step
 
-if(mod(myid,nio)==0) then
+! Meta Data: 
+!  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
+!  Number of resident atoms per each MPI rank (nprocs integers) 
+!  current step (1 integer) + lattice parameters (6 doubles)
+metaDataSize = 4*(4 + nprocs + 1) + 8*6
 
-!--- read master node data first
-  open(10,file=trim(DataPath)//"/rxff"//a6,form="unformatted",access="stream",status="old")
+! Get local datasize: 10 doubles for each atoms
+localDataSize = 8*NATOMS*10
 
-  read(10) NATOMS
-  read(10) current_step
-  read(10) lata,latb,latc,lalpha,lbeta,lgamma
+call MPI_File_Open(MPI_COMM_WORLD,"rxff.bin",MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
 
-  do i=1,NATOMS
-     read(10) pos(1:3,i)
-     read(10) v(1:3,i)
-     read(10) q(i)
-     read(10) atype(i)
-     read(10) qsfp(i)
-     read(10) qsfv(i)
-  enddo
+! offset will point the end of local write after the scan
+call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-!--- the rest is for worker nodes data
-  do j=1, nio-1
-     read(10) n1
-     allocate(abuf(7+n1*10))
+! Since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+offset = scanbuf + metaDataSize
 
-     read(10) c1  ! current_step
-     abuf(1)=dble(c1)  ! current_step
+! nprocs-1 rank has the total data size
+fileSize = offset
+call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+call MPI_File_set_size(fh, fileSize, ierr)
 
-     read(10) abuf(2),abuf(3),abuf(4),abuf(5),abuf(6),abuf(7)
-     do k=1,n1
-        k1=7+(k-1)*10
-        read(10) abuf(k1+1:k1+3)
-        read(10) abuf(k1+4:k1+6)
-        read(10) abuf(k1+7)
-        read(10) abuf(k1+8)
-        read(10) abuf(k1+9)
-        read(10) abuf(k1+10)
-     enddo
-     isnd = myid+j
-     call MPI_SEND(n1,1,MPI_INTEGER,isnd,isnd,MPI_COMM_WORLD,ierr)
-     call MPI_SEND(abuf,7+n1*10,MPI_DOUBLE_PRECISION,isnd,isnd,MPI_COMM_WORLD,ierr)
+! read metadata at the beginning of file
+offsettmp=0
+call MPI_File_Seek(fh,offsettmp,MPI_SEEK_SET,ierr)
+call MPI_File_Read(fh,idata,4+nprocs+1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
 
-     deallocate(abuf)
-     
-  enddo
-  close(10)
+offsettmp=4*(4+nprocs+1)
+call MPI_File_Seek(fh,offsettmp,MPI_SEEK_SET,ierr)
+call MPI_File_Read(fh,ddata,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
-else
+NATOMS = idata(4+myid+1)
+current_step = idata(4+nprocs+1)
+lata=ddata(1); latb=ddata(2); latc=ddata(3)
+lalpha=ddata(4); lbeta=ddata(5); lgamma=ddata(6)
 
-  isnd=int(myid/nio)*nio
-  call MPI_RECV(n1,1,MPI_INTEGER,isnd,myid,MPI_COMM_WORLD,recv_stat,ierr)
-  NATOMS=n1
-  allocate(abuf(7+n1*10))
-  call MPI_RECV(abuf,7+n1*10,MPI_DOUBLE_PRECISION,isnd,myid,MPI_COMM_WORLD,recv_stat,ierr)
-  current_step=nint(abuf(1))
-  lata=abuf(2); latb=abuf(3); latc=abuf(4)
-  lalpha=abuf(5); lbeta=abuf(6); lgamma=abuf(7)
-  do k=1,n1
-     k1=7+(k-1)*10
-     !pos(1:3,k)= abuf(k1+1:k1+3)
-     pos(1,k)= abuf(k1+1)
-     pos(2,k)= abuf(k1+2)
-     pos(3,k)= abuf(k1+3)
-     !v(1:3,k)  = abuf(k1+4:k1+6)
-     v(1,k)  = abuf(k1+4)
-     v(2,k)  = abuf(k1+5)
-     v(3,k)  = abuf(k1+6)
-     q(k)      = abuf(k1+7)
-     atype(k)  = abuf(k1+8)
-     qsfp(k)   = abuf(k1+9)
-     qsfv(k)   = abuf(k1+10)
-  enddo
-  deallocate(abuf)
+! set offset at the beginning of the local write
+offset=offset-localDataSize
+call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 
-endif
+do i=1, NATOMS
+   call MPI_File_Read(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
+   pos(1:3,i)=d10(1:3)
+   v(1:3,i)=d10(4:6)
+   q(i)=d10(7)
+   atype(i)=d10(8)
+   qsfp(i)=d10(9)
+   qsfv(i)=d10(10)
+
+   offset=offset+10*8 ! 10 x 8bytes
+   call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+enddo
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+call MPI_File_Close(fh,ierr)
 
-return 
+return
 end
 
 !--------------------------------------------------------------------------
@@ -793,112 +747,76 @@ real(8),allocatable :: abuf(:)
 character(6) :: a6
 character(9) :: a9
 
-write(a6(1:6),'(i6.6)') myid
-write(a9(1:9),'(i9.9)') nstep + current_step
+integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
+integer (kind=MPI_OFFSET_KIND) :: fileSize
+integer :: localDataSize, metaDataSize, scanbuf
+integer :: fh ! file handler
 
-if(mod(myid,nio)==0) then
+integer :: ldata(4+nprocs+1),gdata(4+nprocs+1)
+real(8) :: ddata(6), d10(10)
 
-  if(imode==-1) then ! last MD step 
-    open(10,file=trim(DataPath)//"/rxff"//a6,form="unformatted",access="stream")
-  else ! check pointing
-    open(10,file=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9//".bin", &
-         form="unformatted",access="stream")
-  endif
+! Meta Data: 
+!  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
+!  Number of resident atoms per each MPI rank (nprocs integers) 
+!  current step (1 integer) + lattice parameters (6 doubles)
+metaDataSize = 4*(4 + nprocs + 1) + 8*6
 
-  write(10) NATOMS
-  write(10) nstep + current_step
-  write(10) lata,latb,latc,lalpha,lbeta,lgamma
-  do i=1,NATOMS
-     write(10) pos(1:3,i)
-     write(10) v(1:3,i)
-     write(10) q(i)
-     write(10) atype(i)
-     write(10) qsfp(i)
-     write(10) qsfv(i)
-  enddo
+! Get local datasize: 10 doubles for each atoms
+localDataSize = 8*NATOMS*10
 
-  do j=1, nio-1
-     isnd=myid+j
-     call MPI_RECV(n1,1,MPI_INTEGER,isnd,isnd,MPI_COMM_WORLD,recv_stat,ierr)
-     allocate(abuf(n1*10))
-     call MPI_RECV(abuf,n1*10,MPI_DOUBLE_PRECISION,isnd,isnd,MPI_COMM_WORLD,recv_stat,ierr)
-     write(10) n1
-     write(10) nstep + current_step
-     write(10) lata,latb,latc,lalpha,lbeta,lgamma
-     do k=1,n1
-        k1=(k-1)*10
-        write(10) abuf(k1+1:k1+3)
-        write(10) abuf(k1+4:k1+6)
-        write(10) abuf(k1+7)
-        write(10) abuf(k1+8)
-        write(10) abuf(k1+9)
-        write(10) abuf(k1+10)
-     enddo
-     deallocate(abuf)
-  enddo
-  close(10)
+write(a9(1:9),'(i9.9)') nstep+current_step
+call MPI_File_Open(MPI_COMM_WORLD,"DAT/rxff"//a9//".bin",MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
-else
+! offset will point the end of local write after the scan
+call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-  isnd=(myid/nio)*nio
+! Since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+offset = scanbuf + metaDataSize
 
-  call MPI_SEND(NATOMS,1,MPI_INTEGER,isnd,myid,MPI_COMM_WORLD,ierr)
-  allocate(abuf(NATOMS*10))
+! nprocs-1 rank has the total data size
+fileSize = offset
+call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+call MPI_File_set_size(fh, fileSize, ierr)
 
-  do k=1,NATOMS
-     k1=(k-1)*10
-     !abuf(k1+1:k1+3)=pos(1:3,k)
-     abuf(k1+1)=pos(1,k)
-     abuf(k1+2)=pos(2,k)
-     abuf(k1+3)=pos(3,k)
-     !abuf(k1+4:k1+6)=v(1:3,k) 
-     abuf(k1+4)=v(1,k) 
-     abuf(k1+5)=v(2,k) 
-     abuf(k1+6)=v(3,k) 
-     abuf(k1+7)=q(k)
-     abuf(k1+8)=atype(k)  
-     abuf(k1+9)=qsfp(k)
-     abuf(k1+10)=qsfv(k)   
-  enddo
+! read metadata at the beginning of file
+ldata(:)=0
+ldata(4+myid+1)=NATOMS
+call MPI_ALLREDUCE(ldata,gdata,sizeof(ldata),MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+gdata(4+nprocs+1)=nstep+current_step
 
-  call MPI_SEND(abuf,NATOMS*10,MPI_DOUBLE_PRECISION,isnd,myid,MPI_COMM_WORLD,ierr)
-  deallocate(abuf)
+ddata(1)=lata; ddata(2)=latb; ddata(3)=latc
+ddata(4)=lalpha; ddata(5)=lbeta; ddata(6)=lgamma
 
+if(myid==0) then
+   offsettmp=0
+   call MPI_File_Seek(fh,offsettmp,MPI_SEEK_SET,ierr)
+   call MPI_File_Write(fh,gdata,4+nprocs+1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
+
+   offsettmp=4*(4+nprocs+1)
+   call MPI_File_Seek(fh,offsettmp,MPI_SEEK_SET,ierr)
+   call MPI_File_Write(fh,ddata,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 endif
 
-call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+! set offset at the beginning of the local write
+offset=offset-localDataSize
+call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 
-return 
-end
+do i=1, NATOMS
+   d10(1:3)=pos(1:3,i)
+   d10(4:6)=v(1:3,i)
+   d10(7)=q(i)
+   d10(8)=atype(i)
+   d10(9)=qsfp(i)
+   d10(10)=qsfv(i)
 
-!--------------------------------------------------------------------------
-subroutine benchmarkio_read()
-use atoms; use parameters
-!--------------------------------------------------------------------------
-implicit none
-integer :: i,j,k,k1,n1,isnd
-character(6) :: a6
-character(9) :: a9
+   call MPI_File_Write(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
-write(a6(1:6),'(i6.6)') 0 !for benchmark
-open(10,file=trim(DataPath)//"/rxff"//a6,form="unformatted",access="stream")
-
-read(10) NATOMS
-read(10) nstep 
-read(10) lata,latb,latc,lalpha,lbeta,lgamma
-lata=lata*vprocs(1) ! for benchmark
-latb=latb*vprocs(2) ! for benchmark
-latc=latc*vprocs(3) ! for benchmark
-
-do i=1,NATOMS
-   read(10) pos(1:3,i)
-   pos(1:3,i)=pos(1:3,i)/vprocs(1:3) ! for benchmark 
-   read(10) v(1:3,i)
-   read(10) q(i)
-   read(10) atype(i)
-   read(10) qsfp(i)
-   read(10) qsfv(i)
+   offset=offset+10*8 ! 10 x 8bytes
+   call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 enddo
+
+call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+call MPI_File_Close(fh,ierr)
 
 return
 end

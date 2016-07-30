@@ -108,7 +108,7 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','LINKEDLIST: ',  dble(it_timer_max(3))/irt, dble(it_timer_min(3))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS: ',    dble(it_timer_max(4))/irt, dble(it_timer_min(4))/irt
    print'(a20,f12.4,3x,f12.4)','NEIGHBORLIST: ', dble(it_timer_max(5))/irt, dble(it_timer_min(5))/irt
-   print'(a20,f12.4,3x,f12.4)','GetNonbondingPairs: ', dble(it_timer_max(15))/irt, dble(it_timer_min(15))/irt
+   print'(a20,f12.4,3x,f12.4)','GetNBPairList: ', dble(it_timer_max(15))/irt, dble(it_timer_min(15))/irt
 
    print'(a20,f12.4,3x,f12.4)','BOCALC: ', dble(it_timer_max(6))/irt, dble(it_timer_min(6))/irt
    print'(a20,f12.4,3x,f12.4)','ENbond: ', dble(it_timer_max(7))/irt, dble(it_timer_min(7))/irt
@@ -237,9 +237,7 @@ integer,parameter :: MaxBNDLineSize=512
 character(MaxBNDLineSize) :: BNDOneLine
 real(8),parameter :: BNDcutoff=0.3d0
 
-! buffers for .bin file
-integer :: i2(2), scanbuf
-real(8) :: d10(10)
+integer :: scanbuf
 
 write(a6(1:6),'(i6.6)') myid
 write(a9(1:9),'(i9.9)') nstep + current_step
@@ -250,61 +248,6 @@ if(isBinary) then
   call xu2xs()
   call coio_write(imode)
   call xs2xu()
-
-!TODO: MPI-IO for binary files is still under development.
-!
-!  ! Get local datasize:
-!  ! 2 integers for Natoms & MDstep + 6 doubles for lattice parameters, 
-!  ! and 10 doubles for each atoms
-!  localDataSize = 2*4 + 6*8 + 10*8*NATOMS
-!
-!  call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bin", &
-!      MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
-!
-!  ! offset will point the end of local write after the scan
-!  call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-!
-!  ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
-!  offset=scanbuf
-!
-!  ! nprocs-1 rank has the total data size
-!  fileSize=offset
-!  call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
-!  call MPI_File_set_size(fh, fileSize, ierr)
-!
-!  ! set offset at the beginning of the local write
-!  offset=offset-localDataSize
-!  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-!
-!  i2(1:2)=(/NATOMS, nstep + current_step/)
-!  call MPI_File_Write(fh,i2,2,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
-!
-!  offset=offset+2*4 ! 2 x 4bytes
-!  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-!
-!  d10(1:6)=(/lata,latb,latc,lalpha,lbeta,lgamma/)
-!  call MPI_File_Write(fh,d10,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-!
-!  offset=offset+6*8 ! 6 x 8bytes
-!  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-!
-!  do i=1, NATOMS
-!     d10(1:3)=pos(1:3,i)
-!     d10(4:6)=v(1:3,i)
-!     d10(7)=q(i)
-!     d10(8)=atype(i)
-!     d10(9)=qsfp(i)
-!     d10(10)=qsfv(i)
-!
-!     call MPI_File_Write(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-!
-!     offset=offset+10*8 ! 10 x 8bytes
-!     call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-!  enddo
-!
-!  call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-!  call MPI_File_Close(fh,ierr)
-
 endif
 !------------------------------------------------------------------ binary ---
 
@@ -383,8 +326,9 @@ if(isBondFile) then
 
    enddo
    !close(10)
-    call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-    call MPI_File_Close(fh,ierr)
+
+   call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+   call MPI_File_Close(fh,ierr)
 
 endif
 !------------------------------------------------------------ BondFile ----
@@ -392,69 +336,69 @@ endif
 !--- PDB ---------------------------------------------------------------------
 if(isPDB) then
 
-    ! get local datasize
-    localDataSize=NATOMS*PDBLineSize
+   ! get local datasize
+   localDataSize=NATOMS*PDBLineSize
 
-    call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".pdb", &
-        MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+   call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".pdb", &
+       MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
-    ! offset will point the end of local write after the scan
-    call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+   ! offset will point the end of local write after the scan
+   call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
 
-    ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
-    offset=scanbuf
+   ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+   offset=scanbuf
 
-    ! nprocs-1 rank has the total data size
-    fileSize=offset
-    call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
-    call MPI_File_set_size(fh, fileSize, ierr)
+   ! nprocs-1 rank has the total data size
+   fileSize=offset
+   call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+   call MPI_File_set_size(fh, fileSize, ierr)
 
-    ! set offset at the beginning of the local write
-    offset=offset-localDataSize
+   ! set offset at the beginning of the local write
+   offset=offset-localDataSize
 
-    do i=1, NATOMS
+   do i=1, NATOMS
 
-      ity = atype(i)
+     ity = atype(i)
 !--- calculate atomic temperature 
-      tt = hmas(ity)*sum(v(1:3,i)*v(1:3,i))
-      tt = tt*UTEMP*1d-2 !scale down to use two decimals in PDB format 
+     tt = hmas(ity)*sum(v(1:3,i)*v(1:3,i))
+     tt = tt*UTEMP*1d-2 !scale down to use two decimals in PDB format 
 
 !--- sum up diagonal atomic stress components 
 #ifdef STRESS
-      ss = sum(astr(1:3,i))/3.d0
+     ss = sum(astr(1:3,i))/3.d0
 #endif
-      ss = ss*USTRS
+     ss = ss*USTRS
 
-      ss = q(i)*10 ! 10x atomic charge
+     ss = q(i)*10 ! 10x atomic charge
 
-      igd = l2g(atype(i))
-      select case(ity)
-        case(1) 
-          write(PDBOneLine,100)'ATOM  ',0, 'C', igd, pos(1:3,i), tt, ss
-        case(2) 
-          write(PDBOneLine,100)'ATOM  ',0, 'H', igd, pos(1:3,i), tt, ss
-        case(3) 
-          write(PDBOneLine,100)'ATOM  ',0, 'O', igd, pos(1:3,i), tt, ss
-        case(4) 
-          write(PDBOneLine,100)'ATOM  ',0, 'N', igd, pos(1:3,i), tt, ss
-        case(5) 
-          write(PDBOneLine,100)'ATOM  ',0, 'S', igd, pos(1:3,i), tt, ss
-        case(6) 
-          write(PDBOneLine,100)'ATOM  ',0,'Si', igd, pos(1:3,i), tt, ss
-        case(7) 
-          write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
-      end select
-        PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
+     igd = l2g(atype(i))
+     select case(ity)
+       case(1) 
+         write(PDBOneLine,100)'ATOM  ',0, 'C', igd, pos(1:3,i), tt, ss
+       case(2) 
+         write(PDBOneLine,100)'ATOM  ',0, 'H', igd, pos(1:3,i), tt, ss
+       case(3) 
+         write(PDBOneLine,100)'ATOM  ',0, 'O', igd, pos(1:3,i), tt, ss
+       case(4) 
+         write(PDBOneLine,100)'ATOM  ',0, 'N', igd, pos(1:3,i), tt, ss
+       case(5) 
+         write(PDBOneLine,100)'ATOM  ',0, 'S', igd, pos(1:3,i), tt, ss
+       case(6) 
+         write(PDBOneLine,100)'ATOM  ',0,'Si', igd, pos(1:3,i), tt, ss
+       case(7) 
+         write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
+     end select
+       PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
 
-        call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-        call MPI_File_Write(fh,PDBOneLine,PDBLineSize, &
-            MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+       call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+       call MPI_File_Write(fh,PDBOneLine,PDBLineSize, &
+           MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
 
-        offset=offset+PDBLineSize
-    enddo
+       offset=offset+PDBLineSize
+   enddo
 
-    call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-    call MPI_File_Close(fh,ierr)
+   call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+   call MPI_File_Close(fh,ierr)
 endif
 100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
 !-------------------------------------------------------------------- PDB ----
@@ -583,6 +527,60 @@ if(mod(nstep,pstep)==0) then
 endif
 
 end subroutine
+
+!----------------------------------------------------------------------
+subroutine GetNonbondingPairList()
+use atoms; use parameters
+!----------------------------------------------------------------------
+implicit none
+integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
+integer :: l2g
+real(8) :: dr(3), dr2
+
+! reset non-bonding pair list
+nbplist(:,0)=0
+
+do c1=0, nbcc(1)-1
+do c2=0, nbcc(2)-1
+do c3=0, nbcc(3)-1
+
+   i = nbheader(c1,c2,c3)
+   do m = 1, nbnacell(c1,c2,c3)
+      iid = l2g(atype(i))
+
+      do mn = 1, nbnmesh
+         c4 = c1 + nbmesh(1,mn)
+         c5 = c2 + nbmesh(2,mn)
+         c6 = c3 + nbmesh(3,mn)
+
+         j = nbheader(c4,c5,c6)
+         do n=1, nbnacell(c4,c5,c6)
+
+            jid = l2g(atype(j))
+
+            if(i<j .or. NATOMS<j) then
+               dr(1:3) = pos(1:3,i) - pos(1:3,j)
+               dr2 = sum(dr(1:3)*dr(1:3))
+
+               if(dr2<=rctap2) then
+                 nbplist(i,0)=nbplist(i,0)+1
+                 nbplist(j,0)=nbplist(j,0)+1
+                 nbplist(i,nbplist(i,0))=j
+                 nbplist(j,nbplist(j,0))=i
+               endif
+
+            endif
+
+            j=nbllist(j)
+         enddo
+       enddo
+
+      i=nbllist(i)
+   enddo
+enddo; enddo; enddo
+
+end subroutine
+
 
 !----------------------------------------------------------------------
 subroutine UpdateNeighborlist(nlayer)
@@ -791,462 +789,6 @@ detm = m1(1,1)*m1(2,2)*m1(3,3) + m1(1,2)*m1(2,3)*m1(3,1) &
 m2(:,:) = m2(:,:)/detm
 
 end subroutine
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr)
-use atoms
-!
-! TODO: update notes here
-!
-! In this subroutine, boundary atoms are copied to neighbour nodes. Three subroutines, 
-! <store_atoms()>, <send_recv()> and  <append_atoms()> work together, shareing variables 
-! <sbuffer>, <rbuffer>, <ne>, <na>, <ns> and <nr>. 
-!
-!--- Variables --- 
-!<dflag>:  Direction FLAG specifing the direction of communication.
-!          1 +x, 2 -x, 3 +y, 4 -y, 5 +z, 6 -z. 
-!<parity>:  PARITY of a node in <dflag> direction. 
-!<nlayer>:  Nr of LAYERs to be copied. COPYATOMS() features two different modes, migration mode and copy mode.
-!           <nlayer> will be used as a flag to distinguish them. 
-!
-!--- Shared Variables ---
-!<ne>: # of elements one atom has.
-!   Example) in copy mode, three positions[xyz] + charge + atomtype = 5 elements. 
-!<na>, <ns> & <nr>: Nr of All of transfered elemetns, Number of elements to be Sent, and Recieved one respectivly.
-!        
-!--- Subroutines ---
-!<store_atoms()>: store boundary atoms information.
-!<send_recv()):   send & receive. 
-!<append_atoms()>: append received infromation into array.  deallocate <sbuffer> & <rbuffer>
-!
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-
-real(8),intent(IN) :: dr(3)
-integer,intent(IN) :: imode 
-integer :: i,tn, dflag, parity
-integer :: ni, ity
-integer :: i1,j1,k1
-
-integer :: c1,c2,c3,n
-
-integer :: j
-
-!--- clear total # of copied atoms, sent atoms, recieved atoms
-na=0;ns=0;nr=0
-
-!--- REMARK: note that MODE_CPBK depends on copyptr() generated during MODE_COPY.
-!--- Since cached atoms are stored after the resident atoms (i.e. i > NATOMS), 
-!--- initialize the cache atom pointer 0th elem with NATOMS.
-copyptr(0)=NATOMS
-
-!--- set the number of data per atom 
-select case(imode)
-   case(MODE_COPY)
-      ne = NE_COPY
-   case(MODE_MOVE)
-      ne = NE_MOVE
-   case(MODE_CPBK)
-      ne = NE_CPBK
-   case(MODE_QCOPY1)
-      ne = NE_QCOPY1
-   case(MODE_QCOPY2)
-      ne = NE_QCOPY2
-   case(MODE_STRESSCALC)
-      ne = NE_STRESSCALC
-   case default
-      print'(a,i)', "ERROR: imode doesn't match in COPYATOMS: ", imode
-end select
-
-do dflag=1, 6
-   tn = target_node(dflag)
-   i = (dflag+1)/2  !<- [123]
-
-   if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
-      tn = target_node(7-dflag) ! <-[654321] 
-      i = (6-dflag)/2 + 1         ! <-[321]
-   endif
-
-   call store_atoms(tn, dflag, myparity(i), imode, dr)
-   call send_recv(tn, dflag, myparity(i))
-   call append_atoms(dflag, myparity(i), imode)
-
-enddo
-
-
-if(imode==MODE_MOVE) then
-!--- remove atoms which are transfered to neighbor nodes.
-   ni=0
-   do i=1, NATOMS + na/ne
-      ity = atype(i)
-!--- if atype is smaller than zero (this is done in store_atoms), ignore the atom.
-      if(ity>0) then
-        ni=ni+1
-        pos(1:3,ni) = pos(1:3,i)
-        v(1:3,ni) = v(1:3,i)
-        atype(ni) = atype(i)
-        q(ni) = q(i)
-        qs(ni) = qs(i)
-        qt(ni) = qt(i)
-        qsfp(ni) = qsfp(i)
-        qsfv(ni) = qsfv(i)
-      endif
-   enddo 
-
-!--- update the number of resident atoms
-   NATOMS=ni
-endif
-
-!--- for array size stat
-if(mod(nstep,pstep)==0) then
-  ni=nstep/pstep+1
-  if(imode==MODE_MOVE) maxas(ni,4)=na/ne
-endif
-
-end subroutine COPYATOMS
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine send_recv(tn, dflag, parity)
-use atoms
-! shared variables::  <ns>, <nr>, <na>, <sbuffer()>, <rbuffer()>
-! This subroutine only takes care of communication part. won't be affected by wether atom migration or atom 
-! copy mode. 
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) ::tn, dflag, parity
-integer :: recv_stat(MPI_STATUS_SIZE)
-
-!--- if the traget node is the node itself, atoms informations are already copied 
-!--- to <rbuffer> in <store_atoms()>. Nothing to do here. Just return from this subroutine.
-if(myid==tn) return 
-
-if (parity == 0) then
-
-     call MPI_SEND(ns, 1, MPI_INTEGER, tn, 10, MPI_COMM_WORLD, ierr)
-     if (ns > 0) &
-       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn, 11, MPI_COMM_WORLD, ierr)
-
-     call MPI_RECV(nr, 1, MPI_INTEGER, tn, 12, MPI_COMM_WORLD, recv_stat, ierr)
-     if (nr > 0) then
-       allocate(rbuffer(nr), stat=ast); if(ast/=0) print*, "ERROR: rbuffer@send_recv: 1"
-       call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn, &
-                     13, MPI_COMM_WORLD, recv_stat, ierr)
-     endif
-
-elseif (parity == 1) then
-
-       call MPI_RECV(nr, 1, MPI_INTEGER, tn, 10, MPI_COMM_WORLD, recv_stat, ierr)
-       if (nr > 0) then
-         allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
-         call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn, &
-                      11, MPI_COMM_WORLD, recv_stat, ierr)
-       endif
-
-       call MPI_SEND(ns, 1, MPI_INTEGER, tn, 12, MPI_COMM_WORLD, ierr)
-       if (ns > 0) &
-       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn, 13, MPI_COMM_WORLD, ierr)
-
-endif
-
-end subroutine
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine store_atoms(tn, dflag, parity, imode, dr)
-use atoms
-! <nlayer> will be used as a flag to change the behavior of this subroutine. 
-!    <nlayer>==0 migration mode
-!            > 0 copy mode
-! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: tn, dflag, parity, imode 
-real(8),intent(IN) :: dr
-logical :: inBuffer
-
-integer :: i,j,k,m,n,n1,ni,is,l(3,2)
-real(8) :: sft, xshift
-integer :: cptridx
-
-!--- reset the number of atoms to be sent
-ns=0
-
-cptridx=((dflag-1)/2)*2 ! <- [002244]
-
-if(imode/=MODE_CPBK) then
-
-!--- # of elements to be sent. should be more than enough. 
-   ni = copyptr(cptridx)*ne
-
-!--- <sbuffer> will deallocated in store_atoms.
-   if(ni>0) allocate(sbuffer(ni),stat=ast)
-
-!--- get the coordinate Index to be Shifted.
-   is = int((dflag-1)/2) !<- [012] means [xyz]
-
-!--- When atom moves to neighbor nodes, their coordinates must be shifted. 
-!--- xshift() returns the edge length of one node assuming all of node size is same.
-   sft=xshift(dflag, parity)
-
-!--- start buffering data depending on modes. all copy&move modes use dr() to select atoms.
-   do n=1, copyptr(cptridx)
-
-      if(inBuffer(dflag,parity,n,dr)) then
-
-        select case(imode)
-        case(MODE_MOVE)
-           sbuffer(ns+1:ns+3) = pos(1:3,n)
-           sbuffer(ns+1+is) = sbuffer(ns+1+is) + sft
-           sbuffer(ns+4:ns+6) = v(1:3,n)
-           sbuffer(ns+7) = atype(n)
-           sbuffer(ns+8) = q(n)
-           sbuffer(ns+9) = qs(n)
-           sbuffer(ns+10) = qt(n)
-           sbuffer(ns+11) = qsfp(n)
-           sbuffer(ns+12) = qsfv(n)
-  
-!--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
-           atype(n) = -1.d0 
-
-        case(MODE_COPY)
-           sbuffer(ns+1:ns+3) = pos(1:3,n)
-           sbuffer(ns+1+is) = sbuffer(ns+1+is) + sft
-           sbuffer(ns+4) = atype(n)
-           sbuffer(ns+5) = q(n)
-           sbuffer(ns+6) = dble(n)
-           sbuffer(ns+7) = qs(n)
-           sbuffer(ns+8) = qt(n)
-           sbuffer(ns+9) = hs(n)
-           sbuffer(ns+10) = ht(n)
-
-        case(MODE_QCOPY1)
-           sbuffer(ns+1) = qs(n)
-           sbuffer(ns+2) = qt(n)
-
-        case(MODE_QCOPY2)
-           sbuffer(ns+1) = hs(n)
-           sbuffer(ns+2) = ht(n)
-           sbuffer(ns+3) = q(n)
-
-        case(MODE_STRESSCALC)
-           sbuffer(ns+1:ns+6) = astr(1:6,n)
-
-        end select 
-
-!--- increment the number of atoms to be sent 
-        ns = ns + ne
-     endif
-
-   enddo
-
-!===== FORCE COPYBACK MODE ===========================================================
-else if(imode==MODE_CPBK) then
-
-   is = 7 - dflag !<- [654321] reversed order direction flag
-
-   n = copyptr(is) - copyptr(is-1) + 1
-   allocate(sbuffer(n*ne),stat=ast)
-
-   do n=copyptr(is-1)+1, copyptr(is)
-      sbuffer(ns+1) = dble(frcindx(n))
-      sbuffer(ns+2:ns+4) = f(1:3,n)
-#ifdef STRESS
-      sbuffer(ns+5:ns+10) = astr(1:6,n)
-#endif
-!--- chenge index to point next atom.
-      ns=ns+ne
-   enddo
-!=========================================================== FORCE COPYBACK MODE ====
-endif
-
-!--- if myid is the same of target-node ID, don't use MPI call.
-!--- Just copy <sbuffer> to <rbuffer>. Because <send_recv()> will not be used,
-!--- <nr> has to be updated here for <append_atoms()>.
-if(myid==tn) then
-   if(ns>0) then
-      nr=ns
-      allocate(rbuffer(nr), stat=ast)
-      rbuffer(:) = sbuffer(:)
-   else
-      nr=0
-   endif
-endif
-
-end subroutine store_atoms
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine append_atoms(dflag, parity, imode)
-use atoms
-! <append_atoms> append copied information into arrays
-! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: dflag, parity, imode 
-integer :: m, i, ine, j, l(3)
-
-if( (na+nr)/ne > NBUFFER_P) then
-    print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER_P: ", &
-         myid,na,nr,ne,(na+nr)/ne, NBUFFER_P
-    call MPI_FINALIZE(ierr)
-    stop
-endif
-
-if(imode /= MODE_CPBK) then  
-
-!--- go over the buffered atom
-   do i=0, nr/ne-1
-
-!--- get current index <ine> in <rbuffer(1:nr)>.
-      ine=i*ne
-
-!--- current atom index; resident + 1 + stored atoms so far + atoms in buffer
-      m = NATOMS + 1 + na/ne + i
-
-      select case(imode)
-         case(MODE_MOVE)
-              pos(1:3,m) = rbuffer(ine+1:ine+3)
-              v(1:3,m) = rbuffer(ine+4:ine+6)
-              atype(m) = rbuffer(ine+7)
-              q(m)  = rbuffer(ine+8)
-              qs(m) = rbuffer(ine+9)
-              qt(m) = rbuffer(ine+10)
-              qsfp(m) = rbuffer(ine+11)
-              qsfv(m) = rbuffer(ine+12)
-      
-         case(MODE_COPY)
-              pos(1:3,m) = rbuffer(ine+1:ine+3)
-              atype(m) = rbuffer(ine+4)
-              q(m)  = rbuffer(ine+5)
-              frcindx(m) = anint(rbuffer(ine+6))
-              qs(m) = rbuffer(ine+7)
-              qt(m) = rbuffer(ine+8)
-              hs(m) = rbuffer(ine+9)
-              ht(m) = rbuffer(ine+10)
-      
-           case(MODE_QCOPY1)
-              qs(m) = rbuffer(ine+1)
-              qt(m) = rbuffer(ine+2)
-      
-           case(MODE_QCOPY2)
-              hs(m) = rbuffer(ine+1)
-              ht(m) = rbuffer(ine+2)
-              q(m)  = rbuffer(ine+3)
-
-           case(MODE_STRESSCALC)
-              astr(1:6,m) = rbuffer(ine+1:ine+6)
-      
-      end select
-
-     enddo
-
-!===== FORCE COPYBACK MODE =============================================================
-else if(imode == MODE_CPBK) then
-
-   do i=0, nr/ne-1
-!--- get current index <ine> in <rbuffer(1:nr)>.
-      ine=i*ne
-!--- Append the transferred forces into the original position of force array.
-      m = anint(rbuffer(ine+1))
-      f(1:3,m) = f(1:3,m) + rbuffer(ine+2:ine+4)
-#ifdef STRESS
-      astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
-#endif
-   enddo
-
-endif   
-!============================================================== FORCE COPYBACK MODE  ===
-
-!--- store the last transfered atom index to <dflag> direction.
-!--- if no data have been received, use the index of previous direction.
-if(imode /= MODE_CPBK) then
-  if(nr==0) m = copyptr(dflag-1)
-  copyptr(dflag) = m
-endif
-
-!--- update the total # of transfered elements.
-na=na+nr
-
-!--- if a node doesn't have a partner node for a certain direction, the buffers will not be allocated. 
-!--- check the allocation status of <sbuffer> and <rbuffer> before deallocating them. 
-if(allocated(sbuffer)) deallocate(sbuffer)
-if(allocated(rbuffer)) deallocate(rbuffer)
-
-end subroutine append_atoms
-
-!--------------------------------------------------------------------------------------------------------------
-real(8) function xshift(dflag, parity)
-use atoms
-! This subroutine returns a correction value in coordinate for transfered atoms.
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: dflag, parity
-integer :: i, j
-  
-  i = mod(dflag,2)  !<- i=1 positive, i=0 negative for even parity nodes
-  j = int((dflag+1)/2)  !<- [123] means [xyz]
-  if(parity==0) then
-    if(i==1) xshift =-lbox(j)
-    if(i==0) xshift = lbox(j)
-  else if(parity==1) then
-    if(i==1) xshift = lbox(j)
-    if(i==0) xshift =-lbox(j)
-  endif
-   
-!print'(a,i,3f10.3)',"shift: ",myid, xshift
- 
-end function
-!--------------------------------------------------------------------------------------------------------------
-logical function inBuffer(dflag, parity, idx, dr)
-use atoms
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: dflag, parity, idx
-real(8),intent(IN) :: dr(3)
-integer :: i,j
-
-i = mod(dflag,2)  !<- i=1 positive, i=0 negative for even parity nodes
-select case(dflag)
-   case(1) 
-      if(parity==0) then 
-         inBuffer = lbox(1) - dr(1) < pos(1,idx)
-      else if(parity==1) then
-         inBuffer = pos(1,idx) <= dr(1)
-      endif
-   case(2) 
-      if(parity==0) then
-         inBuffer = pos(1,idx) <= dr(1)
-      else if(parity==1) then
-         inBuffer = lbox(1) - dr(1) < pos(1,idx)
-      endif
-   case(3) 
-      if(parity==0) then
-         inBuffer = lbox(2) - dr(2) < pos(2,idx)
-      else if(parity==1) then
-         inBuffer = pos(2,idx) <= dr(2)
-      endif
-   case(4) 
-      if(parity==0) then
-         inBuffer = pos(2,idx) <= dr(2)
-      else if(parity==1)then
-         inBuffer = lbox(2) - dr(2) < pos(2,idx)
-      endif
-   case(5) 
-      if(parity==0) then
-         inBuffer = lbox(3) - dr(3) < pos(3,idx)
-      else if(parity==1) then
-         inBuffer = pos(3,idx) <= dr(3)
-      endif
-   case(6) 
-      if(parity==0) then
-         inBuffer = pos(3,idx) <= dr(3)
-      else if(parity==1) then
-         inBuffer = lbox(3) - dr(3) < pos(3,idx)
-      endif
-   case default
-      write(6,*) "ERROR: no matching directional flag in inBuffer: ", dflag
-end select
-
-end function
-
 !--------------------------------------------------------------------------------------------------------------
 function l2g(atype)
 implicit none
