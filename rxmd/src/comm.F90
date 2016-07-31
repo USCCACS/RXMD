@@ -72,7 +72,6 @@ do dflag=1, 6
       tn = target_node(7-dflag) ! <-[654321] 
       i = (6-dflag)/2 + 1         ! <-[321]
    endif
-
    call store_atoms(tn, dflag, myparity(i), imode, dr)
    call send_recv(tn, dflag, myparity(i))
    call append_atoms(dflag, myparity(i), imode)

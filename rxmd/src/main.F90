@@ -19,7 +19,7 @@ CALL GETPARAMS()
 
 !--- initialize the MD system
 CALL INITSYSTEM()
-call OUTPUT(0)
+!call OUTPUT()
 
 if(mdmode==10) call conjugate_gradient()
 
@@ -36,7 +36,7 @@ call system_clock(it1,irt)
 do nstep=0, ntime_step-1
 
    if(mod(nstep,pstep)==0) call PRINTE()
-   if(mod(nstep,fstep)==0) call OUTPUT(2)
+   if(mod(nstep,fstep)==0) call OUTPUT()
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:3,1:NATOMS)=vsfact*v(1:3,1:NATOMS)
@@ -79,7 +79,12 @@ do nstep=0, ntime_step-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(-1)
+call OUTPUT()
+
+!--- update rxff.bin in working directory for continuation run
+call xu2xs()
+call coio_write(-1)
+call xs2xu()
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
@@ -96,8 +101,8 @@ enddo
 call MPI_ALLREDUCE (ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
 if(myid==0) then
    !print'(a,10i12)', '1. max array size: ', ibuf1(1:nmaxas)
-   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER_P, Max NBUFFER_N: ', &
-                      ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4), ibuf1(5)
+   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER_P: ', &
+                      ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4)
 endif
 
 deallocate(ibuf,ibuf1)
@@ -141,7 +146,6 @@ do i=1,NATOMS
 enddo
 
 end subroutine
-
 
 !----------------------------------------------------------------------------------------
 subroutine PRINTE()
@@ -206,203 +210,6 @@ endif
 
 !--- save current time
 wt0 = MPI_WTIME()
-
-end subroutine
-
-!----------------------------------------------------------------------------------------
-subroutine OUTPUT(imode)
-use atoms; use parameters
-!----------------------------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: imode 
-integer :: i, ity, j, j1, jty, m, n,n3, cstep, iscan
-integer :: l2g
-real(8) :: ri(3), rj(3), bndordr(MAXNEIGHBS), tt=0.d0, ss=0.d0
-integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
-character(8) :: fname0
-character(6) :: a6
-character(9) :: a9
-character(128) :: FileName
-
-integer (kind=MPI_OFFSET_KIND) :: offset
-integer (kind=MPI_OFFSET_KIND) :: fileSize
-integer :: localDataSize
-integer :: fh ! file handler
-
-integer,parameter :: PDBLineSize=67
-character(PDBLineSize) :: PDBOneLine
-
-integer :: BNDLineSize
-integer,parameter :: MaxBNDLineSize=512
-character(MaxBNDLineSize) :: BNDOneLine
-real(8),parameter :: BNDcutoff=0.3d0
-
-integer :: scanbuf
-
-write(a6(1:6),'(i6.6)') myid
-write(a9(1:9),'(i9.9)') nstep + current_step
-FileName=trim(DataPath)//"/"//a6//"/rxff"//a6//"-"//a9
-
-!--- binary ------------------------------------------------------------------
-if(isBinary) then
-  call xu2xs()
-  call coio_write(imode)
-  call xs2xu()
-endif
-!------------------------------------------------------------------ binary ---
-
-!--- BondFile -------------------------------------------------------------
-if(isBondFile) then
-
-    ! precompute the total # of neighbors
-    m=0
-    do i=1, NATOMS
-        do j1 = 1, nbrlist(i,0)
-!--- don't count if BO is less than BNDcutoff.
-            if(BO(0,i,j1) > BNDcutoff) then 
-                m=m+1
-            endif
-        enddo
-    enddo
-
-200 format(i9,1x,3f9.3,1x,2i3,20(i9,f6.3)) 
-
-    ! get local datasize based on above format and the total # of neighbors
-    localDataSize=NATOMS*(9+1+3*9+1+2*3 +1)+m*(9+6)
-
-    call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bnd", &
-        MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
-
-    ! offset will point the end of local write after the scan
-    call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-    ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
-    offset=scanbuf
-
-    ! nprocs-1 rank has the total data size
-    fileSize=offset
-    call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
-    call MPI_File_set_size(fh, fileSize, ierr)
-
-    ! set offset at the beginning of the local write
-    offset=offset-localDataSize
-
-    !open(10,file=trim(FileName)//".bnd")
-
-   do i=1, NATOMS
-      ity = atype(i)
-!--- get global ID for i-atom
-      igd = l2g(atype(i))
-
-!--- count the number bonds to be shown.
-      bndlist(0)=0
-      do j1 = 1, nbrlist(i,0)
-         j = nbrlist(i,j1)
-         jty = atype(j)
-
-!--- get global ID for j-atom
-         jgd = l2g(atype(j))
-
-!--- if bond order is less than 0.3, ignore the bond.
-         if( BO(0,i,j1) < 0.3d0) cycle
-
-         bndlist(0) = bndlist(0) + 1
-         bndlist(bndlist(0)) = jgd
-         bndordr(bndlist(0)) = BO(0,i,j1)
-      enddo
-
-        BNDOneLine=""
-        write(BNDOneLine,200) igd, pos(1:3,i),int(atype(i)),bndlist(0), &
-            (bndlist(j1),bndordr(j1),j1=1,bndlist(0))
-        ! remove space and add new_line
-        BNDOneLine=trim(BNDOneLine)//NEW_LINE('A')
-        BNDLineSize=len(trim(BNDOneLine))
-
-        call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-        call MPI_File_Write(fh,BNDOneLine,BNDLineSize, &
-            MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
-
-        offset=offset+BNDLineSize
-
-   enddo
-   !close(10)
-
-   call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-   call MPI_File_Close(fh,ierr)
-
-endif
-!------------------------------------------------------------ BondFile ----
-
-!--- PDB ---------------------------------------------------------------------
-if(isPDB) then
-
-   ! get local datasize
-   localDataSize=NATOMS*PDBLineSize
-
-   call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".pdb", &
-       MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
-
-   ! offset will point the end of local write after the scan
-   call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-
-   ! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
-   offset=scanbuf
-
-   ! nprocs-1 rank has the total data size
-   fileSize=offset
-   call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
-   call MPI_File_set_size(fh, fileSize, ierr)
-
-   ! set offset at the beginning of the local write
-   offset=offset-localDataSize
-
-   do i=1, NATOMS
-
-     ity = atype(i)
-!--- calculate atomic temperature 
-     tt = hmas(ity)*sum(v(1:3,i)*v(1:3,i))
-     tt = tt*UTEMP*1d-2 !scale down to use two decimals in PDB format 
-
-!--- sum up diagonal atomic stress components 
-#ifdef STRESS
-     ss = sum(astr(1:3,i))/3.d0
-#endif
-     ss = ss*USTRS
-
-     ss = q(i)*10 ! 10x atomic charge
-
-     igd = l2g(atype(i))
-     select case(ity)
-       case(1) 
-         write(PDBOneLine,100)'ATOM  ',0, 'C', igd, pos(1:3,i), tt, ss
-       case(2) 
-         write(PDBOneLine,100)'ATOM  ',0, 'H', igd, pos(1:3,i), tt, ss
-       case(3) 
-         write(PDBOneLine,100)'ATOM  ',0, 'O', igd, pos(1:3,i), tt, ss
-       case(4) 
-         write(PDBOneLine,100)'ATOM  ',0, 'N', igd, pos(1:3,i), tt, ss
-       case(5) 
-         write(PDBOneLine,100)'ATOM  ',0, 'S', igd, pos(1:3,i), tt, ss
-       case(6) 
-         write(PDBOneLine,100)'ATOM  ',0,'Si', igd, pos(1:3,i), tt, ss
-       case(7) 
-         write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
-     end select
-       PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
-
-       call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-       call MPI_File_Write(fh,PDBOneLine,PDBLineSize, &
-           MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
-
-       offset=offset+PDBLineSize
-   enddo
-
-   call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-   call MPI_File_Close(fh,ierr)
-endif
-100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
-!-------------------------------------------------------------------- PDB ----
-
 end subroutine
 
 !----------------------------------------------------------------------------------------

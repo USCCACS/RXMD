@@ -1,12 +1,7 @@
 module params
 implicit none
 integer,parameter :: vprocs(3)=(/2,2,2/)
-integer,parameter :: nio=1
-integer,parameter :: mc(3)=(/2,2,2/)
-
-!integer,parameter :: vprocs(3)=(/8,8,8/)
-!integer,parameter :: nio=1
-!integer,parameter :: mc(3)=(/16,14,14/)
+integer,parameter :: mc(3)=(/2,2,3/)
 
 integer,parameter :: nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 integer,parameter :: mctot=mc(1)*mc(2)*mc(3)
@@ -56,14 +51,6 @@ H(2,3)=hh1
 H(3,3)=hh2
 
 call matinv(H,Hi)
-
-!print'(a)','getbox() --- '
-!print'(a,3f12.5)', ' H(1:3,1): ', H(1:3,1)
-!print'(a,3f12.5)', ' H(1:3,2): ', H(1:3,2)
-!print'(a,3f12.5)', ' H(1:3,3): ', H(1:3,3)
-!print'(a,3f12.5)', 'Hi(1:3,1): ', Hi(1:3,1)
-!print'(a,3f12.5)', 'Hi(1:3,2): ', Hi(1:3,2)
-!print'(a,3f12.5)', 'Hi(1:3,3): ', Hi(1:3,3)
 
 return 
 end subroutine
@@ -119,8 +106,8 @@ print'(i9,3x,a)',natoms, trim(fnote)
 
 !--- read lattice parameters
 read(1,*) L1, L2, L3, Lalpha, Lbeta, Lgamma
-print'(a,3x,6f12.3)','1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
-           L1, L2, L3, Lalpha, Lbeta, Lgamma
+!print'(a,3x,6f12.3)','1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
+!           L1, L2, L3, Lalpha, Lbeta, Lgamma
 
 call getbox(L1,L2,L3,lalpha,lbeta,lgamma)
 
@@ -191,18 +178,6 @@ print'(a,3es15.5,3x,3es15.5)','rmin(1:3),rmax(1:3): ', rmin(1:3), rmax(1:3)
 natoms=natoms*mctot
 L1=L1*mc(1); L2=L2*mc(2); L3=L3*mc(3)
 call getbox(L1,L2,L3,lalpha,lbeta,lgamma)
-
-!open(10,file="geninit.xyz")
-!write(10,'(i12,3x,a)') natoms, trim(fnote)
-!write(10,'(6f12.5)') L1, L2, L3, Lalpha, Lbeta, Lgamma
-!do i=1, natoms
-!   rr(1)=sum(H(1,1:3)*pos1(1:3,i))
-!   rr(2)=sum(H(2,1:3)*pos1(1:3,i))
-!   rr(3)=sum(H(3,1:3)*pos1(1:3,i))
-!   !pos1(1:3,i)=rr(1:3)
-!   write(10,'(a5,3f12.5)') ctype1(i),rr(1:3)
-!enddo
-!close(10)
 
 !--- count how many atoms per MPI domain, get lnatoms()
 lnatoms(:)=0
