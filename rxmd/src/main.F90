@@ -101,7 +101,7 @@ enddo
 call MPI_ALLREDUCE (ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
 if(myid==0) then
    !print'(a,10i12)', '1. max array size: ', ibuf1(1:nmaxas)
-   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER_P: ', &
+   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER: ', &
                       ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4)
 endif
 
@@ -404,16 +404,16 @@ real(8),pointer,dimension(:,:,:) :: dln_BOp_, BO_
 
 real(8),parameter :: BORC = 1.d-4
 
-allocate(nbrlist_(NBUFFER_P,0:MAXNEIGHBS))
-allocate(nbrindx_(NBUFFER_P, MAXNEIGHBS))
+allocate(nbrlist_(NBUFFER,0:MAXNEIGHBS))
+allocate(nbrindx_(NBUFFER, MAXNEIGHBS))
 
-allocate(dln_BOp_(3,NBUFFER_P, MAXNEIGHBS))
-allocate(dBOp_(NBUFFER_P,MAXNEIGHBS))
-allocate(BO_(0:3,NBUFFER_P,MAXNEIGHBS))
-allocate(A0_(NBUFFER_P, MAXNEIGHBS))
-allocate(A1_(NBUFFER_P, MAXNEIGHBS))
-allocate(A2_(NBUFFER_P, MAXNEIGHBS))
-allocate(A3_(NBUFFER_P, MAXNEIGHBS))
+allocate(dln_BOp_(3,NBUFFER, MAXNEIGHBS))
+allocate(dBOp_(NBUFFER,MAXNEIGHBS))
+allocate(BO_(0:3,NBUFFER,MAXNEIGHBS))
+allocate(A0_(NBUFFER, MAXNEIGHBS))
+allocate(A1_(NBUFFER, MAXNEIGHBS))
+allocate(A2_(NBUFFER, MAXNEIGHBS))
+allocate(A3_(NBUFFER, MAXNEIGHBS))
 
 nbrlist_(:,0)=0
 
@@ -618,7 +618,7 @@ use atoms
 real(8) :: rr(3)
 real(8) :: rx,ry,rz
 
-do i=1, NBUFFER_P
+do i=1, NBUFFER
    rr(1:3) = pos(1:3,i)
    pos(1,i)=sum(HHi(1,1:3)*rr(1:3))
    pos(2,i)=sum(HHi(2,1:3)*rr(1:3))
@@ -635,7 +635,7 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
 
-do i=1, NBUFFER_P
+do i=1, NBUFFER
    rr(1:3) = pos(1:3,i) + OBOX(1:3)
    pos(1,i)=sum(HH(1,1:3,0)*rr(1:3))
    pos(2,i)=sum(HH(2,1:3,0)*rr(1:3))

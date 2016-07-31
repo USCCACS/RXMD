@@ -185,17 +185,10 @@ real(8) :: div_expovun2, div_expovun2n, div_expovun1, div_expovun8
 
 real(8) :: get_exp
 
-allocate(deltalp(NBUFFER_P),stat=ast)
+allocate(deltalp(NBUFFER),stat=ast)
 
 !=== preparation ==============================================================
-!do c1=-nlayer, cc(1)-1+nlayer
-!do c2=-nlayer, cc(2)-1+nlayer
-!do c3=-nlayer, cc(3)-1+nlayer
-!
-!  i=header(c1,c2,c3)
-!  do ii = 1, nacell(c1,c2,c3)
-
-do i = 1, NBUFFER_P
+do i = 1, NBUFFER
    ity = atype(i)
 
    if(ity==0) cycle
@@ -222,10 +215,6 @@ do i = 1, NBUFFER_P
    if(mass(ity)>21.d0) deltalp(i) = 0.d0
 
 enddo
-
-!     i=llist(i)
-!  enddo
-!enddo; enddo; enddo
 !============================================================== preparation ===
 
 PE(2:4)=0.d0

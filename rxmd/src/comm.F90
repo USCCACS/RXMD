@@ -288,9 +288,9 @@ implicit none
 integer,intent(IN) :: dflag, parity, imode 
 integer :: m, i, ine, j, l(3)
 
-if( (na+nr)/ne > NBUFFER_P) then
-    print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER_P: ", &
-         myid,na,nr,ne,(na+nr)/ne, NBUFFER_P
+if( (na+nr)/ne > NBUFFER) then
+    print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER: ", &
+         myid,na,nr,ne,(na+nr)/ne, NBUFFER
     call MPI_FINALIZE(ierr)
     stop
 endif

@@ -116,13 +116,13 @@ do ity=1, nso
 enddo
 
 !--- Particle Parameters
-allocate(pos(3,NBUFFER_P),f(3,NBUFFER_P),v(3,NBUFFER_P),stat=ast); ist=ist+ast
-allocate(atype(0:NBUFFER_P),q(NBUFFER_P), stat=ast); ist=ist+ast
+allocate(pos(3,NBUFFER),f(3,NBUFFER),v(3,NBUFFER),stat=ast); ist=ist+ast
+allocate(atype(0:NBUFFER),q(NBUFFER), stat=ast); ist=ist+ast
 f(:,:)=0.d0
 
 !--- Varaiable for extended Lagrangian method
-allocate(qsfp(NBUFFER_P), qsfv(NBUFFER_P), stat=ast); ist=ist+ast
-allocate(qtfp(NBUFFER_P), qtfv(NBUFFER_P), stat=ast); ist=ist+ast
+allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
+allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
 call coio_read()
@@ -161,45 +161,45 @@ call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 #ifdef STRESS
 !--- stress variables
-allocate(astr(6,NBUFFER_P),stat=ast); ist=ist+ast
+allocate(astr(6,NBUFFER),stat=ast); ist=ist+ast
 astr(:,:)=0.d0; 
 #endif
 
 !--- Linked List & Near Neighb Parameters
-allocate(nbrlist(NBUFFER_P,0:MAXNEIGHBS), nbrindx(NBUFFER_P, MAXNEIGHBS),stat=ast); ist=ist+ast
+allocate(nbrlist(NBUFFER,0:MAXNEIGHBS), nbrindx(NBUFFER, MAXNEIGHBS),stat=ast); ist=ist+ast
 
-allocate(nbplist(NBUFFER_P,0:MAXNEIGHBS10),stat=ast); ist=ist+ast
+allocate(nbplist(NBUFFER,0:MAXNEIGHBS10),stat=ast); ist=ist+ast
 
-allocate(llist(NBUFFER_P),stat=ast);ist=ist+ast 
+allocate(llist(NBUFFER),stat=ast);ist=ist+ast 
 allocate(header(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
 allocate(nacell(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
 
 !--- Bond Order Prime and deriv terms:
-allocate(dln_BOp(3,NBUFFER_P, MAXNEIGHBS), dBOp(NBUFFER_P,MAXNEIGHBS), stat=ast); ist=ist+ast
+allocate(dln_BOp(3,NBUFFER, MAXNEIGHBS), dBOp(NBUFFER,MAXNEIGHBS), stat=ast); ist=ist+ast
 
-allocate(deltap(NBUFFER_P, 3), stat=ast); ist=ist+ast
+allocate(deltap(NBUFFER, 3), stat=ast); ist=ist+ast
 
 !--- Bond Order terms
-allocate(BO(0:3,NBUFFER_P,MAXNEIGHBS), delta(NBUFFER_P), stat=ast); ist=ist+ast
-allocate(A0(NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast
-allocate(A1(NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast 
-allocate(A2(NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast 
-allocate(A3(NBUFFER_P, MAXNEIGHBS), stat=ast); ist=ist+ast 
+allocate(BO(0:3,NBUFFER,MAXNEIGHBS), delta(NBUFFER), stat=ast); ist=ist+ast
+allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast
+allocate(A1(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
+allocate(A2(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
+allocate(A3(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
 
-allocate(nlp(NBUFFER_P), dDlp(NBUFFER_P), stat=ast); ist=ist+ast
+allocate(nlp(NBUFFER), dDlp(NBUFFER), stat=ast); ist=ist+ast
 
-allocate(ccbnd(NBUFFER_P), stat=ast); ist=ist+ast
+allocate(ccbnd(NBUFFER), stat=ast); ist=ist+ast
 ccbnd(:)=0.d0
 
 !--- 2 vector QEq varialbes
-allocate(qs(NBUFFER_P), gs(NBUFFER_P), stat=ast); ist=ist+ast
-allocate(qt(NBUFFER_P), gt(NBUFFER_P), stat=ast); ist=ist+ast
-allocate(hs(NBUFFER_P), hshs(NBUFFER_P), stat=ast); ist=ist+ast
-allocate(ht(NBUFFER_P), hsht(NBUFFER_P), stat=ast); ist=ist+ast
+allocate(qs(NBUFFER), gs(NBUFFER), stat=ast); ist=ist+ast
+allocate(qt(NBUFFER), gt(NBUFFER), stat=ast); ist=ist+ast
+allocate(hs(NBUFFER), hshs(NBUFFER), stat=ast); ist=ist+ast
+allocate(ht(NBUFFER), hsht(NBUFFER), stat=ast); ist=ist+ast
 qs(:)=0.d0; qt(:)=0.d0; gs(:)=0.d0; gt(:)=0.d0; hs(:)=0.d0; ht(:)=0.d0; hshs(:)=0.d0; hsht(:)=0.d0
 
 !--- returning force index array 
-allocate(frcindx(NBUFFER_P), stat=ast); ist=ist+ast 
+allocate(frcindx(NBUFFER), stat=ast); ist=ist+ast 
 
 !--- Calculate constants used in loop (to avoid slow down later)
 allocate(cBOp1(nboty), cBOp3(nboty), cBOp5(nboty), stat=ast); ist=ist+ast
@@ -297,7 +297,7 @@ if(myid==0) then
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
    maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
-   write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER_P
+   write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
    write(6,'(a30,3(a12,1x))') "FFPath, DataPath, ParmPath:", &
                           trim(FFPath), trim(DataPath), trim(ParmPath)
 
@@ -581,7 +581,7 @@ do k=-imesh(3), imesh(3)
    endif
 enddo; enddo; enddo
 
-allocate(nbllist(NBUFFER_P),stat=ast)
+allocate(nbllist(NBUFFER),stat=ast)
 allocate(nbheader(-MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
 allocate(nbnacell(-MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
 

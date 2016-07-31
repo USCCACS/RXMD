@@ -18,8 +18,8 @@ character(64) :: FFPath="ffield", DataPath="DAT", ParmPath="rxmd.in"
 integer,parameter :: nio=1
 
 !--- For array size statistics
-!  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER_P, 5-not used, 
-!  6-NBUFFER_P for qeq
+!  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER, 5-not used, 
+!  6-NBUFFER for qeq
 integer,parameter :: nmaxas=5
 integer,allocatable :: maxas(:,:)
 
@@ -83,11 +83,11 @@ integer,parameter :: is_idEh = 1
 !real(8),parameter :: cutof2_bo = 1d-4
 !integer,parameter :: is_idEh = 0
 
-!integer :: NBUFFER_P=5000
+!integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER_P=20000
+integer :: NBUFFER=20000
 integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
@@ -432,8 +432,8 @@ contains
    
    ParamCppInterface(1)=myid
    ParamCppInterface(2)=NATOMS
-   ParamCppInterface(3)=NBUFFER_P
-   ParamCppInterface(4)=NBUFFER_P
+   ParamCppInterface(3)=NBUFFER
+   ParamCppInterface(4)=NBUFFER
    ParamCppInterface(5)=MAXNEIGHBS
    
    param_ptr = c_loc(paramCppInterface(1))

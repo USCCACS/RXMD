@@ -248,15 +248,15 @@ integer :: iast
 deallocate(A0, nbrlist,stat=ast)
 
 iast=0
-allocate(BO(0:3,NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A0(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A1(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A2(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A3(NBUFFER_P, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(dln_BOp(3,NBUFFER_P, MAXNEIGHBS), dBOp(NBUFFER_P,MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(BO(0:3,NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A1(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A2(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(A3(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(dln_BOp(3,NBUFFER, MAXNEIGHBS), dBOp(NBUFFER,MAXNEIGHBS), stat=ast); iast=iast+ast
 
-allocate(nbrlist(NBUFFER_P,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(nbrindx(NBUFFER_P,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(nbrlist(NBUFFER,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(nbrindx(NBUFFER,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
 
 if (iast/=0) then
    if (myid==0) print*, 'ERROR: qeq_finalize', iast

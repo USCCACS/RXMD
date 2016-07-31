@@ -384,8 +384,8 @@ end subroutine
 subroutine cg_init()
 use atoms; use cg
 !----------------------------------------------------------------------------------------------------------------------
-allocate(cg_pos(3,NBUFFER_P),cg_q(NBUFFER_P),cg_atype(NBUFFER_P), stat=ast)
-allocate(h(3,NBUFFER_P),g(3,NBUFFER_P), stat=ast)
+allocate(cg_pos(3,NBUFFER),cg_q(NBUFFER),cg_atype(NBUFFER), stat=ast)
+allocate(h(3,NBUFFER),g(3,NBUFFER), stat=ast)
 
 end subroutine
 
