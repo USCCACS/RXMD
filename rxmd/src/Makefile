@@ -11,11 +11,11 @@
 #FC = mpif90 -openmp
 
 # gfortran
-#FC = mpif90 -fopenmp
-FC = mpif90 -ffpe-trap=invalid,zero,overflow -fbacktrace
+FC = mpif90 -fopenmp
+#FC = mpif90 -fcheck=all
 
 CC = mpic++
-OPT = -O3 -g
+OPT = -g -O3
 
 SRCS := main.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 cg.F90 param.F90 stress.F90
 OBJS := $(SRCS:.F90=.o) 

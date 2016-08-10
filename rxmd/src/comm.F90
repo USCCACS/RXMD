@@ -270,7 +270,7 @@ if(myid==tn) then
    if(ns>0) then
       nr=ns
       allocate(rbuffer(nr), stat=ast)
-      rbuffer(:) = sbuffer(:)
+      rbuffer(1:ns) = sbuffer(1:ns)
    else
       nr=0
    endif
