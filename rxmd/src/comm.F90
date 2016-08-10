@@ -61,7 +61,7 @@ select case(imode)
    case(MODE_STRESSCALC)
       ne = NE_STRESSCALC
    case default
-      print'(a,i)', "ERROR: imode doesn't match in COPYATOMS: ", imode
+      print'(a,i3)', "ERROR: imode doesn't match in COPYATOMS: ", imode
 end select
 
 do dflag=1, 6
@@ -165,7 +165,7 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: tn, dflag, parity, imode 
-real(8),intent(IN) :: dr
+real(8),intent(IN) :: dr(3)
 logical :: inBuffer
 
 integer :: i,j,k,m,n,n1,ni,is,l(3,2)

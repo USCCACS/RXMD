@@ -582,8 +582,14 @@ do k=-imesh(3), imesh(3)
 enddo; enddo; enddo
 
 allocate(nbllist(NBUFFER),stat=ast)
-allocate(nbheader(-MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
-allocate(nbnacell(-MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
+allocate(nbheader( &
+                -MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
+allocate(nbnacell( &
+                -MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
 
 !--- normalize nblcsize, like lcsize.
 nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)

@@ -7,8 +7,10 @@
 	$(FC) -c $(CPP) $(OPT) $<
 
 # macros    
-FC = ifort
+#FC = ifort
 #FC = xlf
+FC = gfortran
+
 OPT =
 CPP = 
 LDFLAGS =

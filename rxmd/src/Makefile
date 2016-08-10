@@ -6,12 +6,18 @@
 	$(CC) -c $(CPP) $(OPT) $<
 %.o: %.mod
 
+# Intel Compiler
 #FC = mpif90 -check all -traceback
-FC = mpif90 -openmp
+#FC = mpif90 -openmp
+
+# gfortran
+#FC = mpif90 -fopenmp
+FC = mpif90 -ffpe-trap=invalid,zero,overflow -fbacktrace
+
 CC = mpic++
 OPT = -O3 -g
 
-SRCS := module.F90 main.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 cg.F90 param.F90 stress.F90
+SRCS := main.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 cg.F90 param.F90 stress.F90
 OBJS := $(SRCS:.F90=.o) 
 CPP = 
 
@@ -29,8 +35,8 @@ ifeq ($(EXE),rxmd-cpp)
   CPP += -DINTEROP
 endif
 
-$(EXE): $(OBJS) 
-	$(FC) -o $(EXE) $(LDFLAGS) $(OBJS) 
+$(EXE): $(OBJS)
+	$(FC) -o $(EXE) $(LDFLAGS) $(OBJS) module.o
 	mv $(EXE) ../$(EXE)
 
 $(OBJS) : atoms.mod
