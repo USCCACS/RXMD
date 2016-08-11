@@ -103,6 +103,8 @@ real(8),parameter :: pi=3.14159265358979d0
 real(kind=c_double),allocatable,target :: pos(:,:),atype(:)
 real(8),allocatable :: v(:,:), f(:,:), q(:)
 
+real(8),allocatable :: fnb(:,:)
+
 ! atomic stress tensor
 real(8),allocatable :: astr(:,:) 
 real(8) :: pint(3,3)

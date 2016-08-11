@@ -9,8 +9,9 @@ integer :: l2g
 real(8) :: gasdev
 real(8) :: dr(3)
 
-f(:,:) = 0.d0
 ccbnd(:) = 0.d0
+f(:,:) = 0.d0
+fnb(:,:) = 0.d0
 #ifdef STRESS
 !--- stress components have to be transfered back to the original atoms, as the force components. 
 astr(:,:) = 0.d0
@@ -60,9 +61,6 @@ CALL BOCALC(NMINCELL)
 call system_clock(j,k)
 it_timer(6)=it_timer(6)+(j-i)
 
-!$omp end sections
-!$omp end parallel
-
 call system_clock(i,k)
 CALL Ebond()
 call system_clock(j,k)
@@ -92,6 +90,12 @@ call system_clock(i,k)
 CALL ForceBondedTerms(NMINCELL)
 call system_clock(j,k)
 it_timer(13)=it_timer(13)+(j-i)
+
+!$omp end sections
+!$omp end parallel
+
+! merge force values from ENbond
+f(:,:)=f(:,:)+fnb(:,:)
 
 call system_clock(i,k)
 dr(1:3)=0.d0
@@ -736,8 +740,8 @@ do c3=0, cc(3)-1
 
                   ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
        
-                  f(1:3,i) = f(1:3,i) - ff(1:3)
-                  f(1:3,j) = f(1:3,j) + ff(1:3)
+                  fnb(1:3,i) = fnb(1:3,i) - ff(1:3)
+                  fnb(1:3,j) = fnb(1:3,j) + ff(1:3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -750,8 +754,6 @@ do c3=0, cc(3)-1
             endif
 
        enddo  !do j1 = 1, nbplist(i,0) 
-!            j=llist(j)
-!         enddo
 
       i=llist(i)
    enddo
