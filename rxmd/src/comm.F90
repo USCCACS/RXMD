@@ -30,13 +30,15 @@ implicit none
 
 real(8),intent(IN) :: dr(3)
 integer,intent(IN) :: imode 
-integer :: i,tn, dflag, parity
+integer :: i,tn1,tn2, dflag
 integer :: ni, ity
 integer :: i1,j1,k1
 
 integer :: c1,c2,c3,n
 
 integer :: j
+
+integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -65,16 +67,18 @@ select case(imode)
 end select
 
 do dflag=1, 6
-   tn = target_node(dflag)
+   tn1 = target_node(dflag)
+   tn2 = target_node(dinv(dflag))
    i = (dflag+1)/2  !<- [123]
 
    if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
-      tn = target_node(7-dflag) ! <-[654321] 
+      tn1 = target_node(7-dinv(dflag)) ! <-[563412] 
+      tn2 = target_node(7-dflag) ! <-[654321] 
       i = (6-dflag)/2 + 1         ! <-[321]
    endif
-   call store_atoms(tn, dflag, myparity(i), imode, dr)
-   call send_recv(tn, dflag, myparity(i))
-   call append_atoms(dflag, myparity(i), imode)
+   call store_atoms(tn1, dflag, imode, dr)
+   call send_recv(tn1, tn2, dflag, myparity(i))
+   call append_atoms(dflag, imode)
 
 enddo
 
@@ -111,52 +115,53 @@ endif
 end subroutine COPYATOMS
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine send_recv(tn, dflag, parity)
+subroutine send_recv(tn1, tn2, dflag, mypar)
 use atoms
 ! shared variables::  <ns>, <nr>, <na>, <sbuffer()>, <rbuffer()>
 ! This subroutine only takes care of communication part. won't be affected by wether atom migration or atom 
 ! copy mode. 
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) ::tn, dflag, parity
+integer,intent(IN) ::tn1, tn2, dflag, mypar 
 integer :: recv_stat(MPI_STATUS_SIZE)
 
 !--- if the traget node is the node itself, atoms informations are already copied 
 !--- to <rbuffer> in <store_atoms()>. Nothing to do here. Just return from this subroutine.
-if(myid==tn) return 
 
-if (parity == 0) then
+if(myid==tn1) return 
 
-     call MPI_SEND(ns, 1, MPI_INTEGER, tn, 10, MPI_COMM_WORLD, ierr)
+if (mypar == 0) then
+
+     call MPI_SEND(ns, 1, MPI_INTEGER, tn1, 10, MPI_COMM_WORLD, ierr)
      if (ns > 0) &
-       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn, 11, MPI_COMM_WORLD, ierr)
+       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 11, MPI_COMM_WORLD, ierr)
 
-     call MPI_RECV(nr, 1, MPI_INTEGER, tn, 12, MPI_COMM_WORLD, recv_stat, ierr)
+     call MPI_RECV(nr, 1, MPI_INTEGER, tn2, 12, MPI_COMM_WORLD, recv_stat, ierr)
      if (nr > 0) then
        allocate(rbuffer(nr), stat=ast); if(ast/=0) print*, "ERROR: rbuffer@send_recv: 1"
-       call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn, &
+       call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, &
                      13, MPI_COMM_WORLD, recv_stat, ierr)
      endif
 
-elseif (parity == 1) then
+elseif (mypar == 1) then
 
-       call MPI_RECV(nr, 1, MPI_INTEGER, tn, 10, MPI_COMM_WORLD, recv_stat, ierr)
+       call MPI_RECV(nr, 1, MPI_INTEGER, tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
        if (nr > 0) then
          allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
-         call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn, &
+         call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, &
                       11, MPI_COMM_WORLD, recv_stat, ierr)
        endif
 
-       call MPI_SEND(ns, 1, MPI_INTEGER, tn, 12, MPI_COMM_WORLD, ierr)
+       call MPI_SEND(ns, 1, MPI_INTEGER, tn1, 12, MPI_COMM_WORLD, ierr)
        if (ns > 0) &
-       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn, 13, MPI_COMM_WORLD, ierr)
+       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 13, MPI_COMM_WORLD, ierr)
 
 endif
 
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine store_atoms(tn, dflag, parity, imode, dr)
+subroutine store_atoms(tn, dflag, imode, dr)
 use atoms
 ! <nlayer> will be used as a flag to change the behavior of this subroutine. 
 !    <nlayer>==0 migration mode
@@ -164,7 +169,7 @@ use atoms
 ! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: tn, dflag, parity, imode 
+integer,intent(IN) :: tn, dflag, imode 
 real(8),intent(IN) :: dr(3)
 logical :: inBuffer
 
@@ -279,13 +284,13 @@ endif
 end subroutine store_atoms
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine append_atoms(dflag, parity, imode)
+subroutine append_atoms(dflag, imode)
 use atoms
 ! <append_atoms> append copied information into arrays
 ! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: dflag, parity, imode 
+integer,intent(IN) :: dflag, imode 
 integer :: m, i, ine, j, l(3)
 
 if( (na+nr)/ne > NBUFFER) then
