@@ -24,15 +24,15 @@ do i=1, command_argument_count()
    call get_command_argument(i,argv)
    select case(adjustl(argv))
      case("--help","-h")
-       if(myid==0) print'(a)', "-ff ffield -dat output_dir -parm rxmd.in"
+       if(myid==0) print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
        stop
-     case("-ff")
+     case("--ffield", "-ff")
        call get_command_argument(i+1,argv)
        FFPath=adjustl(argv)
-     case("-data")
+     case("--outDir", "-o")
        call get_command_argument(i+1,argv)
-       DataPath=adjustl(argv)
-     case("-parm")
+       DataDir=adjustl(argv)
+     case("--rxmdin", "-in")
        call get_command_argument(i+1,argv)
        ParmPath=adjustl(argv)
      case default
@@ -302,8 +302,8 @@ if(myid==0) then
    maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
    write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
-   write(6,'(a30,3(a12,1x))') "FFPath, DataPath, ParmPath:", &
-                          trim(FFPath), trim(DataPath), trim(ParmPath)
+   write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
+                          trim(FFPath), trim(DataDir), trim(ParmPath)
 
    print'(a30 $)','# of atoms per type:'
    do ity=1, nso

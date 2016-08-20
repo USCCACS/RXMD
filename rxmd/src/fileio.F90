@@ -58,7 +58,7 @@ if(isBondFile) then
     ! get local datasize based on above format and the total # of neighbors
     localDataSize=NATOMS*(9+1+3*9+1+2*3 +1)+m*(9+6)
 
-    call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".bnd", &
+    call MPI_File_Open(MPI_COMM_WORLD,trim(DataDir)//"/"//a9//".bnd", &
         MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
     ! offset will point the end of local write after the scan
@@ -126,7 +126,7 @@ if(isPDB) then
    ! get local datasize
    localDataSize=NATOMS*PDBLineSize
 
-   call MPI_File_Open(MPI_COMM_WORLD,trim(DataPath)//"/"//a9//".pdb", &
+   call MPI_File_Open(MPI_COMM_WORLD,trim(DataDir)//"/"//a9//".pdb", &
        MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
    ! offset will point the end of local write after the scan
@@ -224,7 +224,7 @@ nmeta=4+nprocs+1
 allocate(idata(nmeta))
 metaDataSize = 4*nmeta + 8*6
 
-call MPI_File_Open(MPI_COMM_WORLD,"rxff.bin",MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
+call MPI_File_Open(MPI_COMM_WORLD,trim(DataDir)//"/rxff.bin",MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
 
 ! read metadata at the beginning of file
 offsettmp=0
@@ -314,10 +314,10 @@ metaDataSize = 4*nmeta + 8*6
 localDataSize = 8*NATOMS*10
 
 if(imode==-1) then
-  FileName="./rxff.bin"
+  FileName=trim(DataDir)//"/"//"rxff.bin"
 else
   write(a9(1:9),'(i9.9)') nstep+current_step
-  FileName="./DAT/"//a9//".bin"
+  FileName=trim(DataDir)//"/"//a9//".bin"
 endif
 
 call MPI_File_Open(MPI_COMM_WORLD,trim(FileName),MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)

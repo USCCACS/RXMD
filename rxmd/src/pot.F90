@@ -12,6 +12,7 @@ real(8) :: dr(3)
 ccbnd(:) = 0.d0
 f(:,:) = 0.d0
 fnb(:,:) = 0.d0
+
 #ifdef STRESS
 !--- stress components have to be transfered back to the original atoms, as the force components. 
 astr(:,:) = 0.d0

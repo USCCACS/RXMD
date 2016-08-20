@@ -12,7 +12,7 @@ include 'mpif.h'
 
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
-character(64) :: FFPath="ffield", DataPath="DAT", ParmPath="rxmd.in"
+character(64) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 
 !--- Size of I/O group for collective I/O 
 integer,parameter :: nio=1
@@ -380,20 +380,6 @@ real(8),allocatable :: pbo2h(:), pbo4h(:), pbo6h(:)
 real(8)  :: vpar30,vpar1,vpar2
 
 end module parameters 
-
-!!------------------------------------------------------------------------------------------
-!module ustruct
-!!  unit cell variables 
-!!------------------------------------------------------------------------------------------
-!integer :: unitN                 !<unitN> # of atoms in a unit cell
-!real(8),allocatable :: pos0(:,:) !<x0> atom coordinate array for unit cell
-!integer,allocatable :: atype0(:) !<atype0> atom type array for unit cell
-!                                 ! 1=C, 2=H, 3=O, 4=N, 5=S, 6=Si, 7=Al, X=8
-!real(8),allocatable :: q0(:)     ! Initial charge distributin (not used) 
-!real(8) :: ul(3,3)               !<ul> unit lattice vector
-!real(8),parameter :: rshift = 0.0d0 !<rshift> shift atoms coordinate (not used)
-!
-!end module ustruct
 
 #ifdef INTEROP
 !------------------------------------------------------------------------------------------

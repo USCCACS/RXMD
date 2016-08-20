@@ -293,7 +293,7 @@ do i=1,NATOMS
 !--- get half of potential energy, then sum it up if atoms are resident.
       Est1 = 0.5d0*A0(j1,i)*q(i)*q(j)
       Est = Est + Est1
-      if(j>0) Est = Est + Est1
+      if(j<=NATOMS) Est = Est + Est1
    enddo
 
 enddo
