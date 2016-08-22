@@ -53,10 +53,12 @@ GetStableBonds(std::map<uint32_t, BondOrder> & bos, int const& nframes, float co
 
             if(bo.nbrBOs[n] < threshold) 
 			{
-				bo.nbrIDs.erase(n);
-				bo.nbrBOs.erase(n);
+/*
 				std::cout << n << " has been removed from " << bo.id << 
 					" bo.nbrBOs[n] = " << bo.nbrBOs[n] << std::endl;
+*/
+				bo.nbrIDs.erase(n);
+				bo.nbrBOs.erase(n);
 			}
 		}
 
