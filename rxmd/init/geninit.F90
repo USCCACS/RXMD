@@ -1,7 +1,7 @@
 module params
 implicit none
 integer,parameter :: vprocs(3)=(/1,1,1/)
-integer,parameter :: mc(3)=(/2,2,3/)
+integer,parameter :: mc(3)=(/1,1,1/)
 
 integer,parameter :: nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 integer,parameter :: mctot=mc(1)*mc(2)*mc(3)

@@ -1,6 +1,6 @@
 /*
 This code takes several .bnd files and calculates averaged bond-order values of neighbor atoms,
-then print them only if their BO values are above a given threshould. 
+then print them only if their BO values are above a given threshold. 
 
 g++ -std=c++11 BondLifeTime.cpp && ./a.out ../DAT/000*000.bnd 
 */
@@ -27,8 +27,8 @@ struct BondOrder : public Atom
 
 	void Print()
 	{
-		uint intw=6,fltw=8; 
-		std::cout.precision(3);
+		uint intw=6,fltw=9; 
+		std::cout.precision(5);
 		std::cout << std::setw(intw) << id << 
 				std::setw(fltw) << x << std::setw(fltw) << y << std::setw(fltw) << z << 
 				std::setw(intw) << type << std::setw(intw) << nnbr << " "; 
@@ -43,18 +43,20 @@ struct BondOrder : public Atom
 std::map<uint32_t, BondOrder> 
 GetStableBonds(std::map<uint32_t, BondOrder> & bos, int const& nframes, float const& threshold)
 {
-
     for(auto & b : bos)
     {
         auto & bo = b.second;
         for(auto n : bo.nbrIDs)
 		{
+			// average
             bo.nbrBOs[n]/=nframes;
+
             if(bo.nbrBOs[n] < threshold) 
 			{
 				bo.nbrIDs.erase(n);
 				bo.nbrBOs.erase(n);
-				std::cout << n << "will be removed: AveBo = " << bo.nbrBOs[n] << std::endl;
+				std::cout << n << " has been removed from " << bo.id << 
+					" bo.nbrBOs[n] = " << bo.nbrBOs[n] << std::endl;
 			}
 		}
 
@@ -87,14 +89,17 @@ int main(int argc, char *argv[])
 
 			// get neighbor atom info
 			auto & bo = bos[a.id];
-			uint32_t nbrId; float nbrBo; 
 
 			// read the rest of neighbor ids&bos
-			while(ss)
+			for(int j=0; j<a.nnbr; j++)
 			{
+				uint32_t nbrId; float nbrBo; 
 				ss >> nbrId >> nbrBo;
-				//a.nbrs.push_back(std::make_pair(id,bo));
+
+				// insert neighbor Id. use std::set to avoid getting same Id twice.
 				bo.nbrIDs.insert(nbrId);
+
+				// std::map initializes when a key is found first time. safe to use +=.
 				bo.nbrBOs[nbrId]+=nbrBo; 
 			}
 
@@ -106,7 +111,7 @@ int main(int argc, char *argv[])
 	}
 
 	// select neighbor atoms with averaged BO > 0.3
-	for(auto & b : GetStableBonds(bos, argc, 0.3))
+	for(auto & b : GetStableBonds(bos, argc-1, 0.3))
 		b.second.Print();
 
 	return 0;
