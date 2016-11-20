@@ -5,7 +5,6 @@ module base
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos, v, f
 
-
 Interface
    SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
       real(8),allocatable,dimension(:) :: atype, q
@@ -14,7 +13,6 @@ Interface
 end Interface
 
 end module
-
 !-------------------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------------------
@@ -24,7 +22,8 @@ include 'mpif.h'
 
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
-character(64) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
+integer,parameter :: MAXPATHLENGTH=256
+character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 
 !--- Size of I/O group for collective I/O 
 integer,parameter :: nio=1
@@ -159,9 +158,6 @@ real(8),allocatable :: exp_delt1(:,:), exp_delt2(:,:)  ! exp( -pboc#(inxn) * del
 !--- A[0123] coefficients for force calculation 
 real(8),pointer:: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
 
-!--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
-real(8),allocatable :: switch(:,:) 
-
 !--- Passed between Elnpr and E3body
 real(8),allocatable :: nlp(:), dDlp(:) !Number of Lone Pairs, its derivatives.
 
@@ -259,9 +255,6 @@ integer :: fstep, pstep
 integer,allocatable :: frcindx(:)
 integer :: copyptr(0:6)
 
-!--- parameter & structure file description
-character(70) :: pfile
-
 !--- stress components
 real(8) :: xx,yy,zz,yz,zx,xy
 !--- atomic stress index
@@ -283,6 +276,23 @@ real(8) :: UDR, UDRi
 
 integer,allocatable :: ibuf(:), ibuf1(:)
 integer(8),allocatable :: ibuf8(:)
+
+!--- FF parameter description
+character(MAXPATHLENGTH) :: FFDescript
+
+contains
+
+!-------------------------------------------------------------------------------------------
+function GetFileNameBase(nstep) result(fileNameBase)
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: nstep
+character(MAXPATHLENGTH) :: fileNameBase
+character(9) :: a9
+
+write(a9,'(i9.9)') nstep
+fileNameBase=trim(adjustl(DataDir))//"/"//a9
+
+end function
 
 end module atoms
 
@@ -386,5 +396,8 @@ real(8),allocatable :: pbo2h(:), pbo4h(:), pbo6h(:)
 
 !NOTE: for debugging purpose variables
 real(8)  :: vpar30,vpar1,vpar2
+
+!--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
+real(8),allocatable :: switch(:,:) 
 
 end module parameters 

@@ -131,7 +131,7 @@ allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
 allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
-call ReadBIN(atype, pos, v, f, q)
+call ReadBIN(atype, pos, v, f, q, trim(DataDir)//"/rxff.bin")
 
 call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
@@ -202,52 +202,8 @@ qs(:)=0.d0; qt(:)=0.d0; gs(:)=0.d0; gt(:)=0.d0; hs(:)=0.d0; ht(:)=0.d0; hshs(:)=
 !--- returning force index array 
 allocate(frcindx(NBUFFER), stat=ast); ist=ist+ast 
 
-!--- Calculate constants used in loop (to avoid slow down later)
-allocate(cBOp1(nboty), cBOp3(nboty), cBOp5(nboty), stat=ast); ist=ist+ast
-allocate(pbo2h(nboty), pbo4h(nboty), pbo6h(nboty), stat=ast); ist=ist+ast
-
 !--- setup potential table
 call POTENTIALTABLE()
-
-!--- <switch> flag to omit pi and double pi bond.
-allocate(switch(1:3,nboty), stat=ast); ist=ist+ast
-
-switch(:,:)=0
-do i=1,nso
-   do j=1,nso
-   inxn = inxn2(i,j)
-
-   if(inxn/=0) then
-
-!!--- In BOp calculation, <switch> will be multiplied to <BOp> to remove
-!!--- BOpi and BOpipi for bonding interaction of atoms with a hydrogen.
-       if((rat(i)>0.d0)  .and. rat(j)>0.d0 )  switch(1,inxn)=1
-       if((rapt(i)>0.d0) .and. rapt(j)>0.d0 ) switch(2,inxn)=1
-       if((vnq(i)>0.d0)  .and. vnq(j)>0.d0 )  switch(3,inxn)=1
-
-      if(r0s(i,j)<=0.d0) then 
-         cBOp1(inxn) = 0.d0
-      else
-         cBOp1(inxn) = pbo1(inxn)/(r0s(i,j)**pbo2(inxn))
-      endif
-      if(r0p(i,j)<=0.d0) then
-         cBOp3(inxn) = 0.d0
-      else
-         cBOp3(inxn) = pbo3(inxn)/(r0p(i,j)**pbo4(inxn))
-      endif
-
-      if(r0pp(i,j)<=0.d0) then
-         cBOp5(inxn) = 0.d0
-      else
-         cBOp5(inxn) = pbo5(inxn)/(r0pp(i,j)**pbo6(inxn))
-      endif
- 
-      pbo2h(inxn) = 0.5d0*pbo2(inxn)
-      pbo4h(inxn) = 0.5d0*pbo4(inxn)
-      pbo6h(inxn) = 0.5d0*pbo6(inxn)
-   endif
-   enddo
-enddo
 
 !--- get real size of linked list cell
 rcsize(1) = lata/vprocs(1)/cc(1)
@@ -277,7 +233,7 @@ if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
-   write(6,'(a30,a70)')      "parameter set:", pfile
+   write(6,'(a30,a70)')      "parameter set:", FFDescript
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
                                   mdmode, current_step, ntime_step

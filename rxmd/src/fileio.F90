@@ -1,39 +1,39 @@
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(atype, pos, v, f, q)
-use atoms; use parameters
+subroutine OUTPUT(atype, pos, v, f, q, fileNameBase)
+use atoms 
 !----------------------------------------------------------------------------------------
 implicit none
 
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
+real(8),intent(in) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+character(MAXPATHLENGTH),intent(in) :: fileNameBase
 
 if(isBinary) then
   call xu2xs(pos)
-  call WriteBin(1,atype,pos,v,f,q)
+  call WriteBIN(atype,pos,v,f,q,fileNameBase)
   call xs2xu(pos)
 endif
 
-if(isBondFile) call WriteBND()
-if(isPDB) call WritePDB()
+if(isBondFile) call WriteBND(fileNameBase)
+if(isPDB) call WritePDB(fileNameBase)
 
 return
 
 Contains 
 
 !--------------------------------------------------------------------------
-subroutine WriteBND()
-use atoms; use parameters
+subroutine WriteBND(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
+
+character(MAXPATHLENGTH),intent(in) :: fileNameBase
 
 integer :: i, ity, j, j1, jty, m, n,n3, cstep, iscan
 integer :: l2g
 real(8) :: ri(3), rj(3), bndordr(MAXNEIGHBS), tt=0.d0, ss=0.d0
 integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
 character(8) :: fname0
-character(6) :: a6
 character(9) :: a9
-character(128) :: FileName
 
 integer (kind=MPI_OFFSET_KIND) :: offset
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -64,7 +64,7 @@ enddo
 ! get local datasize based on above format and the total # of neighbors
 localDataSize=NATOMS*(9+1+3*9+1+2*3 +1)+m*(9+6)
 
-call MPI_File_Open(MPI_COMM_WORLD,trim(DataDir)//"/"//a9//".bnd", &
+call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".bnd", &
     MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
 ! offset will point the end of local write after the scan
@@ -80,8 +80,6 @@ call MPI_File_set_size(fh, fileSize, ierr)
 
 ! set offset at the beginning of the local write
 offset=offset-localDataSize
-
-!open(10,file=trim(FileName)//".bnd")
 
 do i=1, NATOMS
    ity = atype(i)
@@ -127,18 +125,18 @@ return
 end subroutine
 
 !--------------------------------------------------------------------------
-subroutine WritePDB()
-use atoms; use parameters
+subroutine WritePDB(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
+
+character(MAXPATHLENGTH),intent(in) :: fileNameBase
+
 integer :: i, ity, j, j1, jty, m, n,n3, cstep, iscan
 integer :: l2g
 real(8) :: ri(3), rj(3), tt=0.d0, ss=0.d0
 integer :: igd,jgd
 character(8) :: fname0
-character(6) :: a6
 character(9) :: a9
-character(128) :: FileName
 
 integer (kind=MPI_OFFSET_KIND) :: offset
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -153,7 +151,7 @@ integer :: scanbuf
 ! get local datasize
 localDataSize=NATOMS*PDBLineSize
 
-call MPI_File_Open(MPI_COMM_WORLD,trim(DataDir)//"/"//a9//".pdb", &
+call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".pdb", &
      MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
 ! offset will point the end of local write after the scan
@@ -221,16 +219,17 @@ end subroutine
 end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
-subroutine ReadBIN(atype, pos, v, f, q)
-use atoms; use parameters
+subroutine ReadBIN(atype, pos, v, f, q, fileName)
+use atoms
 !--------------------------------------------------------------------------
 implicit none
+
+character(*),intent(in) :: fileName
+
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
 integer :: i,j,k,k1,c1,n1
-character(6) :: a6
-character(9) :: a9
 
 integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -241,11 +240,6 @@ integer :: nmeta
 integer,allocatable :: idata(:)
 real(8) :: ddata(6), d10(10)
 
-character(128) :: FileName
-
-write(a6(1:6),'(i6.6)') myid
-write(a9(1:9),'(i9.9)') current_step
-
 ! Meta Data: 
 !  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
 !  Number of resident atoms per each MPI rank (nprocs integers) 
@@ -254,7 +248,7 @@ nmeta=4+nprocs+1
 allocate(idata(nmeta))
 metaDataSize = 4*nmeta + 8*6
 
-call MPI_File_Open(MPI_COMM_WORLD,trim(DataDir)//"/rxff.bin",MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
+call MPI_File_Open(MPI_COMM_WORLD,trim(fileName),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
 
 ! read metadata at the beginning of file
 offsettmp=0
@@ -269,8 +263,6 @@ NATOMS = idata(4+myid+1)
 current_step = idata(nmeta)
 lata=ddata(1); latb=ddata(2); latc=ddata(3)
 lalpha=ddata(4); lbeta=ddata(5); lgamma=ddata(6)
-!print*,'idata: ', idata(1:nmeta)
-!print*,'ddata: ', ddata(1:6)
 
 ! Get local datasize: 10 doubles for each atoms
 localDataSize = 8*NATOMS*10
@@ -313,18 +305,16 @@ return
 end
 
 !--------------------------------------------------------------------------
-subroutine WriteBIN(imode, atype, pos, v, f, q)
-use atoms; use parameters
+subroutine WriteBIN(atype, pos, v, f, q, fileNameBase)
+use atoms
 !--------------------------------------------------------------------------
 implicit none
-integer,intent(in) :: imode 
+
+character(*),intent(in) :: fileNameBase
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
 integer :: i,j,k,k1,n1
-character(6) :: a6
-character(9) :: a9
-character(128) :: FileName
 
 integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -346,14 +336,7 @@ metaDataSize = 4*nmeta + 8*6
 ! Get local datasize: 10 doubles for each atoms
 localDataSize = 8*NATOMS*10
 
-if(imode==-1) then
-  FileName=trim(DataDir)//"/"//"rxff.bin"
-else
-  write(a9(1:9),'(i9.9)') nstep+current_step
-  FileName=trim(DataDir)//"/"//a9//".bin"
-endif
-
-call MPI_File_Open(MPI_COMM_WORLD,trim(FileName),MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".bin",MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
 ! offset will point the end of local write after the scan
 call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)

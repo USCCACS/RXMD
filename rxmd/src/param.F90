@@ -1,12 +1,17 @@
 !-------------------------------------------------------------------------------------------
-SUBROUTINE GETPARAMS()
-use parameters; use atoms
+SUBROUTINE GETPARAMS(ffFileName, ffFileHeader)
+use parameters
 !-------------------------------------------------------------------------------------------
 !  This subroutine is designed solely to obtain the parameters used in the Ecalc.f90 
 !    program from the rxmda.in input file.  It is similar to the input routine used
 !    by Adri in "reac.f::ffinput"
 !-------------------------------------------------------------------------------------------
 implicit none
+
+real(8),parameter :: pi=3.14159265358979d0
+
+character(*),intent(in) :: ffFileName  ! force field parm file
+character(*),intent(inout) :: ffFileHeader ! 1st line of the FF file
 
 integer :: i,j,k,l,n,m,p,inxn   !counters for initialization
 integer :: i0,i1,i2,i3,i4,ih  !Counters: # corresp to #-atom depend 
@@ -31,12 +36,12 @@ real(8),allocatable :: rvdw1(:), eps(:), alf(:), vop(:)
 
 dnull = 0.d0
 !--- Start Getting Parameters
-open(4,file=trim(adjustl(FFPath)),status="old")
-read(4,'(a70)') pfile
+open(4,file=trim(adjustl(ffFileName)),status="old")
+read(4,'(a100)') ffFileHeader
 
 read(4,*) npar  !num of parameters (independ of atom choice)
 
-allocate(vpar(npar),stat=ast)
+allocate(vpar(npar))
 
 do i0=1, npar 
    read(4,1300) vpar(i0)  !temp variable...some apparently depend on atype
@@ -54,25 +59,25 @@ vpar30 = vpar(30)
 read(4,'(i3)') nso    
 
 !--- Allocation of variables:
-allocate(rat(nso),rapt(nso),vnq(nso),stat=ast)
-allocate(r0s(nso,nso),r0p(nso,nso),r0pp(nso,nso), stat=ast)
-allocate(Val(nso),Valboc(nso),stat=ast)
-allocate(mass(nso),stat=ast)
-allocate(bo131(nso),bo132(nso),bo133(nso),stat=ast)
-allocate(inxn2(nso,nso),inxn3(nso,nso,nso),inxn3hb(nso,nso,nso),inxn4(nso,nso,nso,nso),stat=ast)
-allocate(atmname(nso), stat=ast)
-allocate(Vale(nso), plp1(nso), nlpopt(nso), plp2(nso), stat=ast)
-allocate(povun2(nso),povun3(nso),povun4(nso),stat=ast)
-allocate(povun5(nso),povun6(nso),povun7(nso),povun8(nso),stat=ast)
+allocate(rat(nso),rapt(nso),vnq(nso))
+allocate(r0s(nso,nso),r0p(nso,nso),r0pp(nso,nso))
+allocate(Val(nso),Valboc(nso))
+allocate(mass(nso))
+allocate(bo131(nso),bo132(nso),bo133(nso))
+allocate(inxn2(nso,nso),inxn3(nso,nso,nso),inxn3hb(nso,nso,nso),inxn4(nso,nso,nso,nso))
+allocate(atmname(nso))
+allocate(Vale(nso), plp1(nso), nlpopt(nso), plp2(nso))
+allocate(povun2(nso),povun3(nso),povun4(nso))
+allocate(povun5(nso),povun6(nso),povun7(nso),povun8(nso))
 !--- Valency Terms (j-dependancy only):
-allocate(pval3(nso),pval5(nso), Valangle(nso),Valval(nso),stat=ast)
+allocate(pval3(nso),pval5(nso), Valangle(nso),Valval(nso))
 !--- Van der Waals Terms:
-allocate(rvdw1(nso), rvdW(nso, nso), eps(nso), Dij(nso,nso), stat=ast)
-allocate(alf(nso), alpij(nso,nso), stat=ast)
-allocate(vop(nso), gamW(nso,nso), stat=ast)
+allocate(rvdw1(nso), rvdW(nso, nso), eps(nso), Dij(nso,nso))
+allocate(alf(nso), alpij(nso,nso))
+allocate(vop(nso), gamW(nso,nso))
 
 !--- Coulomb & Charge equilibration:
-allocate(chi(nso), eta(nso), gam(nso), gamij(nso,nso), stat=ast)
+allocate(chi(nso), eta(nso), gam(nso), gamij(nso,nso))
  
 !--- Parameters that still don't depend on atom type yet
 plp1(1:nso) = vpar(16)
@@ -119,10 +124,10 @@ enddo
 read(4,1100) nboty  !# of bonds' params given 
 
 !--- Allocation of variables:
-allocate(pbo1(nboty),pbo2(nboty),pbo3(nboty),pbo4(nboty),pbo5(nboty),pbo6(nboty),bom(nboty),stat=ast)
-allocate(pboc1(nboty),pboc2(nboty),pboc3(nboty),pboc4(nboty),pboc5(nboty),stat=ast)
-allocate(desig(nboty), depi(nboty),depipi(nboty),pbe1(nboty),pbe2(nboty),stat=ast) 
-allocate(povun1(nboty),ovc(nboty), v13cor(nboty),stat=ast)
+allocate(pbo1(nboty),pbo2(nboty),pbo3(nboty),pbo4(nboty),pbo5(nboty),pbo6(nboty),bom(nboty))
+allocate(pboc1(nboty),pboc2(nboty),pboc3(nboty),pboc4(nboty),pboc5(nboty))
+allocate(desig(nboty), depi(nboty),depipi(nboty),pbe1(nboty),pbe2(nboty)) 
+allocate(povun1(nboty),ovc(nboty), v13cor(nboty))
 
 !--- skip one line
 read(4,*)
@@ -176,15 +181,59 @@ do i2=1, nodmty
    if (godmh.GT.0.d0) alpij(nodm2,nodm1)=godmh
 enddo
 
+!!--- Derived 2body parameters 
+allocate(cBOp1(nboty), cBOp3(nboty), cBOp5(nboty))
+allocate(pbo2h(nboty), pbo4h(nboty), pbo6h(nboty))
+
+!--- <switch> flag to omit pi and double pi bond.
+allocate(switch(1:3,nboty))
+
+switch(:,:)=0
+do i=1,nso
+   do j=1,nso
+   inxn = inxn2(i,j)
+
+   if(inxn/=0) then
+
+!!--- In BOp calculation, <switch> will be multiplied to <BOp> to remove
+!!--- BOpi and BOpipi for bonding interaction of atoms with a hydrogen.
+       if((rat(i)>0.d0)  .and. rat(j)>0.d0 )  switch(1,inxn)=1
+       if((rapt(i)>0.d0) .and. rapt(j)>0.d0 ) switch(2,inxn)=1
+       if((vnq(i)>0.d0)  .and. vnq(j)>0.d0 )  switch(3,inxn)=1
+
+      if(r0s(i,j)<=0.d0) then
+         cBOp1(inxn) = 0.d0
+      else
+         cBOp1(inxn) = pbo1(inxn)/(r0s(i,j)**pbo2(inxn))
+      endif
+      if(r0p(i,j)<=0.d0) then
+         cBOp3(inxn) = 0.d0
+      else
+         cBOp3(inxn) = pbo3(inxn)/(r0p(i,j)**pbo4(inxn))
+      endif
+
+      if(r0pp(i,j)<=0.d0) then
+         cBOp5(inxn) = 0.d0
+      else
+         cBOp5(inxn) = pbo5(inxn)/(r0pp(i,j)**pbo6(inxn))
+      endif
+
+      pbo2h(inxn) = 0.5d0*pbo2(inxn)
+      pbo4h(inxn) = 0.5d0*pbo4(inxn)
+      pbo6h(inxn) = 0.5d0*pbo6(inxn)
+   endif
+   enddo
+enddo
+
 !--- Input Valency Terms from Input File
 inxn3(1:nso,1:nso,1:nso) = 0
 read(4,1100) nvaty
 
-allocate(pval1(nvaty),pval2(nvaty),pval4(nvaty),pval6(nvaty),stat=ast)
-allocate(pval7(nvaty),pval8(nvaty),pval9(nvaty),pval10(nvaty),stat=ast)
-allocate(theta00(nvaty),stat=ast)
-allocate(ppen1(nvaty),ppen2(nvaty),ppen3(nvaty),ppen4(nvaty),stat=ast)
-allocate(pcoa1(nvaty),pcoa2(nvaty),pcoa3(nvaty),pcoa4(nvaty),stat=ast)
+allocate(pval1(nvaty),pval2(nvaty),pval4(nvaty),pval6(nvaty))
+allocate(pval7(nvaty),pval8(nvaty),pval9(nvaty),pval10(nvaty))
+allocate(theta00(nvaty))
+allocate(ppen1(nvaty),ppen2(nvaty),ppen3(nvaty),ppen4(nvaty))
+allocate(pcoa1(nvaty),pcoa2(nvaty),pcoa3(nvaty),pcoa4(nvaty))
 
 do i=1, nvaty
    read(4,1500) i1,i2,i3,theta00(i),pval1(i),pval2(i),pcoa1(i),pval7(i),ppen1(i),pval4(i)
@@ -213,8 +262,8 @@ theta00(1:nvaty) = (pi/180.d0)*theta00(1:nvaty)
 
 
 read(4,1100) ntoty
-allocate(ptor1(ntoty),ptor2(ntoty),ptor3(ntoty),ptor4(ntoty),V1(ntoty), V2(ntoty),V3(ntoty),stat=ast)
-allocate(pcot1(ntoty),pcot2(ntoty),stat=ast)
+allocate(ptor1(ntoty),ptor2(ntoty),ptor3(ntoty),ptor4(ntoty),V1(ntoty), V2(ntoty),V3(ntoty))
+allocate(pcot1(ntoty),pcot2(ntoty))
 
 inxn4(1:nso,1:nso,1:nso,1:nso) = 0  
 do i=1,ntoty
@@ -248,12 +297,13 @@ pcot2(1:ntoty) = vpar(28)
 !--- Input Hydrogen Bond Terms
 inxn3hb(1:nso,1:nso,1:nso) = 0
 read(4,1100) nhbty
-allocate(phb1(nhbty),phb2(nhbty),phb3(nhbty),r0hb(nhbty),stat=ast); if(ast/=0) stop "Error: H-bond Terms@init"
+allocate(phb1(nhbty),phb2(nhbty),phb3(nhbty),r0hb(nhbty))
 
 do i=1,nhbty
    read(4,1500) i1,i2,i3,r0hb(i),phb1(i),phb2(i),phb3(i)
    inxn3hb(i1,i2,i3) = i    !Note: inxn3hb(i,j,k) /= inxn3hb(k,j,i)
 enddo
+
 
 !--- close parameter file "ffield"
 close(4)

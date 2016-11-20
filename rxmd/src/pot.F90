@@ -126,7 +126,7 @@ CONTAINS
 
 !----------------------------------------------------------------------
 subroutine ForceBondedTerms(nlayer)
-use atoms; use parameters
+use atoms
 !----------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: nlayer
@@ -326,7 +326,7 @@ END subroutine
 
 !------------------------------------------------------------------------------------
 subroutine E3b()
-use parameters;use atoms
+use parameters; use atoms
 !------------------------------------------------------------------------------------
 implicit none
 integer :: i,j,k, i1,j1,k1, i2,j2,k2, ity,jty,kty, inxn, inxnhb, n,n1
@@ -564,7 +564,7 @@ enddo ! j-loop
 END subroutine
 !----------------------------------------------------------------------------------------------------------------------
 subroutine Ehb()
-use parameters;use atoms
+use parameters; use atoms
 ! Note: 02-09-05 <kn>
 ! To find out hydrogen bonding combinations, <vnhbp> (one atom parameter, 2nd row, 8th column) is used to 
 ! identify whether an atoms is hydrogen or not, <vnhbp>=1 for H, <vnhbp>=2 for O,N,S and <vnhbp>=0 for others. 
@@ -676,7 +676,7 @@ end subroutine
 
 !----------------------------------------------------------------------------------------------------------
 subroutine ENbond()
-use parameters;use atoms
+use parameters; use atoms
 !----------------------------------------------------------------------------------------------------------
 !  This subroutine calculates the energy and the forces due to the Van der Waals and Coulomb terms 
 !----------------------------------------------------------------------------------------------------------
@@ -1134,7 +1134,7 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------
 subroutine ForceBbo(i,j1, j,i1, coeff)
-use atoms; use parameters
+use atoms
 ! Calculate force from derivative of BOij using different coefficient values 
 !-----------------------------------------------------------------------------------------
 implicit none

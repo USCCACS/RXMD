@@ -12,7 +12,7 @@ call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 
 !--- read ffield file
-CALL GETPARAMS()
+CALL GETPARAMS(FFPath,FFDescript)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
@@ -25,7 +25,8 @@ call system_clock(it1,irt)
 do nstep=0, ntime_step-1
 
    if(mod(nstep,pstep)==0) call PRINTE(atype, pos, v, f, q)
-   if(mod(nstep,fstep)==0) call OUTPUT(atype, pos, v, f, q)
+   if(mod(nstep,fstep)==0) &
+        call OUTPUT(atype, pos, v, f, q, GetFileNameBase(current_step+nstep))
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:3,1:NATOMS)=vsfact*v(1:3,1:NATOMS)
@@ -68,11 +69,11 @@ do nstep=0, ntime_step-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(atype, pos, v, f, q)
+call OUTPUT(atype, pos, v, f, q,  GetFileNameBase(current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
 call xu2xs(pos)
-call WriteBin(-1, atype, pos, v, f, q)
+call WriteBIN(atype, pos, v, f, q, trim(DataDir)//"/rxff")
 call xs2xu(pos)
 
 call system_clock(it2,irt)
