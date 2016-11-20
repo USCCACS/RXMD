@@ -1,26 +1,27 @@
 !--------------------------------------------------------------------------------------------
-SUBROUTINE BOCALC(nlayer)
+SUBROUTINE BOCALC(nlayer, NBUFFER, atype, pos)
 use parameters; use atoms
 !--------------------------------------------------------------------------------------------
 integer,intent(IN) :: nlayer
-integer :: i,j,j1, ity, jty
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 
 !--- calculate BO prime 
-CALL BOPRIM(nlayer)  
+CALL BOPRIM()  
 
 !--- calculate full BO
-CALL BOFULL(nlayer) 
+CALL BOFULL() 
 
-END SUBROUTINE
+CONTAINS
 
 !--------------------------------------------------------------------------------------------
-SUBROUTINE BOPRIM(nlayer)
+SUBROUTINE BOPRIM()
 use parameters; use atoms
 !--------------------------------------------------------------------------------------------
 ! Calculates the BOp(0:3,i,j) and the deltap(i). 
 !--------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: nlayer
+
 integer :: n,i,j, j1,i1
 integer :: ity, jty, inxn
 integer :: c1,c2,c3,ic(3)
@@ -121,14 +122,13 @@ enddo; enddo; enddo
 END SUBROUTINE
 
 !--------------------------------------------------------------------------------------------
-SUBROUTINE BOFULL(nlayer)
+SUBROUTINE BOFULL()
 use parameters; use atoms 
 !--------------------------------------------------------------------------------------------
 !  Subroutine calculates the Bond Order and its derivatives
 !--------------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(IN) :: nlayer
 integer :: c1,c2,c3,c4,c5,c6, n,ii
 integer :: i,i1,j,j1,k,ity,jty,inxn
 real(8) :: exp1, exp2, exp12
@@ -324,3 +324,5 @@ do c3=-nlayer, cc(3)-1+nlayer
 enddo; enddo; enddo
 
 END SUBROUTINE
+
+END SUBROUTINE BOCALC

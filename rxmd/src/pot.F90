@@ -1,8 +1,12 @@
 !----------------------------------------------------------------------------------------------------------------------
-subroutine FORCE()
+subroutine FORCE(NBUFFER, atype, pos, f, q)
 use parameters; use atoms 
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), q(NBUFFER)
+real(8) :: pos(3,NBUFFER), f(3,NBUFFER), vdummy(3,NBUFFER)
+
 integer :: i, j, j1, ity, l(3),k
 real(8) :: fsum(3), ss, vv(3), rr(3)
 integer :: l2g
@@ -19,19 +23,19 @@ astr(:,:) = 0.d0
 #endif
 
 !--- unscaled to scaled coordinate
-call xu2xs()
+call xu2xs(NBUFFER, pos)
 call system_clock(i,k)
 dr(1:3)=NMINCELL*lcsize(1:3)
-call COPYATOMS(MODE_COPY,dr) 
+call COPYATOMS(MODE_COPY,dr,NBUFFER,atype,pos,vdummy,f,q) 
 call system_clock(j,k)
 it_timer(4)=it_timer(4)+(j-i)
 
 call system_clock(i,k)
-call LINKEDLIST()
-call NBLINKEDLIST()
+call LINKEDLIST(NBUFFER, atype, pos)
+call NBLINKEDLIST(NBUFFER, atype, pos)
 call system_clock(j,k)
 it_timer(3)=it_timer(3)+(j-i)
-call xs2xu()
+call xs2xu(NBUFFER, pos)
 
 !--- scaled to unscaled coordinate
 
@@ -41,7 +45,7 @@ call xs2xu()
 !$omp section
 
 call system_clock(i,k)
-call GetNonbondingPairList()
+call GetNonbondingPairList(NBUFFER, atype, pos)
 call system_clock(j,k)
 it_timer(15)=it_timer(15)+(j-i)
 
@@ -53,12 +57,12 @@ it_timer(7)=it_timer(7)+(j-i)
 !$omp section
 
 call system_clock(i,k)
-call NEIGHBORLIST(NMINCELL)
+call NEIGHBORLIST(NMINCELL, NBUFFER, atype, pos)
 call system_clock(j,k)
 it_timer(5)=it_timer(5)+(j-i)
 
 call system_clock(i,k)
-CALL BOCALC(NMINCELL)
+CALL BOCALC(NMINCELL, NBUFFER, atype, pos)
 call system_clock(j,k)
 it_timer(6)=it_timer(6)+(j-i)
 
@@ -100,7 +104,7 @@ f(:,:)=f(:,:)+fnb(:,:)
 
 call system_clock(i,k)
 dr(1:3)=0.d0
-CALL COPYATOMS(MODE_CPBK,dr) 
+CALL COPYATOMS(MODE_CPBK,dr, NBUFFER, atype, pos, vdummy, f, q) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
 
@@ -118,7 +122,8 @@ call stress()
 #endif
 
 return
-END subroutine
+
+CONTAINS 
 
 !----------------------------------------------------------------------
 subroutine ForceBondedTerms(nlayer)
@@ -1326,3 +1331,5 @@ use atoms
    if(crs(0)<NSMALL) crs(0) = NSMALL
    
 end subroutine 
+
+END subroutine FORCE

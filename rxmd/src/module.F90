@@ -1,14 +1,28 @@
 !-------------------------------------------------------------------------------------------
+module base
+!-------------------------------------------------------------------------------------------
+! position, atom type, velocity, force & charge
+real(8),allocatable,dimension(:) :: atype, q
+real(8),allocatable,dimension(:,:) :: pos, v, f
+
+integer :: NBUFFER=40000
+
+end module
+
+!-------------------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------------------------
 module atoms
 !-------------------------------------------------------------------------------------------
-#ifdef INTEROP
-use iso_c_binding 
-#else 
-#define c_double 8
-#define c_int 4
-#endif
-
 include 'mpif.h'
+
+Interface
+   SUBROUTINE INITSYSTEM(NBUFFER, atype, pos, v, f, q)
+      integer,intent(in) :: NBUFFER
+      real(8),allocatable,dimension(:) :: atype, q
+      real(8),allocatable,dimension(:,:) :: pos,v,f
+   end subroutine
+end Interface
 
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
@@ -87,7 +101,6 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER=20000
 integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
@@ -98,10 +111,6 @@ real(8),parameter :: NSMALL = 1.d-10
 real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
 
 real(8),parameter :: pi=3.14159265358979d0
-
-! position, atom type, velocity, force & charge
-real(kind=c_double),allocatable,target :: pos(:,:),atype(:)
-real(8),allocatable :: v(:,:), f(:,:), q(:)
 
 real(8),allocatable :: fnb(:,:)
 
@@ -128,13 +137,13 @@ integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
 integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
 
 !<nbrlist> neighbor list, <nbrindx> neighbor index
-integer(kind=c_int),pointer :: nbrlist(:,:), nbrindx(:,:)
+integer,pointer :: nbrlist(:,:), nbrindx(:,:)
 
 !<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
 integer,allocatable :: nbplist(:,:)
 
 !<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
-real(kind=c_double),pointer :: BO(:,:,:) 
+real(8),pointer :: BO(:,:,:) 
 
 real(8),allocatable :: delta(:)
 
@@ -380,64 +389,3 @@ real(8),allocatable :: pbo2h(:), pbo4h(:), pbo6h(:)
 real(8)  :: vpar30,vpar1,vpar2
 
 end module parameters 
-
-#ifdef INTEROP
-!------------------------------------------------------------------------------------------
-module interop
-!------------------------------------------------------------------------------------------
-use iso_c_binding
-implicit none
-
-interface
-    subroutine CppInterface(param_ptr, pos_ptr, atype_ptr, nbrlist_ptr, bo_ptr) &
-               bind(c, name="CppInterface")
-        use iso_c_binding
-            type(c_ptr),value :: param_ptr
-            type(c_ptr),value :: pos_ptr
-            type(c_ptr),value :: atype_ptr
-            type(c_ptr),value :: nbrlist_ptr
-            type(c_ptr),value :: bo_ptr
-    end subroutine
-end interface
-
-contains
-
-!-------------------------------------------------------------------------
-   subroutine print_atom()
-!-------------------------------------------------------------------------
-   use atoms
-   use iso_c_binding
-   implicit none
-   
-   integer,parameter :: NumInterOpParams=32
-   
-   type(c_ptr) :: param_ptr, pos_ptr, atype_ptr
-   type(c_ptr) :: nbrlist_ptr, bo_ptr
-   
-   integer(c_int),allocatable,target :: ParamCppInterface(:)
-   
-   allocate(ParamCppInterface(NumInterOpParams))
-   
-   ParamCppInterface(1)=myid
-   ParamCppInterface(2)=NATOMS
-   ParamCppInterface(3)=NBUFFER
-   ParamCppInterface(4)=NBUFFER
-   ParamCppInterface(5)=MAXNEIGHBS
-   
-   param_ptr = c_loc(paramCppInterface(1))
-   pos_ptr = c_loc(pos(1,1))
-   atype_ptr = c_loc(atype(1))
-   nbrlist_ptr = c_loc(nbrlist(1,0))
-   bo_ptr = c_loc(bo(0,1,1))
-   
-   call CppInterface(param_ptr, pos_ptr, atype_ptr, nbrlist_ptr, bo_ptr)
-
-   deallocate(ParamCppInterface)
-
-   call MPI_FINALIZE(ierr)
-   stop
-   
-   end subroutine
-
-end module
-#endif

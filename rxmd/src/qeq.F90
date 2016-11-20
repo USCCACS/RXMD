@@ -1,5 +1,5 @@
 !------------------------------------------------------------------------------
-subroutine QEq()
+subroutine QEq(NBUFFER, atype, pos, q)
 use atoms; use parameters
 ! Two vector electronegativity equilization routine
 !
@@ -11,6 +11,11 @@ use atoms; use parameters
 !<Est> :: ElectroSTatic energy
 !-------------------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), q(NBUFFER)
+real(8) :: pos(3,NBUFFER), vdummy(3,NBUFFER), fdummy(3,NBUFFER)
+
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
@@ -54,25 +59,25 @@ select case(isQEq)
 end select
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
-call xu2xs()
-call COPYATOMS(MODE_COPY, QCopyDr)
-call LINKEDLIST()
-call NBLINKEDLIST()
-call xs2xu()
+call xu2xs(NBUFFER, pos)
+call COPYATOMS(MODE_COPY, QCopyDr, NBUFFER, atype, pos, vdummy, fdummy, q)
+call LINKEDLIST(NBUFFER, atype, pos)
+call NBLINKEDLIST(NBUFFER, atype, pos)
+call xs2xu(NBUFFER, pos)
 
 call qeq_initialize()
 
 !--- after the initialization, only the normalized coords are necessary for COPYATOMS()
 !--- The atomic coords are converted back to real at the end of this function.
-call xu2xs()
-call COPYATOMS(MODE_QCOPY1,QCopyDr)
+call xu2xs(NBUFFER, pos)
+call COPYATOMS(MODE_QCOPY1,QCopyDr, NBUFFER, atype, pos, vdummy, fdummy, q)
 call get_gradient(Gnew)
 
 !--- Let the initial CG direction be the initial gradient direction
 hs(1:NATOMS) = gs(1:NATOMS)
 ht(1:NATOMS) = gt(1:NATOMS)
 
-call COPYATOMS(MODE_QCOPY2,QCopyDr)
+call COPYATOMS(MODE_QCOPY2,QCopyDr, NBUFFER, atype, pos, vdummy, fdummy, q)
 
 GEst2=1.d99
 !do nstep_qeq=0, NMAXQEq-1
@@ -125,7 +130,7 @@ do nstep_qeq=0, nmax-1
   q(1:NATOMS) = qs(1:NATOMS) - mu*qt(1:NATOMS)
 
 !--- update new charges of buffered atoms.
-  call COPYATOMS(MODE_QCOPY1,QCopyDr)
+  call COPYATOMS(MODE_QCOPY1,QCopyDr, NBUFFER, atype, pos, vdummy, fdummy, q)
 
 !--- save old residues.  
   Gold(:) = Gnew(:)
@@ -136,12 +141,12 @@ do nstep_qeq=0, nmax-1
   ht(1:NATOMS) = gt(1:NATOMS) + (Gnew(2)/Gold(2))*ht(1:NATOMS)
 
 !--- update new conjugate direction for buffered atoms.
-  call COPYATOMS(MODE_QCOPY2,QCopyDr)
+  call COPYATOMS(MODE_QCOPY2,QCopyDr, NBUFFER, atype, pos, vdummy, fdummy, q)
 
 enddo
 
 call qeq_finalize()
-call xs2xu()
+call xs2xu(NBUFFER, pos)
 
 call system_clock(j1,k1)
 it_timer(1)=it_timer(1)+(j1-i1)

@@ -1,11 +1,15 @@
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITSYSTEM( )
-!use parameters; use atoms; use ustruct
-use parameters; use atoms
+SUBROUTINE INITSYSTEM(NBUFFER, atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
+!use parameters; use atoms; use ustruct
+use parameters; use atoms
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8),allocatable,dimension(:) :: atype, q
+real(8),allocatable,dimension(:,:) :: pos,v,f
 
 integer :: i,j,k, ix,iy,iz,ii, n, m, m3, p,s, inxn, ity, jty, l(3), sID, ist=0
 real(8) :: dr, dr2, rr(3), mm, gmm, dns, mat(3,3)
@@ -117,7 +121,7 @@ enddo
 
 !--- Particle Parameters
 allocate(pos(3,NBUFFER),f(3,NBUFFER),v(3,NBUFFER),stat=ast); ist=ist+ast
-allocate(atype(0:NBUFFER),q(NBUFFER), stat=ast); ist=ist+ast
+allocate(atype(NBUFFER),q(NBUFFER), stat=ast); ist=ist+ast
 f(:,:)=0.d0
 
 !--- OpenMP private data array for ENbond
@@ -129,7 +133,7 @@ allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
 allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
-call coio_read()
+call ReadBIN(NBUFFER, atype, pos, v, f, q)
 
 call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
@@ -157,7 +161,7 @@ call CUTOFFLENGTH()
 call updatebox()
 
 !--- scaled to unscaled coordinates
-call xs2xu()
+call xs2xu(NBUFFER, pos)
 
 !--- get global number of atoms
 i8=NATOMS ! Convert 4 byte to 8 byte
@@ -259,7 +263,7 @@ rcsize(3) = latc/vprocs(3)/cc(3)
 maxrcell = maxval(rcsize(1:3))
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
-call GetNonbondingMesh()
+call GetNonbondingMesh(NBUFFER,pos)
 
 !--- get density 
 mm = 0.d0
@@ -323,11 +327,16 @@ wt0 = MPI_WTIME()
 END SUBROUTINE
 
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITVELOCITY( )
+SUBROUTINE INITVELOCITY(NBUFFER, atype, v)
 use parameters; use atoms
 ! Generate gaussian distributed velocity as an initial value  using Box-Muller algorithm
 !------------------------------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER)
+real(8) :: v(3,NBUFFER)
+
 integer :: i,j,k, ity
 real(8) :: vv(2), vsqr, vsl, rndm(2)
 real(8) :: vCM(3), GvCM(3), mm, Gmm
@@ -530,11 +539,14 @@ enddo
 end subroutine
 
 !----------------------------------------------------------------
-subroutine GetNonbondingMesh()
+subroutine GetNonbondingMesh(NBUFFER,pos)
 use atoms; use parameters
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: pos(3,NBUFFER)
 
 integer :: i,j,k
 

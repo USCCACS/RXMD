@@ -2,20 +2,20 @@
 .SUFFIXES: .o .F90 .cpp
 .F90.o: 
 	$(FC) -c $(CPP) $(OPT) $<
-.cpp.o: 
-	$(CC) -c $(CPP) $(OPT) $<
+
 %.o: %.mod
 
 # Intel Compiler
 #FC = mpif90 -check all -traceback
 #FC = mpif90 -openmp
+FC = mpif90 
 
 # gfortran
-FC = mpif90 -fopenmp
+#FC = mpif90 -fopenmp
 #FC = mpif90 -fcheck=all
 
-CC = mpic++
-OPT = -g -O3
+# xl fortran
+#FC = mpif90 
 
 SRCS := main.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 cg.F90 param.F90 stress.F90
 OBJS := $(SRCS:.F90=.o) 
@@ -26,24 +26,13 @@ CPP =
 
 EXE = rxmd
 
-ifeq ($(EXE),rxmd-cpp)
-  CPPSRCS := Basic.cpp cpp_interface.cpp
-  CPPOBJS := $(CPPSRCS:.cpp=.o)
-  LDFLAGS = -L/usr/lib64/ -lstdc++
-  SRCS += $(CPPSRCS)
-  OBJS += $(CPPOBJS)
-  CPP += -DINTEROP
-endif
-
 $(EXE): $(OBJS)
 	$(FC) -o $(EXE) $(LDFLAGS) $(OBJS) module.o
 	mv $(EXE) ../$(EXE)
 
-$(OBJS) : atoms.mod
+$(OBJS) : base.mod
 
-atoms.mod: module.F90
+base.mod: module.F90
 	$(FC) -c $(CPP) $(OPT) module.F90
-
-
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h

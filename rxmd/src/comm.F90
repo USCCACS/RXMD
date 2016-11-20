@@ -1,5 +1,5 @@
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr)
+subroutine COPYATOMS(imode, dr, NBUFFER, atype, pos, v, f, q)
 use atoms
 !
 ! TODO: update notes here
@@ -28,8 +28,12 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(IN) :: dr(3)
 integer,intent(IN) :: imode 
+real(8),intent(IN) :: dr(3)
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), q(NBUFFER)
+real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
 integer :: i1,j1,k1
@@ -76,6 +80,7 @@ do dflag=1, 6
       tn2 = target_node(7-dflag) ! <-[654321] 
       i = (6-dflag)/2 + 1         ! <-[321]
    endif
+
    call store_atoms(tn1, dflag, imode, dr)
    call send_recv(tn1, tn2, dflag, myparity(i))
    call append_atoms(dflag, imode)
@@ -112,7 +117,10 @@ if(mod(nstep,pstep)==0) then
   if(imode==MODE_MOVE) maxas(ni,4)=na/ne
 endif
 
-end subroutine COPYATOMS
+return
+
+CONTAINS 
+
 
 !--------------------------------------------------------------------------------------------------------------
 subroutine send_recv(tn1, tn2, dflag, mypar)
@@ -171,10 +179,9 @@ use atoms
 implicit none
 integer,intent(IN) :: tn, dflag, imode 
 real(8),intent(IN) :: dr(3)
-logical :: inBuffer
 
 integer :: i,j,k,m,n,n1,ni,is,l(3,2)
-real(8) :: sft, xshift
+real(8) :: sft 
 integer :: cptridx
 
 !--- reset the number of atoms to be sent
@@ -401,33 +408,36 @@ integer :: i, j
   endif
    
 !print'(a,i,3f10.3)',"shift: ",myid, xshift
- 
 end function
+
 !--------------------------------------------------------------------------------------------------------------
-logical function inBuffer(dflag, idx, dr)
+function inBuffer(dflag, idx, dr) result(isInside)
 use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: dflag, idx
 real(8),intent(IN) :: dr(3)
 integer :: i
+logical :: isInside
 
 i = mod(dflag,2)  !<- i=1 means positive, i=0 means negative direction 
 select case(dflag)
    case(1) 
-      inBuffer = lbox(1) - dr(1) < pos(1,idx)
+      isInside = lbox(1) - dr(1) < pos(1,idx)
    case(2) 
-      inBuffer = pos(1,idx) <= dr(1)
+      isInside = pos(1,idx) <= dr(1)
    case(3) 
-      inBuffer = lbox(2) - dr(2) < pos(2,idx)
+      isInside = lbox(2) - dr(2) < pos(2,idx)
    case(4) 
-      inBuffer = pos(2,idx) <= dr(2)
+      isInside = pos(2,idx) <= dr(2)
    case(5) 
-      inBuffer = lbox(3) - dr(3) < pos(3,idx)
+      isInside = lbox(3) - dr(3) < pos(3,idx)
    case(6) 
-      inBuffer = pos(3,idx) <= dr(3)
+      isInside = pos(3,idx) <= dr(3)
    case default
-      write(6,*) "ERROR: no matching directional flag in inBuffer: ", dflag
+      write(6,*) "ERROR: no matching directional flag in isInside: ", dflag
 end select
 
 end function
+
+end subroutine COPYATOMS

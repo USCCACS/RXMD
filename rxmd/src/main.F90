@@ -1,9 +1,6 @@
 !------------------------------------------------------------------------------
 program rxmd
-use atoms; use parameters
-#ifdef INTEROP
-use interop 
-#endif
+use base; use atoms; use parameters
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,i1, j,j1, k, n,ity,jty,it1,it2,irt
@@ -18,25 +15,21 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 CALL GETPARAMS()
 
 !--- initialize the MD system
-CALL INITSYSTEM()
+CALL INITSYSTEM(NBUFFER, atype, pos, v, f, q)
+
 !call OUTPUT()
 
 if(mdmode==10) call conjugate_gradient()
 
-call QEq()
-call FORCE()
-
-#ifdef INTEROP
-!--- A test for Fortran03/C++ interoperability
-call print_atom()
-#endif
+call QEq(NBUFFER, atype, pos, q)
+call FORCE(NBUFFER, atype, pos, f, q)
 
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
 do nstep=0, ntime_step-1
 
-   if(mod(nstep,pstep)==0) call PRINTE()
-   if(mod(nstep,fstep)==0) call OUTPUT()
+   if(mod(nstep,pstep)==0) call PRINTE(NBUFFER, atype, pos, v, f, q)
+   if(mod(nstep,fstep)==0) call OUTPUT(NBUFFER, atype, pos, v, f, q)
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:3,1:NATOMS)=vsfact*v(1:3,1:NATOMS)
@@ -47,14 +40,14 @@ do nstep=0, ntime_step-1
    endif
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
-      call INITVELOCITY()
+      call INITVELOCITY(NBUFFER, atype, v)
 
 !--- correct the c.o.m motion
    if(mod(nstep,sstep)==0.and.mdmode==7) &
       call ScaleTemperature()
 
 !--- update velocity
-   call vkick(1.d0) 
+   call vkick(1.d0, NBUFFER, atype, v, f) 
 
 !--- update coordinates
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
@@ -63,28 +56,28 @@ do nstep=0, ntime_step-1
    pos(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+dt*v(1:3,1:NATOMS)
 
 !--- migrate atoms after positions are updated
-   call xu2xs()
+   call xu2xs(NBUFFER, pos)
    dr(1:3)=0.d0
-   call COPYATOMS(MODE_MOVE,dr)
-   call LINKEDLIST()
-   call xs2xu()
+   call COPYATOMS(MODE_MOVE,dr,NBUFFER, atype, pos, v, f, q)
+   call LINKEDLIST(NBUFFER, atype, pos)
+   call xs2xu(NBUFFER, pos)
    
-   if(mod(nstep,qstep)==0) call QEq()
-   call FORCE()
+   if(mod(nstep,qstep)==0) call QEq(NBUFFER, atype, pos, q)
+   call FORCE(NBUFFER, atype, pos, f, q)
 
 !--- update velocity
-   call vkick(1.d0) 
+   call vkick(1.d0, NBUFFER, atype, v, f) 
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
 
 enddo
 
 !--- save the final configurations
-call OUTPUT()
+call OUTPUT(NBUFFER, atype, pos, v, f, q)
 
 !--- update rxff.bin in working directory for continuation run
-call xu2xs()
-call coio_write(-1)
-call xs2xu()
+call xu2xs(NBUFFER, pos)
+call WriteBin(-1, NBUFFER, atype, pos, v, f, q)
+call xs2xu(NBUFFER, pos)
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
@@ -133,10 +126,14 @@ call MPI_FINALIZE(ierr)
 end PROGRAM
 
 !------------------------------------------------------------------------------
-subroutine vkick(dtf)
+subroutine vkick(dtf, NBUFFER, atype, v, f)
 use atoms
 !------------------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+
 integer :: i, ity
 real(8) :: dtf
 
@@ -148,11 +145,16 @@ enddo
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine PRINTE()
+subroutine PRINTE(NBUFFER, atype, pos, v, f, q)
 use atoms; use parameters
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
 !----------------------------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), q(NBUFFER)
+real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+
 integer :: i,j,ity, cstep
 real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:20),Gbuf(0:20)
 
@@ -213,11 +215,14 @@ wt0 = MPI_WTIME()
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine LINKEDLIST()
+subroutine LINKEDLIST(NBUFFER, atype, pos)
 use atoms
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
+integer,intent(in) :: NBUFFER
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
+
 integer :: n, l(3), j
 
 header(:,:,:) = -1; llist(:) = 0; nacell(:,:,:)=0
@@ -239,11 +244,14 @@ enddo
 end subroutine 
 
 !----------------------------------------------------------------------------------------
-subroutine NBLINKEDLIST()
+subroutine NBLINKEDLIST(NBUFFER, atype, pos)
 use atoms
 ! partitions the volume into linked-list cells <lcsize> for non-bonding interactions
 !----------------------------------------------------------------------------------------
 implicit none
+integer,intent(in) :: NBUFFER
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
+
 integer :: n, l(3), j
 
 nbheader(:,:,:) = -1; nbllist(:) = 0; nbnacell(:,:,:)=0
@@ -265,12 +273,16 @@ enddo
 end subroutine 
 
 !----------------------------------------------------------------------
-subroutine NEIGHBORLIST(nlayer)
+subroutine NEIGHBORLIST(nlayer, NBUFFER, atype, pos)
 use atoms; use parameters
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 !----------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: nlayer
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), pos(3,NBUFFER)
+
 integer :: c1,c2,c3, ic(3), c4, c5, c6
 integer :: n, n1, m, m1, nty, mty, inxn
 real(8) :: dr(3), dr2
@@ -336,10 +348,14 @@ endif
 end subroutine
 
 !----------------------------------------------------------------------
-subroutine GetNonbondingPairList()
+subroutine GetNonbondingPairList(NBUFFER, atype, pos)
 use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), pos(3,NBUFFER)
+
 integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
 integer :: l2g
 real(8) :: dr(3), dr2
@@ -388,123 +404,15 @@ enddo; enddo; enddo
 
 end subroutine
 
-
 !----------------------------------------------------------------------
-subroutine UpdateNeighborlist(nlayer)
-use atoms; use parameters
-! Update neighborlist and associated variables based on bond-order
-!----------------------------------------------------------------------
-implicit none
-integer,intent(IN) :: nlayer
-integer :: n,i,j,i1,ii,jj,ii1,jj1,j1,c1,c2,c3
-
-integer,pointer,dimension(:,:) :: nbrlist_,nbrindx_
-real(8),pointer,dimension(:,:) :: dBOp_, A0_, A1_, A2_, A3_
-real(8),pointer,dimension(:,:,:) :: dln_BOp_, BO_
-
-real(8),parameter :: BORC = 1.d-4
-
-allocate(nbrlist_(NBUFFER,0:MAXNEIGHBS))
-allocate(nbrindx_(NBUFFER, MAXNEIGHBS))
-
-allocate(dln_BOp_(3,NBUFFER, MAXNEIGHBS))
-allocate(dBOp_(NBUFFER,MAXNEIGHBS))
-allocate(BO_(0:3,NBUFFER,MAXNEIGHBS))
-allocate(A0_(NBUFFER, MAXNEIGHBS))
-allocate(A1_(NBUFFER, MAXNEIGHBS))
-allocate(A2_(NBUFFER, MAXNEIGHBS))
-allocate(A3_(NBUFFER, MAXNEIGHBS))
-
-nbrlist_(:,0)=0
-
-DO c1=-nlayer, cc(1)-1+nlayer
-DO c2=-nlayer, cc(2)-1+nlayer
-DO c3=-nlayer, cc(3)-1+nlayer
-
-  i = header(c1, c2, c3)
-  do n = 1, nacell(c1, c2, c3)
-
-     do j1 = 1, nbrlist(i,0)
-        j = nbrlist(i,j1)
-
-        if(i<j) then
-        if(BO(0,i,j1)>BORC) then
-           nbrlist_(i, 0) = nbrlist_(i, 0) + 1
-           nbrlist_(j, 0) = nbrlist_(j, 0) + 1
-           nbrlist_(i, nbrlist_(i, 0)) = j
-           nbrlist_(j, nbrlist_(j, 0)) = i
-           nbrindx_(i, nbrlist_(i, 0)) = nbrlist_(j, 0)
-           nbrindx_(j, nbrlist_(j, 0)) = nbrlist_(i, 0)
-        endif
-        endif
-
-     enddo
-
-     i = llist(i)
-  enddo
-enddo; enddo; enddo
-
-DO c1=-nlayer, cc(1)-1+nlayer
-DO c2=-nlayer, cc(2)-1+nlayer
-DO c3=-nlayer, cc(3)-1+nlayer
-
-  i = header(c1, c2, c3)
-  do n = 1, nacell(c1, c2, c3)
-
-     do j1 = 1, nbrlist(i,0)
-        j = nbrlist(i,j1)
-        i1 = nbrindx(i,j1)
-
-        if(i<j) then
-           do jj1 = 1, nbrlist_(i,0)
-              jj = nbrlist_(i,jj1)
-              ii1 = nbrindx_(i,jj1)
-   
-              if(j==jj) then
-                 BO_(0:3,i,jj1)=BO(0:3,i,j1)
-                 dln_BOp_(1:3,i,jj1)=dln_BOp(1:3,i,j1)
-                 dBOp_(i,jj1)=dBOp(i,j1)
-                 A0_(i,jj1)=A0(i,j1)
-                 A1_(i,jj1)=A1(i,j1)
-                 A2_(i,jj1)=A2(i,j1)
-                 A3_(i,jj1)=A3(i,j1)
-   
-                 BO_(0:3,j,ii1)=BO(0:3,j,i1)
-                 dln_BOp_(1:3,j,ii1)=dln_BOp(1:3,j,i1)
-                 dBOp_(j,ii1)=dBOp(j,i1)
-                 A0_(j,ii1)=A0(j,i1)
-                 A1_(j,ii1)=A1(j,i1)
-                 A2_(j,ii1)=A2(j,i1)
-                 A3_(j,ii1)=A3(j,i1)
-              endif
-   
-           enddo
-        endif
-
-     enddo
-
-     i = llist(i)
-  enddo
-enddo; enddo; enddo
-
-! deallocate old arrays
-deallocate(nbrlist, nbrindx)
-deallocate(dln_BOp, dBOp, BO)
-deallocate(A0, A1, A2, A3)
-
-! point to the updated neighbor lists and associated vars
-nbrlist=>nbrlist_
-nbrindx=>nbrindx_
-BO=>BO_;  dBOp=>dBOp_;  dln_BOp=>dln_BOp_
-A0=>A0_;  A1=>A1_;  A2=>A2_;  A3=>A3_
-
-end subroutine
-
-!----------------------------------------------------------------------
-subroutine angular_momentum()
+subroutine angular_momentum(NBUFFER, atype, pos, v)
 use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), pos(3,NBUFFER),v(3,NBUFFER)
+
 integer :: i,ity
 real(8) :: com(3), Gcom(3), intsr(3,3), Gintsr(3,3), intsr_i(3,3), angm(3), Gangm(3), angv(3), mm, Gmm
 real(8) :: dr(3), dv(3)
@@ -569,7 +477,6 @@ do i=1,NATOMS
    v(1:3,i) = v(1:3,i) - dv(1:3)
 enddo
 
-
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
@@ -596,6 +503,7 @@ detm = m1(1,1)*m1(2,2)*m1(3,3) + m1(1,2)*m1(2,3)*m1(3,1) &
 m2(:,:) = m2(:,:)/detm
 
 end subroutine
+
 !--------------------------------------------------------------------------------------------------------------
 function l2g(atype)
 implicit none
@@ -611,9 +519,12 @@ return
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs()
+subroutine xu2xs(NBUFFER, pos)
 ! unscaled coordinate to scaled coordinate. shift coordinate to scaled-local.
 use atoms
+integer,intent(in) :: NBUFFER
+real(8) :: pos(3,NBUFFER)
+
 !--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
 real(8) :: rx,ry,rz
@@ -629,10 +540,13 @@ enddo
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu()
+subroutine xs2xu(NBUFFER, pos)
 ! scaled coordinate to unscaled coordinate. shift coordinate to unscaled-global.
 use atoms
 !--------------------------------------------------------------------------------------------------------------
+integer,intent(in) :: NBUFFER
+real(8) :: pos(3,NBUFFER)
+
 real(8) :: rr(3)
 
 do i=1, NBUFFER
@@ -645,10 +559,13 @@ enddo
 end subroutine
 
 !-----------------------------------------------------------------------
-subroutine ScaleTemperature()
+subroutine ScaleTemperature(NBUFFER, atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), v(3,NBUFFER)
+
 integer :: i,ity
 real(8) :: Ekinetic, ctmp
 
@@ -665,10 +582,14 @@ return
 end
 
 !-----------------------------------------------------------------------
-subroutine LinearMomentum()
+subroutine LinearMomentum(NBUFFER, atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), v(3,NBUFFER)
+
 integer :: i,ity
 real(8) :: mm,vCM(3),sbuf(4),rbuf(4)
 

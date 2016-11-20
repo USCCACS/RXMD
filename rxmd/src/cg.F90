@@ -21,10 +21,15 @@ REAL(8), PARAMETER :: CG_DX=1.d-3
 end module
 
 !---------------------------------------------------------------------------------
-SUBROUTINE conjugate_gradient() !called frprmn in NR
+SUBROUTINE conjugate_gradient(NBUFFER, atype, pos, v, f, q) !called frprmn in NR
 use atoms; use cg
 !---------------------------------------------------------------------------------
   IMPLICIT NONE 
+
+integer,intent(in) :: NBUFFER
+real(8) :: atype(NBUFFER), q(NBUFFER)
+real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+
   INTEGER :: iter 
   REAL(8) :: fret 
   INTEGER :: its,i
@@ -104,7 +109,9 @@ call OUTPUT_cg()
 call MPI_FINALIZE(ierr)
 stop
 
-END SUBROUTINE 
+return 
+
+Contains 
 
 !-------------------------------------------------------------------------------
 SUBROUTINE dlinmin(fret) 
@@ -113,7 +120,6 @@ use atoms; use cg
   IMPLICIT NONE 
   REAL(8), INTENT(OUT) :: fret 
   REAL(8) :: aa,bb,fa,fb,fu,xmin,uu, Ghhmax,hhmax,hhmin 
-  real(8) :: dbrent
 
   aa=0.0d0
   hhmax=maxval(h(1:3,1:NATOMS))
@@ -199,24 +205,32 @@ use atoms; use cg
      call shft(fa,fb,fc,fu)
   end do
 
-CONTAINS 
-  SUBROUTINE shft(a,b,c,d) 
+END SUBROUTINE mnbrak
+
+SUBROUTINE shft(a,b,c,d) 
     REAL(8), INTENT(OUT) :: a 
     REAL(8), INTENT(INOUT) :: b,c 
     REAL(8), INTENT(IN) :: d 
     a=b 
     b=c 
     c=d 
-  END SUBROUTINE shft
-  SUBROUTINE swap(a,b) 
+END SUBROUTINE shft
+
+SUBROUTINE swap(a,b) 
     REAL(8), INTENT(INOUT) :: a,b
     REAL(8) :: temp 
     temp = a 
     a=b
     b=temp
-  END SUBROUTINE swap
+END SUBROUTINE swap
 
-END SUBROUTINE mnbrak
+SUBROUTINE mov3(a,b,c,d,e,f) 
+   REAL(8), INTENT(IN) :: d,e,f 
+   REAL(8), INTENT(OUT) :: a,b,c 
+   a=d 
+   b=e 
+   c=f 
+END SUBROUTINE mov3
 
 !-------------------------------------------------------------------------------
 FUNCTION dbrent(ax,bx,cx,tol0,xmin) 
@@ -320,14 +334,6 @@ FUNCTION dbrent(ax,bx,cx,tol0,xmin)
   xmin=x 
   dbrent=fx 
 
-CONTAINS 
-  SUBROUTINE mov3(a,b,c,d,e,f) 
-    REAL(8), INTENT(IN) :: d,e,f 
-    REAL(8), INTENT(OUT) :: a,b,c 
-    a=d 
-    b=e 
-    c=f 
-  END SUBROUTINE mov3
 END FUNCTION dbrent
 
 
@@ -415,3 +421,4 @@ close(10)
 
 end subroutine
 
+END SUBROUTINE conjugate_gradient
