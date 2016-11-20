@@ -44,7 +44,7 @@ do nstep=0, ntime_step-1
 
 !--- correct the c.o.m motion
    if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call ScaleTemperature()
+      call ScaleTemperature(NBUFFER, atype, v)
 
 !--- update velocity
    call vkick(1.d0, NBUFFER, atype, v, f) 
@@ -576,7 +576,7 @@ do i=1, NATOMS
    v(1:3,i)=sqrt(ctmp)*v(1:3,i)
 enddo
 
-call LinearMomentum()
+call LinearMomentum(NBUFFER, atype, v)
 
 return
 end

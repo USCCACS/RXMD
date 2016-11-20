@@ -7,6 +7,14 @@ real(8),allocatable,dimension(:,:) :: pos, v, f
 
 integer :: NBUFFER=40000
 
+Interface
+   SUBROUTINE INITSYSTEM(NBUFFER, atype, pos, v, f, q)
+      integer,intent(in) :: NBUFFER
+      real(8),allocatable,dimension(:) :: atype, q
+      real(8),allocatable,dimension(:,:) :: pos,v,f
+   end subroutine
+end Interface
+
 end module
 
 !-------------------------------------------------------------------------------------------
@@ -15,14 +23,6 @@ end module
 module atoms
 !-------------------------------------------------------------------------------------------
 include 'mpif.h'
-
-Interface
-   SUBROUTINE INITSYSTEM(NBUFFER, atype, pos, v, f, q)
-      integer,intent(in) :: NBUFFER
-      real(8),allocatable,dimension(:) :: atype, q
-      real(8),allocatable,dimension(:,:) :: pos,v,f
-   end subroutine
-end Interface
 
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
