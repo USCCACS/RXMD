@@ -21,12 +21,11 @@ REAL(8), PARAMETER :: CG_DX=1.d-3
 end module
 
 !---------------------------------------------------------------------------------
-SUBROUTINE conjugate_gradient(NBUFFER, atype, pos, v, f, q) !called frprmn in NR
+SUBROUTINE conjugate_gradient(atype, pos, v, f, q) !called frprmn in NR
 use atoms; use cg
 !---------------------------------------------------------------------------------
   IMPLICIT NONE 
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 

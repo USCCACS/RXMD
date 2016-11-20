@@ -1,17 +1,16 @@
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(NBUFFER, atype, pos, v, f, q)
+subroutine OUTPUT(atype, pos, v, f, q)
 use atoms; use parameters
 !----------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
 if(isBinary) then
-  call xu2xs(NBUFFER, pos)
-  call WriteBin(1,NBUFFER,atype,pos,v,f,q)
-  call xs2xu(NBUFFER, pos)
+  call xu2xs(pos)
+  call WriteBin(1,atype,pos,v,f,q)
+  call xs2xu(pos)
 endif
 
 if(isBondFile) call WriteBND()
@@ -222,11 +221,10 @@ end subroutine
 end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
-subroutine ReadBIN(NBUFFER, atype, pos, v, f, q)
+subroutine ReadBIN(atype, pos, v, f, q)
 use atoms; use parameters
 !--------------------------------------------------------------------------
 implicit none
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
@@ -315,12 +313,11 @@ return
 end
 
 !--------------------------------------------------------------------------
-subroutine WriteBIN(imode, NBUFFER, atype, pos, v, f, q)
+subroutine WriteBIN(imode, atype, pos, v, f, q)
 use atoms; use parameters
 !--------------------------------------------------------------------------
 implicit none
 integer,intent(in) :: imode 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 

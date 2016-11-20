@@ -1,9 +1,8 @@
 !--------------------------------------------------------------------------------------------
-SUBROUTINE BOCALC(nlayer, NBUFFER, atype, pos)
+SUBROUTINE BOCALC(nlayer, atype, pos)
 use parameters; use atoms
 !--------------------------------------------------------------------------------------------
 integer,intent(IN) :: nlayer
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 
 !--- calculate BO prime 

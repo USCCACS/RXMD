@@ -1,5 +1,5 @@
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr, NBUFFER, atype, pos, v, f, q)
+subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
 use atoms
 !
 ! TODO: update notes here
@@ -30,7 +30,6 @@ implicit none
 
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 

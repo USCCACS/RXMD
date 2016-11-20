@@ -5,11 +5,9 @@ module base
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos, v, f
 
-integer :: NBUFFER=40000
 
 Interface
-   SUBROUTINE INITSYSTEM(NBUFFER, atype, pos, v, f, q)
-      integer,intent(in) :: NBUFFER
+   SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
       real(8),allocatable,dimension(:) :: atype, q
       real(8),allocatable,dimension(:,:) :: pos,v,f
    end subroutine
@@ -101,6 +99,7 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
+integer :: NBUFFER=40000
 integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 

@@ -1,9 +1,8 @@
 !----------------------------------------------------------------------------------------------------------------------
-subroutine FORCE(NBUFFER, atype, pos, f, q)
+subroutine FORCE(atype, pos, f, q)
 use parameters; use atoms 
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER), f(3,NBUFFER), vdummy(3,NBUFFER)
 
@@ -23,19 +22,19 @@ astr(:,:) = 0.d0
 #endif
 
 !--- unscaled to scaled coordinate
-call xu2xs(NBUFFER, pos)
+call xu2xs(pos)
 call system_clock(i,k)
 dr(1:3)=NMINCELL*lcsize(1:3)
-call COPYATOMS(MODE_COPY,dr,NBUFFER,atype,pos,vdummy,f,q) 
+call COPYATOMS(MODE_COPY,dr,atype,pos,vdummy,f,q) 
 call system_clock(j,k)
 it_timer(4)=it_timer(4)+(j-i)
 
 call system_clock(i,k)
-call LINKEDLIST(NBUFFER, atype, pos)
-call NBLINKEDLIST(NBUFFER, atype, pos)
+call LINKEDLIST(atype, pos)
+call NBLINKEDLIST(atype, pos)
 call system_clock(j,k)
 it_timer(3)=it_timer(3)+(j-i)
-call xs2xu(NBUFFER, pos)
+call xs2xu(pos)
 
 !--- scaled to unscaled coordinate
 
@@ -45,7 +44,7 @@ call xs2xu(NBUFFER, pos)
 !$omp section
 
 call system_clock(i,k)
-call GetNonbondingPairList(NBUFFER, atype, pos)
+call GetNonbondingPairList(atype, pos)
 call system_clock(j,k)
 it_timer(15)=it_timer(15)+(j-i)
 
@@ -57,12 +56,12 @@ it_timer(7)=it_timer(7)+(j-i)
 !$omp section
 
 call system_clock(i,k)
-call NEIGHBORLIST(NMINCELL, NBUFFER, atype, pos)
+call NEIGHBORLIST(NMINCELL, atype, pos)
 call system_clock(j,k)
 it_timer(5)=it_timer(5)+(j-i)
 
 call system_clock(i,k)
-CALL BOCALC(NMINCELL, NBUFFER, atype, pos)
+CALL BOCALC(NMINCELL, atype, pos)
 call system_clock(j,k)
 it_timer(6)=it_timer(6)+(j-i)
 
@@ -104,7 +103,7 @@ f(:,:)=f(:,:)+fnb(:,:)
 
 call system_clock(i,k)
 dr(1:3)=0.d0
-CALL COPYATOMS(MODE_CPBK,dr, NBUFFER, atype, pos, vdummy, f, q) 
+CALL COPYATOMS(MODE_CPBK,dr, atype, pos, vdummy, f, q) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
 

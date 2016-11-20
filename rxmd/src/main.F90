@@ -15,21 +15,17 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 CALL GETPARAMS()
 
 !--- initialize the MD system
-CALL INITSYSTEM(NBUFFER, atype, pos, v, f, q)
+CALL INITSYSTEM(atype, pos, v, f, q)
 
-!call OUTPUT()
-
-if(mdmode==10) call conjugate_gradient()
-
-call QEq(NBUFFER, atype, pos, q)
-call FORCE(NBUFFER, atype, pos, f, q)
+call QEq(atype, pos, q)
+call FORCE(atype, pos, f, q)
 
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
 do nstep=0, ntime_step-1
 
-   if(mod(nstep,pstep)==0) call PRINTE(NBUFFER, atype, pos, v, f, q)
-   if(mod(nstep,fstep)==0) call OUTPUT(NBUFFER, atype, pos, v, f, q)
+   if(mod(nstep,pstep)==0) call PRINTE(atype, pos, v, f, q)
+   if(mod(nstep,fstep)==0) call OUTPUT(atype, pos, v, f, q)
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:3,1:NATOMS)=vsfact*v(1:3,1:NATOMS)
@@ -40,14 +36,14 @@ do nstep=0, ntime_step-1
    endif
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
-      call INITVELOCITY(NBUFFER, atype, v)
+      call INITVELOCITY(atype, v)
 
 !--- correct the c.o.m motion
    if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call ScaleTemperature(NBUFFER, atype, v)
+      call ScaleTemperature(atype, v)
 
 !--- update velocity
-   call vkick(1.d0, NBUFFER, atype, v, f) 
+   call vkick(1.d0, atype, v, f) 
 
 !--- update coordinates
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
@@ -56,28 +52,28 @@ do nstep=0, ntime_step-1
    pos(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+dt*v(1:3,1:NATOMS)
 
 !--- migrate atoms after positions are updated
-   call xu2xs(NBUFFER, pos)
+   call xu2xs(pos)
    dr(1:3)=0.d0
-   call COPYATOMS(MODE_MOVE,dr,NBUFFER, atype, pos, v, f, q)
-   call LINKEDLIST(NBUFFER, atype, pos)
-   call xs2xu(NBUFFER, pos)
+   call COPYATOMS(MODE_MOVE,dr,atype, pos, v, f, q)
+   call LINKEDLIST(atype, pos)
+   call xs2xu(pos)
    
-   if(mod(nstep,qstep)==0) call QEq(NBUFFER, atype, pos, q)
-   call FORCE(NBUFFER, atype, pos, f, q)
+   if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
+   call FORCE(atype, pos, f, q)
 
 !--- update velocity
-   call vkick(1.d0, NBUFFER, atype, v, f) 
+   call vkick(1.d0, atype, v, f) 
    qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
 
 enddo
 
 !--- save the final configurations
-call OUTPUT(NBUFFER, atype, pos, v, f, q)
+call OUTPUT(atype, pos, v, f, q)
 
 !--- update rxff.bin in working directory for continuation run
-call xu2xs(NBUFFER, pos)
-call WriteBin(-1, NBUFFER, atype, pos, v, f, q)
-call xs2xu(NBUFFER, pos)
+call xu2xs(pos)
+call WriteBin(-1, atype, pos, v, f, q)
+call xs2xu(pos)
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
@@ -89,11 +85,9 @@ allocate(ibuf(nmaxas),ibuf1(nmaxas))
 ibuf(:)=0
 do i=1,nmaxas
    ibuf(i)=maxval(maxas(:,i))
-   !if(myid==0) print'(a,20i)','i,maxas: ', i,maxas(:,i)
 enddo
 call MPI_ALLREDUCE (ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
 if(myid==0) then
-   !print'(a,10i12)', '1. max array size: ', ibuf1(1:nmaxas)
    print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER: ', &
                       ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4)
 endif
@@ -126,12 +120,11 @@ call MPI_FINALIZE(ierr)
 end PROGRAM
 
 !------------------------------------------------------------------------------
-subroutine vkick(dtf, NBUFFER, atype, v, f)
+subroutine vkick(dtf, atype, v, f)
 use atoms
 !------------------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
 integer :: i, ity
@@ -145,13 +138,12 @@ enddo
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine PRINTE(NBUFFER, atype, pos, v, f, q)
+subroutine PRINTE(atype, pos, v, f, q)
 use atoms; use parameters
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
 !----------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
@@ -215,12 +207,11 @@ wt0 = MPI_WTIME()
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine LINKEDLIST(NBUFFER, atype, pos)
+subroutine LINKEDLIST(atype, pos)
 use atoms
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
-integer,intent(in) :: NBUFFER
 real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: n, l(3), j
@@ -244,12 +235,11 @@ enddo
 end subroutine 
 
 !----------------------------------------------------------------------------------------
-subroutine NBLINKEDLIST(NBUFFER, atype, pos)
+subroutine NBLINKEDLIST(atype, pos)
 use atoms
 ! partitions the volume into linked-list cells <lcsize> for non-bonding interactions
 !----------------------------------------------------------------------------------------
 implicit none
-integer,intent(in) :: NBUFFER
 real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: n, l(3), j
@@ -273,14 +263,13 @@ enddo
 end subroutine 
 
 !----------------------------------------------------------------------
-subroutine NEIGHBORLIST(nlayer, NBUFFER, atype, pos)
+subroutine NEIGHBORLIST(nlayer, atype, pos)
 use atoms; use parameters
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 !----------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: nlayer
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: c1,c2,c3, ic(3), c4, c5, c6
@@ -348,12 +337,11 @@ endif
 end subroutine
 
 !----------------------------------------------------------------------
-subroutine GetNonbondingPairList(NBUFFER, atype, pos)
+subroutine GetNonbondingPairList(atype, pos)
 use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
@@ -405,12 +393,11 @@ enddo; enddo; enddo
 end subroutine
 
 !----------------------------------------------------------------------
-subroutine angular_momentum(NBUFFER, atype, pos, v)
+subroutine angular_momentum(atype, pos, v)
 use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), pos(3,NBUFFER),v(3,NBUFFER)
 
 integer :: i,ity
@@ -519,10 +506,9 @@ return
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs(NBUFFER, pos)
+subroutine xu2xs(pos)
 ! unscaled coordinate to scaled coordinate. shift coordinate to scaled-local.
 use atoms
-integer,intent(in) :: NBUFFER
 real(8) :: pos(3,NBUFFER)
 
 !--------------------------------------------------------------------------------------------------------------
@@ -540,11 +526,10 @@ enddo
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu(NBUFFER, pos)
+subroutine xs2xu(pos)
 ! scaled coordinate to unscaled coordinate. shift coordinate to unscaled-global.
 use atoms
 !--------------------------------------------------------------------------------------------------------------
-integer,intent(in) :: NBUFFER
 real(8) :: pos(3,NBUFFER)
 
 real(8) :: rr(3)
@@ -559,11 +544,10 @@ enddo
 end subroutine
 
 !-----------------------------------------------------------------------
-subroutine ScaleTemperature(NBUFFER, atype, v)
+subroutine ScaleTemperature(atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), v(3,NBUFFER)
 
 integer :: i,ity
@@ -576,18 +560,17 @@ do i=1, NATOMS
    v(1:3,i)=sqrt(ctmp)*v(1:3,i)
 enddo
 
-call LinearMomentum(NBUFFER, atype, v)
+call LinearMomentum(atype, v)
 
 return
 end
 
 !-----------------------------------------------------------------------
-subroutine LinearMomentum(NBUFFER, atype, v)
+subroutine LinearMomentum(atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER), v(3,NBUFFER)
 
 integer :: i,ity

@@ -1,12 +1,11 @@
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITSYSTEM(NBUFFER, atype, pos, v, f, q)
+SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
 use parameters; use atoms
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos,v,f
 
@@ -132,7 +131,7 @@ allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
 allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
-call ReadBIN(NBUFFER, atype, pos, v, f, q)
+call ReadBIN(atype, pos, v, f, q)
 
 call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
@@ -160,7 +159,7 @@ call CUTOFFLENGTH()
 call updatebox()
 
 !--- scaled to unscaled coordinates
-call xs2xu(NBUFFER, pos)
+call xs2xu(pos)
 
 !--- get global number of atoms
 i8=NATOMS ! Convert 4 byte to 8 byte
@@ -174,16 +173,13 @@ astr(:,:)=0.d0;
 
 !--- Linked List & Near Neighb Parameters
 allocate(nbrlist(NBUFFER,0:MAXNEIGHBS), nbrindx(NBUFFER, MAXNEIGHBS),stat=ast); ist=ist+ast
-
 allocate(nbplist(NBUFFER,0:MAXNEIGHBS10),stat=ast); ist=ist+ast
-
 allocate(llist(NBUFFER),stat=ast);ist=ist+ast 
 allocate(header(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
 allocate(nacell(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
 
 !--- Bond Order Prime and deriv terms:
 allocate(dln_BOp(3,NBUFFER, MAXNEIGHBS), dBOp(NBUFFER,MAXNEIGHBS), stat=ast); ist=ist+ast
-
 allocate(deltap(NBUFFER, 3), stat=ast); ist=ist+ast
 
 !--- Bond Order terms
@@ -192,9 +188,7 @@ allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast
 allocate(A1(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
 allocate(A2(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
 allocate(A3(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
-
 allocate(nlp(NBUFFER), dDlp(NBUFFER), stat=ast); ist=ist+ast
-
 allocate(ccbnd(NBUFFER), stat=ast); ist=ist+ast
 ccbnd(:)=0.d0
 
@@ -262,7 +256,7 @@ rcsize(3) = latc/vprocs(3)/cc(3)
 maxrcell = maxval(rcsize(1:3))
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
-call GetNonbondingMesh(NBUFFER,pos)
+call GetNonbondingMesh(pos)
 
 !--- get density 
 mm = 0.d0
@@ -326,13 +320,12 @@ wt0 = MPI_WTIME()
 END SUBROUTINE
 
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITVELOCITY(NBUFFER, atype, v)
+SUBROUTINE INITVELOCITY(atype, v)
 use parameters; use atoms
 ! Generate gaussian distributed velocity as an initial value  using Box-Muller algorithm
 !------------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER)
 real(8) :: v(3,NBUFFER)
 
@@ -538,13 +531,12 @@ enddo
 end subroutine
 
 !----------------------------------------------------------------
-subroutine GetNonbondingMesh(NBUFFER,pos)
+subroutine GetNonbondingMesh(pos)
 use atoms; use parameters
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: pos(3,NBUFFER)
 
 integer :: i,j,k

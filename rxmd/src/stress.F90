@@ -1,11 +1,10 @@
 !--------------------------------------------------------------------------------------------------------------
-subroutine stress(NBUFFER, atype, pos, v, f)
+subroutine stress(atype, pos, v, f)
 use atoms; use parameters
 ! calculate stress tensor components of kinetic energy part. 
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(in) :: NBUFFER
 real(8) :: atype(NBUFFER),pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
 integer :: i,ity, j,jty,icmp, m,n
