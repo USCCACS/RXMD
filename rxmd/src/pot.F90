@@ -3,14 +3,21 @@ subroutine FORCE(atype, pos, f, q)
 use parameters; use atoms 
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER), f(3,NBUFFER), vdummy(3,NBUFFER)
+
+real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
+real(8),intent(in) :: pos(3,NBUFFER)
+real(8),intent(inout) :: f(3,NBUFFER)
+
+real(8) :: vdummy(1,1) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
 integer :: i, j, j1, ity, l(3),k
 real(8) :: fsum(3), ss, vv(3), rr(3)
 integer :: l2g
 real(8) :: gasdev
 real(8) :: dr(3)
+
+integer :: itype(NBUFFER) !-- integer part of atype
+integer :: gtype(NBUFFER) !-- global ID from atype
 
 ccbnd(:) = 0.d0
 f(:,:) = 0.d0
@@ -28,6 +35,14 @@ dr(1:3)=NMINCELL*lcsize(1:3)
 call COPYATOMS(MODE_COPY,dr,atype,pos,vdummy,f,q) 
 call system_clock(j,k)
 it_timer(4)=it_timer(4)+(j-i)
+
+!--- get atom type and global ids
+do i=1, NBUFFER
+   itype(i)=nint(atype(i))
+enddo
+do i=1, NBUFFER
+   gtype(i)=l2g(atype(i))
+enddo
 
 call system_clock(i,k)
 call LINKEDLIST(atype, pos)
@@ -106,14 +121,6 @@ dr(1:3)=0.d0
 CALL COPYATOMS(MODE_CPBK,dr, atype, pos, vdummy, f, q) 
 call system_clock(j,k)
 it_timer(14)=it_timer(14)+(j-i)
-
-!rr(1:3)=0.d0
-!do i=1, NATOMS
-!   rr(1:3)=rr(1:3)+f(1:3,i)
-!   print'(i,6f)',i,f(1:3,i),q(i)
-!enddo
-!print'(a,3f)','frcsum: ', rr(1:3)
-!stop
 
 !--- calculate kinetic part of stress components and add to <astr>.
 #ifdef STRESS
@@ -198,7 +205,7 @@ allocate(deltalp(NBUFFER),stat=ast)
 
 !=== preparation ==============================================================
 do i = 1, NBUFFER
-   ity = atype(i)
+   ity = itype(i)
 
    if(ity==0) cycle
 
@@ -228,13 +235,13 @@ enddo
 
 PE(2:4)=0.d0
 do i=1, NATOMS
-   ity = atype(i)
+   ity = itype(i)
 
    sum_ovun1 = 0.d0
    sum_ovun2 = 0.d0
    do j1 = 1, nbrlist(i,0)
       j = nbrlist(i, j1)
-      jty = atype(j)
+      jty = itype(j)
       inxn = inxn2(ity,jty)
       sum_ovun1 = sum_ovun1 + povun1(inxn)*Desig(inxn)*BO(0,i,j1)
       sum_ovun2 = sum_ovun2 + (delta(j)-deltalp(j))*(BO(2,i,j1) + BO(3,i,j1))
@@ -297,7 +304,7 @@ do i=1, NATOMS
 !--- Force Calculation
    do j1 = 1, nbrlist(i,0) 
       j = nbrlist(i, j1) 
-      jty = atype(j)
+      jty = itype(j)
       inxn = inxn2(ity,jty)
 
       CEover(5) = CEover(1)*povun1(inxn)*desig(inxn)
@@ -366,7 +373,7 @@ cutof2 = cutof2_esub
 
 PE(5:7)=0.d0
 do j=1, NATOMS
-   jty = atype(j)
+   jty = itype(j)
 
    sum_BO8 = 0.d0
    sum_SBO1 = 0.d0
@@ -384,7 +391,7 @@ do j=1, NATOMS
       BOij = BO(0,j,i1) - cutof2
       if(BOij>0.d0) then ! react.f, line 4827 
       i=nbrlist(j,i1)
-      ity = atype(i)
+      ity = itype(i)
 
       rij(1:3) = pos(1:3,i) - pos(1:3,j)
       rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )
@@ -398,7 +405,7 @@ do j=1, NATOMS
          if(BO(0,j,i1)*BO(0,j,k1)>cutof2) then !react.f, line 4831
 
          k=nbrlist(j,k1)
-         kty = atype(k)
+         kty = itype(k)
 
          rjk(1:3) = pos(1:3,j) - pos(1:3,k)
          rjk(0) = sqrt( sum(rjk(1:3)*rjk(1:3)) )  
@@ -487,9 +494,6 @@ do j=1, NATOMS
             CEPen(3) = -2.d0 * ppen2(inxn) * (BOjk - 2.d0)
             CEpen(1:3) = CEpen(1:3)*PEpen 
 
-!print'(4d25.13,3i5)', PEpen, CEPen(1:3), &
-!         mod(l2g(atype(i))-1,168)+1, mod(l2g(atype(j))-1,168)+1,mod(l2g(atype(k))-1,168)+1
-
 !--- PEcoa part:
             sum_BOi = delta(i) + Val(ity)
             sum_BOk = delta(k) + Val(kty)
@@ -520,7 +524,6 @@ do j=1, NATOMS
 !                  CEval(:)=0.d0; PE(5)=0.d0
 !                  CEpen(:)=0.d0; PE(6)=0.d0
 !                  CEcoa(:)=0.d0; PE(7)=0.d0
-
 
             CE3body_b(1) = CEpen(2) + CEcoa(1) - CEcoa(4) + CEval(1) !BO_ij 
             CE3body_b(2) = CEpen(3) + CEcoa(2) - CEcoa(5) + CEval(2) !BO_jk 
@@ -596,11 +599,11 @@ do c3=0, cc(3)-1
 
    i=header(c1,c2,c3)
    do ii=1,nacell(c1,c2,c3)
-      ity = atype(i)
+      ity = itype(i)
 
       do j1=1, nbrlist(i,0)
          j = nbrlist(i,j1)
-         jty = atype(j)
+         jty = itype(j)
 
          if( (jty==2) .and. (BO(0,i,j1)>MINBO0) ) then
 
@@ -608,7 +611,7 @@ do c3=0, cc(3)-1
 
                k = nbplist(i,kk)
 
-               kty = atype(k)
+               kty = itype(k)
 
                inxnhb = inxn3hb(ity, jty, kty)
 
@@ -700,15 +703,15 @@ do c3=0, cc(3)-1
 
    i = header(c1,c2,c3)
    do m = 1, nacell(c1,c2,c3)
-      iid = l2g(atype(i))
-      ity = atype(i) 
+      ity = itype(i) 
+      iid = gtype(i)
       
       PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
 
        do j1 = 1, nbplist(i,0) 
             j = nbplist(i,j1)
 
-            jid = l2g(atype(j))
+            jid = gtype(j)
 
             if(jid<iid) then
 
@@ -717,7 +720,7 @@ do c3=0, cc(3)-1
 
                if(dr2<=rctap2) then
 
-                  jty=atype(j)
+                  jty = itype(j)
 
                   inxn = inxn2(ity, jty)
 !                  dr(0) = sqrt(dr2)
@@ -780,16 +783,16 @@ integer :: l2g,iid,jid
 
 PE(1)=0.d0
 do i=1, NATOMS
-   ity = atype(i)
+   ity = itype(i)
 
-   iid=l2g(atype(i))
+   iid = gtype(i)
    do j1 = 1, nbrlist(i,0)
 
       j = nbrlist(i,j1)
-      jid=l2g(atype(j))
+      jid = gtype(j)
       if(jid<iid) then
 
-        jty = atype(j)
+        jty = itype(j)
         inxn = inxn2(ity, jty)
 
         exp_be12 = exp( pbe1(inxn)*( 1.d0 - BO(1,i,j1)**pbe2(inxn) ) )
@@ -851,9 +854,9 @@ cutof2 = cutof2_esub
 PE(8:9)=0.d0
 do j=1,NATOMS
 
-  jty = atype(j)
+  jty = itype(j)
   delta_ang_j = delta(j) + Val(jty) - Valangle(jty)
-  jid=l2g(atype(j))
+  jid = gtype(j)
 
   do k1=1, nbrlist(j,0) 
 
@@ -861,12 +864,12 @@ do j=1,NATOMS
      BOjk = BO(0,j,k1) - cutof2 !<kn>
      if(BO(0,j,k1) > cutof2) then         !poten.f,line 1829,1830
 
-        k=nbrlist(j,k1)
-        kid=l2g(atype(k))
+        k = nbrlist(j,k1)
+        kid = gtype(k)
 
         if (jid<kid) then
 
-        kty = atype(k)
+        kty = itype(k)
 
         delta_ang_k = delta(k) + Val(kty) - Valangle(kty)
         delta_ang_jk = delta_ang_j + delta_ang_k  
@@ -886,7 +889,7 @@ do j=1,NATOMS
 
            if (i/=k) then
 
-              ity = atype(i)
+              ity = itype(i)
 
               rij(1:3) = pos(1:3,i) - pos(1:3,j)
               rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )
@@ -911,7 +914,7 @@ do j=1,NATOMS
                  if((BO(0,k,l1)>cutof2).and.(BO(0,j,k1)*BO(0,k,l1)>cutof2)) then !poten.f,line 1829,1830
 
                  l=nbrlist(k,l1)
-                 lty = atype(l)
+                 lty = itype(l)
                  inxn = inxn4(ity,jty,kty,lty)
 
                  if ((inxn/=0).and.(i/=l).and.(j/=l)) then

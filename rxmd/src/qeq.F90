@@ -12,8 +12,9 @@ use atoms; use parameters
 !-------------------------------------------------------------------------------
 implicit none
 
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER), vdummy(3,NBUFFER), fdummy(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
+real(8),intent(out) :: q(NBUFFER)
+real(8) :: vdummy(1,1), fdummy(1,1)
 
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
