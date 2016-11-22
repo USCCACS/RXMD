@@ -10,10 +10,8 @@ real(8),intent(inout) :: f(3,NBUFFER)
 
 real(8) :: vdummy(1,1) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
-integer :: i, j, j1, ity, l(3),k
-real(8) :: fsum(3), ss, vv(3), rr(3)
+integer :: i, j, k
 integer :: l2g
-real(8) :: gasdev
 real(8) :: dr(3)
 
 integer :: itype(NBUFFER) !-- integer part of atype
@@ -138,7 +136,7 @@ use atoms
 implicit none
 integer,intent(IN) :: nlayer
 integer :: c1,c2,c3 , i,i1,j,j1
-real(8) :: dr(3), dr2, ff(3)
+real(8) :: dr(3), ff(3)
 
 DO c1=-nlayer, cc(1)-1+nlayer
 DO c2=-nlayer, cc(2)-1+nlayer
@@ -176,13 +174,12 @@ use parameters;use atoms
 !-------------------------------------------------------------------------------------
 implicit none
 
-integer :: c1,c2,c3,ii
-integer :: i,i1,j,j1,j2,ity, jty, inxn, idEh
+integer :: i,i1,j,j1,ity, jty, inxn, idEh
 real(8) :: coeff(3)
 
 !--- Lone Pair Energy Terms
-real(8) :: Clp, CElp(1), PElp, dEh, mdEh
-real(8) :: explp1,cnlp1,expvd2, dElp, deltaE
+real(8) :: Clp, CElp(1), PElp, dEh
+real(8) :: explp1,expvd2, dElp, deltaE
 real(8),allocatable :: deltalp(:)
 
 !--- Overcoordination Energy Terms
@@ -194,12 +191,9 @@ real(8) :: expovun2, expovun1
 real(8) :: expovun2n, expovun6, expovun8
 real(8) :: PEunder
 
-real(8) :: CEover(7), CEunder(6),fsum(1:3), CElp_b, CElp_d, CElp_bpp
-integer :: n,n1,nty, m,m1,mty
+real(8) :: CEover(7), CEunder(6), CElp_b, CElp_d, CElp_bpp
 
 real(8) :: div_expovun2, div_expovun2n, div_expovun1, div_expovun8
-
-real(8) :: get_exp
 
 allocate(deltalp(NBUFFER),stat=ast)
 
@@ -336,12 +330,11 @@ subroutine E3b()
 use parameters; use atoms
 !------------------------------------------------------------------------------------
 implicit none
-integer :: i,j,k, i1,j1,k1, i2,j2,k2, ity,jty,kty, inxn, inxnhb, n,n1
-integer :: ii,c1,c2,c3,NB
+integer :: i,j,k, i1,j1,k1, ity,jty,kty, inxn, n,n1
 
 !--- Valency Energy Calculation Terms:
 real(8) :: PEval, fn7ij, fn7jk, fn8j, delta_ang
-real(8) :: rij(0:3), rjk(0:3), rij_mag, rjk_mag, SBO2, SBO 
+real(8) :: rij(0:3), rjk(0:3), SBO2, SBO 
 real(8) :: sum_BO8, theta_ijk, theta0, theta_diff, exp2 
 real(8) :: sin_ijk, cos_ijk 
 real(8) :: Cf7ij, Cf7jk, Cf8j, Ctheta_diff, Ctheta0, CSBO2, dSBO(2)
@@ -360,12 +353,8 @@ real(8) :: exp_coa2
 
 !--- misc
 real(8) :: CEval(9), CEpen(3), CEcoa(5)
-real(8) :: explp1, Cnlp1, deltaE 
-real(8) :: CE3body_d(3), CE3body_b(3), CE3body_bpp, CE3body_a, fsum(3), coeff(3)
+real(8) :: CE3body_d(3), CE3body_b(3), CE3body_a, coeff(3)
 real(8) :: BOij,BOjk
-
-real(8) :: get_exp
-integer :: l2g
 
 !NOTICE: <cutof2> is used to get exactly the same energy in original reaxFF code. 
 real(8) :: cutof2
@@ -581,16 +570,12 @@ implicit none
 
 ! <rchb>    cutoff length for atom j2 and i2 which is 10[A]
 
-integer :: i,j,k, i1,j1,k1, ii,jj,kk, c1,c2,c3,c4,c5,c6, mn
+integer :: i,j,k, i1,j1, ii,kk, c1,c2,c3
 integer :: ity,jty,kty,inxnhb
 real(8) :: rij(0:3), rjk(0:3), rik(3), rik2
 real(8) :: theta_ijk, cos_ijk, sin_ijk_half
-real(8) :: sin_ijk, cos_xhz1, sin_xhz4, exp_hb2, exp_hb3
-real(8) :: PEhb, CEhb(3), ff(3), dr(3)
-real(8) :: get_exp
-
-integer :: l2g
-logical :: isEhb
+real(8) :: cos_xhz1, sin_xhz4, exp_hb2, exp_hb3
+real(8) :: PEhb, CEhb(3), ff(3)
 
 PE(10)=0.d0
 do c1=0, cc(1)-1
@@ -684,14 +669,14 @@ use parameters; use atoms
 !  This subroutine calculates the energy and the forces due to the Van der Waals and Coulomb terms 
 !----------------------------------------------------------------------------------------------------------
 implicit none
-integer :: i, j,j1, ity,jty,nn 
-integer :: c1,c2,c3,c4,c5,c6, m,n, mn
+integer :: i, j,j1, ity,jty
+integer :: c1,c2,c3, m
 
 real(8) :: PEvdw, PEclmb, ff(3)
-real(8) :: dr(0:3), dr2, fsum(3)
+real(8) :: dr(0:3), dr2
 real(8) :: CEvdw, CEclmb,qij
 
-integer :: ii,l2g, iid, jid
+integer :: iid, jid
 
 integer :: inxn, itb, itb1
 real(8) :: drtb, drtb1
@@ -775,11 +760,9 @@ use atoms; use parameters
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
 integer :: i,j, i1,j1, ity, jty, inxn
-integer :: c1,c2,c3, n
-real(8) :: exp_be12,  CEbo, PEbo, coeff(3), ff(3)
-real(8) :: get_exp
+real(8) :: exp_be12,  CEbo, PEbo, coeff(3)
 
-integer :: l2g,iid,jid
+integer :: iid,jid
 
 PE(1)=0.d0
 do i=1, NATOMS
@@ -819,7 +802,7 @@ subroutine E4b()
 use atoms; use parameters
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer :: i,j,k,l, i1,j1,k1,l1, k2, ity,jty,kty,lty, inxn, m, m1
+integer :: i,j,k,l, i1,j1,k1,l1, k2, ity,jty,kty,lty, inxn
 
 !--- angles
 real(8) :: cos_ijkl(3), cos_ijkl_sqr, cos_2ijkl, sin_ijkl, sin_ijk, sin_jkl, tan_ijk_i, tan_jkl_i
@@ -835,19 +818,12 @@ real(8) :: exp_tor2(3)
 
 !--- coefficients
 real(8) :: CEtors(9), Cconj, CEconj(6), C4body_a(3), C4body_b(3), C4body_b_jk(3)
-real(8) :: coeff(3)
 
 real(8) :: btb2 !! 
 real(8) :: BOij, BOjk, BOkl
 real(8) :: cutof2
 
-real(8) :: get_exp
-
-integer :: jid,kid,l2g
-real(8) :: esft_e4, e_e4, drtb_e4, drtb1_e4 
-integer :: itb_e4,itb1_e4
-
-integer :: c1,c2,c3,mn
+integer :: jid,kid
 
 cutof2 = cutof2_esub
 
@@ -1068,7 +1044,7 @@ use atoms
 implicit none
 integer,intent(IN) :: i
 real(8),intent(IN) :: coeff
-integer :: i1, j,j1, n,n1, inbrs, jnbrs
+integer :: i1, j,j1
 real(8) :: Cbond(3), dr(3), ff(3)
 
 do j1=1, nbrlist(i,0)
@@ -1108,10 +1084,8 @@ use atoms
 implicit none
 integer,intent(IN) :: i,j1, j,i1
 real(8),intent(IN) :: coeff
-integer :: n, n1
+
 real(8) :: Cbond(3),dr(3),ff(3)
-! optimization
-real(8) :: ri(3),rj(3),fi(3),fj(3)
 
 Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
 
@@ -1143,11 +1117,7 @@ use atoms
 implicit none
 integer,intent(IN) :: i,j1, j,i1
 real(8),intent(IN) :: coeff(3)
-integer :: n,n1
 real(8) :: Cbond(3),dr(3), ff(3),cBO(3),cf(3)
-
-! optimization
-real(8) :: ri(3),rj(3),fi(3),fj(3)
 
 !--- With the new bond-order definition, 1st term is the derivative of
 !"full"-bond order,
@@ -1196,11 +1166,10 @@ implicit none
 
 integer,INTENT(IN) :: i,j,k,l
 real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3), da2(0:3)
-real(8) :: Daa(-1:0), Caa(-2:0,-2:0),Cwi(3), Cwj(3), Cwk(3), Cwl(3)
+real(8) :: Daa(-1:0), Caa(-2:0,-2:0),Cwi(3), Cwj(3), Cwl(3)
 real(8) :: DDisqr, coDD, com
-real(8) :: fij(3), fik(3), fil(3), fjk(3), fjl(3), fkl(3)
-real(8) :: rij(3), rik(3), ril(3), rjk(3), rjl(3), rkl(3)
-real(8) :: dr(3), ff(3)
+real(8) :: fij(3), fjk(3), fkl(3)
+real(8) :: rij(3), rjk(3), rkl(3)
 
 Caa( 0,0)=da0(0)*da0(0);Caa( 0,-1)=sum(da0(1:3)*da1(1:3));Caa( 0,-2)=sum(da0(1:3)*da2(1:3))
 Caa(-1,0)=Caa(0,-1);    Caa(-1,-1)=da1(0)*da1(0);         Caa(-1,-2)=sum(da1(1:3)*da2(1:3))
@@ -1270,10 +1239,9 @@ implicit none
 
 real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3)
 integer,INTENT(IN) :: i,j,k
-real(8) :: Caa(-2:0,-2:0), Ci(3), Cj(3), Ck(3)
-real(8) :: fij(3), fik(3), fjk(3), rij(3), rik(3), rjk(3)
+real(8) :: Caa(-2:0,-2:0), Ci(3), Ck(3)
+real(8) :: fij(3), fjk(3), rij(3), rjk(3)
 real(8) :: CCisqr, coCC
-real(8) :: dr(3), ff(3)
 
 Caa( 0,0) = da0(0)**2; Caa( 0,-1) = sum(da0(1:3)*da1(1:3))
 Caa(-1,0) = Caa(0,-1); Caa(-1,-1) = da1(0)**2

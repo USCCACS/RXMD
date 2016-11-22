@@ -20,8 +20,7 @@ integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
 real(8) :: buf(4), Gbuf(4)
-real(8) :: ssum, tsum, Gssum, Gtsum, qsum, gqsum, mu
-real(8) :: qwtime
+real(8) :: ssum, tsum, mu
 real(8) :: QCopyDr(3)
 
 call system_clock(i1,k1)
@@ -160,13 +159,11 @@ use atoms; use parameters
 ! <nbrlist> and <A0> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
-integer :: i,j,k, ity, jty, n, m, mn, nn,nn1, ist=0
-integer :: c1,c2,c3, c4,c5,c6, ic(3)
-real(8) :: dr(3), dr1,dr2,dr3,dr4, Tap, CEst, eta_ity, hsan
-real(8) :: CTdr4, CTdr5, CTdr6, CTdr7, dr3gt
-real(8) :: third = -1.d0/3.d0
-real(8) :: drtb, drtb1
-integer :: itb, itb1, inxn, l2g
+integer :: i,j, ity, jty, n, m, mn, nn, ist=0
+integer :: c1,c2,c3, c4,c5,c6
+real(8) :: dr(3), dr2, hsan
+real(8) :: drtb
+integer :: itb, inxn
 
 deallocate(BO,A0,A1,A2,A3,nbrlist,nbrindx,stat=ast); ist=ist+ast
 deallocate(dln_BOp,dBOp,stat=ast); ist=ist+ast
@@ -188,7 +185,7 @@ do c3=0, nbcc(3)-1
    i = nbheader(c1,c2,c3)
    do m = 1, nbnacell(c1,c2,c3)
 
-   ity=atype(i)
+   ity=nint(atype(i))
 
    do mn = 1, nbnmesh
       c4 = c1 + nbmesh(1,mn)
@@ -204,7 +201,7 @@ do c3=0, nbcc(3)-1
 
             if(dr2 < rctap2) then
 
-               jty = atype(j)
+               jty = nint(atype(j))
 
 !--- make a neighbor list with cutoff length = 10[A]
                nbrlist(0,i) = nbrlist(0,i) + 1
@@ -247,9 +244,9 @@ end subroutine
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_finalize()
 use atoms
-integer :: l2g
-integer :: iast
 !-----------------------------------------------------------------------------------------------------------------------
+integer :: iast
+
 deallocate(A0, nbrlist,stat=ast)
 
 iast=0
@@ -283,7 +280,7 @@ real(8) :: eta_ity, Est1
 
 Est = 0.d0
 do i=1,NATOMS
-   ity = atype(i)
+   ity = nint(atype(i))
    eta_ity = eta(ity)
 
    hshs(i) = eta_ity*hs(i)
@@ -316,7 +313,7 @@ real(8) :: eta_ity, ggnew(2)
 integer :: i,j,j1, ity
 
 do i=1,NATOMS
-   ity = atype(i)
+   ity = nint(atype(i))
    eta_ity = eta(ity)
 
 !--- Initialize a gradient vector

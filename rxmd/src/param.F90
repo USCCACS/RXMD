@@ -13,7 +13,7 @@ real(8),parameter :: pi=3.14159265358979d0
 character(*),intent(in) :: ffFileName  ! force field parm file
 character(*),intent(inout) :: ffFileHeader ! 1st line of the FF file
 
-integer :: i,j,k,l,n,m,p,inxn   !counters for initialization
+integer :: i,j,inxn   !counters for initialization
 integer :: i0,i1,i2,i3,i4,ih  !Counters: # corresp to #-atom depend 
 
 !--- Parameters that count number of entries in each field:
@@ -26,7 +26,6 @@ integer :: npar, nvaty, ntoty, nhbty
 integer :: nodm1, nodm2  !ID bonds to alter in off-diag terms
 real(8) :: deodmh,rodmh,godmh ! off-diag term of Evdw parameters
 real(8) :: rsig,rpi,rpi2 !temp storage for r0s, etc terms in off-diag part
-integer :: nso2          !nso (# of types of atoms) squared 
 integer :: typea,typeb   !Temp storage for filling inxn2(:,:) table
 
 !--- NULL Transfer Fields not needed in program (used to calc other values): 

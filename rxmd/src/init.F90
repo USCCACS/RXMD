@@ -9,15 +9,10 @@ implicit none
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos,v,f
 
-integer :: i,j,k, ix,iy,iz,ii, n, m, m3, p,s, inxn, ity, jty, l(3), sID, ist=0
-real(8) :: dr, dr2, rr(3), mm, gmm, dns, mat(3,3)
+integer :: i,j,k, ity, l(3), ist=0
+real(8) :: mm, gmm, dns, mat(3,3)
 integer(8) :: i8
-real(8) :: rcsize(3), maxrcell, rcmesh2
-integer :: imesh(3), maximesh
-
-character(8) :: fname0
-character(2) :: ctype
-character(6) :: a6
+real(8) :: rcsize(3), maxrcell
 
 character(64) :: argv
 
@@ -212,12 +207,12 @@ rcsize(3) = latc/vprocs(3)/cc(3)
 maxrcell = maxval(rcsize(1:3))
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
-call GetNonbondingMesh(pos)
+call GetNonbondingMesh()
 
 !--- get density 
 mm = 0.d0
 do i=1, NATOMS
-   ity = atype(i)
+   ity = nint(atype(i))
    mm = mm + mass(ity)
 enddo
 call MPI_ALLREDUCE (mm, gmm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
@@ -285,7 +280,7 @@ implicit none
 real(8) :: atype(NBUFFER)
 real(8) :: v(3,NBUFFER)
 
-integer :: i,j,k, ity
+integer :: i, k, ity
 real(8) :: vv(2), vsqr, vsl, rndm(2)
 real(8) :: vCM(3), GvCM(3), mm, Gmm
 real(8) :: vfactor
@@ -315,7 +310,7 @@ enddo
 !--- get the local momentum and mass.
 vCM(:)=0.d0;  mm = 0.d0
 do i=1, NATOMS
-   ity = atype(i)
+   ity = nint(atype(i))
    vCM(1:3)=vCM(1:3) + mass(ity)*v(1:3,i)
    mm = mm + mass(ity)
 enddo
@@ -331,7 +326,7 @@ KE = 0.d0
 do i=1, NATOMS
    v(1:3,i) = v(1:3,i) - GvCM(1:3)
 
-   ity = atype(i)
+   ity = nint(atype(i))
    KE = KE + hmas(ity)*sum( v(1:3,i)*v(1:3,i) )
 enddo
 
@@ -349,7 +344,7 @@ subroutine CUTOFFLENGTH()
 use atoms; use parameters
 !------------------------------------------------------------------------------------------
 implicit none
-integer :: i,j,nn,ity,jty,inxn
+integer :: ity,jty,inxn
 real(8) :: dr,BOsig
 
 !--- get the cutoff length based on sigma bonding interaction.
@@ -404,13 +399,12 @@ subroutine POTENTIALTABLE()
 use atoms; use parameters
 !------------------------------------------------------------------------------------------
 implicit none
-integer :: i, n, ity,jty,inxn
+integer :: i, ity,jty,inxn
 real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
 
-real(8) :: exp1, exp2, fsum(3)
+real(8) :: exp1, exp2
 real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
-real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, CEvdw, CEclmb, rij_vd1
-real(8) :: rres
+real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
 
 !--- first element in table 0: potential
 !---                        1: derivative of potential
@@ -487,19 +481,17 @@ enddo
 end subroutine
 
 !----------------------------------------------------------------
-subroutine GetNonbondingMesh(pos)
+subroutine GetNonbondingMesh()
 use atoms; use parameters
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
 implicit none
 
-real(8) :: pos(3,NBUFFER)
-
 integer :: i,j,k
 
 real(8) :: latticePerNode(3), rr(3), dr2
-real(8) :: rcsize(3),maxrcell,rcmesh2
-integer :: ilc(3), imesh(3), maximesh 
+real(8) :: maxrcell
+integer :: imesh(3), maximesh 
 
 !--- initial estimate of LL cell dims
 nblcsize(1:3)=2.d0
@@ -508,7 +500,7 @@ nblcsize(1:3)=2.d0
 latticePerNode(1)=lata/vprocs(1)
 latticePerNode(2)=latb/vprocs(2)
 latticePerNode(3)=latc/vprocs(3)
-nbcc(1:3)=latticePerNode(1:3)/nblcsize(1:3)
+nbcc(1:3)=int(latticePerNode(1:3)/nblcsize(1:3))
 nblcsize(1:3)=latticePerNode(1:3)/nbcc(1:3)
 maxrcell = maxval(nblcsize(1:3))
 
@@ -606,7 +598,7 @@ LBOX(2)=latb/vprocs(2)
 LBOX(3)=latc/vprocs(3)
 
 !--- get the number of linkedlist cell per domain
-cc(1:3)=LBOX(1:3)/maxrc
+cc(1:3)=int(LBOX(1:3)/maxrc)
 
 !--- local system size in the unscaled coordinate.
 LBOX(1:3) = 1.d0/vprocs(1:3)

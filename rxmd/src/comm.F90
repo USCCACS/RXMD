@@ -35,11 +35,6 @@ real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
-integer :: i1,j1,k1
-
-integer :: c1,c2,c3,n
-
-integer :: j
 
 integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 
@@ -81,7 +76,7 @@ do dflag=1, 6
    endif
 
    call store_atoms(tn1, dflag, imode, dr)
-   call send_recv(tn1, tn2, dflag, myparity(i))
+   call send_recv(tn1, tn2, myparity(i))
    call append_atoms(dflag, imode)
 
 enddo
@@ -91,7 +86,7 @@ if(imode==MODE_MOVE) then
 !--- remove atoms which are transfered to neighbor nodes.
    ni=0
    do i=1, NATOMS + na/ne
-      ity = atype(i)
+      ity = nint(atype(i))
 !--- if atype is smaller than zero (this is done in store_atoms), ignore the atom.
       if(ity>0) then
         ni=ni+1
@@ -122,14 +117,14 @@ CONTAINS
 
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine send_recv(tn1, tn2, dflag, mypar)
+subroutine send_recv(tn1, tn2, mypar)
 use atoms
 ! shared variables::  <ns>, <nr>, <na>, <sbuffer()>, <rbuffer()>
 ! This subroutine only takes care of communication part. won't be affected by wether atom migration or atom 
 ! copy mode. 
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) ::tn1, tn2, dflag, mypar 
+integer,intent(IN) ::tn1, tn2, mypar 
 integer :: recv_stat(MPI_STATUS_SIZE)
 
 !--- if the traget node is the node itself, atoms informations are already copied 
@@ -179,7 +174,7 @@ implicit none
 integer,intent(IN) :: tn, dflag, imode 
 real(8),intent(IN) :: dr(3)
 
-integer :: i,j,k,m,n,n1,ni,is,l(3,2)
+integer :: n,ni,is
 real(8) :: sft 
 integer :: cptridx
 
@@ -297,7 +292,7 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: dflag, imode 
-integer :: m, i, ine, j, l(3)
+integer :: m, i, ine
 
 if( (na+nr)/ne > NBUFFER) then
     print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER: ", &
@@ -332,7 +327,7 @@ if(imode /= MODE_CPBK) then
               pos(1:3,m) = rbuffer(ine+1:ine+3)
               atype(m) = rbuffer(ine+4)
               q(m)  = rbuffer(ine+5)
-              frcindx(m) = anint(rbuffer(ine+6))
+              frcindx(m) = nint(rbuffer(ine+6))
               qs(m) = rbuffer(ine+7)
               qt(m) = rbuffer(ine+8)
               hs(m) = rbuffer(ine+9)
@@ -361,7 +356,7 @@ else if(imode == MODE_CPBK) then
 !--- get current index <ine> in <rbuffer(1:nr)>.
       ine=i*ne
 !--- Append the transferred forces into the original position of force array.
-      m = anint(rbuffer(ine+1))
+      m = nint(rbuffer(ine+1))
       f(1:3,m) = f(1:3,m) + rbuffer(ine+2:ine+4)
 #ifdef STRESS
       astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
