@@ -36,7 +36,11 @@ real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
 
+integer :: ti,tj,tk
+
 integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
+
+call system_clock(ti,tk)
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -111,8 +115,10 @@ if(mod(nstep,pstep)==0) then
   if(imode==MODE_MOVE) maxas(ni,4)=na/ne
 endif
 
-return
+call system_clock(tj,tk)
+it_timer(4)=it_timer(4)+(tj-ti)
 
+return
 CONTAINS 
 
 

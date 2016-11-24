@@ -28,11 +28,8 @@ astr(:,:) = 0.d0
 
 !--- unscaled to scaled coordinate
 call xu2xs(pos)
-call system_clock(i,k)
 dr(1:3)=NMINCELL*lcsize(1:3)
 call COPYATOMS(MODE_COPY,dr,atype,pos,vdummy,f,q) 
-call system_clock(j,k)
-it_timer(4)=it_timer(4)+(j-i)
 
 !--- get atom type and global ids
 do i=1, NBUFFER
@@ -56,57 +53,23 @@ call xs2xu(pos)
 
 !$omp section
 
-call system_clock(i,k)
 call GetNonbondingPairList(atype, pos)
-call system_clock(j,k)
-it_timer(15)=it_timer(15)+(j-i)
 
-call system_clock(i,k)
 CALL ENbond()
-call system_clock(j,k)
-it_timer(7)=it_timer(7)+(j-i)
 
 !$omp section
 
-call system_clock(i,k)
 call NEIGHBORLIST(NMINCELL, atype, pos)
-call system_clock(j,k)
-it_timer(5)=it_timer(5)+(j-i)
 
-call system_clock(i,k)
 CALL BOCALC(NMINCELL, atype, pos)
-call system_clock(j,k)
-it_timer(6)=it_timer(6)+(j-i)
 
-call system_clock(i,k)
 CALL Ebond()
-call system_clock(j,k)
-it_timer(8)=it_timer(8)+(j-i)
-
-call system_clock(i,k)
 CALL Elnpr()
-call system_clock(j,k)
-it_timer(9)=it_timer(9)+(j-i)
-
-call system_clock(i,k)
 CALL E3b()
-call system_clock(j,k)
-it_timer(11)=it_timer(11)+(j-i)
-
-call system_clock(i,k)
 CALL E4b()
-call system_clock(j,k)
-it_timer(12)=it_timer(12)+(j-i)
-
-call system_clock(i,k)
 CALL Ehb()
-call system_clock(j,k)
-it_timer(10)=it_timer(10)+(j-i)
 
-call system_clock(i,k)
 CALL ForceBondedTerms(NMINCELL)
-call system_clock(j,k)
-it_timer(13)=it_timer(13)+(j-i)
 
 !$omp end sections
 !$omp end parallel
@@ -138,6 +101,10 @@ integer,intent(IN) :: nlayer
 integer :: c1,c2,c3 , i,i1,j,j1
 real(8) :: dr(3), ff(3)
 
+integer :: ti,tj,tk
+
+call system_clock(ti,tk)
+
 DO c1=-nlayer, cc(1)-1+nlayer
 DO c2=-nlayer, cc(2)-1+nlayer
 DO c3=-nlayer, cc(3)-1+nlayer
@@ -165,6 +132,8 @@ DO c3=-nlayer, cc(3)-1+nlayer
   enddo
 enddo; enddo; enddo
 
+call system_clock(tj,tk)
+it_timer(13)=it_timer(13)+(tj-ti)
 end subroutine
 
 
@@ -194,6 +163,9 @@ real(8) :: PEunder
 real(8) :: CEover(7), CEunder(6), CElp_b, CElp_d, CElp_bpp
 
 real(8) :: div_expovun2, div_expovun2n, div_expovun1, div_expovun8
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 allocate(deltalp(NBUFFER),stat=ast)
 
@@ -323,6 +295,9 @@ enddo ! i-loop
 
 deallocate(deltalp,stat=ast)
 
+call system_clock(tj,tk)
+it_timer(9)=it_timer(9)+(tj-ti)
+
 END subroutine
 
 !------------------------------------------------------------------------------------
@@ -358,6 +333,10 @@ real(8) :: BOij,BOjk
 
 !NOTICE: <cutof2> is used to get exactly the same energy in original reaxFF code. 
 real(8) :: cutof2
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
+
 cutof2 = cutof2_esub
 
 PE(5:7)=0.d0
@@ -552,6 +531,8 @@ do j=1, NATOMS
    enddo ! i-loop
 enddo ! j-loop
 
+call system_clock(tj,tk)
+it_timer(11)=it_timer(11)+(tj-ti)
 
 END subroutine
 !----------------------------------------------------------------------------------------------------------------------
@@ -576,6 +557,9 @@ real(8) :: rij(0:3), rjk(0:3), rik(3), rik2
 real(8) :: theta_ijk, cos_ijk, sin_ijk_half
 real(8) :: cos_xhz1, sin_xhz4, exp_hb2, exp_hb3
 real(8) :: PEhb, CEhb(3), ff(3)
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 PE(10)=0.d0
 do c1=0, cc(1)-1
@@ -660,6 +644,9 @@ do c3=0, cc(3)-1
    enddo
 enddo; enddo; enddo
 
+call system_clock(tj,tk)
+it_timer(10)=it_timer(10)+(tj-ti)
+
 end subroutine
 
 !----------------------------------------------------------------------------------------------------------
@@ -680,6 +667,10 @@ integer :: iid, jid
 
 integer :: inxn, itb, itb1
 real(8) :: drtb, drtb1
+
+integer :: ti,tj,tk
+
+call system_clock(ti,tk)
 
 PE(11:13)=0.d0
 do c1=0, cc(1)-1
@@ -752,6 +743,9 @@ do c3=0, cc(3)-1
    enddo
 enddo; enddo; enddo
 
+call system_clock(tj,tk)
+it_timer(7)=it_timer(7)+(tj-ti)
+
 END subroutine 
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -761,8 +755,10 @@ use atoms; use parameters
 implicit none
 integer :: i,j, i1,j1, ity, jty, inxn
 real(8) :: exp_be12,  CEbo, PEbo, coeff(3)
-
 integer :: iid,jid
+integer :: ti,tj,tk
+
+call system_clock(ti,tk)
 
 PE(1)=0.d0
 do i=1, NATOMS
@@ -795,6 +791,9 @@ do i=1, NATOMS
    enddo
 enddo
 
+call system_clock(tj,tk)
+it_timer(8)=it_timer(8)+(tj-ti)
+
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
@@ -824,6 +823,9 @@ real(8) :: BOij, BOjk, BOkl
 real(8) :: cutof2
 
 integer :: jid,kid
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 cutof2 = cutof2_esub
 
@@ -1033,6 +1035,9 @@ do j=1,NATOMS
    enddo ! k-loop
 
 enddo
+
+call system_clock(tj,tk)
+it_timer(12)=it_timer(12)+(tj-ti)
 
 end subroutine
 

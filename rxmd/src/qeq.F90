@@ -165,6 +165,10 @@ real(8) :: dr(3), dr2, hsan
 real(8) :: drtb
 integer :: itb, inxn
 
+integer :: ti,tj,tk
+
+call system_clock(ti,tk)
+
 deallocate(BO,A0,A1,A2,A3,nbrlist,nbrindx,stat=ast); ist=ist+ast
 deallocate(dln_BOp,dBOp,stat=ast); ist=ist+ast
 allocate(nbrlist(0:MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
@@ -239,6 +243,9 @@ if(mod(nstep,pstep)==0) then
   maxas(i,3)=nn
 endif
 
+call system_clock(tj,tk)
+it_timer(16)=it_timer(16)+(tj-ti)
+
 end subroutine 
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -246,6 +253,9 @@ subroutine qeq_finalize()
 use atoms
 !-----------------------------------------------------------------------------------------------------------------------
 integer :: iast
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 deallocate(A0, nbrlist,stat=ast)
 
@@ -257,14 +267,17 @@ allocate(A2(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
 allocate(A3(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
 allocate(dln_BOp(3,NBUFFER, MAXNEIGHBS), dBOp(NBUFFER,MAXNEIGHBS), stat=ast); iast=iast+ast
 
-allocate(nbrlist(NBUFFER,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(nbrindx(NBUFFER,-1:MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(nbrlist(NBUFFER,0:MAXNEIGHBS), stat=ast); iast=iast+ast
+allocate(nbrindx(NBUFFER,0:MAXNEIGHBS), stat=ast); iast=iast+ast
 
 if (iast/=0) then
    if (myid==0) print*, 'ERROR: qeq_finalize', iast
    call MPI_FINALIZE(ierr)
    stop 
 endif
+
+call system_clock(tj,tk)
+it_timer(17)=it_timer(17)+(tj-ti)
 
 end subroutine
 
@@ -277,6 +290,9 @@ implicit none
 real(8),intent(OUT) :: Est
 integer :: i,j,j1, ity
 real(8) :: eta_ity, Est1
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 Est = 0.d0
 do i=1,NATOMS
@@ -300,6 +316,9 @@ do i=1,NATOMS
 
 enddo
 
+call system_clock(tj,tk)
+it_timer(18)=it_timer(18)+(tj-ti)
+
 end subroutine 
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -311,6 +330,9 @@ implicit none
 real(8),intent(OUT) :: Gnew(2)
 real(8) :: eta_ity, ggnew(2)
 integer :: i,j,j1, ity
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 do i=1,NATOMS
    ity = nint(atype(i))
@@ -331,6 +353,9 @@ enddo
 ggnew(1) = dot_product(gs(1:NATOMS), gs(1:NATOMS))
 ggnew(2) = dot_product(gt(1:NATOMS), gt(1:NATOMS))
 call MPI_ALLREDUCE(ggnew, Gnew, size(ggnew), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+
+call system_clock(tj,tk)
+it_timer(19)=it_timer(19)+(tj-ti)
 
 end subroutine
 

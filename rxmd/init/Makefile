@@ -22,6 +22,11 @@ all: $(TARGETS)
 geninit: geninit.o
 	$(FC) -o $@ $^ $(LDFLAGS)
 	./geninit input.xyz
+	cp -v rxff.bin ../DAT
+
+nocopy: geninit.o
+	$(FC) -o $@ $^ $(LDFLAGS)
+	./geninit input.xyz
 
 clean:
 	rm -f all.bin rxff.bin geninit.xyz *.o *.mod *.MOD $(TARGETS)

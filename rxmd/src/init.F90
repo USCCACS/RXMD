@@ -126,7 +126,7 @@ allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
 allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
 qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
-call ReadBIN(atype, pos, v, f, q, trim(DataDir)//"/rxff.bin")
+call ReadBIN(atype, pos, v, q, trim(DataDir)//"/rxff.bin")
 
 call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3

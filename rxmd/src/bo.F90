@@ -5,11 +5,18 @@ use parameters; use atoms
 integer,intent(IN) :: nlayer
 real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 
+integer :: ti,tj,tk
+
+call system_clock(ti,tk)
+
 !--- calculate BO prime 
 CALL BOPRIM()  
 
 !--- calculate full BO
 CALL BOFULL() 
+
+call system_clock(tj,tk)
+it_timer(6)=it_timer(6)+(tj-ti)
 
 CONTAINS
 
@@ -23,9 +30,8 @@ implicit none
 
 integer :: n,i,j, j1,i1
 integer :: ity, jty, inxn
-integer :: c1,c2,c3,ic(3)
+integer :: c1,c2,c3
 real(8) :: dr(3), dr2, arg_BOpij(3)
-integer :: l2g
 
 real(8) :: cutoff_vpar30
 cutoff_vpar30 = cutof2_bo*vpar30
@@ -37,7 +43,7 @@ do c3=-nlayer, cc(3)-1+nlayer
 
   i=header(c1,c2,c3)
   do n=1, nacell(c1,c2,c3)
-     ity = atype(i)
+     ity = nint(atype(i))
      deltap(i,1) = -Val(ity) 
      i=llist(i)
   enddo 
@@ -50,14 +56,14 @@ do c3=-nlayer, cc(3)-1+nlayer
   i = header(c1,c2,c3)
   do n=1, nacell(c1,c2,c3)
 
-     ity = atype(i)
+     ity = nint(atype(i))
 
      do j1=1, nbrlist(i,0)
 
         j  = nbrlist(i,j1)
 
         if(j<i) then
-           jty  = atype(j)
+           jty  = nint(atype(j))
            inxn = inxn2(ity, jty)
 
            i1 = nbrindx(i,j1)
@@ -128,8 +134,8 @@ use parameters; use atoms
 !--------------------------------------------------------------------------------------------
 implicit none
 
-integer :: c1,c2,c3,c4,c5,c6, n,ii
-integer :: i,i1,j,j1,k,ity,jty,inxn
+integer :: c1,c2,c3,n
+integer :: i,i1,j,j1,ity,jty,inxn
 real(8) :: exp1, exp2, exp12
 real(8) :: fn1, fn2, fn3, fn4, fn5
 real(8) :: fn23, fn45, fn145, fn1145
@@ -140,16 +146,13 @@ real(8) :: exp_delt22
 real(8) :: Cf1ij, Cf1ji
 real(8) :: pboc34
 real(8) :: BOpij_2, u45ij, u45ji
-real(8) :: exph_45ij, expn_45ij, exph_45ji, expn_45ji
-real(8) :: sum45ij_inv, sum45ji_inv, sum45ij_ji_inv
+real(8) :: exph_45ij, exph_45ji
 real(8) :: Cf45ij, Cf45ji
 real(8) :: fn45_inv
 real(8) :: Cf1ij_div1, Cf1ji_div1
 real(8) :: BOp0, BOpsqr
 
 real(8) :: exppboc1i,exppboc2i,exppboc1j,exppboc2j   !<kn>
-real(8) :: dr(3)
-integer l2g, l(3,2)
 
 do c1=-nlayer, cc(1)-1+nlayer
 do c2=-nlayer, cc(2)-1+nlayer
@@ -157,7 +160,7 @@ do c3=-nlayer, cc(3)-1+nlayer
 
   i=header(c1,c2,c3)
   do n=1, nacell(c1,c2,c3)
-     ity = atype(i)
+     ity = nint(atype(i))
      deltap(i,2) = deltap(i,1) + Val(ity) - Valboc(ity)
      i=llist(i)
   enddo 
@@ -170,7 +173,7 @@ do c3= -nlayer, cc(3)-1+nlayer
    i=header(c1,c2,c3)
    do n=1, nacell(c1,c2,c3)
 
-      ity = atype(i)
+      ity = nint(atype(i))
      
       exppboc1i = exp( -vpar1*deltap(i,1) )  !<kn>
       exppboc2i = exp( -vpar2*deltap(i,1) )  !<kn>
@@ -181,7 +184,7 @@ do c3= -nlayer, cc(3)-1+nlayer
 
          if(j<i) then
 
-           jty = atype(j)
+           jty = nint(atype(j))
 
            exppboc1j = exp( -vpar1*deltap(j,1) )  !<kn>
            exppboc2j = exp( -vpar2*deltap(j,1) )  !<kn>
@@ -314,7 +317,7 @@ do c3=-nlayer, cc(3)-1+nlayer
 
    i=header(c1,c2,c3)
    do n=1, nacell(c1,c2,c3)
-      ity = atype(i)
+      ity = nint(atype(i))
 
       delta(i) = -Val(ity) + sum( BO(0,i,1:nbrlist(i,0)) )
 

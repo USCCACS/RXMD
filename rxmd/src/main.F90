@@ -3,9 +3,8 @@ program rxmd
 use base; use atoms; use parameters
 !------------------------------------------------------------------------------
 implicit none
-integer :: i,i1, j,j1, k, n,ity,jty,it1,it2,irt
+integer :: i,it1,it2,irt
 real(8) :: ctmp, dr(3)
-integer :: l2g, igd
 
 call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -24,9 +23,9 @@ call FORCE(atype, pos, f, q)
 call system_clock(it1,irt)
 do nstep=0, ntime_step-1
 
-   if(mod(nstep,pstep)==0) call PRINTE(atype, pos, v, f, q)
+   if(mod(nstep,pstep)==0) call PRINTE(atype, v, q)
    if(mod(nstep,fstep)==0) &
-        call OUTPUT(atype, pos, v, f, q, GetFileNameBase(current_step+nstep))
+        call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:3,1:NATOMS)=vsfact*v(1:3,1:NATOMS)
@@ -73,13 +72,14 @@ call OUTPUT(atype, pos, v, f, q,  GetFileNameBase(current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
 call xu2xs(pos)
-call WriteBIN(atype, pos, v, f, q, trim(DataDir)//"/rxff")
+print*,'GetFileNameBase: ', GetFileNameBase(-1)
+call WriteBIN(atype, pos, v, q, GetFileNameBase(-1))
 call xs2xu(pos)
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
-call MPI_ALLREDUCE (it_timer, it_timer_max, Ntimer, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE (it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(it_timer, it_timer_max, Ntimer, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
 
 !--- simulaiton finished w/o problem. Printing some information, array sizes, timings. 
 allocate(ibuf(nmaxas),ibuf1(nmaxas))
@@ -97,7 +97,11 @@ deallocate(ibuf,ibuf1)
 
 if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','QEq: ',  dble(it_timer_max(1))/irt, dble(it_timer_min(1))/irt
-   print'(a20,f12.4,3x,f12.4)','QEq_COPY: ',  dble(it_timer_max(2))/irt, dble(it_timer_min(2))/irt
+   print'(a20,f12.4,3x,f12.4)','qeq_initialize: ',  dble(it_timer_max(16))/irt, dble(it_timer_min(16))/irt
+   print'(a20,f12.4,3x,f12.4)','qeq_finalize: ',  dble(it_timer_max(17))/irt, dble(it_timer_min(17))/irt
+   print'(a20,f12.4,3x,f12.4)','get_hsh: ',  dble(it_timer_max(18))/irt, dble(it_timer_min(18))/irt
+   print'(a20,f12.4,3x,f12.4)','get_gradient: ',  dble(it_timer_max(19))/irt, dble(it_timer_min(19))/irt
+
    print'(a20,f12.4,3x,f12.4)','LINKEDLIST: ',  dble(it_timer_max(3))/irt, dble(it_timer_min(3))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS: ',    dble(it_timer_max(4))/irt, dble(it_timer_min(4))/irt
    print'(a20,f12.4,3x,f12.4)','NEIGHBORLIST: ', dble(it_timer_max(5))/irt, dble(it_timer_min(5))/irt
@@ -132,23 +136,23 @@ integer :: i, ity
 real(8) :: dtf
 
 do i=1,NATOMS
-   ity = atype(i)
+   ity = nint(atype(i))
    v(1:3,i) = v(1:3,i) + dtf*dthm(ity)*f(1:3,i)
 enddo
 
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine PRINTE(atype, pos, v, f, q)
+subroutine PRINTE(atype, v, q)
 use atoms; use parameters
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
 !----------------------------------------------------------------------------------------
 implicit none
 
 real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+real(8) :: v(3,NBUFFER)
 
-integer :: i,j,ity, cstep
+integer :: i,ity,cstep
 real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:20),Gbuf(0:20)
 
 i=nstep/pstep+1
@@ -156,7 +160,7 @@ maxas(i,1)=NATOMS
 
 KE=0.d0
 do i=1, NATOMS
-   ity=atype(i)
+   ity=nint(atype(i))
    KE = KE + hmas(ity)*sum(v(1:3,i)*v(1:3,i))
 enddo
 qq=sum(q(1:NATOMS))
@@ -224,7 +228,9 @@ do n=1, copyptr(6)
 
    if(nint(atype(n))==0) cycle
 
-   l(1:3) = pos(1:3,n)/lcsize(1:3)
+   l(1) = int(pos(1,n)/lcsize(1))
+   l(2) = int(pos(2,n)/lcsize(2))
+   l(3) = int(pos(3,n)/lcsize(3))
    do j=1,3
       if(pos(j,n)<0.d0) l(j) = l(j) - 1
    enddo
@@ -252,7 +258,10 @@ do n=1, copyptr(6)
 
    if(nint(atype(n))==0) cycle
 
-   l(1:3) = pos(1:3,n)/nblcsize(1:3)
+   l(1) = int(pos(1,n)/nblcsize(1))
+   l(2) = int(pos(2,n)/nblcsize(2))
+   l(3) = int(pos(3,n)/nblcsize(3))
+
    do j=1,3
       if(pos(j,n)<0.d0) l(j) = l(j) - 1
    enddo
@@ -276,7 +285,9 @@ real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 integer :: c1,c2,c3, ic(3), c4, c5, c6
 integer :: n, n1, m, m1, nty, mty, inxn
 real(8) :: dr(3), dr2
-integer :: l2g
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 nbrlist(:,:) = 0
 nbrindx(:,:) = 0
@@ -287,7 +298,7 @@ DO c3=-nlayer, cc(3)-1+nlayer
 
   m = header(c1, c2, c3)
   do m1=1, nacell(c1, c2, c3)
-     mty = atype(m)
+     mty = nint(atype(m))
 
      do c4 = -1, 1
      do c5 = -1, 1
@@ -298,7 +309,7 @@ DO c3=-nlayer, cc(3)-1+nlayer
         do n1=1, nacell(ic(1), ic(2), ic(3))
 
            if(n<m) then
-             nty = atype(n)
+             nty = nint(atype(n))
              inxn = inxn2(mty, nty)
 
              dr(1:3) = pos(1:3,n) - pos(1:3,m) 
@@ -335,6 +346,9 @@ if(mod(nstep,pstep)==0) then
   maxas(nstep/pstep+1,2)=maxval(nbrlist(1:NATOMS,0))
 endif
 
+call system_clock(tj,tk)
+it_timer(5)=it_timer(5)+(tj-ti)
+
 end subroutine
 
 !----------------------------------------------------------------------
@@ -348,6 +362,10 @@ real(8) :: atype(NBUFFER), pos(3,NBUFFER)
 integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
 integer :: l2g
 real(8) :: dr(3), dr2
+
+integer :: ti,tj,tk
+
+call system_clock(ti,tk)
 
 ! reset non-bonding pair list
 nbplist(:,0)=0
@@ -391,6 +409,9 @@ do c3=0, nbcc(3)-1
    enddo
 enddo; enddo; enddo
 
+call system_clock(tj,tk)
+it_timer(15)=it_timer(15)+(tj-ti)
+
 end subroutine
 
 !----------------------------------------------------------------------
@@ -410,7 +431,7 @@ com(:)=0.d0;     Gcom(:)=0.d0
 mm=0.d0; Gmm=0.d0
 
 do i=1, NATOMS
-   ity = atype(i) 
+   ity = nint(atype(i))
    mm = mm + mass(ity)
    com(1:3) = mass(ity)*pos(1:3,i)
 enddo
@@ -501,7 +522,7 @@ real(8),intent(IN) :: atype
 integer :: l2g,ity
 
 ity = nint(atype)
-l2g= anint((atype-ity)*1d13)
+l2g = nint((atype-ity)*1d13)
 
 return
 end function
@@ -514,7 +535,6 @@ real(8) :: pos(3,NBUFFER)
 
 !--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
-real(8) :: rx,ry,rz
 
 do i=1, NBUFFER
    rr(1:3) = pos(1:3,i)
@@ -555,7 +575,7 @@ integer :: i,ity
 real(8) :: Ekinetic, ctmp
 
 do i=1, NATOMS
-   ity=atype(i)
+   ity=nint(atype(i))
    Ekinetic=0.5d0*mass(ity)*sum(v(1:3,i)*v(1:3,i))
    ctmp = (treq*UTEMP0)/( Ekinetic*UTEMP )
    v(1:3,i)=sqrt(ctmp)*v(1:3,i)
@@ -580,7 +600,7 @@ real(8) :: mm,vCM(3),sbuf(4),rbuf(4)
 !--- get the local momentum and mass.
 vCM(:)=0.d0;  mm = 0.d0
 do i=1, NATOMS
-   ity = atype(i)
+   ity = nint(atype(i))
    vCM(1:3)=vCM(1:3) + mass(ity)*v(1:3,i)
    mm = mm + mass(ity)
 enddo

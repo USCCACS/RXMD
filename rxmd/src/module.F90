@@ -63,7 +63,6 @@ integer,parameter :: NE_CPBK = 10
 integer,parameter :: NE_CPBK = 4
 #endif
 
-
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
 integer,parameter :: MAXLAYERS_NB=10
@@ -289,8 +288,12 @@ integer,intent(in) :: nstep
 character(MAXPATHLENGTH) :: fileNameBase
 character(9) :: a9
 
-write(a9,'(i9.9)') nstep
-fileNameBase=trim(adjustl(DataDir))//"/"//a9
+if(nstep>=0) then
+  write(a9,'(i9.9)') nstep
+  fileNameBase=trim(adjustl(DataDir))//"/"//a9
+else
+  fileNameBase=trim(adjustl(DataDir))//"/rxff"
+endif
 
 end function
 
