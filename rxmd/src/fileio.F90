@@ -328,7 +328,6 @@ metaDataSize = 4*nmeta + 8*6
 ! Get local datasize: 10 doubles for each atoms
 localDataSize = 8*NATOMS*10
 
-print*,'fileNameBase', fileNameBase
 call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".bin",MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
 
 ! offset will point the end of local write after the scan

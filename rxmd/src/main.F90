@@ -68,11 +68,10 @@ do nstep=0, ntime_step-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(atype, pos, v, f, q,  GetFileNameBase(current_step+nstep))
+call OUTPUT(atype, pos, v, q,  GetFileNameBase(current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
 call xu2xs(pos)
-print*,'GetFileNameBase: ', GetFileNameBase(-1)
 call WriteBIN(atype, pos, v, q, GetFileNameBase(-1))
 call xs2xu(pos)
 
