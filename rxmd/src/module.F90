@@ -231,7 +231,7 @@ real(8) :: QEq_tol
 integer :: nstep_qeq, qstep
 
 !-- variables for timing
-integer,parameter :: Ntimer=20
+integer,parameter :: Ntimer=30
 integer :: it_timer(Ntimer)=0, it_timer_max(Ntimer)=0, it_timer_min(Ntimer)=0
 
 !-- for timing in PRINTE

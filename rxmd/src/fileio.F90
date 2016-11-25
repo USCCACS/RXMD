@@ -38,12 +38,17 @@ integer (kind=MPI_OFFSET_KIND) :: fileSize
 integer :: localDataSize
 integer :: fh ! file handler
 
-integer :: BNDLineSize
-integer,parameter :: MaxBNDLineSize=512
+integer :: BNDLineSize, baseCharPerAtom
+integer,parameter :: MaxBNDLineSize=4096
 character(MaxBNDLineSize) :: BNDOneLine
 real(8),parameter :: BNDcutoff=0.3d0
 
+character(len=:),allocatable :: BNDAllLines
+
 integer :: scanbuf
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 ! precompute the total # of neighbors
 m=0
@@ -56,10 +61,16 @@ do i=1, NATOMS
    enddo
 enddo
 
-200 format(i9,1x,3f9.3,1x,2i3,20(i9,f6.3)) 
+200 format(i12.12,1x,3f12.3,1x,2i3,20(1x,i12.12,f6.3)) 
 
 ! get local datasize based on above format and the total # of neighbors
-localDataSize=NATOMS*(9+1+3*9+1+2*3 +1)+m*(9+6)
+baseCharPerAtom=12+1+3*12+1+2*3 +1 ! last 1 for newline
+localDataSize=NATOMS*(baseCharPerAtom)+m*(1+12+6)
+
+if( (baseCharPerAtom+MAXNEIGHBS*(1+12+6)) > MaxBNDLineSize) then
+    print'(a,i6,2i12)', 'ERROR: MaxBNDLineSize is too small @ WriteBND', &
+                    myid, baseCharPerAtom+MAXNEIGHBS*(1+12+6), MaxBNDLineSize
+endif
 
 call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".bnd", &
     MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
@@ -71,13 +82,20 @@ call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
 offset=scanbuf
 
 ! nprocs-1 rank has the total data size
-fileSize=offset
-call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(scanbuf,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+fileSize=scanbuf
+
 call MPI_File_set_size(fh, fileSize, ierr)
 
 ! set offset at the beginning of the local write
 offset=offset-localDataSize
 
+call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+
+allocate(character(len=localDataSize) :: BNDAllLines)
+BNDALLLines=""
+
+BNDLineSize=0
 do i=1, NATOMS
    ity = nint(atype(i))
 !--- get global ID for i-atom
@@ -101,22 +119,28 @@ do i=1, NATOMS
    enddo
 
    BNDOneLine=""
-   write(BNDOneLine,200) igd, pos(1:3,i),int(atype(i)),bndlist(0), &
+   write(BNDOneLine,200) igd, pos(1:3,i),nint(atype(i)),bndlist(0), &
          (bndlist(j1),bndordr(j1),j1=1,bndlist(0))
+
    ! remove space and add new_line
-   BNDOneLine=trim(BNDOneLine)//NEW_LINE('A')
-   BNDLineSize=len(trim(BNDOneLine))
+   BNDOneLine=trim(adjustl(BNDOneLine))//NEW_LINE('A')
+   BNDLineSize=BNDLineSize+len(trim(BNDOneLine))
 
-   call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-   call MPI_File_Write(fh,BNDOneLine,BNDLineSize, &
-        MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
-
-   offset=offset+BNDLineSize
-
+   BNDAllLines=trim(BNDAllLines)//trim(BNDOneLine)
 enddo
+
+if(localDataSize>0) then
+   call MPI_File_Write(fh,BNDAllLines,localDataSize, &
+        MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+endif
+
+deallocate(BNDAllLines) 
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
+
+call system_clock(tj,tk)
+it_timer(20)=it_timer(20)+(tj-ti)
 
 return
 end subroutine
@@ -139,7 +163,12 @@ integer :: fh ! file handler
 integer,parameter :: PDBLineSize=67
 character(PDBLineSize) :: PDBOneLine
 
+character(len=:),allocatable :: PDBAllLines
+
 integer :: scanbuf
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
 
 ! get local datasize
 localDataSize=NATOMS*PDBLineSize
@@ -154,12 +183,18 @@ call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
 offset=scanbuf
 
 ! nprocs-1 rank has the total data size
-fileSize=offset
-call MPI_Bcast(fileSize,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(scanbuf,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+fileSize=scanbuf
+
 call MPI_File_set_size(fh, fileSize, ierr)
 
 ! set offset at the beginning of the local write
 offset=offset-localDataSize
+
+allocate(character(len=localDataSize) :: PDBAllLines)
+PDBAllLines=""
+
+call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 
 do i=1, NATOMS
 
@@ -193,19 +228,27 @@ do i=1, NATOMS
     case(7) 
       write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
   end select
+
   PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
+  PDBAllLines=trim(PDBAllLines)//trim(PDBOneLine)
 
-  call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
-  call MPI_File_Write(fh,PDBOneLine,PDBLineSize, &
-       MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
-
-  offset=offset+PDBLineSize
 enddo
+
+if(localDataSize>0) then
+    call MPI_File_Write(fh,PDBAllLines,localDataSize, &
+         MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+endif
+
+deallocate(PDBAllLines)
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
 100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
+
+call system_clock(tj,tk)
+it_timer(21)=it_timer(21)+(tj-ti)
+
 
 end subroutine
 
@@ -222,7 +265,7 @@ character(*),intent(in) :: fileName
 real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: pos(3,NBUFFER),v(3,NBUFFER)
 
-integer :: i
+integer :: i,i1
 
 integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -231,12 +274,18 @@ integer :: fh ! file handler
 
 integer :: nmeta
 integer,allocatable :: idata(:)
+real(8),allocatable :: dbuf(:)
 real(8) :: ddata(6), d10(10)
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
+
 
 ! Meta Data: 
 !  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
 !  Number of resident atoms per each MPI rank (nprocs integers) 
 !  current step (1 integer) + lattice parameters (6 doubles)
+
 nmeta=4+nprocs+1
 allocate(idata(nmeta))
 metaDataSize = 4*nmeta + 8*6
@@ -254,6 +303,7 @@ call MPI_File_Read(fh,ddata,6,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
 NATOMS = idata(4+myid+1)
 current_step = idata(nmeta)
+deallocate(idata)
 lata=ddata(1); latb=ddata(2); latc=ddata(3)
 lalpha=ddata(4); lbeta=ddata(5); lgamma=ddata(6)
 
@@ -275,24 +325,25 @@ fileSize = offset
 offset=offset-localDataSize
 call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 
+allocate(dbuf(10*NATOMS))
+call MPI_File_Read(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
 do i=1, NATOMS
-   call MPI_File_Read(fh,d10,10,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
-
-   pos(1:3,i)=d10(1:3)
-   v(1:3,i)=d10(4:6)
-   q(i)=d10(7)
-   atype(i)=d10(8)
-   qsfp(i)=d10(9)
-   qsfv(i)=d10(10)
-
-   offset=offset+10*8 ! 10 x 8bytes
-   call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+    i1=10*(i-1)
+    pos(1:3,i)=dbuf(i1+1:i1+3)
+    v(1:3,i)=dbuf(i1+4:i1+6)
+    q(i)=dbuf(i1+7)
+    atype(i)=dbuf(i1+8)
+    qsfp(i)=dbuf(i1+9)
+    qsfv(i)=dbuf(i1+10)
 enddo
+deallocate(dbuf)
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
-deallocate(idata)
+call system_clock(tj,tk)
+it_timer(22)=it_timer(22)+(tj-ti)
 
 return
 end
@@ -303,9 +354,9 @@ use atoms
 !--------------------------------------------------------------------------
 implicit none
 
-character(*),intent(in) :: fileNameBase
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER), v(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
+real(8),intent(in) :: pos(3,NBUFFER),v(3,NBUFFER)
+character(MAXPATHLENGTH),intent(in) :: fileNameBase
 
 integer :: i,j
 
@@ -317,6 +368,11 @@ integer :: nmeta
 integer,allocatable :: ldata(:),gdata(:)
 real(8) :: ddata(6)
 real(8),allocatable :: dbuf(:)
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
+
+if(.not. isBinary) return
 
 ! Meta Data: 
 !  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
@@ -372,15 +428,15 @@ do i=1, NATOMS
    dbuf(j+8)=atype(i)
    dbuf(j+9)=qsfp(i)
    dbuf(j+10)=qsfv(i)
-
-   !offset=offset+10*8 ! 10 x 8bytes
-   !call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 enddo
 call MPI_File_Write(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 deallocate(dbuf)
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
+
+call system_clock(tj,tk)
+it_timer(23)=it_timer(23)+(tj-ti)
 
 return
 end

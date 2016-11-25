@@ -10,6 +10,8 @@ call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 
+if(myid==0)  print'(a30)', 'rxmd has started'
+
 !--- read ffield file
 CALL GETPARAMS(FFPath,FFDescript)
 
@@ -18,6 +20,7 @@ CALL INITSYSTEM(atype, pos, v, f, q)
 
 call QEq(atype, pos, q)
 call FORCE(atype, pos, f, q)
+
 
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
@@ -116,8 +119,14 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','ForceBondedTerms: ', dble(it_timer_max(13))/irt, dble(it_timer_min(13))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS(MOVE): ', dble(it_timer_max(14))/irt, dble(it_timer_min(14))/irt
 
+   print'(a20,f12.4,3x,f12.4)','WriteBND: ', dble(it_timer_max(20))/irt, dble(it_timer_min(20))/irt
+   print'(a20,f12.4,3x,f12.4)','WritePDB: ', dble(it_timer_max(21))/irt, dble(it_timer_min(21))/irt
+   print'(a20,f12.4,3x,f12.4)','ReadBIN: ', dble(it_timer_max(22))/irt, dble(it_timer_min(22))/irt
+   print'(a20,f12.4,3x,f12.4)','WriteBIN: ', dble(it_timer_max(23))/irt, dble(it_timer_min(23))/irt
+
    print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(Ntimer))/irt, dble(it_timer_min(Ntimer))/irt
-   print'(a20)', 'program finished'
+
+   print'(a30)', 'rxmd successfully finished'
 endif
 
 call MPI_FINALIZE(ierr)

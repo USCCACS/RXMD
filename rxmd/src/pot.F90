@@ -77,11 +77,8 @@ CALL ForceBondedTerms(NMINCELL)
 ! merge force values from ENbond
 f(:,:)=f(:,:)+fnb(:,:)
 
-call system_clock(i,k)
 dr(1:3)=0.d0
 CALL COPYATOMS(MODE_CPBK,dr, atype, pos, vdummy, f, q) 
-call system_clock(j,k)
-it_timer(14)=it_timer(14)+(j-i)
 
 !--- calculate kinetic part of stress components and add to <astr>.
 #ifdef STRESS
