@@ -234,9 +234,6 @@ integer :: nstep_qeq, qstep
 integer,parameter :: Ntimer=30
 integer :: it_timer(Ntimer)=0, it_timer_max(Ntimer)=0, it_timer_min(Ntimer)=0
 
-!-- for timing in PRINTE
-real(8) ::  wt0
-
 !---
 ! <mdmode> determines MD mode
 integer :: mdmode

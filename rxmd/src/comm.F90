@@ -121,7 +121,6 @@ it_timer(4)=it_timer(4)+(tj-ti)
 return
 CONTAINS 
 
-
 !--------------------------------------------------------------------------------------------------------------
 subroutine send_recv(tn1, tn2, mypar)
 use atoms

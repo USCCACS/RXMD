@@ -19,7 +19,6 @@ integer :: gtype(NBUFFER) !-- global ID from atype
 
 ccbnd(:) = 0.d0
 f(:,:) = 0.d0
-fnb(:,:) = 0.d0
 
 #ifdef STRESS
 !--- stress components have to be transfered back to the original atoms, as the force components. 
@@ -31,6 +30,13 @@ call xu2xs(pos)
 dr(1:3)=NMINCELL*lcsize(1:3)
 call COPYATOMS(MODE_COPY,dr,atype,pos,vdummy,f,q) 
 
+call LINKEDLIST(atype, pos)
+call NBLINKEDLIST(atype, pos)
+call xs2xu(pos)
+
+call NEIGHBORLIST(NMINCELL, atype, pos)
+call GetNonbondingPairList(atype, pos)
+
 !--- get atom type and global ids
 do i=1, NBUFFER
    itype(i)=nint(atype(i))
@@ -39,30 +45,10 @@ do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo
 
-call system_clock(i,k)
-call LINKEDLIST(atype, pos)
-call NBLINKEDLIST(atype, pos)
-call system_clock(j,k)
-it_timer(3)=it_timer(3)+(j-i)
-call xs2xu(pos)
-
-!--- scaled to unscaled coordinate
-
-!$omp parallel default(shared), private(i,j,k)
-!$omp sections
-
-!$omp section
-
-call GetNonbondingPairList(atype, pos)
-
-CALL ENbond()
-
-!$omp section
-
-call NEIGHBORLIST(NMINCELL, atype, pos)
 
 CALL BOCALC(NMINCELL, atype, pos)
 
+CALL ENbond()
 CALL Ebond()
 CALL Elnpr()
 CALL E3b()
@@ -70,12 +56,6 @@ CALL E4b()
 CALL Ehb()
 
 CALL ForceBondedTerms(NMINCELL)
-
-!$omp end sections
-!$omp end parallel
-
-! merge force values from ENbond
-f(:,:)=f(:,:)+fnb(:,:)
 
 dr(1:3)=0.d0
 CALL COPYATOMS(MODE_CPBK,dr, atype, pos, vdummy, f, q) 
@@ -102,32 +82,24 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-DO c1=-nlayer, cc(1)-1+nlayer
-DO c2=-nlayer, cc(2)-1+nlayer
-DO c3=-nlayer, cc(3)-1+nlayer
+do i=1, copyptr(6)
 
-  i = header(c1, c2, c3)
-  do i1=1, nacell(c1, c2, c3)
-
-     do j1=1, nbrlist(i,0)
-        j=nbrlist(i,j1)
-        dr(1:3) = pos(1:3,i) - pos(1:3,j)
-        ff(1:3) = ccbnd(i)*dBOp(i,j1)*dr(1:3)
-        f(1:3,i) = f(1:3,i) - ff(1:3)
-        f(1:3,j) = f(1:3,j) + ff(1:3)
+  do j1=1, nbrlist(i,0)
+     j=nbrlist(i,j1)
+     dr(1:3) = pos(1:3,i) - pos(1:3,j)
+     ff(1:3) = ccbnd(i)*dBOp(i,j1)*dr(1:3)
+     f(1:3,i) = f(1:3,i) - ff(1:3)
+     f(1:3,j) = f(1:3,j) + ff(1:3)
 #ifdef STRESS
-        ia=i; ja=j
-        include 'stress'
+     ia=i; ja=j
+     include 'stress'
 #endif
-     enddo
-
-!--- reset ccbnd to zero for next turn. first rest is done during
-!initialization.
-     ccbnd(i)=0.d0
-
-     i = llist(i)
   enddo
-enddo; enddo; enddo
+
+!--- reset ccbnd to zero for next turn. first rest is done during initialization.
+  ccbnd(i)=0.d0
+
+enddo
 
 call system_clock(tj,tk)
 it_timer(13)=it_timer(13)+(tj-ti)
@@ -337,6 +309,15 @@ call system_clock(ti,tk)
 cutof2 = cutof2_esub
 
 PE(5:7)=0.d0
+
+!$omp parallel do default(shared),private(i,j,k,i1,j1,k1,ity,jty,kty,inxn,n,n1,&
+!$omp PEval,fn7ij,fn7jk,fn8j,delta_ang,rij,rjk,SBO2,SBO,&
+!$omp sum_BO8,theta_ijk,theta0,theta_diff,exp2,sin_ijk,cos_ijk,&
+!$omp Cf7ij,Cf7jk,Cf8j,Ctheta_diff,Ctheta0,CSBO2,dSBO,&
+!$omp BOij_p4,BOjk_p4,exp3ij,exp3jk,exp6,exp7,trm8,sum_SBO1,prod_SBO,fn9,PEpen,&
+!$omp exp_pen3,exp_pen4,exp_pen2ij,exp_pen2jk,trm_pen34,Cf9j,&
+!$omp delta_val,PEcoa,sum_BOi,sum_BOk,exp_coa3i,exp_coa3k,exp_coa4i,exp_coa4k,exp_coa2,&
+!$omp CEval,CEpen,CEcoa,CE3body_d,CE3body_b,CE3body_a,coeff,BOij,BOjk)
 do j=1, NATOMS
    jty = itype(j)
 
@@ -482,8 +463,11 @@ do j=1, NATOMS
 
 !--- if the j-atom is a resident, count the potential energies.
 
+!$omp atomic
             PE(5) = PE(5) + PEval
+!$omp atomic
             PE(6) = PE(6) + PEpen
+!$omp atomic
             PE(7) = PE(7) + PEcoa
 
 !                  CEval(:)=0.d0; PE(5)=0.d0
@@ -528,6 +512,8 @@ do j=1, NATOMS
    enddo ! i-loop
 enddo ! j-loop
 
+!$omp end parallel do
+
 call system_clock(tj,tk)
 it_timer(11)=it_timer(11)+(tj-ti)
 
@@ -559,87 +545,94 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 PE(10)=0.d0
-do c1=0, cc(1)-1
-do c2=0, cc(2)-1
-do c3=0, cc(3)-1
+!$omp parallel do schedule(dynamic), default(shared),private(i,j,k,i1,j1,ii,kk,c1,c2,c3,ity,jty,kty,inxnhb,rij,rjk,rik,rik2, &
+!$omp theta_ijk,cos_ijk,sin_ijk_half,cos_xhz1,sin_xhz4,exp_hb2,exp_hb3,PEhb,CEhb,ff)
+do i=1, NATOMS
+   ity = itype(i)
 
-   i=header(c1,c2,c3)
-   do ii=1,nacell(c1,c2,c3)
-      ity = itype(i)
+   do j1=1, nbrlist(i,0)
+      j = nbrlist(i,j1)
+      jty = itype(j)
 
-      do j1=1, nbrlist(i,0)
-         j = nbrlist(i,j1)
-         jty = itype(j)
+      if( (jty==2) .and. (BO(0,i,j1)>MINBO0) ) then
 
-         if( (jty==2) .and. (BO(0,i,j1)>MINBO0) ) then
+          do kk=1, nbplist(i,0)
 
-             do kk=1, nbplist(i,0)
+            k = nbplist(i,kk)
 
-               k = nbplist(i,kk)
+            kty = itype(k)
 
-               kty = itype(k)
+            inxnhb = inxn3hb(ity, jty, kty)
 
-               inxnhb = inxn3hb(ity, jty, kty)
+            if ( (j/=k).and.(i/=k).and.(inxnhb/=0) ) then
 
-               if ( (j/=k).and.(i/=k).and.(inxnhb/=0) ) then
+               rik(1:3) = pos(1:3,i) - pos(1:3,k)
+               rik2 = sum(rik(1:3)*rik(1:3))
 
-                  rik(1:3) = pos(1:3,i) - pos(1:3,k)
-                  rik2 = sum(rik(1:3)*rik(1:3))
+               if(rik2<rchb2) then
+   
+                  rjk(1:3) = pos(1:3,j) - pos(1:3,k)
+                  rjk(0) = sqrt( sum(rjk(1:3)*rjk(1:3)) )
+   
+                  rij(1:3) = pos(1:3,i) - pos(1:3,j)
+                  rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )  
+   
+                  cos_ijk = -sum( rij(1:3)*rjk(1:3) ) / (rij(0) * rjk(0) ) 
+                  if(cos_ijk>MAXANGLE) cos_ijk = MAXANGLE
+                  if(cos_ijk<MINANGLE) cos_ijk = MINANGLE
 
-                  if(rik2<rchb2) then
-      
-                     rjk(1:3) = pos(1:3,j) - pos(1:3,k)
-                     rjk(0) = sqrt( sum(rjk(1:3)*rjk(1:3)) )
-      
-                     rij(1:3) = pos(1:3,i) - pos(1:3,j)
-                     rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )  
-      
-                     cos_ijk = -sum( rij(1:3)*rjk(1:3) ) / (rij(0) * rjk(0) ) 
-                     if(cos_ijk>MAXANGLE) cos_ijk = MAXANGLE
-                     if(cos_ijk<MINANGLE) cos_ijk = MINANGLE
+                  theta_ijk = acos(cos_ijk)
+   
+                  sin_ijk_half = sin(0.5d0*theta_ijk)
+                  sin_xhz4 = sin_ijk_half**4
+                  cos_xhz1 = ( 1.d0 - cos_ijk )
+   
+                  exp_hb2 = exp( -phb2(inxnhb)*BO(0,i,j1) )
+                  exp_hb3 = exp( -phb3(inxnhb)*(r0hb(inxnhb)/rjk(0) + rjk(0)/r0hb(inxnhb) - 2.d0) )
+   
+                  PEhb = phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*sin_xhz4
 
-                     theta_ijk = acos(cos_ijk)
-      
-                     sin_ijk_half = sin(0.5d0*theta_ijk)
-                     sin_xhz4 = sin_ijk_half**4
-                     cos_xhz1 = ( 1.d0 - cos_ijk )
-      
-                     exp_hb2 = exp( -phb2(inxnhb)*BO(0,i,j1) )
-                     exp_hb3 = exp( -phb3(inxnhb)*(r0hb(inxnhb)/rjk(0) + rjk(0)/r0hb(inxnhb) - 2.d0) )
-      
-                     PEhb = phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*sin_xhz4
+!$omp atomic
+                  PE(10) = PE(10) + PEhb
+   
+                  CEhb(1) = phb1(inxnhb)*phb2(inxnhb)*exp_hb2*exp_hb3*sin_xhz4
+                  CEhb(2) =-0.5d0*phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*cos_xhz1
+                  CEhb(3) =-PEhb*phb3(inxnhb)*( -r0hb(inxnhb)/rjk(0)**2 + 1.d0/r0hb(inxnhb) )*(1.d0/rjk(0))
 
-                     PE(10) = PE(10) + PEhb
-      
-                     CEhb(1) = phb1(inxnhb)*phb2(inxnhb)*exp_hb2*exp_hb3*sin_xhz4
-                     CEhb(2) =-0.5d0*phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*cos_xhz1
-                     CEhb(3) =-PEhb*phb3(inxnhb)*( -r0hb(inxnhb)/rjk(0)**2 + 1.d0/r0hb(inxnhb) )*(1.d0/rjk(0))
+                  i1 = nbrindx(i,j1)
+                  call ForceB(i,j1, j,i1, CEhb(1))
+                  call ForceA3(CEhb(2), i,j,k, rij, rjk)
+   
+                  ff(1:3) = CEhb(3)*rjk(1:3)
 
-                     i1 = nbrindx(i,j1)
-                     call ForceB(i,j1, j,i1, CEhb(1))
-                     call ForceA3(CEhb(2), i,j,k, rij, rjk)
-      
-                     ff(1:3) = CEhb(3)*rjk(1:3)
-                     f(1:3,j) = f(1:3,j) - ff(1:3)
-                     f(1:3,k) = f(1:3,k) + ff(1:3)
+!$omp atomic
+                  f(1,j) = f(1,j) - ff(1)
+!$omp atomic
+                  f(2,j) = f(2,j) - ff(2)
+!$omp atomic
+                  f(3,j) = f(3,j) - ff(3)
+!$omp atomic
+                  f(1,k) = f(1,k) + ff(1)
+!$omp atomic
+                  f(2,k) = f(2,k) + ff(2)
+!$omp atomic
+                  f(3,k) = f(3,k) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
-                     ia=j; ja=k; dr(1:3)=rjk(1:3)
-                     include 'stress'
+                  ia=j; ja=k; dr(1:3)=rjk(1:3)
+                  include 'stress'
 #endif
 
-                  endif ! if(rik2<rchb2)
-               endif
+               endif ! if(rik2<rchb2)
+            endif
 
-           enddo !do kk=1, nbplist(i,0)
+        enddo !do kk=1, nbplist(i,0)
 
-         endif ! if(BO(0,j,i1)>MINBO0)
-      enddo 
-
-      i=llist(i)
-   enddo
-enddo; enddo; enddo
+      endif ! if(BO(0,j,i1)>MINBO0)
+   enddo 
+enddo
+!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(10)=it_timer(10)+(tj-ti)
@@ -670,75 +663,83 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 PE(11:13)=0.d0
-do c1=0, cc(1)-1
-do c2=0, cc(2)-1
-do c3=0, cc(3)-1
 
-   i = header(c1,c2,c3)
-   do m = 1, nacell(c1,c2,c3)
-      ity = itype(i) 
-      iid = gtype(i)
-      
-      PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
+!$omp parallel do default(shared), private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1,PEvdw,CEvdw,qij,PEclmb,CEclmb,ff)
+do i=1, NATOMS
 
-       do j1 = 1, nbplist(i,0) 
-            j = nbplist(i,j1)
+   ity = itype(i) 
+   iid = gtype(i)
+   
+!$omp atomic
+   PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
 
-            jid = gtype(j)
+    do j1 = 1, nbplist(i,0) 
+         j = nbplist(i,j1)
 
-            if(jid<iid) then
+         jid = gtype(j)
 
-               dr(1:3) = pos(1:3,i) - pos(1:3,j)
-               dr2 = sum(dr(1:3)*dr(1:3))
+         if(jid<iid) then
 
-               if(dr2<=rctap2) then
+            dr(1:3) = pos(1:3,i) - pos(1:3,j)
+            dr2 = sum(dr(1:3)*dr(1:3))
 
-                  jty = itype(j)
+            if(dr2<=rctap2) then
 
-                  inxn = inxn2(ity, jty)
+               jty = itype(j)
+
+               inxn = inxn2(ity, jty)
 !                  dr(0) = sqrt(dr2)
 
 !--- get table index and residual value
 !                  itb = int(dr(0)*UDRi)
-                  itb = int(dr2*UDRi)
-                  itb1 = itb+1
-                  drtb = dr2 - itb*UDR
-                  drtb = drtb*UDRi
-                  drtb1= 1.d0-drtb
+               itb = int(dr2*UDRi)
+               itb1 = itb+1
+               drtb = dr2 - itb*UDR
+               drtb = drtb*UDRi
+               drtb1= 1.d0-drtb
 
 !--- van del Waals:
-                  PEvdw  = drtb1*TBL_Evdw(0,itb,inxn)  + drtb*TBL_Evdw(0,itb1,inxn)
-                  CEvdw  = drtb1*TBL_Evdw(1,itb,inxn)  + drtb*TBL_Evdw(1,itb1,inxn)
+               PEvdw  = drtb1*TBL_Evdw(0,itb,inxn)  + drtb*TBL_Evdw(0,itb1,inxn)
+               CEvdw  = drtb1*TBL_Evdw(1,itb,inxn)  + drtb*TBL_Evdw(1,itb1,inxn)
 !--- Coulomb:
-                  qij = q(i)*q(j)
-                  PEclmb = drtb1*TBL_Eclmb(0,itb,inxn) + drtb*TBL_Eclmb(0,itb1,inxn)
-                  PEclmb = PEclmb*qij
-                  CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
-                  CEclmb = CEclmb*qij
+               qij = q(i)*q(j)
+               PEclmb = drtb1*TBL_Eclmb(0,itb,inxn) + drtb*TBL_Eclmb(0,itb1,inxn)
+               PEclmb = PEclmb*qij
+               CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
+               CEclmb = CEclmb*qij
 
-                  PE(11) = PE(11) + PEvdw
-                  PE(12) = PE(12) + PEclmb
+!$omp atomic
+               PE(11) = PE(11) + PEvdw
+!$omp atomic
+               PE(12) = PE(12) + PEclmb
 
-                  ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
-       
-                  fnb(1:3,i) = fnb(1:3,i) - ff(1:3)
-                  fnb(1:3,j) = fnb(1:3,j) + ff(1:3)
+               ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
+    
+!$omp atomic
+               f(1,i) = f(1,i) - ff(1)
+!$omp atomic
+               f(2,i) = f(2,i) - ff(2)
+!$omp atomic
+               f(3,i) = f(3,i) - ff(3)
+!$omp atomic
+               f(1,j) = f(1,j) + ff(1)
+!$omp atomic
+               f(2,j) = f(2,j) + ff(2)
+!$omp atomic
+               f(3,j) = f(3,j) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
-                   ia=i; ja=j
-                   include 'stress'
+                ia=i; ja=j
+                include 'stress'
 #endif
 
-               endif
-
             endif
+         endif
 
-       enddo  !do j1 = 1, nbplist(i,0) 
-
-      i=llist(i)
-   enddo
-enddo; enddo; enddo
+    enddo  !do j1 = 1, nbplist(i,0) 
+enddo
+!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(7)=it_timer(7)+(tj-ti)
@@ -758,7 +759,10 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 PE(1)=0.d0
+
+!$omp parallel do default(shared), private(ity,iid,j1,j,jid,jty,inxn,exp_be12,PEbo,CEbo,coeff,i1)
 do i=1, NATOMS
+
    ity = itype(i)
 
    iid = gtype(i)
@@ -775,7 +779,8 @@ do i=1, NATOMS
 
         PEbo = - Desig(inxn)*BO(1,i,j1)*exp_be12 - Depi(inxn)*BO(2,i,j1) - Depipi(inxn)*BO(3,i,j1) 
 
-        PE(1) = PE(1) + PEbo  !<kn>
+!$omp atomic
+        PE(1) = PE(1) + PEbo
 
         CEbo = -Desig(inxn)*exp_be12*( 1.d0 - pbe1(inxn)*pbe2(inxn)*BO(1,i,j1)**pbe2(inxn) )
         coeff(1:3)= (/ CEbo, -Depi(inxn), -Depipi(inxn) /)
@@ -787,6 +792,7 @@ do i=1, NATOMS
 
    enddo
 enddo
+!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(8)=it_timer(8)+(tj-ti)
@@ -827,6 +833,15 @@ call system_clock(ti,tk)
 cutof2 = cutof2_esub
 
 PE(8:9)=0.d0
+
+!$omp parallel do default(shared),&
+!$omp private(i,j,k,l,i1,j1,k1,l1,k2,ity,jty,kty,lty,inxn,&
+!$omp cos_ijkl,cos_ijkl_sqr,cos_2ijkl,sin_ijkl,sin_ijk,sin_jkl,tan_ijk_i,tan_jkl_i,&
+!$omp cos_ijk,cos_jkl,theta_ijk,theta_jkl,omega_ijkl,&
+!$omp rij,rjk,rkl,crs_ijk,crs_jkl,delta_ang_jk,delta_ang_j,delta_ang_k,&
+!$omp exp_tor1,exp_tor3,exp_tor4,exp_tor34_i,fn10,fn11,dfn11,fn12,PEtors,PEconj,cmn,exp_tor2,&
+!$omp CEtors,Cconj,CEconj,C4body_a,C4body_b,C4body_b_jk,btb2,&
+!$omp BOij,BOjk,BOkl,cutof2,jid,kid)
 do j=1,NATOMS
 
   jty = itype(j)
@@ -947,7 +962,9 @@ do j=1,NATOMS
 
                  PEconj = pcot1(inxn)*fn12*(1.d0 + (cos_ijkl_sqr - 1.d0)*sin_ijk*sin_jkl)
 
+!$omp atomic
                  PE(8) = PE(8) + PEtors
+!$omp atomic
                  PE(9) = PE(9) + PEconj
 
 !--- Force coefficient calculation
@@ -1013,8 +1030,6 @@ do j=1,NATOMS
                  call ForceA3(C4body_a(2), j,k,l, rjk,rkl)
                  call ForceA4(C4body_a(3), i,j,k,l, rij,rjk,rkl)
 
-!              if(icheck(0)) call checker(i, j, k, l, PEtors, f(1:3,j) )
-
                  endif ! if( (BO(0,j,i1)*BO(0,j,k1)**2*BO(0,k,l1)) >MINBO0)
                  endif ! if ((inxn/=0).and.(i/=l).and.(j/=l))
                  endif ! if(BOkl>MINBO0)
@@ -1056,8 +1071,20 @@ do j1=1, nbrlist(i,0)
   Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
   dr(1:3) = pos(1:3,i)-pos(1:3,j)
   ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
-  f(1:3,i) = f(1:3,i) - ff(1:3)
-  f(1:3,j) = f(1:3,j) + ff(1:3)
+
+!$omp atomic
+  f(1,i) = f(1,i) - ff(1)
+!$omp atomic
+  f(2,i) = f(2,i) - ff(2)
+!$omp atomic
+  f(3,i) = f(3,i) - ff(3)
+
+!$omp atomic
+  f(1,j) = f(1,j) + ff(1)
+!$omp atomic
+  f(2,j) = f(2,j) + ff(2)
+!$omp atomic
+  f(3,j) = f(3,j) + ff(3)
 
 #ifdef STRESS
   ia=i; ja=j
@@ -1067,9 +1094,10 @@ do j1=1, nbrlist(i,0)
   Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
   Cbond(3)=coeff*BO(0,i,j1)*A2(j,i1) ! Coeff of deltap_j
 
+!$omp atomic
   ccbnd(i)=ccbnd(i)+Cbond(2)
+!$omp atomic
   ccbnd(j)=ccbnd(j)+Cbond(3)
-!--- new ---
 
 enddo
 
@@ -1093,8 +1121,19 @@ Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
 
 dr(1:3) = pos(1:3,i) - pos(1:3,j)
 ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
-f(1:3,i) = f(1:3,i) - ff(1:3)
-f(1:3,j) = f(1:3,j) + ff(1:3)
+!$omp atomic
+f(1,i) = f(1,i) - ff(1)
+!$omp atomic
+f(2,i) = f(2,i) - ff(2)
+!$omp atomic
+f(3,i) = f(3,i) - ff(3)
+
+!$omp atomic
+f(1,j) = f(1,j) + ff(1)
+!$omp atomic
+f(2,j) = f(2,j) + ff(2)
+!$omp atomic
+f(3,j) = f(3,j) + ff(3)
 
 #ifdef STRESS
 ia=i; ja=j
@@ -1105,7 +1144,9 @@ include 'stress'
 Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
 Cbond(3)=coeff*BO(0,i,j1)*A2(j,i1) ! Coeff of deltap_j
 
+!$omp atomic
 ccbnd(i)=ccbnd(i)+Cbond(2)
+!$omp atomic
 ccbnd(j)=ccbnd(j)+Cbond(3)
 
 return
@@ -1133,8 +1174,18 @@ Cbond(1) = cf(1)*(A0(i,j1) + BO(0,i,j1)*A1(i,j1))*dBOp(i,j1)        & !full BO
 dr(1:3) = pos(1:3,i)-pos(1:3,j)
 ff(1:3) = Cbond(1)*dr(1:3)
 
-f(1:3,i) = f(1:3,i) - ff(1:3)
-f(1:3,j) = f(1:3,j) + ff(1:3)
+!$omp atomic
+f(1,i) = f(1,i) - ff(1)
+!$omp atomic
+f(2,i) = f(2,i) - ff(2)
+!$omp atomic
+f(3,i) = f(3,i) - ff(3)
+!$omp atomic
+f(1,j) = f(1,j) + ff(1)
+!$omp atomic
+f(2,j) = f(2,j) + ff(2)
+!$omp atomic
+f(3,j) = f(3,j) + ff(3)
 
 #ifdef STRESS
 ia=i; ja=j
@@ -1147,7 +1198,9 @@ cBO(1:3) = (/cf(1)*BO(0,i,j1),  cf(2)*BO(2,i,j1),  cf(3)*BO(3,i,j1) /)
 Cbond(2)=cBO(1)*A2(i,j1) + (cBO(2)+cBO(3))*A3(i,j1)
 Cbond(3)=cBO(1)*A2(j,i1) + (cBO(2)+cBO(3))*A3(j,i1)
 
+!$omp atomic
 ccbnd(i)=ccbnd(i)+Cbond(2)
+!$omp atomic
 ccbnd(j)=ccbnd(j)+Cbond(3)
 
 return
@@ -1170,7 +1223,7 @@ integer,INTENT(IN) :: i,j,k,l
 real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3), da2(0:3)
 real(8) :: Daa(-1:0), Caa(-2:0,-2:0),Cwi(3), Cwj(3), Cwl(3)
 real(8) :: DDisqr, coDD, com
-real(8) :: fij(3), fjk(3), fkl(3)
+real(8) :: fij(3), fjk(3), fkl(3), fijjk(3), fjkkl(3)
 real(8) :: rij(3), rjk(3), rkl(3)
 
 Caa( 0,0)=da0(0)*da0(0);Caa( 0,-1)=sum(da0(1:3)*da1(1:3));Caa( 0,-2)=sum(da0(1:3)*da2(1:3))
@@ -1210,10 +1263,36 @@ fij(1:3) = coDD*( Cwi(1)*rij(1:3) + Cwi(2)*rjk(1:3) + Cwi(3)*rkl(1:3) )
 fjk(1:3) = coDD*( (Cwj(1)+Cwi(1))*rij(1:3) + (Cwj(2)+Cwi(2))*rjk(1:3) + (Cwj(3)+Cwi(3))*rkl(1:3) )
 fkl(1:3) =-coDD*( Cwl(1)*rij(1:3) + Cwl(2)*rjk(1:3) + Cwl(3)*rkl(1:3) ) 
 
-f(1:3,i) = f(1:3,i) + fij(1:3) 
-f(1:3,j) = f(1:3,j) - fij(1:3) + fjk(1:3) 
-f(1:3,k) = f(1:3,k) - fjk(1:3) + fkl(1:3)
-f(1:3,l) = f(1:3,l) - fkl(1:3)
+fijjk(1:3)= -fij(1:3) + fjk(1:3)
+fjkkl(1:3)= -fjk(1:3) + fkl(1:3)
+
+!$omp atomic
+f(1,i) = f(1,i) + fij(1) 
+!$omp atomic
+f(2,i) = f(2,i) + fij(2) 
+!$omp atomic
+f(3,i) = f(3,i) + fij(3) 
+
+!$omp atomic
+f(1,j) = f(1,j) + fijjk(1)
+!$omp atomic
+f(2,j) = f(2,j) + fijjk(2)
+!$omp atomic
+f(3,j) = f(3,j) + fijjk(3)
+
+!$omp atomic
+f(1,k) = f(1,k) + fjkkl(1)
+!$omp atomic
+f(2,k) = f(2,k) + fjkkl(2)
+!$omp atomic
+f(3,k) = f(3,k) + fjkkl(3)
+
+!$omp atomic
+f(1,l) = f(1,l) - fkl(1)
+!$omp atomic
+f(2,l) = f(2,l) - fkl(2)
+!$omp atomic
+f(3,l) = f(3,l) - fkl(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -1242,7 +1321,7 @@ implicit none
 real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3)
 integer,INTENT(IN) :: i,j,k
 real(8) :: Caa(-2:0,-2:0), Ci(3), Ck(3)
-real(8) :: fij(3), fjk(3), rij(3), rjk(3)
+real(8) :: fij(3), fjk(3), fijjk(3), rij(3), rjk(3)
 real(8) :: CCisqr, coCC
 
 Caa( 0,0) = da0(0)**2; Caa( 0,-1) = sum(da0(1:3)*da1(1:3))
@@ -1264,10 +1343,28 @@ rjk(1:3) = da1(1:3)
 
 fij(1:3) = coCC*(Ci(1)*rij(1:3) + Ci(2)*rjk(1:3))
 fjk(1:3) =-coCC*(Ck(1)*rij(1:3) + Ck(2)*rjk(1:3))
+fijjk(1:3) =  -fij(1:3) + fjk(1:3) 
 
-f(1:3,i) = f(1:3,i) + fij(1:3)
-f(1:3,j) = f(1:3,j) - fij(1:3) + fjk(1:3)
-f(1:3,k) = f(1:3,k) - fjk(1:3)
+!$omp atomic
+f(1,i) = f(1,i) + fij(1)
+!$omp atomic
+f(2,i) = f(2,i) + fij(2)
+!$omp atomic
+f(3,i) = f(3,i) + fij(3)
+
+!$omp atomic
+f(1,j) = f(1,j) + fijjk(1)
+!$omp atomic
+f(2,j) = f(2,j) + fijjk(2)
+!$omp atomic
+f(3,j) = f(3,j) + fijjk(3)
+
+!$omp atomic
+f(1,k) = f(1,k) - fjk(1)
+!$omp atomic
+f(2,k) = f(2,k) - fjk(2)
+!$omp atomic
+f(3,k) = f(3,k) - fjk(3)
 
 #ifdef STRESS
 ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)

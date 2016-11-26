@@ -182,6 +182,8 @@ endif
 
 nn=0
 nbrlist(0,:) = 0
+
+!$omp parallel do schedule(dynamic), default(shared), private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,hsan,drtb,itb,inxn)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -208,9 +210,9 @@ do c3=0, nbcc(3)-1
                jty = nint(atype(j))
 
 !--- make a neighbor list with cutoff length = 10[A]
+!$omp atomic
                nbrlist(0,i) = nbrlist(0,i) + 1
                nbrlist(nbrlist(0,i),i) = j
-
 
 !--- get table index and residual value
                itb = int(dr2*UDRi)
@@ -235,6 +237,8 @@ if(itb==0) print'(5i,6f10.5)',myid,l2g(atype(i)),l2g(atype(j)),i,j,pos(1:3,i), p
    i=nbllist(i)
    enddo
 enddo; enddo; enddo
+!$omp end parallel do
+
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
@@ -295,7 +299,8 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-do i=1,NATOMS
+!$omp parallel do default(shared),private(i,j,j1,ity,eta_ity,Est1),reduction(+:Est)
+do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
 
@@ -311,10 +316,13 @@ do i=1,NATOMS
 !--- get half of potential energy, then sum it up if atoms are resident.
       Est1 = 0.5d0*A0(j1,i)*q(i)*q(j)
       Est = Est + Est1
-      if(j<=NATOMS) Est = Est + Est1
+      !if(j<=NATOMS) Est = Est + Est1
+      if(j>NATOMS) Est1=0.0
+      Est = Est + Est1
    enddo
 
 enddo
+!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(18)=it_timer(18)+(tj-ti)
@@ -334,6 +342,7 @@ integer :: i,j,j1, ity
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
+!$omp parallel do default(shared), private(eta_ity,i,j,j1,ity)
 do i=1,NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
@@ -349,6 +358,7 @@ do i=1,NATOMS
    enddo
 
 enddo 
+!$omp end parallel do
 
 ggnew(1) = dot_product(gs(1:NATOMS), gs(1:NATOMS))
 ggnew(2) = dot_product(gt(1:NATOMS), gt(1:NATOMS))

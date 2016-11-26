@@ -11,7 +11,7 @@
 FC = mpif90 
 
 # gfortran
-#FC = mpif90 -fopenmp
+FC = mpif90 -fopenmp
 #FC = mpif90 -fcheck=all
 
 # xl fortran

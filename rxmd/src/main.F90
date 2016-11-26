@@ -21,9 +21,9 @@ CALL INITSYSTEM(atype, pos, v, f, q)
 call QEq(atype, pos, q)
 call FORCE(atype, pos, f, q)
 
-
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
+
 do nstep=0, ntime_step-1
 
    if(mod(nstep,pstep)==0) call PRINTE(atype, v, q)
@@ -161,6 +161,7 @@ real(8) :: atype(NBUFFER), q(NBUFFER)
 real(8) :: v(3,NBUFFER)
 
 integer :: i,ity,cstep
+real(8),save :: wt0
 real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:20),Gbuf(0:20)
 
 i=nstep/pstep+1
@@ -229,6 +230,9 @@ real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: n, l(3), j
 
+integer :: ti,tj,tk
+call system_clock(ti,tk)
+
 header(:,:,:) = -1; llist(:) = 0; nacell(:,:,:)=0
 
 !--- copyptr(6) stores the last atom index copied in COPYATOMS.
@@ -246,6 +250,9 @@ do n=1, copyptr(6)
    header(l(1), l(2), l(3)) = n
    nacell(l(1), l(2), l(3)) = nacell(l(1), l(2), l(3)) + 1
 enddo
+
+call system_clock(tj,tk)
+it_timer(3)=it_timer(3)+(tj-ti)
 
 end subroutine 
 
@@ -365,19 +372,19 @@ use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
 
-real(8) :: atype(NBUFFER), pos(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
 integer :: l2g
 real(8) :: dr(3), dr2
 
 integer :: ti,tj,tk
-
 call system_clock(ti,tk)
 
 ! reset non-bonding pair list
 nbplist(:,0)=0
 
+!!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -401,10 +408,13 @@ do c3=0, nbcc(3)-1
                dr2 = sum(dr(1:3)*dr(1:3))
 
                if(dr2<=rctap2) then
+
                  nbplist(i,0)=nbplist(i,0)+1
                  nbplist(j,0)=nbplist(j,0)+1
+
                  nbplist(i,nbplist(i,0))=j
                  nbplist(j,nbplist(j,0))=i
+
                endif
 
             endif
@@ -416,6 +426,7 @@ do c3=0, nbcc(3)-1
       i=nbllist(i)
    enddo
 enddo; enddo; enddo
+!!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(15)=it_timer(15)+(tj-ti)
