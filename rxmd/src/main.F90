@@ -384,7 +384,7 @@ call system_clock(ti,tk)
 ! reset non-bonding pair list
 nbplist(:,0)=0
 
-!!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
+!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -403,17 +403,18 @@ do c3=0, nbcc(3)-1
 
             jid = l2g(atype(j))
 
-            if(i<j .or. NATOMS<j) then
+            !if(i<j .or. NATOMS<j) then
+            if(i/=j) then
                dr(1:3) = pos(1:3,i) - pos(1:3,j)
                dr2 = sum(dr(1:3)*dr(1:3))
 
                if(dr2<=rctap2) then
 
                  nbplist(i,0)=nbplist(i,0)+1
-                 nbplist(j,0)=nbplist(j,0)+1
+                 !nbplist(j,0)=nbplist(j,0)+1
 
                  nbplist(i,nbplist(i,0))=j
-                 nbplist(j,nbplist(j,0))=i
+                 !nbplist(j,nbplist(j,0))=i
 
                endif
 

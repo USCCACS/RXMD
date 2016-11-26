@@ -169,8 +169,6 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-deallocate(BO,A0,A1,A2,A3,nbrlist,nbrindx,stat=ast); ist=ist+ast
-deallocate(dln_BOp,dBOp,stat=ast); ist=ist+ast
 allocate(nbrlist(0:MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
 allocate(A0(MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
 
@@ -264,15 +262,8 @@ call system_clock(ti,tk)
 deallocate(A0, nbrlist,stat=ast)
 
 iast=0
-allocate(BO(0:3,NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
 allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A1(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A2(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(A3(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(dln_BOp(3,NBUFFER, MAXNEIGHBS), dBOp(NBUFFER,MAXNEIGHBS), stat=ast); iast=iast+ast
-
 allocate(nbrlist(NBUFFER,0:MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(nbrindx(NBUFFER,0:MAXNEIGHBS), stat=ast); iast=iast+ast
 
 if (iast/=0) then
    if (myid==0) print*, 'ERROR: qeq_finalize', iast
@@ -316,9 +307,7 @@ do i=1, NATOMS
 !--- get half of potential energy, then sum it up if atoms are resident.
       Est1 = 0.5d0*A0(j1,i)*q(i)*q(j)
       Est = Est + Est1
-      !if(j<=NATOMS) Est = Est + Est1
-      if(j>NATOMS) Est1=0.0
-      Est = Est + Est1
+      if(j<=NATOMS) Est = Est + Est1
    enddo
 
 enddo
