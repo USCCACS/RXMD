@@ -131,6 +131,7 @@ use atoms
 implicit none
 integer,intent(IN) ::tn1, tn2, mypar 
 integer :: recv_stat(MPI_STATUS_SIZE)
+real(8) :: recv_size
 
 !--- if the traget node is the node itself, atoms informations are already copied 
 !--- to <rbuffer> in <store_atoms()>. Nothing to do here. Just return from this subroutine.
@@ -139,29 +140,40 @@ if(myid==tn1) return
 
 if (mypar == 0) then
 
-     call MPI_SEND(ns, 1, MPI_INTEGER, tn1, 10, MPI_COMM_WORLD, ierr)
-     if (ns > 0) &
-       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 11, MPI_COMM_WORLD, ierr)
-
-     call MPI_RECV(nr, 1, MPI_INTEGER, tn2, 12, MPI_COMM_WORLD, recv_stat, ierr)
-     if (nr > 0) then
-       allocate(rbuffer(nr), stat=ast); if(ast/=0) print*, "ERROR: rbuffer@send_recv: 1"
-       call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, &
-                     13, MPI_COMM_WORLD, recv_stat, ierr)
+     ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
+     ! if ns == 0, send one double to tell remote rank that there will be no atom data to be sent. 
+     if (ns > 0) then 
+       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 10, MPI_COMM_WORLD, ierr)
+     else
+       call MPI_SEND(1, 1, MPI_DOUBLE_PRECISION, tn1, 10, MPI_COMM_WORLD, ierr)
      endif
+
+     call MPI_Probe(tn2, 11, MPI_COMM_WORLD, recv_stat, ierr)
+     call MPI_Get_count(recv_stat, MPI_DOUBLE_PRECISION, nr, ierr)
+
+     allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
+     call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, 11, MPI_COMM_WORLD, recv_stat, ierr)
+
+     if(nr==1) nr=0 ! no atom data received. reset nr.
+
 
 elseif (mypar == 1) then
 
-       call MPI_RECV(nr, 1, MPI_INTEGER, tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
-       if (nr > 0) then
-         allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
-         call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, &
-                      11, MPI_COMM_WORLD, recv_stat, ierr)
-       endif
+     call MPI_Probe(tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
+     call MPI_Get_count(recv_stat, MPI_DOUBLE_PRECISION, nr, ierr)
 
-       call MPI_SEND(ns, 1, MPI_INTEGER, tn1, 12, MPI_COMM_WORLD, ierr)
-       if (ns > 0) &
-       call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 13, MPI_COMM_WORLD, ierr)
+     ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
+     ! if recv_size == 1, which means no atom data to be received. 
+     allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
+     call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
+
+     if(nr==1) nr=0 ! no atom data received. reset nr.
+
+     if (ns > 0) then
+        call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 11, MPI_COMM_WORLD, ierr)
+     else
+        call MPI_SEND(1, 1, MPI_DOUBLE_PRECISION, tn1, 11, MPI_COMM_WORLD, ierr)
+     endif
 
 endif
 
