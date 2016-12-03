@@ -30,8 +30,8 @@ call xu2xs(pos)
 dr(1:3)=NMINCELL*lcsize(1:3)
 call COPYATOMS(MODE_COPY,dr,atype,pos,vdummy,f,q) 
 
-call LINKEDLIST(atype, pos)
-call NBLINKEDLIST(atype, pos)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
+call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
 call xs2xu(pos)
 
 call NEIGHBORLIST(NMINCELL, atype, pos)

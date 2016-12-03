@@ -124,7 +124,7 @@ qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
 
 call ReadBIN(atype, pos, v, q, trim(DataDir)//"/rxff.bin")
 
-call getbox(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
 do j=1, 3
    HH(i,j,0)=mat(i,j)
@@ -147,7 +147,7 @@ deallocate(ibuf8)
 call CUTOFFLENGTH()
 
 !--- update box-related variables
-call updatebox()
+call UpdateBoxParams()
 
 !--- scaled to unscaled coordinates
 call xs2xu(pos)
@@ -545,7 +545,7 @@ nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)
 end subroutine
 
 !----------------------------------------------------------------
-subroutine getbox(H,la,lb,lc,angle1,angle2,angle3)
+subroutine GetBoxParams(H,la,lb,lc,angle1,angle2,angle3)
 !----------------------------------------------------------------
 implicit none
 real(8),intent(out) :: H(3,3)
@@ -571,7 +571,7 @@ return
 end subroutine
 
 !----------------------------------------------------------------
-subroutine updatebox()
+subroutine UpdateBoxParams()
 use atoms; use parameters
 !----------------------------------------------------------------
 implicit none

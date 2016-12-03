@@ -58,7 +58,7 @@ do nstep=0, ntime_step-1
    call xu2xs(pos)
    dr(1:3)=0.d0
    call COPYATOMS(MODE_MOVE,dr,atype, pos, v, f, q)
-   call LINKEDLIST(atype, pos)
+   call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
    call xs2xu(pos)
    
    if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
@@ -238,69 +238,42 @@ wt0 = MPI_WTIME()
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine LINKEDLIST(atype, pos)
+subroutine LINKEDLIST(atype, pos, cellDims, headAtom, atomList, NatomPerCell, Ncells, NLAYERS)
 use atoms
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER), cellDims(3)
 
+integer,intent(in) :: Ncells(3), NLAYERS
+integer,intent(out) :: atomList(NBUFFER)
+integer,intent(out) :: NatomPerCell(-NLAYERS:Ncells(1)-1+NLAYERS, &
+                                    -NLAYERS:Ncells(2)-1+NLAYERS, &
+                                    -NLAYERS:Ncells(3)-1+NLAYERS) 
+integer,intent(out) :: headAtom(-NLAYERS:Ncells(1)-1+NLAYERS, & 
+                                -NLAYERS:Ncells(2)-1+NLAYERS, &
+                                -NLAYERS:Ncells(3)-1+NLAYERS) 
 integer :: n, l(3), j
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-header(:,:,:) = -1; llist(:) = 0; nacell(:,:,:)=0
+headAtom(:,:,:) = -1; atomList(:) = 0; NatomPerCell(:,:,:)=0
 
 !--- copyptr(6) stores the last atom index copied in COPYATOMS.
 do n=1, copyptr(6) 
 
    if(nint(atype(n))==0) cycle
 
-   l(1) = int(pos(1,n)/lcsize(1))
-   l(2) = int(pos(2,n)/lcsize(2))
-   l(3) = int(pos(3,n)/lcsize(3))
-   do j=1,3
-      if(pos(j,n)<0.d0) l(j) = l(j) - 1
-   enddo
-   llist(n) = header(l(1), l(2), l(3))
-   header(l(1), l(2), l(3)) = n
-   nacell(l(1), l(2), l(3)) = nacell(l(1), l(2), l(3)) + 1
+   l(1:3) = floor(pos(1:3,n)/cellDims(1:3))
+
+   atomList(n) = headAtom(l(1), l(2), l(3))
+   headAtom(l(1), l(2), l(3)) = n
+   NatomPerCell(l(1), l(2), l(3)) = NatomPerCell(l(1), l(2), l(3)) + 1
 enddo
 
 call system_clock(tj,tk)
 it_timer(3)=it_timer(3)+(tj-ti)
-
-end subroutine 
-
-!----------------------------------------------------------------------------------------
-subroutine NBLINKEDLIST(atype, pos)
-use atoms
-! partitions the volume into linked-list cells <lcsize> for non-bonding interactions
-!----------------------------------------------------------------------------------------
-implicit none
-real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
-
-integer :: n, l(3), j
-
-nbheader(:,:,:) = -1; nbllist(:) = 0; nbnacell(:,:,:)=0
-
-!--- copyptr(6) stores the last atom index copied in COPYATOMS.
-do n=1, copyptr(6) 
-
-   if(nint(atype(n))==0) cycle
-
-   l(1) = int(pos(1,n)/nblcsize(1))
-   l(2) = int(pos(2,n)/nblcsize(2))
-   l(3) = int(pos(3,n)/nblcsize(3))
-
-   do j=1,3
-      if(pos(j,n)<0.d0) l(j) = l(j) - 1
-   enddo
-   nbllist(n) = nbheader(l(1), l(2), l(3))
-   nbheader(l(1), l(2), l(3)) = n
-   nbnacell(l(1), l(2), l(3)) = nbnacell(l(1), l(2), l(3)) + 1
-enddo
 
 end subroutine 
 

@@ -60,8 +60,8 @@ end select
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
 call xu2xs(pos)
 call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
-call LINKEDLIST(atype, pos)
-call NBLINKEDLIST(atype, pos)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
+call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
 call xs2xu(pos)
 
 call qeq_initialize()
