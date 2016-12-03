@@ -25,9 +25,6 @@ logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 
-!--- Size of I/O group for collective I/O 
-integer,parameter :: nio=1
-
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER, 5-not used, 
 !  6-NBUFFER for qeq
@@ -108,8 +105,6 @@ real(8),parameter :: NSMALL = 1.d-10
 real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
 
 real(8),parameter :: pi=3.14159265358979d0
-
-real(8),allocatable :: fnb(:,:)
 
 ! atomic stress tensor
 real(8),allocatable :: astr(:,:) 
@@ -270,7 +265,6 @@ integer,parameter :: NTABLE=5000
 real(8),allocatable :: TBL_Eclmb(:,:,:), TBL_Evdw(:,:,:), TBL_Eclmb_QEq(:,:)
 real(8) :: UDR, UDRi
 
-integer,allocatable :: ibuf(:), ibuf1(:)
 integer(8),allocatable :: ibuf8(:)
 
 !--- FF parameter description

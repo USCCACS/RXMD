@@ -80,34 +80,47 @@ call xs2xu(pos)
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
-call MPI_ALLREDUCE(it_timer, it_timer_max, Ntimer, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE(it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
 
-!--- simulaiton finished w/o problem. Printing some information, array sizes, timings. 
+call FinalizeMD(irt)
+
+call MPI_FINALIZE(ierr)
+end PROGRAM
+
+!------------------------------------------------------------------------------
+subroutine FinalizeMD(irt)
+use atoms
+!------------------------------------------------------------------------------
+implicit none
+integer :: i
+integer,intent(in) :: irt ! time resolution
+integer,allocatable :: ibuf(:),ibuf1(:)
+
 allocate(ibuf(nmaxas),ibuf1(nmaxas))
 ibuf(:)=0
 do i=1,nmaxas
    ibuf(i)=maxval(maxas(:,i))
 enddo
 call MPI_ALLREDUCE (ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
-if(myid==0) then
-   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER: ', &
-                      ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4)
-endif
 
-deallocate(ibuf,ibuf1)
+call MPI_ALLREDUCE(it_timer, it_timer_max, Ntimer, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
 
 if(myid==0) then
+   print'(a)','----------------------------------------------'
+   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER: ', ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4)
+   print*
    print'(a20,f12.4,3x,f12.4)','QEq: ',  dble(it_timer_max(1))/irt, dble(it_timer_min(1))/irt
    print'(a20,f12.4,3x,f12.4)','qeq_initialize: ',  dble(it_timer_max(16))/irt, dble(it_timer_min(16))/irt
    print'(a20,f12.4,3x,f12.4)','qeq_finalize: ',  dble(it_timer_max(17))/irt, dble(it_timer_min(17))/irt
    print'(a20,f12.4,3x,f12.4)','get_hsh: ',  dble(it_timer_max(18))/irt, dble(it_timer_min(18))/irt
    print'(a20,f12.4,3x,f12.4)','get_gradient: ',  dble(it_timer_max(19))/irt, dble(it_timer_min(19))/irt
+   print*
 
    print'(a20,f12.4,3x,f12.4)','LINKEDLIST: ',  dble(it_timer_max(3))/irt, dble(it_timer_min(3))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS: ',    dble(it_timer_max(4))/irt, dble(it_timer_min(4))/irt
    print'(a20,f12.4,3x,f12.4)','NEIGHBORLIST: ', dble(it_timer_max(5))/irt, dble(it_timer_min(5))/irt
    print'(a20,f12.4,3x,f12.4)','GetNBPairList: ', dble(it_timer_max(15))/irt, dble(it_timer_min(15))/irt
+   print*
 
    print'(a20,f12.4,3x,f12.4)','BOCALC: ', dble(it_timer_max(6))/irt, dble(it_timer_min(6))/irt
    print'(a20,f12.4,3x,f12.4)','ENbond: ', dble(it_timer_max(7))/irt, dble(it_timer_min(7))/irt
@@ -118,20 +131,24 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','E4b: ', dble(it_timer_max(12))/irt, dble(it_timer_min(12))/irt
    print'(a20,f12.4,3x,f12.4)','ForceBondedTerms: ', dble(it_timer_max(13))/irt, dble(it_timer_min(13))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS(MOVE): ', dble(it_timer_max(14))/irt, dble(it_timer_min(14))/irt
+   print*
 
    print'(a20,f12.4,3x,f12.4)','WriteBND: ', dble(it_timer_max(20))/irt, dble(it_timer_min(20))/irt
    print'(a20,f12.4,3x,f12.4)','WritePDB: ', dble(it_timer_max(21))/irt, dble(it_timer_min(21))/irt
    print'(a20,f12.4,3x,f12.4)','ReadBIN: ', dble(it_timer_max(22))/irt, dble(it_timer_min(22))/irt
    print'(a20,f12.4,3x,f12.4)','WriteBIN: ', dble(it_timer_max(23))/irt, dble(it_timer_min(23))/irt
+   print*
 
    print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(Ntimer))/irt, dble(it_timer_min(Ntimer))/irt
+
+   print'(a)','----------------------------------------------'
 
    print'(a30)', 'rxmd successfully finished'
 endif
 
-call MPI_FINALIZE(ierr)
-end PROGRAM
+deallocate(ibuf,ibuf1)
 
+end subroutine
 !------------------------------------------------------------------------------
 subroutine vkick(dtf, atype, v, f)
 use atoms

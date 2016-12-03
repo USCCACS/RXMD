@@ -117,10 +117,6 @@ allocate(pos(3,NBUFFER),f(3,NBUFFER),v(3,NBUFFER),stat=ast); ist=ist+ast
 allocate(atype(NBUFFER),q(NBUFFER), stat=ast); ist=ist+ast
 f(:,:)=0.d0
 
-!--- OpenMP private data array for ENbond
-allocate(fnb(3,NBUFFER),stat=ast); ist=ist+ast
-fnb(:,:)=0.d0
-
 !--- Varaiable for extended Lagrangian method
 allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
 allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast

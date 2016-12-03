@@ -14,10 +14,11 @@ real(8) :: mh, cstr(0:6,10)
 real(8) :: dbuf(6), Gdbuf(6)
 !--- cutoff length of stress calculation range
 real(8) :: rcstr2 = 5.d0**2
+real(8) :: qdummy(1)
 
 !--- update buffer atom's stress value
 dr=4*lcsize(1:3)
-call COPYATOMS(MODE_STRESSCALC, dr)
+call COPYATOMS(atype, pos, v, f, qdummy, MODE_STRESSCALC, dr)
 
 !--- get the potential contribution of internal pressure 
 do i=1, NATOMS

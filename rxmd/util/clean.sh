@@ -2,4 +2,4 @@
 
 (cd init; make clean)
 (cd src; make clean)
-rm -v DAT/*
+rm -fv DAT/* rxmd

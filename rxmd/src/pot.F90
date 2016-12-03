@@ -675,7 +675,7 @@ call system_clock(ti,tk)
 
 PE(11:13)=0.d0
 
-!$omp parallel do default(shared), private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1, &
+!$omp parallel do default(shared), schedule(guided), private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1, &
 !$omp PEvdw,CEvdw,qij,PEclmb,CEclmb,ff)
 do i=1, NATOMS
 
