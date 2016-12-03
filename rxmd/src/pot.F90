@@ -35,7 +35,7 @@ call NBLINKEDLIST(atype, pos)
 call xs2xu(pos)
 
 call NEIGHBORLIST(NMINCELL, atype, pos)
-call GetNonbondingPairList(atype, pos)
+call GetNonbondingPairList(pos)
 
 !--- get atom type and global ids
 do i=1, NBUFFER
@@ -44,7 +44,6 @@ enddo
 do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo
-
 
 CALL BOCALC(NMINCELL, atype, pos)
 
@@ -138,6 +137,7 @@ call system_clock(ti,tk)
 
 allocate(deltalp(NBUFFER),stat=ast)
 
+
 !=== preparation ==============================================================
 do i = 1, NBUFFER
    ity = itype(i)
@@ -169,6 +169,12 @@ enddo
 !============================================================== preparation ===
 
 PE(2:4)=0.d0
+
+!$omp parallel do default(shared), private(i,i1,j,j1,ity,jty,inxn,idEh,coeff,Clp,CElp,PElp,dEh, &
+!$omp explp1,expvd2,dElp,deltaE,sum_ovun1,sum_ovun2, &
+!$omp deltalpcorr,PEover,DlpV_i,expovun2,expovun1,expovun2n,expovun6,expovun8, &
+!$omp PEunder,CEover,CEunder,CElp_b,CElp_d,CElp_bpp, &
+!$omp div_expovun2,div_expovun2n,div_expovun1,div_expovun8)
 do i=1, NATOMS
    ity = itype(i)
 
@@ -212,8 +218,11 @@ do i=1, NATOMS
    PEunder = -povun5(ity) * (1.d0 - expovun6)*div_expovun2n*div_expovun8
 
 !--- if the representitive atom is a resident, sum thier potential energies.
+!$omp atomic
    PE(2) = PE(2) + PElp
+!$omp atomic
    PE(3) = PE(3) + PEover
+!$omp atomic
    PE(4) = PE(4) + PEunder
 
 !--- Coefficient Calculation
@@ -261,6 +270,7 @@ do i=1, NATOMS
    enddo
 
 enddo ! i-loop
+!$omp end parallel do
 
 deallocate(deltalp,stat=ast)
 
@@ -545,7 +555,8 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 PE(10)=0.d0
-!$omp parallel do schedule(dynamic), default(shared),private(i,j,k,i1,j1,ii,kk,c1,c2,c3,ity,jty,kty,inxnhb,rij,rjk,rik,rik2, &
+!$omp parallel do schedule(dynamic), default(shared), &
+!$omp private(i,j,k,i1,j1,ii,kk,c1,c2,c3,ity,jty,kty,inxnhb,rij,rjk,rik,rik2, &
 !$omp theta_ijk,cos_ijk,sin_ijk_half,cos_xhz1,sin_xhz4,exp_hb2,exp_hb3,PEhb,CEhb,ff)
 do i=1, NATOMS
    ity = itype(i)
@@ -664,7 +675,8 @@ call system_clock(ti,tk)
 
 PE(11:13)=0.d0
 
-!$omp parallel do default(shared), private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1,PEvdw,CEvdw,qij,PEclmb,CEclmb,ff)
+!$omp parallel do default(shared), private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1, &
+!$omp PEvdw,CEvdw,qij,PEclmb,CEclmb,ff)
 do i=1, NATOMS
 
    ity = itype(i) 

@@ -367,12 +367,12 @@ it_timer(5)=it_timer(5)+(tj-ti)
 end subroutine
 
 !----------------------------------------------------------------------
-subroutine GetNonbondingPairList(atype, pos)
+subroutine GetNonbondingPairList(pos)
 use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
+real(8),intent(in) :: pos(3,NBUFFER)
 
 integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
 integer :: l2g
@@ -391,7 +391,7 @@ do c3=0, nbcc(3)-1
 
    i = nbheader(c1,c2,c3)
    do m = 1, nbnacell(c1,c2,c3)
-      iid = l2g(atype(i))
+      !iid = gtype(i)
 
       do mn = 1, nbnmesh
          c4 = c1 + nbmesh(1,mn)
@@ -400,8 +400,7 @@ do c3=0, nbcc(3)-1
 
          j = nbheader(c4,c5,c6)
          do n=1, nbnacell(c4,c5,c6)
-
-            jid = l2g(atype(j))
+            !jid = gtype(j)
 
             !if(i<j .or. NATOMS<j) then
             if(i/=j) then
