@@ -37,25 +37,16 @@ real(8) :: cutoff_vpar30
 cutoff_vpar30 = cutof2_bo*vpar30
 
 !--- initialize deltap(1:,1) to -Val(atype(i))
-do c1=-nlayer, cc(1)-1+nlayer
-do c2=-nlayer, cc(2)-1+nlayer
-do c3=-nlayer, cc(3)-1+nlayer
-
-  i=header(c1,c2,c3)
-  do n=1, nacell(c1,c2,c3)
+!$omp parallel do default(shared) private(i,ity)
+do i=1, copyptr(6)
      ity = nint(atype(i))
      deltap(i,1) = -Val(ity) 
-     i=llist(i)
-  enddo 
-enddo; enddo; enddo
+enddo
+!$omp end parallel do
 
-do c1=-nlayer, cc(1)-1+nlayer
-do c2=-nlayer, cc(2)-1+nlayer
-do c3=-nlayer, cc(3)-1+nlayer
 
-  i = header(c1,c2,c3)
-  do n=1, nacell(c1,c2,c3)
-
+!$omp parallel do default(shared) private(n,i,j,j1,i1,ity,jty,inxn,c1,c2,c3,dr,dr2,arg_BOpij)
+do i=1, copyptr(6)
      ity = nint(atype(i))
 
      do j1=1, nbrlist(i,0)
@@ -107,7 +98,9 @@ do c3=-nlayer, cc(3)-1+nlayer
                 bo(0,i,j1) = sum( bo(1:3,i,j1) ) 
                 bo(0:3,j,i1) = bo(0:3,i,j1)
 
+!$omp atomic
                 deltap(i,1) = deltap(i,1) + bo(0,i,j1)
+!$omp atomic
                 deltap(j,1) = deltap(j,1) + bo(0,i,j1)
              else
                 dBOp(i,j1) = 0.d0
@@ -119,11 +112,9 @@ do c3=-nlayer, cc(3)-1+nlayer
 
          endif
       enddo
+enddo
+!$omp end parallel do
  
-      i=llist(i)
-   enddo
-enddo; enddo; enddo
-
 END SUBROUTINE
 
 !--------------------------------------------------------------------------------------------
@@ -154,25 +145,19 @@ real(8) :: BOp0, BOpsqr
 
 real(8) :: exppboc1i,exppboc2i,exppboc1j,exppboc2j   !<kn>
 
-do c1=-nlayer, cc(1)-1+nlayer
-do c2=-nlayer, cc(2)-1+nlayer
-do c3=-nlayer, cc(3)-1+nlayer
-
-  i=header(c1,c2,c3)
-  do n=1, nacell(c1,c2,c3)
+!$omp parallel do default(shared) private(i,ity)
+do i=1,copyptr(6)
      ity = nint(atype(i))
      deltap(i,2) = deltap(i,1) + Val(ity) - Valboc(ity)
-     i=llist(i)
-  enddo 
-enddo; enddo; enddo
+enddo
+!$omp end parallel do
 
-do c1= -nlayer, cc(1)-1+nlayer
-do c2= -nlayer, cc(2)-1+nlayer
-do c3= -nlayer, cc(3)-1+nlayer
-
-   i=header(c1,c2,c3)
-   do n=1, nacell(c1,c2,c3)
-
+!$omp parallel do default(shared) &
+!$omp private(c1,c2,c3,n,i,i1,j,j1,ity,jty,inxn,exp1,exp2,exp12,fn1,fn2,fn3,fn4,fn5, &
+!$omp fn23,fn45,fn145,fn1145,u1ij,u1ji,u1ij_inv2,u1ji_inv2,Cf1Aij,Cf1Bij,exp_delt22, &
+!$omp Cf1ij,Cf1ji,pboc34,BOpij_2,u45ij,u45ji,exph_45ij,exph_45ji,Cf45ij,Cf45ji,fn45_inv, &
+!$omp Cf1ij_div1,Cf1ji_div1,BOp0,BOpsqr,exppboc1i,exppboc2i,exppboc1j,exppboc2j)
+do i=1, copyptr(6)
       ity = nint(atype(i))
      
       exppboc1i = exp( -vpar1*deltap(i,1) )  !<kn>
@@ -205,7 +190,6 @@ do c3= -nlayer, cc(3)-1+nlayer
 !--- <ovc> is either 1.d0 or 0.d0 in the given parameter file.
            fn1 = 0.5d0*( ( Val(ity)+fn2 )/(Val(ity)+fn23 ) + (Val(jty)+fn2)/(Val(jty)+fn23) )
            if(ovc(inxn) < 1.d-3) fn1 = 1.d0
-
 
            BOpsqr = bo(0,i,j1)*bo(0,i,j1)
            fn4 = 1.d0/(1.d0 +  dexp(-pboc3(inxn) * (pboc4(inxn) * BOpsqr - deltap(i,2) ) + pboc5(inxn) ) )
@@ -304,26 +288,17 @@ do c3= -nlayer, cc(3)-1+nlayer
          endif !if(i<j)
 
       enddo ! do j1=1,nbrlist(i,0) loop end
-
-      i=llist(i)
-   enddo ! do n=1, nacell(c1,c2,c3) loop end
-enddo; enddo; enddo
+enddo
+!$omp end parallel do
 
 !--- Calculate delta(i):
 !--- Initialize detal(i)
-do c1=-nlayer, cc(1)-1+nlayer
-do c2=-nlayer, cc(2)-1+nlayer
-do c3=-nlayer, cc(3)-1+nlayer
-
-   i=header(c1,c2,c3)
-   do n=1, nacell(c1,c2,c3)
+!$omp parallel do default(shared) private(i,ity)
+do i=1, copyptr(6)
       ity = nint(atype(i))
-
       delta(i) = -Val(ity) + sum( BO(0,i,1:nbrlist(i,0)) )
-
-      i=llist(i)
-   enddo
-enddo; enddo; enddo
+enddo
+!$omp end parallel do
 
 END SUBROUTINE
 
