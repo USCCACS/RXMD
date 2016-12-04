@@ -284,8 +284,7 @@ use atoms; use parameters
 !----------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: nlayer
-
-real(8) :: atype(NBUFFER), pos(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: c1,c2,c3, ic(3), c4, c5, c6
 integer :: n, n1, m, m1, nty, mty, inxn
@@ -294,8 +293,8 @@ real(8) :: dr(3), dr2
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-nbrlist(:,:) = 0
-nbrindx(:,:) = 0
+nbrlist(:,0) = 0
+!nbrindx(:,:) = 0
 
 DO c1=-nlayer, cc(1)-1+nlayer
 DO c2=-nlayer, cc(2)-1+nlayer
@@ -330,12 +329,13 @@ DO c3=-nlayer, cc(3)-1+nlayer
                 nbrindx(n, nbrlist(n, 0)) = nbrlist(m, 0)
              endif 
            endif
-           n=llist(n) 
+           n = llist(n) 
         enddo
      enddo; enddo; enddo
 
      m = llist(m)
   enddo
+
 enddo; enddo; enddo
 
 !--- error trap
@@ -374,7 +374,7 @@ call system_clock(ti,tk)
 ! reset non-bonding pair list
 nbplist(:,0)=0
 
-!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
+!$omp parallel do collapse(3) default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
