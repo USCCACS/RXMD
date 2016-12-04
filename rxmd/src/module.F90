@@ -26,7 +26,7 @@ integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 
 !--- For array size statistics
-!  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER, 5-not used, 
+!  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
 !  6-NBUFFER for qeq
 integer,parameter :: nmaxas=5
 integer,allocatable :: maxas(:,:)
@@ -43,9 +43,6 @@ real(8),allocatable :: sbuffer(:), rbuffer(:)
 !<ne> # of elements for one atom.
 !     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
 integer :: ns, nr, na, ne
-
-!--- buffer layer for bonding and non-bonding interactions
-real(8) :: bobuffer(3), nbbuffer(3)
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
@@ -95,7 +92,7 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 logical :: isBufferResize = .true.
-integer :: NBUFFER=40000
+integer :: NBUFFER=20000
 integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 

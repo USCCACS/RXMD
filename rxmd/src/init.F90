@@ -248,6 +248,9 @@ if(myid==0) then
    write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
    maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
+   write(6,'(a30,3i6)')  '# of linkedlist cell (NB):', nbcc(1:3)
+   write(6,'(a30,3f10.2)') "lcsize [A] (NB):", &
+   lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
    write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
    write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
@@ -491,7 +494,7 @@ real(8) :: maxrcell
 integer :: imesh(3), maximesh 
 
 !--- initial estimate of LL cell dims
-nblcsize(1:3)=2.d0
+nblcsize(1:3)=3d0
 
 !--- get mesh resolution which is close to the initial value of rlc.
 latticePerNode(1)=lata/vprocs(1)

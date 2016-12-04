@@ -98,7 +98,6 @@ do i=1, copyptr(6)
                 bo(0,i,j1) = sum( bo(1:3,i,j1) ) 
                 bo(0:3,j,i1) = bo(0:3,i,j1)
 
-!$omp atomic
                 deltap(i,1) = deltap(i,1) + bo(0,i,j1)
 !$omp atomic
                 deltap(j,1) = deltap(j,1) + bo(0,i,j1)

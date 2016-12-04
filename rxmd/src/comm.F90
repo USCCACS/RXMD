@@ -113,6 +113,7 @@ endif
 if(mod(nstep,pstep)==0) then
   ni=nstep/pstep+1
   if(imode==MODE_MOVE) maxas(ni,4)=na/ne
+  if(imode==MODE_COPY) maxas(ni,5)=na/ne
 endif
 
 call system_clock(tj,tk)

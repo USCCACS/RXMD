@@ -107,8 +107,12 @@ call MPI_ALLREDUCE(it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COM
 
 if(myid==0) then
    print'(a)','----------------------------------------------'
-   print'(a,10i12)', 'Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER: ', ibuf1(2), ibuf1(3), ibuf1(1)+ibuf1(4)
+   print'(a20,i12)', 'MAXNEIGHBS: ', ibuf1(2)
+   print'(a20,i12)', 'MAXNEIGHBS10: ', ibuf1(3)
+   print'(a20,i12)', 'MAXNBUFFER(MOVE): ', ibuf1(1)+ibuf1(4)
+   print'(a20,i12)', 'MAXNBUFFER(COPY): ', ibuf1(1)+ibuf1(5)
    print*
+
    print'(a20,f12.4,3x,f12.4)','QEq: ',  dble(it_timer_max(1))/irt, dble(it_timer_min(1))/irt
    print'(a20,f12.4,3x,f12.4)','qeq_initialize: ',  dble(it_timer_max(16))/irt, dble(it_timer_min(16))/irt
    print'(a20,f12.4,3x,f12.4)','qeq_finalize: ',  dble(it_timer_max(17))/irt, dble(it_timer_min(17))/irt
@@ -130,7 +134,6 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','E3b: ', dble(it_timer_max(11))/irt, dble(it_timer_min(11))/irt
    print'(a20,f12.4,3x,f12.4)','E4b: ', dble(it_timer_max(12))/irt, dble(it_timer_min(12))/irt
    print'(a20,f12.4,3x,f12.4)','ForceBondedTerms: ', dble(it_timer_max(13))/irt, dble(it_timer_min(13))/irt
-   print'(a20,f12.4,3x,f12.4)','COPYATOMS(MOVE): ', dble(it_timer_max(14))/irt, dble(it_timer_min(14))/irt
    print*
 
    print'(a20,f12.4,3x,f12.4)','WriteBND: ', dble(it_timer_max(20))/irt, dble(it_timer_min(20))/irt
