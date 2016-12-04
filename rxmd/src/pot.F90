@@ -132,6 +132,8 @@ real(8) :: CEover(7), CEunder(6), CElp_b, CElp_d, CElp_bpp
 
 real(8) :: div_expovun2, div_expovun2n, div_expovun1, div_expovun8
 
+real(8) :: PE2, PE3, PE4
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
@@ -168,9 +170,12 @@ do i = 1, NBUFFER
 enddo
 !============================================================== preparation ===
 
-PE(2:4)=0.d0
+PE2=0.d0
+PE3=0.d0
+PE4=0.d0
 
-!$omp parallel do default(shared), private(i,i1,j,j1,ity,jty,inxn,idEh,coeff,Clp,CElp,PElp,dEh, &
+!$omp parallel do default(shared), reduction(+:PE2,PE3,PE4) &
+!$omp private(i,i1,j,j1,ity,jty,inxn,idEh,coeff,Clp,CElp,PElp,dEh, &
 !$omp explp1,expvd2,dElp,deltaE,sum_ovun1,sum_ovun2, &
 !$omp deltalpcorr,PEover,DlpV_i,expovun2,expovun1,expovun2n,expovun6,expovun8, &
 !$omp PEunder,CEover,CEunder,CElp_b,CElp_d,CElp_bpp, &
@@ -218,12 +223,9 @@ do i=1, NATOMS
    PEunder = -povun5(ity) * (1.d0 - expovun6)*div_expovun2n*div_expovun8
 
 !--- if the representitive atom is a resident, sum thier potential energies.
-!$omp atomic
-   PE(2) = PE(2) + PElp
-!$omp atomic
-   PE(3) = PE(3) + PEover
-!$omp atomic
-   PE(4) = PE(4) + PEunder
+   PE2 = PE2 + PElp
+   PE3 = PE3 + PEover
+   PE4 = PE4 + PEunder
 
 !--- Coefficient Calculation
    CElp(1) = dElp*dDlp(i)
@@ -272,6 +274,8 @@ do i=1, NATOMS
 enddo ! i-loop
 !$omp end parallel do
 
+PE(2:4) = [PE2, PE3, PE4]
+
 deallocate(deltalp,stat=ast)
 
 call system_clock(tj,tk)
@@ -313,14 +317,19 @@ real(8) :: BOij,BOjk
 !NOTICE: <cutof2> is used to get exactly the same energy in original reaxFF code. 
 real(8) :: cutof2
 
+real(8) :: PE5,PE6,PE7
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 cutof2 = cutof2_esub
 
-PE(5:7)=0.d0
+PE5=0.d0
+PE6=0.d0
+PE7=0.d0
 
-!$omp parallel do default(shared),private(i,j,k,i1,j1,k1,ity,jty,kty,inxn,n,n1,&
+!$omp parallel do default(shared) reduction(+:PE5,PE6,PE7) &
+!$omp private(i,j,k,i1,j1,k1,ity,jty,kty,inxn,n,n1,&
 !$omp PEval,fn7ij,fn7jk,fn8j,delta_ang,rij,rjk,SBO2,SBO,&
 !$omp sum_BO8,theta_ijk,theta0,theta_diff,exp2,sin_ijk,cos_ijk,&
 !$omp Cf7ij,Cf7jk,Cf8j,Ctheta_diff,Ctheta0,CSBO2,dSBO,&
@@ -473,12 +482,9 @@ do j=1, NATOMS
 
 !--- if the j-atom is a resident, count the potential energies.
 
-!$omp atomic
-            PE(5) = PE(5) + PEval
-!$omp atomic
-            PE(6) = PE(6) + PEpen
-!$omp atomic
-            PE(7) = PE(7) + PEcoa
+            PE5 = PE5 + PEval
+            PE6 = PE6 + PEpen
+            PE7 = PE7 + PEcoa
 
 !                  CEval(:)=0.d0; PE(5)=0.d0
 !                  CEpen(:)=0.d0; PE(6)=0.d0
@@ -521,8 +527,10 @@ do j=1, NATOMS
       endif ! if(BOij>MINBO0) then
    enddo ! i-loop
 enddo ! j-loop
-
 !$omp end parallel do
+
+PE(5:7)=[PE5,PE6,PE7]
+
 
 call system_clock(tj,tk)
 it_timer(11)=it_timer(11)+(tj-ti)
@@ -551,11 +559,13 @@ real(8) :: theta_ijk, cos_ijk, sin_ijk_half
 real(8) :: cos_xhz1, sin_xhz4, exp_hb2, exp_hb3
 real(8) :: PEhb, CEhb(3), ff(3)
 
+real(8) :: PE10
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-PE(10)=0.d0
-!$omp parallel do schedule(dynamic), default(shared), &
+PE10=0.d0
+!$omp parallel do schedule(dynamic), default(shared), reduction(+:PE10) &
 !$omp private(i,j,k,i1,j1,ii,kk,c1,c2,c3,ity,jty,kty,inxnhb,rij,rjk,rik,rik2, &
 !$omp theta_ijk,cos_ijk,sin_ijk_half,cos_xhz1,sin_xhz4,exp_hb2,exp_hb3,PEhb,CEhb,ff)
 do i=1, NATOMS
@@ -603,8 +613,7 @@ do i=1, NATOMS
    
                   PEhb = phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*sin_xhz4
 
-!$omp atomic
-                  PE(10) = PE(10) + PEhb
+                  PE10 = PE10 + PEhb
    
                   CEhb(1) = phb1(inxnhb)*phb2(inxnhb)*exp_hb2*exp_hb3*sin_xhz4
                   CEhb(2) =-0.5d0*phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*cos_xhz1
@@ -645,6 +654,8 @@ do i=1, NATOMS
 enddo
 !$omp end parallel do
 
+PE(10)=PE10
+
 call system_clock(tj,tk)
 it_timer(10)=it_timer(10)+(tj-ti)
 
@@ -671,19 +682,23 @@ real(8) :: drtb, drtb1
 
 integer :: ti,tj,tk
 
+real(8) :: PE11,PE12,PE13
+
 call system_clock(ti,tk)
 
-PE(11:13)=0.d0
+PE11=0.d0
+PE12=0.d0
+PE13=0.d0
 
-!$omp parallel do default(shared), schedule(guided), private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1, &
+!$omp parallel do default(shared), schedule(guided), reduction(+:PE11,PE12,PE13) &
+!$omp private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1, &
 !$omp PEvdw,CEvdw,qij,PEclmb,CEclmb,ff)
 do i=1, NATOMS
 
    ity = itype(i) 
    iid = gtype(i)
    
-!$omp atomic
-   PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
+   PE13 = PE13 + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
 
     do j1 = 1, nbplist(i,0) 
          j = nbplist(i,j1)
@@ -720,10 +735,8 @@ do i=1, NATOMS
                CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
                CEclmb = CEclmb*qij
 
-!$omp atomic
-               PE(11) = PE(11) + PEvdw
-!$omp atomic
-               PE(12) = PE(12) + PEclmb
+               PE11 = PE11 + PEvdw
+               PE12 = PE12 + PEclmb
 
                ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
     
@@ -753,6 +766,8 @@ do i=1, NATOMS
 enddo
 !$omp end parallel do
 
+PE(11:13)=[PE11,PE12,PE13]
+
 call system_clock(tj,tk)
 it_timer(7)=it_timer(7)+(tj-ti)
 
@@ -768,11 +783,14 @@ real(8) :: exp_be12,  CEbo, PEbo, coeff(3)
 integer :: iid,jid
 integer :: ti,tj,tk
 
+real(8) :: PE1
+
 call system_clock(ti,tk)
 
-PE(1)=0.d0
+PE1=0.d0
 
-!$omp parallel do default(shared), private(ity,iid,j1,j,jid,jty,inxn,exp_be12,PEbo,CEbo,coeff,i1)
+!$omp parallel do default(shared), reduction(+:PE1) &
+!$omp private(ity,iid,j1,j,jid,jty,inxn,exp_be12,PEbo,CEbo,coeff,i1)
 do i=1, NATOMS
 
    ity = itype(i)
@@ -791,8 +809,7 @@ do i=1, NATOMS
 
         PEbo = - Desig(inxn)*BO(1,i,j1)*exp_be12 - Depi(inxn)*BO(2,i,j1) - Depipi(inxn)*BO(3,i,j1) 
 
-!$omp atomic
-        PE(1) = PE(1) + PEbo
+        PE1 = PE1 + PEbo
 
         CEbo = -Desig(inxn)*exp_be12*( 1.d0 - pbe1(inxn)*pbe2(inxn)*BO(1,i,j1)**pbe2(inxn) )
         coeff(1:3)= (/ CEbo, -Depi(inxn), -Depipi(inxn) /)
@@ -805,6 +822,8 @@ do i=1, NATOMS
    enddo
 enddo
 !$omp end parallel do
+
+PE(1)=PE1
 
 call system_clock(tj,tk)
 it_timer(8)=it_timer(8)+(tj-ti)
@@ -838,15 +857,17 @@ real(8) :: BOij, BOjk, BOkl
 real(8) :: cutof2
 
 integer :: jid,kid
+real(8) :: PE8, PE9
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 cutof2 = cutof2_esub
 
-PE(8:9)=0.d0
+PE8=0.d0
+PE9=0.d0
 
-!$omp parallel do default(shared),&
+!$omp parallel do default(shared), reduction(+:PE8,PE9) &
 !$omp private(i,j,k,l,i1,j1,k1,l1,k2,ity,jty,kty,lty,inxn,&
 !$omp cos_ijkl,cos_ijkl_sqr,cos_2ijkl,sin_ijkl,sin_ijk,sin_jkl,tan_ijk_i,tan_jkl_i,&
 !$omp cos_ijk,cos_jkl,theta_ijk,theta_jkl,omega_ijkl,&
@@ -974,10 +995,8 @@ do j=1,NATOMS
 
                  PEconj = pcot1(inxn)*fn12*(1.d0 + (cos_ijkl_sqr - 1.d0)*sin_ijk*sin_jkl)
 
-!$omp atomic
-                 PE(8) = PE(8) + PEtors
-!$omp atomic
-                 PE(9) = PE(9) + PEconj
+                 PE8 = PE8 + PEtors
+                 PE9 = PE9 + PEconj
 
 !--- Force coefficient calculation
 !--- Torsional term
@@ -1059,6 +1078,9 @@ do j=1,NATOMS
    enddo ! k-loop
 
 enddo
+!$omp end parallel do
+
+PE(8:9)=[PE8,PE9]
 
 call system_clock(tj,tk)
 it_timer(12)=it_timer(12)+(tj-ti)
