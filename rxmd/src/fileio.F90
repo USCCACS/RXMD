@@ -255,15 +255,14 @@ end subroutine
 end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
-subroutine ReadBIN(atype, pos, v, q, fileName)
+subroutine ReadBIN(atype, pos, v, q, f, fileName)
 use atoms
 !--------------------------------------------------------------------------
 implicit none
 
 character(*),intent(in) :: fileName
-
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER),v(3,NBUFFER)
+real(8),allocatable,dimension(:) :: atype,q
+real(8),allocatable,dimension(:,:) :: pos,v,f
 
 integer :: i,i1
 
@@ -279,7 +278,6 @@ real(8) :: ddata(6), d10(10)
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
-
 
 ! Meta Data: 
 !  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
@@ -327,6 +325,25 @@ call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 
 allocate(dbuf(10*NATOMS))
 call MPI_File_Read(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
+
+! reduce NBUFFER if it seems too large. Since this will likely happen when the domain size is small,
+! set the new buffer size to cover 26 neighbor domains.
+if(isBufferResize) then
+   if(allocated(atype)) deallocate(atype)
+   if(allocated(q)) deallocate(q)
+   if(allocated(pos)) deallocate(pos)
+   if(allocated(v)) deallocate(v)
+   if(allocated(f)) deallocate(f)
+   if(allocated(qsfp)) deallocate(qsfp)
+   if(allocated(qsfv)) deallocate(qsfv)
+
+   if(NATOMS*27<NBUFFER) NBUFFER=NATOMS*27
+
+   allocate(atype(NBUFFER),q(NBUFFER))
+   allocate(pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER))
+   allocate(qsfp(NBUFFER),qsfv(NBUFFER))
+   f(:,:)=0.0
+endif
 
 do i=1, NATOMS
     i1=10*(i-1)

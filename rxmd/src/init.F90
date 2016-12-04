@@ -16,6 +16,14 @@ real(8) :: rcsize(3), maxrcell
 
 character(64) :: argv
 
+Interface
+   subroutine ReadBIN(atype, pos, v, q, f, fileName)
+      character(*),intent(in) :: fileName
+      real(8),allocatable,dimension(:) :: atype,q
+      real(8),allocatable,dimension(:,:) :: pos,v,f
+   end subroutine
+end interface
+
 !--- read FF file, output dir, MD parameter file paths from command line
 do i=1, command_argument_count()
    call get_command_argument(i,argv)
@@ -112,17 +120,13 @@ do ity=1, nso
    hmas(ity) = 0.5d0*mass(ity)
 enddo
 
-!--- Particle Parameters
-allocate(pos(3,NBUFFER),f(3,NBUFFER),v(3,NBUFFER),stat=ast); ist=ist+ast
-allocate(atype(NBUFFER),q(NBUFFER), stat=ast); ist=ist+ast
-f(:,:)=0.d0
+allocate(atype(NBUFFER),pos(3,NBUFFER),v(3,NBUFFER),q(NBUFFER),f(3,NBUFFER))
+
+call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- Varaiable for extended Lagrangian method
-allocate(qsfp(NBUFFER), qsfv(NBUFFER), stat=ast); ist=ist+ast
 allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
-qsfp(:)=0.d0; qsfv(:)=0.d0; qtfp(:)=0.d0; qtfv(:)=0.d0
-
-call ReadBIN(atype, pos, v, q, trim(DataDir)//"/rxff.bin")
+qtfp(:)=0.d0; qtfv(:)=0.d0
 
 call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
