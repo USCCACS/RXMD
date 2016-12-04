@@ -7,11 +7,11 @@
 
 # Intel Compiler
 #FC = mpif90 -check all -traceback
-#FC = mpif90 -openmp
-FC = mpif90 
+FC = mpif90 -qopenmp -O3
+#FC = mpif90 
 
 # gfortran
-FC = mpif90 -O3 -fopenmp
+#FC = mpif90 -fopenmp -O3
 #FC = mpif90 -fcheck=all
 
 # xl fortran

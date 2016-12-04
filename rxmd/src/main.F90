@@ -174,8 +174,8 @@ use atoms; use parameters
 !----------------------------------------------------------------------------------------
 implicit none
 
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: v(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
+real(8),intent(in) :: v(3,NBUFFER)
 
 integer :: i,ity,cstep
 real(8),save :: wt0
@@ -283,20 +283,23 @@ use atoms; use parameters
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 !----------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: nlayer
-
-real(8) :: atype(NBUFFER), pos(3,NBUFFER)
+integer,intent(in) :: nlayer
+real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: c1,c2,c3, ic(3), c4, c5, c6
 integer :: n, n1, m, m1, nty, mty, inxn
 real(8) :: dr(3), dr2
 
+integer :: i,j,i1,j1
+logical :: isFound
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-nbrlist(:,:) = 0
-nbrindx(:,:) = 0
+nbrlist(:,0) = 0
 
+!$omp parallel do default(shared) collapse(3) & 
+!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,dr,dr2) 
 DO c1=-nlayer, cc(1)-1+nlayer
 DO c2=-nlayer, cc(2)-1+nlayer
 DO c3=-nlayer, cc(3)-1+nlayer
@@ -308,12 +311,12 @@ DO c3=-nlayer, cc(3)-1+nlayer
      do c4 = -1, 1
      do c5 = -1, 1
      do c6 = -1, 1
-        ic(1:3) = (/c1, c2, c3/) + (/c4, c5, c6/)
+        ic(1:3) = [c1, c2, c3] + [c4, c5, c6]
 
         n = header(ic(1),ic(2),ic(3))
         do n1=1, nacell(ic(1), ic(2), ic(3))
 
-           if(n<m) then
+           if(n/=m) then
              nty = nint(atype(n))
              inxn = inxn2(mty, nty)
 
@@ -322,14 +325,10 @@ DO c3=-nlayer, cc(3)-1+nlayer
 
              if(dr2<rc2(inxn)) then 
                 nbrlist(m, 0) = nbrlist(m, 0) + 1
-                nbrlist(n, 0) = nbrlist(n, 0) + 1
                 nbrlist(m, nbrlist(m, 0)) = n
-                nbrlist(n, nbrlist(n, 0)) = m
-!--- to get the reverse information (i.e. from i,j1&j to i1), store <i1> into <nbrindx>.
-                nbrindx(m, nbrlist(m, 0)) = nbrlist(n, 0)
-                nbrindx(n, nbrlist(n, 0)) = nbrlist(m, 0)
              endif 
            endif
+
            n=llist(n) 
         enddo
      enddo; enddo; enddo
@@ -337,6 +336,27 @@ DO c3=-nlayer, cc(3)-1+nlayer
      m = llist(m)
   enddo
 enddo; enddo; enddo
+!$omp end parallel do 
+
+!--- to get the reverse information (i.e. from i,j1&j to i1), store <i1> into <nbrindx>.
+
+!$omp parallel do default(shared) private(i,i1,j,j1,isFound)
+do i=1, copyptr(6)
+   do i1 = 1, nbrlist(i,0)
+      j = nbrlist(i,i1)
+      isFound=.false.
+      do j1 = 1, nbrlist(j,0)
+         if(i == nbrlist(j,j1)) then
+            nbrindx(i,i1)=j1
+            isFound=.true.
+         endif
+      enddo
+      if(.not.isFound) &
+      print'(a,i6,30i4)','ERROR: inconsistency between nbrlist and nbrindx found', &
+           myid, i,nbrlist(i,0:nbrlist(i,0)), j, nbrlist(j,0:nbrlist(j,0))
+   enddo
+enddo
+!$omp end parallel do
 
 !--- error trap
 n=maxval(nbrlist(1:NATOMS,0))
@@ -381,7 +401,6 @@ do c3=0, nbcc(3)-1
 
    i = nbheader(c1,c2,c3)
    do m = 1, nbnacell(c1,c2,c3)
-      !iid = gtype(i)
 
       do mn = 1, nbnmesh
          c4 = c1 + nbmesh(1,mn)
@@ -390,7 +409,6 @@ do c3=0, nbcc(3)-1
 
          j = nbheader(c4,c5,c6)
          do n=1, nbnacell(c4,c5,c6)
-            !jid = gtype(j)
 
             !if(i<j .or. NATOMS<j) then
             if(i/=j) then
@@ -398,13 +416,8 @@ do c3=0, nbcc(3)-1
                dr2 = sum(dr(1:3)*dr(1:3))
 
                if(dr2<=rctap2) then
-
                  nbplist(i,0)=nbplist(i,0)+1
-                 !nbplist(j,0)=nbplist(j,0)+1
-
                  nbplist(i,nbplist(i,0))=j
-                 !nbplist(j,nbplist(j,0))=i
-
                endif
 
             endif
@@ -416,7 +429,7 @@ do c3=0, nbcc(3)-1
       i=nbllist(i)
    enddo
 enddo; enddo; enddo
-!!$omp end parallel do
+!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(15)=it_timer(15)+(tj-ti)
