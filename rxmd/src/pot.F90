@@ -874,7 +874,7 @@ PE9=0.d0
 !$omp rij,rjk,rkl,crs_ijk,crs_jkl,delta_ang_jk,delta_ang_j,delta_ang_k,&
 !$omp exp_tor1,exp_tor3,exp_tor4,exp_tor34_i,fn10,fn11,dfn11,fn12,PEtors,PEconj,cmn,exp_tor2,&
 !$omp CEtors,Cconj,CEconj,C4body_a,C4body_b,C4body_b_jk,btb2,&
-!$omp BOij,BOjk,BOkl,cutof2,jid,kid)
+!$omp BOij,BOjk,BOkl,jid,kid)
 do j=1,NATOMS
 
   jty = itype(j)

@@ -169,7 +169,6 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-allocate(nbrlist(0:MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
 allocate(A0(MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
 
 if(ist/=0) then
@@ -179,7 +178,7 @@ if(ist/=0) then
 endif
 
 nn=0
-nbrlist(0,:) = 0
+nbplist(:,0) = 0
 
 !$omp parallel do schedule(guided), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,hsan,drtb,itb,inxn)
@@ -210,8 +209,8 @@ do c3=0, nbcc(3)-1
 
 !--- make a neighbor list with cutoff length = 10[A]
 !$omp atomic
-               nbrlist(0,i) = nbrlist(0,i) + 1
-               nbrlist(nbrlist(0,i),i) = j
+               nbplist(i,0) = nbplist(i,0) + 1
+               nbplist(i,nbplist(i,0)) = j
 
 !--- get table index and residual value
                itb = int(dr2*UDRi)
@@ -225,7 +224,7 @@ if(inxn==0) print'(a,4i9)','inxn==0,myid,inxn,ity,jty: ',myid,inxn,ity,jty
 if(itb==0) print'(5i,6f10.5)',myid,l2g(atype(i)),l2g(atype(j)),i,j,pos(1:3,i), pos(1:3,j)
 #endif 
                hsan = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
-               A0(nbrlist(0,i),i) = hsan
+               A0(nbplist(i,0),i) = hsan
             endif
          endif
 
@@ -241,7 +240,7 @@ enddo; enddo; enddo
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
-  nn=maxval(nbrlist(0,1:NATOMS))
+  nn=maxval(nbplist(1:NATOMS,0))
   i=nstep/pstep+1
   maxas(i,3)=nn
 endif
@@ -260,11 +259,10 @@ integer :: iast
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-deallocate(A0, nbrlist,stat=ast)
+deallocate(A0,stat=ast)
 
 iast=0
 allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
-allocate(nbrlist(NBUFFER,0:MAXNEIGHBS), stat=ast); iast=iast+ast
 
 if (iast/=0) then
    if (myid==0) print*, 'ERROR: qeq_finalize', iast
@@ -301,8 +299,8 @@ do i=1, NATOMS
 
    Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
-   do j1 = 1, nbrlist(0,i)
-      j = nbrlist(j1,i)
+   do j1 = 1, nbplist(i,0)
+      j = nbplist(i,j1)
       hshs(i) = hshs(i) + A0(j1,i)*hs(j)
       hsht(i) = hsht(i) + A0(j1,i)*ht(j)
 !--- get half of potential energy, then sum it up if atoms are resident.
@@ -341,8 +339,8 @@ do i=1,NATOMS
    gs(i) = - chi(ity) - eta_ity*qs(i)
    gt(i) = - 1.d0     - eta_ity*qt(i)
 
-   do j1=1, nbrlist(0,i) 
-      j = nbrlist(j1,i)
+   do j1=1, nbplist(i,0) 
+      j = nbplist(i,j1)
       gs(i) = gs(i) - A0(j1,i)*qs(j)
       gt(i) = gt(i) - A0(j1,i)*qt(j)
    enddo
