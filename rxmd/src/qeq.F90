@@ -154,7 +154,7 @@ CONTAINS
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
-use atoms; use parameters
+use atoms; use parameters; use MemoryAllocator
 ! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <A0>.  
 ! <nbrlist> and <A0> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
@@ -169,7 +169,12 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-allocate(A0(MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
+!allocate(A0(MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
+call deallocatord2d(A0)
+call allocatord2d(A0,1,MAXNEIGHBS10,1,NATOMS)
+
+! check memory footprint 
+it_timer(24)=max(GetTotalMemory(), it_timer(24))
 
 if(ist/=0) then
    print*,'Error @ qeq_initialize: ', myid
@@ -252,17 +257,19 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_finalize()
-use atoms
+use atoms; use MemoryAllocator
 !-----------------------------------------------------------------------------------------------------------------------
 integer :: iast
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-deallocate(A0,stat=ast)
+!deallocate(A0,stat=ast)
+call deallocatord2d(A0)
 
 iast=0
-allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+!allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
+call allocatord2d(A0,1,NBUFFER,1,MAXNEIGHBS)
 
 if (iast/=0) then
    if (myid==0) print*, 'ERROR: qeq_finalize', iast

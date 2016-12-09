@@ -140,6 +140,7 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','WritePDB: ', dble(it_timer_max(21))/irt, dble(it_timer_min(21))/irt
    print'(a20,f12.4,3x,f12.4)','ReadBIN: ', dble(it_timer_max(22))/irt, dble(it_timer_min(22))/irt
    print'(a20,f12.4,3x,f12.4)','WriteBIN: ', dble(it_timer_max(23))/irt, dble(it_timer_min(23))/irt
+   print'(a20,f12.4,3x,f12.4)','Memory (GB): ', it_timer_max(24)*1d-9, it_timer_min(24)*1d-9
    print*
 
    print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(Ntimer))/irt, dble(it_timer_min(Ntimer))/irt
@@ -172,7 +173,7 @@ end subroutine
 
 !----------------------------------------------------------------------------------------
 subroutine PRINTE(atype, v, q)
-use atoms; use parameters
+use atoms; use parameters; use MemoryAllocator
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
 !----------------------------------------------------------------------------------------
 implicit none
@@ -225,9 +226,9 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2)') cstep,GTE,GPE(0),GKE, &
+   write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
    GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
-   tt, ss, qq, nstep_qeq, MPI_WTIME()-wt0 
+   tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
 
 #ifdef STRESS
    write(6,'(6es13.5)') pint(1,1)*USTRS, pint(2,2)*USTRS, pint(3,3)*USTRS, &

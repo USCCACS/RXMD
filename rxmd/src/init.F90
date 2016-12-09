@@ -3,7 +3,7 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use parameters; use atoms
+use parameters; use atoms; use MemoryAllocator
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
@@ -114,18 +114,24 @@ do i=1,3
 enddo    
 
 !--- dt/2*mass, mass/2
-allocate(dthm(nso),hmas(nso),stat=ast); ist=ist+ast
+call allocatord1d(dthm, 1, nso)
+call allocatord1d(hmas, 1, nso)
 do ity=1, nso
    dthm(ity) = dt*0.5d0/mass(ity)
    hmas(ity) = 0.5d0*mass(ity)
 enddo
 
-allocate(atype(NBUFFER),pos(3,NBUFFER),v(3,NBUFFER),q(NBUFFER),f(3,NBUFFER))
+call allocatord1d(atype,1,NBUFFER)
+call allocatord1d(q,1,NBUFFER)
+call allocatord2d(pos,1,3,1,NBUFFER)
+call allocatord2d(v,1,3,1,NBUFFER)
+call allocatord2d(f,1,3,1,NBUFFER)
 
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- Varaiable for extended Lagrangian method
-allocate(qtfp(NBUFFER), qtfv(NBUFFER), stat=ast); ist=ist+ast
+call allocatord1d(qtfp,1,NBUFFER)
+call allocatord1d(qtfv,1,NBUFFER)
 qtfp(:)=0.d0; qtfv(:)=0.d0
 
 call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
@@ -136,7 +142,7 @@ enddo; enddo
 
 !--- get total number of atoms per type. This will be used to determine
 !--- subroutine cutofflength() 
-allocate(natoms_per_type(nso),ibuf8(nso))
+allocate(natoms_per_type(nso),ibuf8(nso)) ! NOTE 8byte int is not supported in MemoryAllocator
 natoms_per_type(:)=0
 do i=1, NATOMS
    ity=nint(atype(i))
@@ -162,40 +168,48 @@ call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 #ifdef STRESS
 !--- stress variables
-allocate(astr(6,NBUFFER),stat=ast); ist=ist+ast
+call allocatord2d(astr(1,6,1,NBUFFER)
 astr(:,:)=0.d0; 
 #endif
 
 !--- Linked List & Near Neighb Parameters
-allocate(nbrlist(NBUFFER,0:MAXNEIGHBS), nbrindx(NBUFFER, MAXNEIGHBS),stat=ast); ist=ist+ast
-allocate(nbplist(NBUFFER,0:MAXNEIGHBS10),stat=ast); ist=ist+ast
-allocate(llist(NBUFFER),stat=ast);ist=ist+ast 
-allocate(header(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
-allocate(nacell(-MAXLAYERS:cc(1)-1+MAXLAYERS, -MAXLAYERS:cc(2)-1+MAXLAYERS, -MAXLAYERS:cc(3)-1+MAXLAYERS), stat=ast); ist=ist+ast
+call allocatori2d(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
+call allocatori2d(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
+call allocatori2d(nbplist,1,NBUFFER,0,MAXNEIGHBS10)
+call allocatori1d(llist,1,NBUFFER)
+call allocatori3d(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
+call allocatori3d(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 
 !--- Bond Order Prime and deriv terms:
-allocate(dln_BOp(3,NBUFFER, MAXNEIGHBS), dBOp(NBUFFER,MAXNEIGHBS), stat=ast); ist=ist+ast
-allocate(deltap(NBUFFER, 3), stat=ast); ist=ist+ast
+call allocatord3d(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord2d(dBOp,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord2d(deltap,1,NBUFFER,1,3)
 
 !--- Bond Order terms
-allocate(BO(0:3,NBUFFER,MAXNEIGHBS), delta(NBUFFER), stat=ast); ist=ist+ast
-allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast
-allocate(A1(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
-allocate(A2(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
-allocate(A3(NBUFFER, MAXNEIGHBS), stat=ast); ist=ist+ast 
-allocate(nlp(NBUFFER), dDlp(NBUFFER), stat=ast); ist=ist+ast
-allocate(ccbnd(NBUFFER), stat=ast); ist=ist+ast
+call allocatord3d(BO,0,3,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord1d(delta,1,NBUFFER)
+call allocatord2d(A0,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord2d(A1,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord2d(A2,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord2d(A3,1,NBUFFER,1,MAXNEIGHBS)
+call allocatord1d(nlp,1,NBUFFER)
+call allocatord1d(dDlp,1,NBUFFER)
+call allocatord1d(ccbnd,1,NBUFFER)
 ccbnd(:)=0.d0
 
 !--- 2 vector QEq varialbes
-allocate(qs(NBUFFER), gs(NBUFFER), stat=ast); ist=ist+ast
-allocate(qt(NBUFFER), gt(NBUFFER), stat=ast); ist=ist+ast
-allocate(hs(NBUFFER), hshs(NBUFFER), stat=ast); ist=ist+ast
-allocate(ht(NBUFFER), hsht(NBUFFER), stat=ast); ist=ist+ast
+call allocatord1d(qs,1,NBUFFER)
+call allocatord1d(gs,1,NBUFFER)
+call allocatord1d(qt,1,NBUFFER)
+call allocatord1d(gt,1,NBUFFER)
+call allocatord1d(hs,1,NBUFFER)
+call allocatord1d(hshs,1,NBUFFER)
+call allocatord1d(ht,1,NBUFFER)
+call allocatord1d(hsht,1,NBUFFER)
 qs(:)=0.d0; qt(:)=0.d0; gs(:)=0.d0; gt(:)=0.d0; hs(:)=0.d0; ht(:)=0.d0; hshs(:)=0.d0; hsht(:)=0.d0
 
 !--- returning force index array 
-allocate(frcindx(NBUFFER), stat=ast); ist=ist+ast 
+call allocatori1d(frcindx,1,NBUFFER)
 
 !--- setup potential table
 call POTENTIALTABLE()
@@ -396,7 +410,7 @@ end subroutine
 
 !------------------------------------------------------------------------------------------
 subroutine POTENTIALTABLE()
-use atoms; use parameters
+use atoms; use parameters; use MemoryAllocator
 !------------------------------------------------------------------------------------------
 implicit none
 integer :: i, ity,jty,inxn
@@ -408,8 +422,9 @@ real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
 
 !--- first element in table 0: potential
 !---                        1: derivative of potential
-allocate(TBL_EClmb(0:1,NTABLE,nboty), TBL_Evdw(0:1,NTABLE, nboty), stat=ast)
-allocate(TBL_EClmb_QEq(NTABLE,nboty), stat=ast)
+call allocatord3d(TBL_EClmb,0,1,1,NTABLE,1,nboty)
+call allocatord3d(TBL_Evdw,0,1,1,NTABLE,1,nboty)
+call allocatord2d(TBL_EClmb_QEq,1,NTABLE,1,nboty)
 
 !--- unit distance in r^2 scale
 UDR = rctap2/NTABLE
@@ -482,7 +497,7 @@ end subroutine
 
 !----------------------------------------------------------------
 subroutine GetNonbondingMesh()
-use atoms; use parameters
+use atoms; use parameters; use MemoryAllocator
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
 implicit none
@@ -520,7 +535,7 @@ do k=-imesh(3), imesh(3)
    !if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
 enddo; enddo; enddo
 
-allocate(nbmesh(3,nbnmesh),stat=ast)
+call allocatori2d(nbmesh,1,3,1,nbnmesh)
 
 nbmesh(:,:)=0
 nbnmesh=0
@@ -536,15 +551,15 @@ do k=-imesh(3), imesh(3)
    endif
 enddo; enddo; enddo
 
-allocate(nbllist(NBUFFER),stat=ast)
-allocate(nbheader( &
-                -MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
-allocate(nbnacell( &
-                -MAXLAYERS_NB:nbcc(1)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB:nbcc(2)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB:nbcc(3)-1+MAXLAYERS_NB), stat=ast)
+call allocatori1d(nbllist,1,NBUFFER)
+call allocatori3d(nbheader, &
+                -MAXLAYERS_NB,nbcc(1)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB,nbcc(2)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB,nbcc(3)-1+MAXLAYERS_NB)
+call allocatori3d(nbnacell, &
+                -MAXLAYERS_NB,nbcc(1)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB,nbcc(2)-1+MAXLAYERS_NB, &
+                -MAXLAYERS_NB,nbcc(3)-1+MAXLAYERS_NB)
 
 !--- normalize nblcsize, like lcsize.
 nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)

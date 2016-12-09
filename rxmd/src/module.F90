@@ -127,28 +127,28 @@ integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
 integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
 
 !<nbrlist> neighbor list, <nbrindx> neighbor index
-integer,pointer :: nbrlist(:,:), nbrindx(:,:)
+integer,allocatable :: nbrlist(:,:), nbrindx(:,:)
 
 !<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
 integer,allocatable :: nbplist(:,:)
 
 !<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
-real(8),pointer :: BO(:,:,:) 
+real(8),allocatable :: BO(:,:,:) 
 
 real(8),allocatable :: delta(:)
 
 !--- Output variables from the BOp_CALC() subroutine:
 real(8),allocatable :: deltap(:,:)
 
-real(8),pointer :: dln_BOp(:,:,:)
+real(8),allocatable :: dln_BOp(:,:,:)
 
-real(8),pointer :: dBOp(:,:)
+real(8),allocatable :: dBOp(:,:)
 
 !--- For NEW DBO calc:
 real(8),allocatable :: exp_delt1(:,:), exp_delt2(:,:)  ! exp( -pboc#(inxn) * deltap(i,1) ) - {inxn, i}   
 
 !--- A[0123] coefficients for force calculation 
-real(8),pointer:: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
+real(8),allocatable :: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
 
 !--- Passed between Elnpr and E3body
 real(8),allocatable :: nlp(:), dDlp(:) !Number of Lone Pairs, its derivatives.
@@ -393,3 +393,175 @@ real(8)  :: vpar30,vpar1,vpar2
 real(8),allocatable :: switch(:,:) 
 
 end module parameters 
+
+!-------------------------------------------------------------------------------------------
+module MemoryAllocator
+!-------------------------------------------------------------------------------------------
+implicit none
+integer :: totalMemory=0
+
+contains 
+
+subroutine AllocatorD1D(array, imin, imax)
+  implicit none
+  integer,intent(in) :: imin, imax
+  real(8),allocatable,dimension(:) :: array
+  integer :: status
+  
+  allocate(array(imin:imax), stat=status)
+  totalMemory = totalMemory + size(array)*8
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorD1D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine 
+
+subroutine DeallocatorD1D(array)
+  implicit none
+  real(8),allocatable,dimension(:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*8
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorD1D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+subroutine AllocatorD2D(array, imin1, imax1, imin2, imax2) 
+  implicit none
+  integer,intent(in) :: imin1, imax1, imin2, imax2
+  real(8),allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  allocate(array(imin1:imax1,imin2:imax2), stat=status)
+  totalMemory = totalMemory + size(array)*8
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorD2D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine
+
+subroutine DeallocatorD2D(array) 
+  implicit none
+  real(8),allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*8
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorD2D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+subroutine AllocatorD3D(array, imin1, imax1, imin2, imax2, imin3, imax3) 
+  implicit none
+  integer,intent(in) :: imin1, imax1, imin2, imax2, imin3, imax3
+  real(8),allocatable,dimension(:,:,:) :: array
+  integer :: status
+  
+  allocate(array(imin1:imax1,imin2:imax2,imin3:imax3), stat=status)
+  totalMemory = totalMemory + size(array)*8
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorD3D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine
+
+subroutine DeallocatorD3D(array) 
+  implicit none
+  real(8),allocatable,dimension(:,:,:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*8
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorD3D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+subroutine AllocatorI1D(array, imin, imax) 
+  implicit none
+  integer,intent(in) :: imin, imax
+  integer,allocatable,dimension(:) :: array
+  integer :: status
+  
+  allocate(array(imin:imax), stat=status)
+  totalMemory = totalMemory + size(array)*4
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI1D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine 
+
+subroutine DeallocatorI1D(array) 
+  implicit none
+  integer,allocatable,dimension(:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*4
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorI1D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+subroutine AllocatorI2D(array, imin1, imax1, imin2, imax2) 
+  implicit none
+  integer,intent(in) :: imin1, imax1, imin2, imax2
+  integer,allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  allocate(array(imin1:imax1,imin2:imax2), stat=status)
+  totalMemory = totalMemory + size(array)*4
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI2D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine 
+
+subroutine DeallocatorI2D(array) 
+  implicit none
+  integer,allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*4
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorI2D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+subroutine AllocatorI3D(array, imin1, imax1, imin2, imax2, imin3, imax3) 
+  implicit none
+  integer,intent(in) :: imin1, imax1, imin2, imax2, imin3, imax3
+  integer,allocatable,dimension(:,:,:) :: array
+  integer :: status
+  
+  allocate(array(imin1:imax1,imin2:imax2,imin3:imax3), stat=status)
+  totalMemory = totalMemory + size(array)*4
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI3D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine 
+
+subroutine DeallocatorI3D(array) 
+  implicit none
+  integer,allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*4
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorI3D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+integer function GetTotalMemory() 
+  GetTotalMemory = totalMemory
+  return
+end function
+
+end module MemoryAllocator
+!-------------------------------------------------------------------------------------------
