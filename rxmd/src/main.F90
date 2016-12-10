@@ -56,8 +56,7 @@ do nstep=0, ntime_step-1
 
 !--- migrate atoms after positions are updated
    call xu2xs(pos)
-   dr(1:3)=0.d0
-   call COPYATOMS(MODE_MOVE,dr,atype, pos, v, f, q)
+   call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
    call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
    call xs2xu(pos)
    

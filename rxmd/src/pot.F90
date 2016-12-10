@@ -27,8 +27,7 @@ astr(:,:) = 0.d0
 
 !--- unscaled to scaled coordinate
 call xu2xs(pos)
-dr(1:3)=NMINCELL*lcsize(1:3)
-call COPYATOMS(MODE_COPY,dr,atype,pos,vdummy,f,q) 
+call COPYATOMS(MODE_COPY,NMINCELL*lcsize(1:3),atype,pos,vdummy,f,q) 
 
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
 call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
@@ -56,8 +55,7 @@ CALL Ehb()
 
 CALL ForceBondedTerms(NMINCELL)
 
-dr(1:3)=0.d0
-CALL COPYATOMS(MODE_CPBK,dr, atype, pos, vdummy, f, q) 
+CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
 
 !--- calculate kinetic part of stress components and add to <astr>.
 #ifdef STRESS
@@ -141,7 +139,7 @@ allocate(deltalp(NBUFFER),stat=ast)
 
 
 !=== preparation ==============================================================
-do i = 1, NBUFFER
+do i = 1, copyptr(6)
    ity = itype(i)
 
    if(ity==0) cycle

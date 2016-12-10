@@ -11,11 +11,12 @@
 #FC = mpif90 
 
 # gfortran
-FC = mpif90 -fopenmp -O3
-#FC = mpif90 -fcheck=all
+#FC = mpif90 -fopenmp -O3
+FC = mpif90 -fcheck=all
 
 # xl fortran
-#FC = mpif90 -O3 -qreport -qhot
+#FC = mpif90 -O3 -qhot -qsmp=omp
+#FC = mpif90 -O3 -qhot
 #FC = mpif90 -C -g
 
 SRCS := main.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 cg.F90 param.F90 stress.F90
