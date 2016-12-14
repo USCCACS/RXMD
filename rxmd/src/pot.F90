@@ -54,8 +54,15 @@ CALL E4b()
 CALL Ehb()
 
 CALL ForceBondedTerms(NMINCELL)
-
 CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
+
+#ifdef RFDUMP
+open(81,file="rfdump"//trim(rankToString(myid))//".txt")
+do i=1, NATOMS
+   write(81,'(2i6,6f20.12)') i,nint(atype(i)),pos(1:3,i),f(1:3,i)
+enddo
+close(81)
+#endif
 
 !--- calculate kinetic part of stress components and add to <astr>.
 #ifdef STRESS

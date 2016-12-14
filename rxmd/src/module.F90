@@ -270,6 +270,16 @@ character(MAXPATHLENGTH) :: FFDescript
 
 contains
 
+!-----------------------------------------------------------------------------------------------------------------------
+character(len=256) function rankToString(irank)
+!-----------------------------------------------------------------------------------------------------------------------
+implicit none
+integer,intent(in) :: irank
+write(rankToString,*) irank
+rankToString = adjustl(rankToString)
+end function rankToString
+
+
 !-------------------------------------------------------------------------------------------
 function GetFileNameBase(nstep) result(fileNameBase)
 !-------------------------------------------------------------------------------------------

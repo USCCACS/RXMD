@@ -16,11 +16,13 @@ real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 real(8),intent(out) :: q(NBUFFER)
 real(8) :: vdummy(1,1), fdummy(1,1)
 
+integer :: i
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
 real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, mu
+real(8) :: qsum, gqsum
 real(8) :: QCopyDr(3)
 
 call system_clock(i1,k1)
@@ -79,18 +81,23 @@ ht(1:NATOMS) = gt(1:NATOMS)
 call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
 
 GEst2=1.d99
-!do nstep_qeq=0, NMAXQEq-1
 do nstep_qeq=0, nmax-1
 
-!  qsum = sum(q(1:NATOMS))
-!  call MPI_ALLREDUCE(qsum, gqsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+#ifdef QEQDUMP 
+  qsum = sum(q(1:NATOMS))
+  call MPI_ALLREDUCE(qsum, gqsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+#endif
 
   call get_hsh(Est)
 
   call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-  !if(myid==0) print'(i5,4es25.15)',nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2
 
-  if( ( 0.5d0*(abs(GEst2)+abs(GEst1))<QEq_tol) .or. (abs(GEst1/GEst2-1.d0) < QEq_tol) ) exit
+#ifdef QEQDUMP 
+  if(myid==0) print'(i5,5es25.15)',nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2, gqsum
+#endif
+
+  if( ( 0.5d0*( abs(GEst2) + abs(GEst1) ) < QEq_tol) ) exit 
+  if( abs(GEst2) > 0.d0 .and. (abs(GEst1/GEst2-1.d0) < QEq_tol) ) exit
   GEst2 = GEst1
 
 !--- line minimization factor of <s> vector
@@ -149,6 +156,16 @@ call xs2xu(pos)
 
 call system_clock(j1,k1)
 it_timer(1)=it_timer(1)+(j1-i1)
+
+#ifdef QEQDUMP 
+open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
+do i=1, NATOMS
+   write(91,'(2i6,f16.12,3f20.12)') i,nint(atype(i)),q(i),pos(1:3,i)
+enddo
+close(91)
+#endif
+
+return 
 
 CONTAINS
 
