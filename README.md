@@ -7,12 +7,12 @@ ReaxFF MD code repository
 > source /usr/usc/openmpi/1.8.7/setup.sh.intel
 
 ## mk.sh and init.sh
-There are several helper scripts in util directory. 
+There are several helper scripts in **util** directory. 
 
-To compile the executable. Check Makefile in 'src' directory before compile. 
+**mk.sh** runs mulithreaded make to compile the executable. Check Makefile in **src** directory before compile. 
 > ./util/mk.sh 
 
-To prepare initial configuration. init.sh compiles geninit.F90, generate initial config binary 'rxff.bin' and copy it in 'DAT' directory following Makefile in 'init' directory. Again please check which compiler you use in the Makefile. 
+**init.sh** sets up initial configuration. **init.sh** compiles **geninit.F90**, generate initial config binary **rxff.bin** and copy it in **DAT** directory following Makefile in 'init' directory. Again please check which compiler you use in the Makefile. 
 > ./util/init.sh
 
 ## mulithreaded potential energy, bond-order calc, neighborlist, charge equilibration support
