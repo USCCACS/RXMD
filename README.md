@@ -21,6 +21,7 @@ current version supports OpenMP mulithreading in all major functions. You can co
 Example) 32 MPI ranks on 2 node case, 64 threads in total. 
 
 > qsub -I -d . -l nodes=2:ppn=16:priya_IB,walltime=2:00:00
+
 > mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 16 -np 32 ./rxmd
 
 ###sample output
