@@ -174,6 +174,7 @@ real(8),allocatable :: qs(:),qt(:),gs(:), gt(:), hs(:), ht(:), hshs(:), hsht(:)
 !<Lex_fqs> fraction between two QEq vectors
 !<Lex_w> spring constant
 real(8),allocatable :: qsfp(:),qsfv(:),qtfp(:),qtfv(:) 
+real(8),allocatable :: hessian(:,:)
 real(8) :: Lex_fqs=1.0, Lex_w=1.d0, Lex_w2=1.d0, Lex_k=2.d0
  
 integer :: ast ! Allocation STatus of allocatable variables.

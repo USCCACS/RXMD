@@ -121,7 +121,6 @@ do nstep_qeq=0, nmax-1
   qs(1:NATOMS) = qs(1:NATOMS) + lmin(1)*hs(1:NATOMS)
   qt(1:NATOMS) = qt(1:NATOMS) + lmin(2)*ht(1:NATOMS)
 
-
 !--- get a current electronegativity <mu>
   ssum = sum(qs(1:NATOMS))
   tsum = sum(qt(1:NATOMS))
@@ -152,7 +151,6 @@ do nstep_qeq=0, nmax-1
 
 enddo
 
-call qeq_finalize()
 call xs2xu(pos)
 
 call system_clock(j1,k1)
@@ -173,8 +171,8 @@ CONTAINS
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
 use atoms; use parameters; use MemoryAllocator
-! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <A0>.  
-! <nbrlist> and <A0> will be used for different purpose later.
+! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <hessian>.  
+! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
 integer :: i,j, ity, jty, n, m, mn, nn, ist=0
@@ -187,19 +185,9 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-call deallocatord2d(A0)
-call allocatord2d(A0,1,MAXNEIGHBS10,1,NATOMS)
-
 ! check memory footprint 
 it_timer(24)=max(GetTotalMemory(), it_timer(24))
 
-if(ist/=0) then
-   print*,'Error @ qeq_initialize: ', myid
-   call MPI_FINALIZE(ierr)
-   stop
-endif
-
-nn=0
 nbplist(:,0) = 0
 
 !$omp parallel do schedule(guided), default(shared), &
@@ -239,14 +227,9 @@ do c3=0, nbcc(3)-1
                drtb = dr2 - itb*UDR
                drtb = drtb*UDRi
 
-!--- save hessian into A0
                inxn = inxn2(ity, jty)
-#ifdef DEBUG
-if(inxn==0) print'(a,4i9)','inxn==0,myid,inxn,ity,jty: ',myid,inxn,ity,jty
-if(itb==0) print'(5i,6f10.5)',myid,l2g(atype(i)),l2g(atype(j)),i,j,pos(1:3,i), pos(1:3,j)
-#endif 
-               hsan = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
-               A0(nbplist(i,0),i) = hsan
+
+               hessian(nbplist(i,0),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
             endif
          endif
 
@@ -259,7 +242,6 @@ if(itb==0) print'(5i,6f10.5)',myid,l2g(atype(i)),l2g(atype(j)),i,j,pos(1:3,i), p
 enddo; enddo; enddo
 !$omp end parallel do
 
-
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
   nn=maxval(nbplist(1:NATOMS,0))
@@ -271,23 +253,6 @@ call system_clock(tj,tk)
 it_timer(16)=it_timer(16)+(tj-ti)
 
 end subroutine 
-
-!-----------------------------------------------------------------------------------------------------------------------
-subroutine qeq_finalize()
-use atoms; use MemoryAllocator
-!-----------------------------------------------------------------------------------------------------------------------
-integer :: iast
-integer :: ti,tj,tk
-
-call system_clock(ti,tk)
-
-call deallocatord2d(A0)
-call allocatord2d(A0,1,NBUFFER,1,MAXNEIGHBS)
-
-call system_clock(tj,tk)
-it_timer(17)=it_timer(17)+(tj-ti)
-
-end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_hsh(Est)
@@ -315,10 +280,10 @@ do i=1, NATOMS
 
    do j1 = 1, nbplist(i,0)
       j = nbplist(i,j1)
-      hshs(i) = hshs(i) + A0(j1,i)*hs(j)
-      hsht(i) = hsht(i) + A0(j1,i)*ht(j)
+      hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
+      hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
 !--- get half of potential energy, then sum it up if atoms are resident.
-      Est1 = 0.5d0*A0(j1,i)*q(i)*q(j)
+      Est1 = 0.5d0*hessian(j1,i)*q(i)*q(j)
       Est = Est + Est1
       if(j<=NATOMS) Est = Est + Est1
    enddo
@@ -353,8 +318,8 @@ do i=1,NATOMS
    gtsum=0.d0
    do j1=1, nbplist(i,0) 
       j = nbplist(i,j1)
-      gssum = gssum + A0(j1,i)*qs(j)
-      gtsum = gtsum + A0(j1,i)*qt(j)
+      gssum = gssum + hessian(j1,i)*qs(j)
+      gtsum = gtsum + hessian(j1,i)*qt(j)
    enddo
 
    ity = nint(atype(i))
@@ -368,7 +333,7 @@ enddo
 
 ggnew(1) = dot_product(gs(1:NATOMS), gs(1:NATOMS))
 ggnew(2) = dot_product(gt(1:NATOMS), gt(1:NATOMS))
-call MPI_ALLREDUCE(ggnew, Gnew, size(ggnew), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(ggnew, Gnew, size(ggnew), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 call system_clock(tj,tk)
 it_timer(19)=it_timer(19)+(tj-ti)
