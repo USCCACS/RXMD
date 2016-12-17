@@ -25,29 +25,6 @@ Example) 32 MPI ranks on 2 node case, 64 threads in total.
 
 ###sample output
 ```
-[knomura@cetuslac1 rxmd]$ runjob --np 1024 -p 1 --block $COBALT_PARTNAME --verbose=INFO --envs=OMP_NUM_THREADS=64
-              rxmd has started
-----------------------------------------------------------------
-         req/alloc # of procs:     1024  /     1024
-         req proc arrengement:       32       32        1
-                parameter set:Reactive MD-force field: nitramines (RDX/HMX/TATB/PETN)               
-                time step[fs]:    2.50E-01
- MDMODE CURRENTSTEP NTIMESTPE:  1         0       200
-  isQEq,QEq_tol,NMAXQEq,qstep:     1   1.0E-06   500     1
-                Lex_fqs,Lex_k:   1.000   2.000
-            treq,vsfact,sstep:     300.000   1.000     1000
-                  fstep,pstep:   100    10
-               NATOMS GNATOMS:                    8064                 8257536
-                         LBOX:       0.031       0.031       1.000
-                  Hmatrix [A]:        421.760          0.000          0.000
-                  Hmatrix [A]:          0.000        370.240          0.000
-                  Hmatrix [A]:          0.000          0.000        514.080
-               lata,latb,latc:     421.760     370.240     514.080
-          lalpha,lbeta,lgamma:      90.000      90.000      90.000
-               density [g/cc]:    1.8061
-         # of linkedlist cell:     4     3   162
-            maxrc, lcsize [A]:     3.160        3.29      3.86      3.17
-     MAXNEIGHBS, MAXNEIGHBS10:    50   900
 Macintosh:rxmd knomura$ ./rxmd 
               rxmd has started
 ----------------------------------------------------------------
@@ -122,6 +99,4 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
        total (sec):      12.4920        12.4920
 ----------------------------------------------
     rxmd successfully finished
-    
-```
-
+'''
