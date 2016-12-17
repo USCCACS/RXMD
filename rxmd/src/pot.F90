@@ -19,6 +19,7 @@ integer :: gtype(NBUFFER) !-- global ID from atype
 
 ccbnd(:) = 0.d0
 f(:,:) = 0.d0
+PE(:) = 0.d0
 
 #ifdef STRESS
 !--- stress components have to be transfered back to the original atoms, as the force components. 
@@ -37,9 +38,11 @@ call NEIGHBORLIST(NMINCELL, atype, pos)
 call GetNonbondingPairList(pos)
 
 !--- get atom type and global ids
+!$omp simd
 do i=1, NBUFFER
    itype(i)=nint(atype(i))
 enddo
+!$omp simd
 do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo
@@ -146,9 +149,6 @@ integer :: ti,tj,tk
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
-!$omp single
-PE(2:4)=0.d0
-!$omp end single
 
 !=== preparation ==============================================================
 !$omp do 
@@ -316,18 +316,11 @@ real(8) :: CEval(9), CEpen(3), CEcoa(5)
 real(8) :: CE3body_d(3), CE3body_b(3), CE3body_a, coeff(3)
 real(8) :: BOij,BOjk
 
-!NOTICE: <cutof2> is used to get exactly the same energy in original reaxFF code. 
-real(8) :: cutof2
-
 integer :: ti,tj,tk
 
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
-!$omp single
-cutof2 = cutof2_esub
-PE(5:7)=0.d0
-!$omp end single nowait
 
 !$omp do schedule(guided) reduction(+:PE)
 do j=1, NATOMS
@@ -345,8 +338,8 @@ do j=1, NATOMS
 
    do i1=1, nbrlist(j,0)-1
 
-!--- NOTICE: Subtract the bond-order between i-j by cutof2 and use it for energy and force calc.
-      BOij = BO(0,j,i1) - cutof2
+!--- NOTE: cutof2_esub is used as the BO cutoff in the original ReaxFF code.
+      BOij = BO(0,j,i1) - cutof2_esub
       if(BOij>0.d0) then ! react.f, line 4827 
       i=nbrlist(j,i1)
       ity = itype(i)
@@ -356,11 +349,11 @@ do j=1, NATOMS
 
       do k1=i1+1, nbrlist(j,0)
 
-!--- NOTICE: Subtract the bond-order between i-j by cutof2 and use it for energy and force calc.
-         BOjk = BO(0,j,k1)-cutof2
+!--- NOTE: cutof2_esub is used as the BO cutoff in the original ReaxFF code.
+         BOjk = BO(0,j,k1)-cutof2_esub
 
          if(BOjk>0.d0) then !react.f, line 4830
-         if(BO(0,j,i1)*BO(0,j,k1)>cutof2) then !react.f, line 4831
+         if(BO(0,j,i1)*BO(0,j,k1)>cutof2_esub) then !react.f, line 4831
 
          k=nbrlist(j,k1)
          kty = itype(k)
@@ -556,9 +549,6 @@ integer :: ti,tj,tk
 !$omp master 
 call system_clock(ti,tk)
 !$omp end master
-!$omp single
-PE(10)=0.d0
-!$omp end single nowait
 
 !$omp do schedule(dynamic) reduction(+:PE)
 do i=1, NATOMS
@@ -680,9 +670,6 @@ real(8) :: PE11,PE12,PE13
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
-!$omp single
-PE(11:13)=0.d0
-!$omp end single
 
 !$omp do schedule(guided) reduction(+:PE)
 do i=1, NATOMS
@@ -778,9 +765,6 @@ integer :: ti,tj,tk
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
-!$omp single
-PE(1)=0.d0
-!$omp end single
 
 !$omp do reduction(+:PE)
 do i=1, NATOMS
@@ -846,7 +830,6 @@ real(8) :: CEtors(9), Cconj, CEconj(6), C4body_a(3), C4body_b(3), C4body_b_jk(3)
 
 real(8) :: btb2 !! 
 real(8) :: BOij, BOjk, BOkl
-real(8) :: cutof2
 
 integer :: jid,kid
 
@@ -855,10 +838,6 @@ integer :: ti,tj,tk
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
-!$omp single
-cutof2 = cutof2_esub
-PE(8:9)=0.d0
-!$omp end single nowait
 
 !$omp do schedule(guided) reduction(+:PE)
 do j=1,NATOMS
@@ -869,9 +848,9 @@ do j=1,NATOMS
 
   do k1=1, nbrlist(j,0) 
 
-!--- NOTICE: Subtract the bond-order between i-j by cutof2 and use it for energy and force calc.
-     BOjk = BO(0,j,k1) - cutof2 !<kn>
-     if(BO(0,j,k1) > cutof2) then         !poten.f,line 1829,1830
+!--- NOTE: cutof2_esub is used as the BO cutoff in the original ReaxFF code.
+     BOjk = BO(0,j,k1) - cutof2_esub
+     if(BO(0,j,k1) > cutof2_esub) then         !poten.f,line 1829,1830
 
         k = nbrlist(j,k1)
         kid = gtype(k)
@@ -888,11 +867,11 @@ do j=1,NATOMS
          
         do i1=1, nbrlist(j,0)
 
-!--- NOTICE: Subtract the bond-order between i-j by cutof2 and use it for energy and force calc.
-           BOij = BO(0,j,i1) - cutof2 !<kn>
+!--- NOTE: cutof2_esub is used as the BO cutoff in the original ReaxFF code.
+           BOij = BO(0,j,i1) - cutof2_esub
 
 !--- NOTICE: cutoff condition to ignore bonding.
-           if((BO(0,j,i1)>cutof2) .and. ((BO(0,j,i1)*BO(0,j,k1))>cutof2)) then !poten.f from iv() calculataion
+           if((BO(0,j,i1)>cutof2_esub) .and. ((BO(0,j,i1)*BO(0,j,k1))>cutof2_esub)) then !poten.f from iv() calculataion
 
            i=nbrlist(j,i1)
 
@@ -916,11 +895,11 @@ do j=1,NATOMS
 
               do l1=1, nbrlist(k,0)
 
-!--- NOTICE: Subtract the bond-order between k-l by cutof2 and use it for energy and force calc.
-                 BOkl = BO(0,k,l1) - cutof2 !<kn>
+!--- NOTE: cutof2_esub is used as the BO cutoff in the original ReaxFF code.
+                 BOkl = BO(0,k,l1) - cutof2_esub
 
-!--- NOTICE: cutoff condition to ignore bonding.
-                 if((BO(0,k,l1)>cutof2).and.(BO(0,j,k1)*BO(0,k,l1)>cutof2)) then !poten.f,line 1829,1830
+!--- NOTE: cutof2_esub is used as the BO cutoff in the original ReaxFF code.
+                 if((BO(0,k,l1)>cutof2_esub).and.(BO(0,j,k1)*BO(0,k,l1)>cutof2_esub)) then !poten.f,line 1829,1830
 
                  l=nbrlist(k,l1)
                  lty = itype(l)

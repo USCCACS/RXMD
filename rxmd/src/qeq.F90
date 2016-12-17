@@ -27,7 +27,7 @@ real(8) :: QCopyDr(3)
 
 call system_clock(i1,k1)
 
-QCopyDr(1:3)=10d0/(/lata,latb,latc/)
+QCopyDr(1:3)=rctap/(/lata,latb,latc/)
 
 !--- Initialize <s> vector with current charge and <t> vector with zero.
 !--- isQEq==1 Normal QEq, isQEq==2 Extended Lagrangian method, DEFAULT skip QEq 

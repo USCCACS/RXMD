@@ -92,9 +92,9 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 logical :: isBufferResize = .true.
-integer :: NBUFFER=20000
-integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=900 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer :: NBUFFER=30000
+integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer,parameter :: MAXNEIGHBS10=700 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
