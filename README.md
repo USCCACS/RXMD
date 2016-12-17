@@ -6,13 +6,22 @@ ReaxFF MD code repository
 
 > source /usr/usc/openmpi/1.8.7/setup.sh.intel
 
+## mk.sh and init.sh
+There are several helper scripts in util directory. 
 
-## threaded non-bonding pair support 
-this version requires OpenMP enabled as default. If you are going to use two Infiniband nodes in priya queue to run a 16 MPIrank rxmd job,
+To compile the executable. Check Makefile in 'src' directory before compile. 
+> ./util/mk.sh 
+
+To prepare initial configuration. init.sh compiles geninit.F90, generate initial config binary 'rxff.bin' and copy it in 'DAT' directory following Makefile in 'init' directory. Again please check which compiler you use in the Makefile. 
+> ./util/init.sh
+
+## mulithreaded potential energy, bond-order calc, neighborlist, charge equilibration support
+current version supports OpenMP mulithreading in all major functions. You can control the number of OpenMP threads by passing OMP_NUM_THREADS environment variable to mpirun.
+
+Example) 32 MPI ranks on 2 node case, 64 threads in total. 
 
 > qsub -I -d . -l nodes=2:ppn=16:priya_IB,walltime=2:00:00
-
-> mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 8 -np 16 ./rxmd
+> mpirun -x OMP_NUM_THREADS=2 --bind-to none -npernode 16 -np 32 ./rxmd
 
 ###sample output
 ```
@@ -39,57 +48,80 @@ this version requires OpenMP enabled as default. If you are going to use two Inf
          # of linkedlist cell:     4     3   162
             maxrc, lcsize [A]:     3.160        3.29      3.86      3.17
      MAXNEIGHBS, MAXNEIGHBS10:    50   900
-            NMINCELL, NBUFFER:     3    80000
+Macintosh:rxmd knomura$ ./rxmd 
+              rxmd has started
+----------------------------------------------------------------
+         req/alloc # of procs:        1  /        1
+         req proc arrengement:        1        1        1
+                parameter set:Reactive MD-force field: nitramines (RDX/HMX/TATB/PETN)               
+                time step[fs]:    2.50E-01
+ MDMODE CURRENTSTEP NTIMESTPE:  1         0       100
+  isQEq,QEq_tol,NMAXQEq,qstep:     1   1.0E-06   500     1
+                Lex_fqs,Lex_k:   1.000   2.000
+            treq,vsfact,sstep:     300.000   1.000      100
+                  fstep,pstep:   100    10
+               NATOMS GNATOMS:                    4536                    4536
+                         LBOX:       1.000       1.000       1.000
+                  Hmatrix [A]:         39.540          0.000          0.000
+                  Hmatrix [A]:          0.000         34.710          0.000
+                  Hmatrix [A]:          0.000          0.000         32.130
+               lata,latb,latc:      39.540      34.710      32.130
+          lalpha,lbeta,lgamma:      90.000      90.000      90.000
+               density [g/cc]:    1.8061
+         # of linkedlist cell:    12    10    10
+            maxrc, lcsize [A]:     3.160        3.29      3.47      3.21
+    # of linkedlist cell (NB):    13    11    10
+              lcsize [A] (NB):      3.04      3.16      3.21
+     MAXNEIGHBS, MAXNEIGHBS10:    30   700
+            NMINCELL, NBUFFER:     3    30000
     FFPath, DataDir, ParmPath:      ffield          DAT      rxmd.in
-          # of atoms per type:     1179648 - 1     2359296 - 2     2359296 - 3     2359296 - 4
+          # of atoms per type:         648 - 1        1296 - 2        1296 - 3        1296 - 4
 ----------------------------------------------------------------
 nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)
-        0 -9.82425E+01 -9.82425E+01  0.00000E+00 -1.369E+02  1.287E+00 -1.362E+00  5.247E-01 -1.398E-03  3.821E+01     0.00    0.00    0.00  38  794.10
-       10 -9.82429E+01 -9.82432E+01  2.34218E-04 -1.369E+02  1.290E+00 -1.364E+00  5.249E-01 -1.397E-03  3.821E+01     0.08    0.00    0.00   1  112.77
-       20 -9.82431E+01 -9.82435E+01  4.80479E-04 -1.369E+02  1.287E+00 -1.366E+00  5.234E-01 -1.408E-03  3.821E+01     0.16    0.00    0.00   1   93.47
-       30 -9.82430E+01 -9.82438E+01  7.79662E-04 -1.369E+02  1.283E+00 -1.365E+00  5.218E-01 -1.411E-03  3.821E+01     0.26    0.00    0.00  15   91.94
-       40 -9.82431E+01 -9.82444E+01  1.30410E-03 -1.369E+02  1.295E+00 -1.365E+00  5.234E-01 -1.414E-03  3.821E+01     0.44    0.00    0.00   1   93.13
-       50 -9.82431E+01 -9.82449E+01  1.79508E-03 -1.369E+02  1.298E+00 -1.365E+00  5.235E-01 -1.407E-03  3.822E+01     0.60    0.00    0.00  20   97.17
-       60 -9.82430E+01 -9.82454E+01  2.36159E-03 -1.369E+02  1.291E+00 -1.366E+00  5.212E-01 -1.281E-03  3.823E+01     0.79    0.00    0.00   1   96.98
-       70 -9.82431E+01 -9.82462E+01  3.14099E-03 -1.369E+02  1.292E+00 -1.368E+00  5.207E-01 -1.280E-03  3.822E+01     1.05    0.00    0.00   1   91.21
-       80 -9.82432E+01 -9.82471E+01  3.94908E-03 -1.369E+02  1.293E+00 -1.368E+00  5.193E-01 -1.279E-03  3.821E+01     1.33    0.00    0.00   1   92.55
-       90 -9.82431E+01 -9.82480E+01  4.83762E-03 -1.369E+02  1.294E+00 -1.365E+00  5.177E-01 -1.287E-03  3.822E+01     1.62    0.00    0.00  29  102.66
-      100 -9.82433E+01 -9.82492E+01  5.92555E-03 -1.369E+02  1.299E+00 -1.365E+00  5.191E-01 -1.405E-03  3.823E+01     1.99    0.00    0.00  34   99.49
-      110 -9.82432E+01 -9.82503E+01  7.05702E-03 -1.369E+02  1.293E+00 -1.366E+00  5.186E-01 -1.420E-03  3.822E+01     2.37    0.00    0.00  31  118.79
-      120 -9.82430E+01 -9.82511E+01  8.13121E-03 -1.369E+02  1.283E+00 -1.365E+00  5.166E-01 -1.433E-03  3.820E+01     2.73    0.00    0.00  34  101.95
-      130 -9.82430E+01 -9.82525E+01  9.43378E-03 -1.369E+02  1.291E+00 -1.366E+00  5.164E-01 -1.454E-03  3.820E+01     3.17    0.00    0.00  36  104.54
-      140 -9.82430E+01 -9.82537E+01  1.07500E-02 -1.369E+02  1.296E+00 -1.365E+00  5.161E-01 -1.467E-03  3.822E+01     3.61    0.00    0.00  36  100.93
-      150 -9.82429E+01 -9.82550E+01  1.20850E-02 -1.369E+02  1.291E+00 -1.365E+00  5.152E-01 -1.469E-03  3.822E+01     4.06    0.00    0.00  28  101.29
-      160 -9.82431E+01 -9.82567E+01  1.36835E-02 -1.369E+02  1.290E+00 -1.369E+00  5.166E-01 -1.483E-03  3.821E+01     4.59    0.00    0.00  24  103.64
-      170 -9.82431E+01 -9.82584E+01  1.52851E-02 -1.369E+02  1.288E+00 -1.372E+00  5.157E-01 -1.483E-03  3.820E+01     5.13    0.00    0.00  31  100.96
-      180 -9.82430E+01 -9.82599E+01  1.68775E-02 -1.369E+02  1.288E+00 -1.373E+00  5.131E-01 -1.480E-03  3.822E+01     5.66    0.00    0.00  35   99.08
-      190 -9.82432E+01 -9.82619E+01  1.86267E-02 -1.369E+02  1.300E+00 -1.376E+00  5.136E-01 -1.463E-03  3.823E+01     6.25    0.00    0.00  16  102.35
-Max MAXNEIGHBS, Max MAXNEIGHBS10, Max NBUFFER:           12         447        8119
-               QEq:     516.8300       268.1200
-    qeq_initialize:     100.4300       100.1400
-      qeq_finalize:       0.6900         0.4800
-           get_hsh:      14.3900        13.7500
-      get_gradient:     260.1600        11.5700
-        LINKEDLIST:       3.2300         2.6100
-         COPYATOMS:     753.4800       143.8100
-      NEIGHBORLIST:      66.7300        66.4500
-     GetNBPairList:      64.2600        63.9400
-            BOCALC:     110.8800       110.2700
-            ENbond:    1100.6800       494.3100
-             Ebond:       5.6300         5.1300
-             Elnpr:     168.3700       167.3300
-               Ehb:      65.5500        63.2000
-               E3b:      22.4900        20.8300
-               E4b:      88.3000        85.4400
-  ForceBondedTerms:       4.2700         4.0400
-   COPYATOMS(MOVE):       0.0000         0.0000
-          WriteBND:      20.4100        20.3400
-          WritePDB:      15.3200        15.2600
-           ReadBIN:       2.0400         2.0000
-          WriteBIN:      24.7200        23.2600
-       total (sec):    2004.1000      2004.0600
+        0 -9.82458E+01 -9.82458E+01  0.00000E+00 -1.369E+02  1.287E+00 -1.361E+00  5.209E-01 -1.408E-03  3.821E+01     0.00    0.00   -0.00  37    0.21    0.46
+       10 -9.82459E+01 -9.82461E+01  2.27213E-04 -1.369E+02  1.290E+00 -1.363E+00  5.215E-01 -1.407E-03  3.821E+01     0.08    0.00    0.00  30    0.21    1.40
+       20 -9.82460E+01 -9.82465E+01  4.74545E-04 -1.369E+02  1.286E+00 -1.365E+00  5.202E-01 -1.419E-03  3.821E+01     0.16    0.00   -0.00   1    0.21    1.19
+       30 -9.82462E+01 -9.82470E+01  7.78722E-04 -1.369E+02  1.283E+00 -1.365E+00  5.186E-01 -1.417E-03  3.821E+01     0.26    0.00   -0.00   1    0.21    1.05
+       40 -9.82461E+01 -9.82474E+01  1.29512E-03 -1.369E+02  1.295E+00 -1.364E+00  5.202E-01 -1.425E-03  3.821E+01     0.43    0.00    0.00  24    0.21    1.31
+       50 -9.82461E+01 -9.82479E+01  1.78842E-03 -1.369E+02  1.298E+00 -1.364E+00  5.202E-01 -1.418E-03  3.822E+01     0.60    0.00    0.00   1    0.21    1.18
+       60 -9.82459E+01 -9.82483E+01  2.36084E-03 -1.369E+02  1.291E+00 -1.365E+00  5.180E-01 -1.290E-03  3.823E+01     0.79    0.00   -0.00   1    0.21    1.13
+       70 -9.82460E+01 -9.82492E+01  3.13668E-03 -1.369E+02  1.292E+00 -1.368E+00  5.176E-01 -1.289E-03  3.822E+01     1.05    0.00   -0.00   1    0.21    1.16
+       80 -9.82461E+01 -9.82500E+01  3.95321E-03 -1.369E+02  1.293E+00 -1.367E+00  5.162E-01 -1.290E-03  3.821E+01     1.33    0.00    0.00   1    0.21    1.26
+       90 -9.82462E+01 -9.82510E+01  4.85092E-03 -1.369E+02  1.293E+00 -1.364E+00  5.147E-01 -1.297E-03  3.822E+01     1.63    0.00   -0.00  30    0.21    1.63
+----------------------------------------------
+        MAXNEIGHBS:           12
+      MAXNEIGHBS10:          447
+  MAXNBUFFER(MOVE):         4563
+  MAXNBUFFER(COPY):        17226
+
+               QEq:       4.6220         4.6220
+    qeq_initialize:       1.6910         1.6910
+           get_hsh:       1.6430         1.6430
+      get_gradient:       0.8850         0.8850
+
+        LINKEDLIST:       0.0870         0.0870
+         COPYATOMS:       0.3540         0.3540
+      NEIGHBORLIST:       0.3330         0.3330
+     GetNBPairList:       0.8400         0.8400
+
+            BOCALC:       0.3650         0.3650
+            ENbond:       1.3500         1.3500
+             Ebond:       0.0550         0.0550
+             Elnpr:       0.3700         0.3700
+               Ehb:       0.9450         0.9450
+               E3b:       1.3320         1.3320
+               E4b:       2.1300         2.1300
+  ForceBondedTerms:       0.1010         0.1010
+
+          WriteBND:       0.0000         0.0000
+          WritePDB:       0.0000         0.0000
+           ReadBIN:       0.0180         0.0180
+          WriteBIN:       0.0000         0.0000
+       Memory (GB):       0.2145         0.2145
+
+       total (sec):      12.4920        12.4920
+----------------------------------------------
     rxmd successfully finished
-
-
+    
 ```
 
