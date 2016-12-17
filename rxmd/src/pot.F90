@@ -46,12 +46,14 @@ enddo
 
 CALL BOCALC(NMINCELL, atype, pos)
 
+!$omp parallel default(shared)
 CALL ENbond()
 CALL Ebond()
 CALL Elnpr()
+CALL Ehb()
 CALL E3b()
 CALL E4b()
-CALL Ehb()
+!$omp end parallel 
 
 CALL ForceBondedTerms(NMINCELL)
 CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
@@ -59,7 +61,7 @@ CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q)
 #ifdef RFDUMP
 open(81,file="rfdump"//trim(rankToString(myid))//".txt")
 do i=1, NATOMS
-   write(81,'(2i6,6f20.12)') i,nint(atype(i)),pos(1:3,i),f(1:3,i)
+   write(81,'(2i6,6f20.12)') gtype(i),nint(atype(i)),pos(1:3,i),f(1:3,i)
 enddo
 close(81)
 #endif
@@ -122,7 +124,6 @@ real(8) :: coeff(3)
 !--- Lone Pair Energy Terms
 real(8) :: Clp, CElp(1), PElp, dEh
 real(8) :: explp1,expvd2, dElp, deltaE
-real(8),allocatable :: deltalp(:)
 
 !--- Overcoordination Energy Terms
 real(8) :: sum_ovun1, sum_ovun2
@@ -140,12 +141,16 @@ real(8) :: div_expovun2, div_expovun2n, div_expovun1, div_expovun8
 real(8) :: PE2, PE3, PE4
 
 integer :: ti,tj,tk
+
+!$omp master
 call system_clock(ti,tk)
-
-allocate(deltalp(NBUFFER),stat=ast)
-
+!$omp end master
+!$omp single
+PE(2:4)=0.d0
+!$omp end single
 
 !=== preparation ==============================================================
+!$omp do 
 do i = 1, copyptr(6)
    ity = itype(i)
 
@@ -174,17 +179,9 @@ do i = 1, copyptr(6)
 
 enddo
 !============================================================== preparation ===
+!$omp end do
 
-PE2=0.d0
-PE3=0.d0
-PE4=0.d0
-
-!$omp parallel do default(shared), reduction(+:PE2,PE3,PE4) &
-!$omp private(i,i1,j,j1,ity,jty,inxn,idEh,coeff,Clp,CElp,PElp,dEh, &
-!$omp explp1,expvd2,dElp,deltaE,sum_ovun1,sum_ovun2, &
-!$omp deltalpcorr,PEover,DlpV_i,expovun2,expovun1,expovun2n,expovun6,expovun8, &
-!$omp PEunder,CEover,CEunder,CElp_b,CElp_d,CElp_bpp, &
-!$omp div_expovun2,div_expovun2n,div_expovun1,div_expovun8)
+!$omp do reduction(+:PE)
 do i=1, NATOMS
    ity = itype(i)
 
@@ -228,9 +225,9 @@ do i=1, NATOMS
    PEunder = -povun5(ity) * (1.d0 - expovun6)*div_expovun2n*div_expovun8
 
 !--- if the representitive atom is a resident, sum thier potential energies.
-   PE2 = PE2 + PElp
-   PE3 = PE3 + PEover
-   PE4 = PE4 + PEunder
+   PE(2) = PE(2) + PElp
+   PE(3) = PE(3) + PEover
+   PE(4) = PE(4) + PEunder
 
 !--- Coefficient Calculation
    CElp(1) = dElp*dDlp(i)
@@ -277,14 +274,13 @@ do i=1, NATOMS
    enddo
 
 enddo ! i-loop
-!$omp end parallel do
+!$omp end do
 
-PE(2:4) = [PE2, PE3, PE4]
-
-deallocate(deltalp,stat=ast)
-
+!$omp master
 call system_clock(tj,tk)
 it_timer(9)=it_timer(9)+(tj-ti)
+!$omp end master
+
 
 END subroutine
 
@@ -322,26 +318,17 @@ real(8) :: BOij,BOjk
 !NOTICE: <cutof2> is used to get exactly the same energy in original reaxFF code. 
 real(8) :: cutof2
 
-real(8) :: PE5,PE6,PE7
-
 integer :: ti,tj,tk
+
+!$omp master
 call system_clock(ti,tk)
-
+!$omp end master
+!$omp single
 cutof2 = cutof2_esub
+PE(5:7)=0.d0
+!$omp end single nowait
 
-PE5=0.d0
-PE6=0.d0
-PE7=0.d0
-
-!$omp parallel do default(shared) reduction(+:PE5,PE6,PE7) &
-!$omp private(i,j,k,i1,j1,k1,ity,jty,kty,inxn,n,n1,&
-!$omp PEval,fn7ij,fn7jk,fn8j,delta_ang,rij,rjk,SBO2,SBO,&
-!$omp sum_BO8,theta_ijk,theta0,theta_diff,exp2,sin_ijk,cos_ijk,&
-!$omp Cf7ij,Cf7jk,Cf8j,Ctheta_diff,Ctheta0,CSBO2,dSBO,&
-!$omp BOij_p4,BOjk_p4,exp3ij,exp3jk,exp6,exp7,trm8,sum_SBO1,prod_SBO,fn9,PEpen,&
-!$omp exp_pen3,exp_pen4,exp_pen2ij,exp_pen2jk,trm_pen34,Cf9j,&
-!$omp delta_val,PEcoa,sum_BOi,sum_BOk,exp_coa3i,exp_coa3k,exp_coa4i,exp_coa4k,exp_coa2,&
-!$omp CEval,CEpen,CEcoa,CE3body_d,CE3body_b,CE3body_a,coeff,BOij,BOjk)
+!$omp do schedule(guided) reduction(+:PE)
 do j=1, NATOMS
    jty = itype(j)
 
@@ -487,9 +474,9 @@ do j=1, NATOMS
 
 !--- if the j-atom is a resident, count the potential energies.
 
-            PE5 = PE5 + PEval
-            PE6 = PE6 + PEpen
-            PE7 = PE7 + PEcoa
+            PE(5) = PE(5) + PEval
+            PE(6) = PE(6) + PEpen
+            PE(7) = PE(7) + PEcoa
 
 !                  CEval(:)=0.d0; PE(5)=0.d0
 !                  CEpen(:)=0.d0; PE(6)=0.d0
@@ -532,13 +519,12 @@ do j=1, NATOMS
       endif ! if(BOij>MINBO0) then
    enddo ! i-loop
 enddo ! j-loop
-!$omp end parallel do
+!$omp end do
 
-PE(5:7)=[PE5,PE6,PE7]
-
-
+!$omp master
 call system_clock(tj,tk)
 it_timer(11)=it_timer(11)+(tj-ti)
+!$omp end master
 
 END subroutine
 !----------------------------------------------------------------------------------------------------------------------
@@ -564,15 +550,16 @@ real(8) :: theta_ijk, cos_ijk, sin_ijk_half
 real(8) :: cos_xhz1, sin_xhz4, exp_hb2, exp_hb3
 real(8) :: PEhb, CEhb(3), ff(3)
 
-real(8) :: PE10
-
 integer :: ti,tj,tk
-call system_clock(ti,tk)
 
-PE10=0.d0
-!$omp parallel do schedule(dynamic), default(shared), reduction(+:PE10) &
-!$omp private(i,j,k,i1,j1,ii,kk,c1,c2,c3,ity,jty,kty,inxnhb,rij,rjk,rik,rik2, &
-!$omp theta_ijk,cos_ijk,sin_ijk_half,cos_xhz1,sin_xhz4,exp_hb2,exp_hb3,PEhb,CEhb,ff)
+!$omp master 
+call system_clock(ti,tk)
+!$omp end master
+!$omp single
+PE(10)=0.d0
+!$omp end single nowait
+
+!$omp do schedule(dynamic) reduction(+:PE)
 do i=1, NATOMS
    ity = itype(i)
 
@@ -618,7 +605,7 @@ do i=1, NATOMS
    
                   PEhb = phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*sin_xhz4
 
-                  PE10 = PE10 + PEhb
+                  PE(10) = PE(10) + PEhb
    
                   CEhb(1) = phb1(inxnhb)*phb2(inxnhb)*exp_hb2*exp_hb3*sin_xhz4
                   CEhb(2) =-0.5d0*phb1(inxnhb)*(1.d0 - exp_hb2)*exp_hb3*cos_xhz1
@@ -657,12 +644,12 @@ do i=1, NATOMS
       endif ! if(BO(0,j,i1)>MINBO0)
    enddo 
 enddo
-!$omp end parallel do
+!$omp end do
 
-PE(10)=PE10
-
+!$omp master
 call system_clock(tj,tk)
 it_timer(10)=it_timer(10)+(tj-ti)
+!$omp end master
 
 end subroutine
 
@@ -689,21 +676,20 @@ integer :: ti,tj,tk
 
 real(8) :: PE11,PE12,PE13
 
+!$omp master
 call system_clock(ti,tk)
+!$omp end master
+!$omp single
+PE(11:13)=0.d0
+!$omp end single
 
-PE11=0.d0
-PE12=0.d0
-PE13=0.d0
-
-!$omp parallel do default(shared), schedule(guided), reduction(+:PE11,PE12,PE13) &
-!$omp private(i,ity,iid,j1,j,jid,dr,dr2,jty,inxn,itb,itb1,drtb,drtb1, &
-!$omp PEvdw,CEvdw,qij,PEclmb,CEclmb,ff)
+!$omp do schedule(guided) reduction(+:PE)
 do i=1, NATOMS
 
    ity = itype(i) 
    iid = gtype(i)
    
-   PE13 = PE13 + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
+   PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
 
     do j1 = 1, nbplist(i,0) 
          j = nbplist(i,j1)
@@ -740,8 +726,8 @@ do i=1, NATOMS
                CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
                CEclmb = CEclmb*qij
 
-               PE11 = PE11 + PEvdw
-               PE12 = PE12 + PEclmb
+               PE(11) = PE(11) + PEvdw
+               PE(12) = PE(12) + PEclmb
 
                ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
     
@@ -769,12 +755,12 @@ do i=1, NATOMS
 
     enddo  !do j1 = 1, nbplist(i,0) 
 enddo
-!$omp end parallel do
+!$omp end do
 
-PE(11:13)=[PE11,PE12,PE13]
-
+!$omp master
 call system_clock(tj,tk)
 it_timer(7)=it_timer(7)+(tj-ti)
+!$omp end master
 
 END subroutine 
 
@@ -788,14 +774,14 @@ real(8) :: exp_be12,  CEbo, PEbo, coeff(3)
 integer :: iid,jid
 integer :: ti,tj,tk
 
-real(8) :: PE1
-
+!$omp master
 call system_clock(ti,tk)
+!$omp end master
+!$omp single
+PE(1)=0.d0
+!$omp end single
 
-PE1=0.d0
-
-!$omp parallel do default(shared), reduction(+:PE1) &
-!$omp private(ity,iid,j1,j,jid,jty,inxn,exp_be12,PEbo,CEbo,coeff,i1)
+!$omp do reduction(+:PE)
 do i=1, NATOMS
 
    ity = itype(i)
@@ -814,7 +800,7 @@ do i=1, NATOMS
 
         PEbo = - Desig(inxn)*BO(1,i,j1)*exp_be12 - Depi(inxn)*BO(2,i,j1) - Depipi(inxn)*BO(3,i,j1) 
 
-        PE1 = PE1 + PEbo
+        PE(1) = PE(1) + PEbo
 
         CEbo = -Desig(inxn)*exp_be12*( 1.d0 - pbe1(inxn)*pbe2(inxn)*BO(1,i,j1)**pbe2(inxn) )
         coeff(1:3)= (/ CEbo, -Depi(inxn), -Depipi(inxn) /)
@@ -826,12 +812,12 @@ do i=1, NATOMS
 
    enddo
 enddo
-!$omp end parallel do
+!$omp end do
 
-PE(1)=PE1
-
+!$omp master
 call system_clock(tj,tk)
 it_timer(8)=it_timer(8)+(tj-ti)
+!$omp end master
 
 end subroutine
 
@@ -862,24 +848,18 @@ real(8) :: BOij, BOjk, BOkl
 real(8) :: cutof2
 
 integer :: jid,kid
-real(8) :: PE8, PE9
 
 integer :: ti,tj,tk
+
+!$omp master
 call system_clock(ti,tk)
-
+!$omp end master
+!$omp single
 cutof2 = cutof2_esub
+PE(8:9)=0.d0
+!$omp end single nowait
 
-PE8=0.d0
-PE9=0.d0
-
-!$omp parallel do default(shared), reduction(+:PE8,PE9) &
-!$omp private(i,j,k,l,i1,j1,k1,l1,k2,ity,jty,kty,lty,inxn,&
-!$omp cos_ijkl,cos_ijkl_sqr,cos_2ijkl,sin_ijkl,sin_ijk,sin_jkl,tan_ijk_i,tan_jkl_i,&
-!$omp cos_ijk,cos_jkl,theta_ijk,theta_jkl,omega_ijkl,&
-!$omp rij,rjk,rkl,crs_ijk,crs_jkl,delta_ang_jk,delta_ang_j,delta_ang_k,&
-!$omp exp_tor1,exp_tor3,exp_tor4,exp_tor34_i,fn10,fn11,dfn11,fn12,PEtors,PEconj,cmn,exp_tor2,&
-!$omp CEtors,Cconj,CEconj,C4body_a,C4body_b,C4body_b_jk,btb2,&
-!$omp BOij,BOjk,BOkl,jid,kid)
+!$omp do schedule(guided) reduction(+:PE)
 do j=1,NATOMS
 
   jty = itype(j)
@@ -1000,8 +980,8 @@ do j=1,NATOMS
 
                  PEconj = pcot1(inxn)*fn12*(1.d0 + (cos_ijkl_sqr - 1.d0)*sin_ijk*sin_jkl)
 
-                 PE8 = PE8 + PEtors
-                 PE9 = PE9 + PEconj
+                 PE(8) = PE(8) + PEtors
+                 PE(9) = PE(9) + PEconj
 
 !--- Force coefficient calculation
 !--- Torsional term
@@ -1083,12 +1063,12 @@ do j=1,NATOMS
    enddo ! k-loop
 
 enddo
-!$omp end parallel do
+!$omp end do
 
-PE(8:9)=[PE8,PE9]
-
+!$omp master
 call system_clock(tj,tk)
 it_timer(12)=it_timer(12)+(tj-ti)
+!$omp end master
 
 end subroutine
 

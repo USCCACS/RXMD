@@ -13,6 +13,8 @@
 # gfortran
 FC = mpif90 -fopenmp -O3 -ffast-math 
 #FC = mpif90 -fopenmp -O3 -ffast-math -DQEQDUMP -DRFDUMP
+#FC = mpif90 -O3 -ffast-math -DQEQDUMP -DRFDUMP
+#FC = mpif90 -O3 -ffast-math 
 #FC = mpif90 -fcheck=all
 
 # xl fortran

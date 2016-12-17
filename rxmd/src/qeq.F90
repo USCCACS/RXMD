@@ -16,7 +16,7 @@ real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 real(8),intent(out) :: q(NBUFFER)
 real(8) :: vdummy(1,1), fdummy(1,1)
 
-integer :: i
+integer :: i,l2g
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
@@ -93,7 +93,7 @@ do nstep_qeq=0, nmax-1
   call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 #ifdef QEQDUMP 
-  if(myid==0) print'(i5,5es25.15)',nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2, gqsum
+  if(myid==0) print'(i5,5es25.15)', nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2, gqsum
 #endif
 
   if( ( 0.5d0*( abs(GEst2) + abs(GEst1) ) < QEq_tol) ) exit 
@@ -120,6 +120,7 @@ do nstep_qeq=0, nmax-1
 !--- line minimization for each vector
   qs(1:NATOMS) = qs(1:NATOMS) + lmin(1)*hs(1:NATOMS)
   qt(1:NATOMS) = qt(1:NATOMS) + lmin(2)*ht(1:NATOMS)
+
 
 !--- get a current electronegativity <mu>
   ssum = sum(qs(1:NATOMS))
@@ -160,7 +161,7 @@ it_timer(1)=it_timer(1)+(j1-i1)
 #ifdef QEQDUMP 
 open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
 do i=1, NATOMS
-   write(91,'(2i6,f16.12,3f20.12)') i,nint(atype(i)),q(i),pos(1:3,i)
+   write(91,'(2i6,f16.12,4f20.12)') l2g(atype(i)),nint(atype(i)),q(i),hs(i),ht(i),hshs(i),hsht(i)
 enddo
 close(91)
 #endif
@@ -186,7 +187,6 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-!allocate(A0(MAXNEIGHBS10,NATOMS),stat=ast); ist=ist+ast
 call deallocatord2d(A0)
 call allocatord2d(A0,1,MAXNEIGHBS10,1,NATOMS)
 
@@ -277,22 +277,12 @@ subroutine qeq_finalize()
 use atoms; use MemoryAllocator
 !-----------------------------------------------------------------------------------------------------------------------
 integer :: iast
-
 integer :: ti,tj,tk
+
 call system_clock(ti,tk)
 
-!deallocate(A0,stat=ast)
 call deallocatord2d(A0)
-
-iast=0
-!allocate(A0(NBUFFER, MAXNEIGHBS), stat=ast); iast=iast+ast
 call allocatord2d(A0,1,NBUFFER,1,MAXNEIGHBS)
-
-if (iast/=0) then
-   if (myid==0) print*, 'ERROR: qeq_finalize', iast
-   call MPI_FINALIZE(ierr)
-   stop 
-endif
 
 call system_clock(tj,tk)
 it_timer(17)=it_timer(17)+(tj-ti)
@@ -351,23 +341,27 @@ real(8),intent(OUT) :: Gnew(2)
 real(8) :: eta_ity, ggnew(2)
 integer :: i,j,j1, ity
 
+real(8) :: gssum, gtsum
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-!$omp parallel do default(shared), schedule(guided), private(eta_ity,i,j,j1,ity)
+!$omp parallel do default(shared), schedule(guided), private(gssum, gtsum, eta_ity,i,j,j1,ity)
 do i=1,NATOMS
+
+   gssum=0.d0
+   gtsum=0.d0
+   do j1=1, nbplist(i,0) 
+      j = nbplist(i,j1)
+      gssum = gssum + A0(j1,i)*qs(j)
+      gtsum = gtsum + A0(j1,i)*qt(j)
+   enddo
+
    ity = nint(atype(i))
    eta_ity = eta(ity)
 
-!--- Initialize a gradient vector
-   gs(i) = - chi(ity) - eta_ity*qs(i)
-   gt(i) = - 1.d0     - eta_ity*qt(i)
-
-   do j1=1, nbplist(i,0) 
-      j = nbplist(i,j1)
-      gs(i) = gs(i) - A0(j1,i)*qs(j)
-      gt(i) = gt(i) - A0(j1,i)*qt(j)
-   enddo
+   gs(i) = - chi(ity) - eta_ity*qs(i) - gssum
+   gt(i) = - 1.d0     - eta_ity*qt(i) - gtsum
 
 enddo 
 !$omp end parallel do

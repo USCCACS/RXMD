@@ -127,6 +127,8 @@ call allocatord2d(pos,1,3,1,NBUFFER)
 call allocatord2d(v,1,3,1,NBUFFER)
 call allocatord2d(f,1,3,1,NBUFFER)
 
+call allocatord1d(deltalp,1,NBUFFER)
+
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- Varaiable for extended Lagrangian method

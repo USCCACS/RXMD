@@ -152,6 +152,7 @@ real(8),allocatable :: A0(:,:),A1(:,:), A2(:,:), A3(:,:)
 
 !--- Passed between Elnpr and E3body
 real(8),allocatable :: nlp(:), dDlp(:) !Number of Lone Pairs, its derivatives.
+real(8),allocatable :: deltalp(:)
 
 ! TE: Total Energy,  KE: Kinetic Energy,  PE :: Potential Energies
 !  0-Esystem, 1-Ebond, 2-Elp, 3-Eover, 4-Eunder, 5-Eval, 6-Epen
