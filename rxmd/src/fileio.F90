@@ -256,7 +256,7 @@ end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
 subroutine ReadBIN(atype, pos, v, q, f, fileName)
-use atoms
+use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
 implicit none
 
@@ -326,24 +326,14 @@ call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 allocate(dbuf(10*NATOMS))
 call MPI_File_Read(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
-! reduce NBUFFER if it seems too large. Since this will likely happen when the domain size is small,
-! set the new buffer size to cover 26 neighbor domains.
-if(isBufferResize) then
-   if(allocated(atype)) deallocate(atype)
-   if(allocated(q)) deallocate(q)
-   if(allocated(pos)) deallocate(pos)
-   if(allocated(v)) deallocate(v)
-   if(allocated(f)) deallocate(f)
-   if(allocated(qsfp)) deallocate(qsfp)
-   if(allocated(qsfv)) deallocate(qsfv)
-
-   if(NATOMS*27<NBUFFER) NBUFFER=NATOMS*27
-
-   allocate(atype(NBUFFER),q(NBUFFER))
-   allocate(pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER))
-   allocate(qsfp(NBUFFER),qsfv(NBUFFER))
-   f(:,:)=0.0
-endif
+if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
+if(.not.allocated(pos)) call allocatord2d(pos,1,3,1,NBUFFER)
+if(.not.allocated(v)) call allocatord2d(v,1,3,1,NBUFFER)
+if(.not.allocated(f)) call allocatord2d(f,1,3,1,NBUFFER)
+if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocatord1d(qsfv,1,NBUFFER)
+f(:,:)=0.0
 
 do i=1, NATOMS
     i1=10*(i-1)

@@ -3,10 +3,11 @@ program rxmd
 use base; use atoms; use parameters
 !------------------------------------------------------------------------------
 implicit none
-integer :: i,it1,it2,irt
+integer :: i,it1,it2,irt,provided
 real(8) :: ctmp, dr(3)
 
-call MPI_INIT(ierr)
+!call MPI_INIT(ierr)
+call MPI_INIT_THREAD(MPI_THREAD_SERIALIZED,provided,ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 

@@ -38,11 +38,9 @@ call NEIGHBORLIST(NMINCELL, atype, pos)
 call GetNonbondingPairList(pos)
 
 !--- get atom type and global ids
-!$omp simd
 do i=1, NBUFFER
    itype(i)=nint(atype(i))
 enddo
-!$omp simd
 do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo

@@ -91,7 +91,6 @@ integer,parameter :: is_idEh = 1
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-logical :: isBufferResize = .true.
 integer :: NBUFFER=30000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=700 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
