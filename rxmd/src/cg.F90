@@ -1,423 +1,151 @@
-!----------------------------------------------------------------------------------------------------------------------
-module cg
-!----------------------------------------------------------------------------------------------------------------------
-real(8),allocatable :: cg_pos(:,:), cg_q(:), cg_atype(:)
-real(8),allocatable :: h(:,:), g(:,:)
+!---------------------------------------------------------------------------------
+module CG
+use atoms
+!---------------------------------------------------------------------------------
+integer,parameter :: CG_MaxMinLoop = 500
+integer,parameter :: CG_MaxLineMinLoop = 100
+integer,parameter :: CG_MaxBracketLoop = 10
 
-!--- max number of CG iteration
-INTEGER, PARAMETER :: CGMAX=400 
-REAL(8), PARAMETER :: EPS=1.0d-10
+real(8) :: CG_EPS= 1d-16 ! a check to emit warning message
 
-!--- mnbrak
-REAL(8), PARAMETER :: GOLD=1.618034d0, GLIMIT=100.0d0, TINY=1.0d-20
-
-!--- dbrent
-INTEGER, PARAMETER :: ITMAX=100 
-
-!--- dlinmin
-REAL(8), PARAMETER :: TOL=1.d-4
-REAL(8), PARAMETER :: CG_DX=1.d-3
-
-end module
+contains
 
 !---------------------------------------------------------------------------------
-SUBROUTINE conjugate_gradient(atype, pos, v, f, q) !called frprmn in NR
-use atoms; use cg
+subroutine ConjugateGradient(atype,pos)
 !---------------------------------------------------------------------------------
-  IMPLICIT NONE 
+implicit none
+real(8) :: atype(NBUFFER),pos(3,NBUFFER)
+real(8) :: f(3,NBUFFER),v(3,NBUFFER),q(NBUFFER)
 
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+real(8) :: p(3,NBUFFER) ! search direction
+real(8) :: gold(3,NBUFFER), gnew(3,NBUFFER) ! old and new gradients
 
-  INTEGER :: iter 
-  REAL(8) :: fret 
-  INTEGER :: its,i
-  REAL(8) ::dgg,fp,gam,gg, fnrm,dum
+integer :: cgLoop
 
-  if(myid==0) then
-     write(6,'(a15,e13.2)') 'INFO: Start CG ', ftol 
-     write(6,'(a20)') 'INFO: reset velocity'
-  endif
-  v(:,:)=0.d0
+if(myid==0)  print'(a50)', 'start structural optimization.'
 
-  call cg_init()
+do cgLoop = 0, CG_MaxMinLoop-1
 
-  call QEq(4)
-  call Force()
-
-!--- initialize gradient and search direction
-  g(:,:)=f(:,:)
-  h(:,:)=g(:,:) 
-  gg=sum(g(1:3,1:NATOMS)*g(1:3,1:NATOMS))
-  dum = gg
-  call MPI_ALLREDUCE(dum, gg, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
-  fp=1d10
-  do its=1, CGMAX
-
-!--- save current number of iteration to return
-     iter=its 
-
-     call dlinmin(fret)
-
-!--- print out force norm
-     fnrm=0.d0
-     do i=1,NATOMS
-       fnrm=fnrm+sum(f(1:3,i)*f(1:3,i))
-     enddo 
-     dum = fnrm
-     call MPI_ALLREDUCE (dum, fnrm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-     fnrm=sqrt(fnrm)
-     if(myid==0) write(6,'(a,i5,2d25.13)') 'its:  fret, fnrm', its, fret,log(fnrm)
-
-!--- check convergence condition
-!     if (2.0d0*abs(fret-fp) <= ftol*(abs(fret)+abs(fp)+EPS)) RETURN 
-     if (abs((fret-fp)/fp) <= ftol) then 
-        if(myid==0) print*,'Energy is converged'
-        call OUTPUT_cg()
-        call MPI_FINALIZE(ierr)
-        stop
-     endif
-!--- save old energy to compare next step energy
-     fp=fret 
+   call LineMinimization(atype,pos,gnew,p)
 
 
-!--- update gradient with obtained force in dlinmin
-     g(:,:)=f(:,:)
+enddo 
 
-!--- get conjugate direction coefficient
-     dgg=sum(g(1:3,1:NATOMS)*g(1:3,1:NATOMS))
-     dum = dgg
-     call MPI_ALLREDUCE(dum, dgg, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-     if (gg == 0.0) then
-        if(myid==0) print'(a)','Norm of gradient is zero'
-        call MPI_FINALIZE(ierr)
-        stop
-     endif
-     gam=dgg/gg 
+call MPI_Finalize(ierr)
+stop 'successfully finished structural optimization. '
 
-!--- update search direction
-     h(:,:)=g(:,:)+gam*h(:,:) 
+end subroutine ConjugateGradient
 
-!--- save old gradient norm
-     gg = dgg 
-  end do
+!---------------------------------------------------------------------------------
+subroutine LineMinimization(atype,pos,f,p)
+! input: atom type, initial coordinate, and search direction.
+! output: final coordinate and gradient at the coordinate. 
+!---------------------------------------------------------------------------------
+implicit none
+real(8) :: atype(NBUFFER),pos(3,NBUFFER),f(3,NBUFFER),q(NBUFFER),vdummy(1,1)
+real(8),intent(in) :: p(3,NBUFFER)
+integer :: lineMinLoop
+real(8) :: stepl
 
-if(myid==0) print*,'Energy is not converged'
-call OUTPUT_cg()
-call MPI_FINALIZE(ierr)
-stop
+call BracketSearchRange(atype,pos,p,stepl)
+
+do lineMinLoop = 0, CG_MaxLineMinLoop-1
+   call QEq(atype, pos, q)
+   call FORCE(atype, pos, f, q)
+
+!--- migrate atoms after positions are updated
+   call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q)
+enddo
+
+end subroutine LineMinimization
+
+!---------------------------------------------------------------------------------
+function MoveAtomAndEvaluateEnergy(atype,pos,p,stepl) result(potentialEnergy)
+!---------------------------------------------------------------------------------
+real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER),stepl
+real(8) :: potentialEnergy
+
+real(8) :: atypeTmp(NBUFFER),posTmp(3,NBUFFER),fTmp(3,NBUFFER),qTmp(NBUFFER)
+real(8) :: vdummy(1,1) ! <- not used
+
+posTmp(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*p(1:3,1:NATOMS)
+atypeTmp(1:NATOMS)=atype(1:NATOMS)
+
+call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0], atypeTmp, posTmp, vdummy, fTmp, qTmp)
+call QEq(atypeTmp, posTmp, qTmp)
+call FORCE(atypeTmp, posTmp, fTmp, qTmp)
+
+potentialEnergy=sum(PE(1:13))
 
 return 
+end function MoveAtomAndEvaluateEnergy
 
-Contains 
+!---------------------------------------------------------------------------------
 
-!-------------------------------------------------------------------------------
-SUBROUTINE dlinmin(fret) 
-use atoms; use cg
-!-------------------------------------------------------------------------------
-  IMPLICIT NONE 
-  REAL(8), INTENT(OUT) :: fret 
-  REAL(8) :: aa,bb,fa,fb,fu,xmin,uu, Ghhmax,hhmax,hhmin 
-
-  aa=0.0d0
-  hhmax=maxval(h(1:3,1:NATOMS))
-  hhmin=minval(h(1:3,1:NATOMS))
-  hhmin=abs(hhmin)
-  if(hhmax<hhmin) hhmax=hhmin
-  call MPI_ALLREDUCE(hhmax, Ghhmax, 1, MPI_DOUBLE_PRECISION, MPI_MAX,  MPI_COMM_WORLD, ierr)
-
-  aa=0.0d0
-  uu=CG_DX/Ghhmax
-
-  call mnbrak(aa,uu,bb,fa,fu,fb) 
-  fret=dbrent(aa,uu,bb,TOL,xmin) 
-
-  pos=pos+xmin*h
-
-  call xu2xs()
-  call LINKEDLIST()
-  call COPYATOMS(0)
-  call xs2xu()
-
-  call FORCE()
-
-END SUBROUTINE dlinmin
-
-!-------------------------------------------------------------------------------
-SUBROUTINE mnbrak(ax,bx,cx,fa,fb,fc) 
-use atoms; use cg
-!-------------------------------------------------------------------------------
-  IMPLICIT NONE 
-  REAL(8), INTENT(INOUT) :: ax,bx 
-  REAL(8), INTENT(OUT) :: cx,fa,fb,fc 
-  REAL(8) :: fu,qq,r,u,ulim 
-  real(8) :: dum
-
-  call df1dim(ax,fa,dum)
-  call df1dim(bx,fb,dum)
-
-  if (fb > fa) then 
-     call swap(ax,bx) 
-     call swap(fa,fb) 
-  end if
-  cx=bx+GOLD*(bx-ax) 
-  call df1dim(cx,fc,dum)
-  do 
-     if (fb<fc) RETURN 
-     r=(bx-ax)*(fb-fc) 
-     qq=(bx-cx)*(fb-fa) 
-     u=bx-((bx-cx)*qq-(bx-ax)*r)/(2.0d0*sign(max(abs(qq-r),TINY),qq-r)) 
-     ulim=bx+GLIMIT*(cx-bx) 
-     if ((bx-u)*(u-cx) > 0.0d0) then
-        call df1dim(u,fu,dum)
-        if (fu <fc) then
-           ax=bx 
-           fa=fb 
-           bx=u 
-           fb=fu 
-           RETURN 
-        else if (fu > fb) then 
-           cx=u 
-           fc=fu 
-           RETURN
-        end if
-        u=cx+GOLD*(cx-bx)
-        call df1dim(u,fu,dum)
-     else if ((cx-u)*(u-ulim) > 0.0d0) then
-        call df1dim(u,fu,dum)
-        if (fu <fc) then 
-           bx=cx 
-           cx=u 
-           u=cx+GOLD*(cx-bx) 
-           call df1dim(u,fu,dum)
-           call shft(fb,fc,fu,fu) 
-        end if
-     else if ((u-ulim)*(ulim-cx) >= 0.0d0) then 
-        u=ulim 
-        call df1dim(u,fu,dum)
-     else 
-        u=cx+GOLD*(cx-bx) 
-        call df1dim(u,fu,dum)
-     end if
-     call shft(ax,bx,cx,u) 
-     call shft(fa,fb,fc,fu)
-  end do
-
-END SUBROUTINE mnbrak
-
-SUBROUTINE shft(a,b,c,d) 
-    REAL(8), INTENT(OUT) :: a 
-    REAL(8), INTENT(INOUT) :: b,c 
-    REAL(8), INTENT(IN) :: d 
-    a=b 
-    b=c 
-    c=d 
-END SUBROUTINE shft
-
-SUBROUTINE swap(a,b) 
-    REAL(8), INTENT(INOUT) :: a,b
-    REAL(8) :: temp 
-    temp = a 
-    a=b
-    b=temp
-END SUBROUTINE swap
-
-SUBROUTINE mov3(a,b,c,d,e,f) 
-   REAL(8), INTENT(IN) :: d,e,f 
-   REAL(8), INTENT(OUT) :: a,b,c 
-   a=d 
-   b=e 
-   c=f 
-END SUBROUTINE mov3
-
-!-------------------------------------------------------------------------------
-FUNCTION dbrent(ax,bx,cx,tol0,xmin) 
-  use atoms; use cg 
-!-------------------------------------------------------------------------------
-  IMPLICIT NONE 
-  REAL(8), INTENT(IN) :: ax,bx,cx,tol0 
-  REAL(8), INTENT(OUT) :: xmin 
-  REAL(8) ::dbrent 
-  real(8),parameter :: ZEPS=1.d-10
-  INTEGER :: iter 
-  REAL(8) ::a,b,d,d1,d2,du,dv,dw,dx,e,fu,fv,fw,fx,olde,tol1,tol2,& 
-       u,u1,u2,vv,w,x,xm
-  real(8) :: dum
-  LOGICAL :: ok1,ok2
-
-  a=min(ax,cx) 
-  b=max(ax,cx) 
-  vv=bx 
-  w=vv 
-  x=vv 
-  e=0.0d0 
-  call df1dim(x,fx,dx) 
-  fv=fx 
-  fw=fx 
-  dv=dx 
-  dw=dx 
-  do iter=1, ITMAX 
-     xm=0.5d0*(a+b) 
-     tol1=tol0*abs(x) + ZEPS 
-     tol2=2.0d0*tol1 
-     if (abs(x-xm) <= (tol2-0.5d0*(b-a))) exit 
-     if (abs(e) > tol1) then 
-        d1=2.0d0*(b-a)
-        d2=d1 
-        if (dw /= dx) d1=(w-x)*dx/(dx-dw) 
-        if (dv /= dx) d2=(vv-x)*dx/(dx-dv) 
-        u1=x+d1 
-        u2=x+d2 
-        ok1=((a-u1)*(u1-b) > 0.0d0) .and. (dx*d1 <= 0.0d0) 
-        ok2=((a-u2)*(u2-b) > 0.0d0) .and. (dx*d2 <= 0.0d0) 
-        olde=e 
-        e=d 
-        if (ok1 .or. ok2) then 
-           if(ok1 .and. ok2) then 
-              d=merge(d1,d2, abs(d1) <abs(d2)) 
-           else 
-              d=merge(d1,d2,ok1) 
-           end if
-           if(abs(d) <=abs(0.5d0*olde)) then 
-              u=x+d 
-              if (u-a <tol2 .or. b-u < tol2) d=sign(tol1,xm-x) 
-           else
-              e=merge(a,b, dx >= 0.0d0)-x 
-              d=0.5d0*e 
-           end if
-        else 
-           e=merge(a,b, dx >= 0.0d0)-x 
-           d=0.5d0*e 
-        end if
-     else 
-        e=merge(a,b, dx >= 0.0d0)-x 
-        d=0.5d0*e 
-     end if
-
-     if (abs(d) >= tol1) then 
-        u=x+d 
-        call df1dim(u,fu,dum) 
-     else 
-        u=x+sign(tol1,d) 
-        call df1dim(u,fu,dum) 
-        if (fu>fx) exit 
-     end if
-
-     call df1dim(u,dum,du) 
-     if (fu <= fx) then 
-        if (u>= x) then 
-           a=x 
-        else 
-           b=x 
-        end if
-        call mov3(vv,fv,dv,w,fw,dw) 
-        call mov3(w,fw,dw,x,fx,dx) 
-        call mov3(x,fx,dx,u,fu,du) 
-     else 
-        if (u< x) then 
-           a=u 
-        else 
-           b=u 
-        end if
-        if (fu <= fw.or. w== x) then 
-           call mov3(vv,fv,dv,w,fw,dw) 
-           call mov3(w,fw,dw,u,fu,du) 
-        else if (fu <= fv .or. vv == x.or. vv== w) then 
-           call mov3(vv,fv,dv,u,fu,du) 
-        end if
-     end if
-  end do
-
-  if (iter>ITMAX)  print*,'dbrent: exceeded maximum iterations'
-  xmin=x 
-  dbrent=fx 
-
-END FUNCTION dbrent
-
-
-!----------------------------------------------------------------------------------------------------------------------
-subroutine df1dim(dx,fx,dfx)
-use atoms; use cg
-!----------------------------------------------------------------------------------------------------------------------
+!---------------------------------------------------------------------------------
+subroutine BracketSearchRange(atype,pos,p,stepl) 
+! input: atom type, initial coordinate, and search direction.
+! output: step length to bracket an energy minimum along the search direction.
+!---------------------------------------------------------------------------------
 implicit none
-real(8) :: dx,fx,dfx  
-real(8) :: temp
-integer :: i, NATOMS_old
+real(8) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER),stepl
+integer :: bracketingLoop
 
+do bracketingLoop = 0, CG_MaxBracketLoop-1
+   
+enddo 
 
-!--- save the original position and atomtype
-cg_pos(1:3,1:NATOMS)=pos(1:3,1:NATOMS)
-cg_q(1:NATOMS)=q(1:NATOMS)
-cg_atype(1:NATOMS)=atype(1:NATOMS)
-NATOMS_old = NATOMS
+end subroutine BracketSearchRange
 
-!--- modify atom coord. with <dxh>
-pos(1:3,1:NATOMS) = pos(1:3,1:NATOMS) + dx*h(1:3,1:NATOMS)
-
-call xu2xs()
-call LINKEDLIST()
-call COPYATOMS(0)
-call xs2xu()
-
-!call QEq(4)
-call FORCE()
-PE(0)=sum(PE(1:13))
-call MPI_ALLREDUCE (PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-GPE(:)=GPE(:)/GNATOMS
-
-!--- get the estimate of gradient along <h> with the new atom coordinate
-!--- <g> = <f> is gradient with negative sign 
-dfx=0.d0
-do i=1, NATOMS
-   dfx = dfx - sum(f(1:3,i)*h(1:3,i))
-enddo
-!--- get the total gradient  
-temp=dfx
-call MPI_ALLREDUCE(temp, dfx, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
-fx=GPE(0)
-
-!--- Let <pos> and <atype> be the original value
-NATOMS = NATOMS_old
-pos(1:3,1:NATOMS)=cg_pos(1:3,1:NATOMS)
-q(1:NATOMS)=cg_q(1:NATOMS)
-atype(1:NATOMS)=cg_atype(1:NATOMS)
-
-end subroutine
-!----------------------------------------------------------------------------------------------------------------------
-subroutine cg_init()
-use atoms; use cg
-!----------------------------------------------------------------------------------------------------------------------
-allocate(cg_pos(3,NBUFFER),cg_q(NBUFFER),cg_atype(NBUFFER), stat=ast)
-allocate(h(3,NBUFFER),g(3,NBUFFER), stat=ast)
-
-end subroutine
-
-!----------------------------------------------------------------------------------------
-subroutine OUTPUT_cg()
-use atoms
-!----------------------------------------------------------------------------------------
+!---------------------------------------------------------------------------------
+subroutine GoldenSectionSearch(left,right)
+! input: left and right boundaries of search range. 
+!---------------------------------------------------------------------------------
 implicit none
+real(8) :: left,right
+real(8) :: left2,right2
+real(8) :: phi = 1.d0/1.61803398875d0 ! inverse of golden ratio
+
+
+
+
+
+end subroutine GoldenSectionSearch
+
+!---------------------------------------------------------------------------------
+subroutine PolynomialFitSearch()
+!---------------------------------------------------------------------------------
+implicit none
+
+
+end subroutine PolynomialFitSearch
+
+!---------------------------------------------------------------------------------
+subroutine NormalizeVector(v, vnorm) 
+!---------------------------------------------------------------------------------
+implicit none
+real(8) :: v(3,NBUFFER)
+real(8) :: vsum, vnorm 
 integer :: i
-character(6) :: a6
-character(9) :: a9
 
-write(a6(1:6),'(i6.6)') myid
-write(a9(1:9),'(i9.9)') nstep + current_step
-
-open(10,file="DAT/rxff"//a6//"-"//a9//".bin",form="unformatted",access="stream")
-write(10) NATOMS
-write(10) current_step + ntime_step
-write(10) lata,latb,latc,lalpha,lbeta,lgamma
-do i=1,NATOMS
-   write(10) pos(1:3,i)
-   write(10) v(1:3,i)
-   write(10) q(i)
-   write(10) atype(i)
+vsum=0.d0
+do i=1, NATOMS
+   vsum = vsum + sum(v(1:3,i)*v(1:3,i))
 enddo
-close(10)
 
-end subroutine
+call MPI_ALLREDUCE(vsum, vnorm, 1, mpi_double_precision, mpi_sum,  mpi_comm_world, ierr)
+vnorm=sqrt(vnorm)
 
-END SUBROUTINE conjugate_gradient
+if(abs(vnorm)<CG_EPS) then
+   if(myid==0) print'(a,es25.15)', &
+    'WARNING: Norm of vector was found too small in NormalizeVector(): vnorm = ', vnorm
+endif
+
+do i=1, NATOMS
+   v(1:3,i)=v(1:3,i)/vnorm
+enddo
+
+return
+end subroutine NormalizeVector
+
+end module  

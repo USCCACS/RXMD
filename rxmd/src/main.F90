@@ -1,6 +1,6 @@
 !------------------------------------------------------------------------------
 program rxmd
-use base; use atoms; use parameters
+use base; use atoms; use parameters; use CG
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,it1,it2,irt,provided
@@ -18,6 +18,8 @@ CALL GETPARAMS(FFPath,FFDescript)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
+
+if(mdmode==10) call ConjugateGradient(atype,pos)
 
 call QEq(atype, pos, q)
 call FORCE(atype, pos, f, q)
