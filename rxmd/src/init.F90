@@ -136,11 +136,11 @@ call allocatord1d(qtfp,1,NBUFFER)
 call allocatord1d(qtfv,1,NBUFFER)
 qtfp(:)=0.d0; qtfv(:)=0.d0
 
-call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
-do i=1, 3
-do j=1, 3
-   HH(i,j,0)=mat(i,j)
-enddo; enddo
+!call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+!do i=1, 3
+!do j=1, 3
+!   HH(i,j,0)=mat(i,j)
+!enddo; enddo
 
 !--- get total number of atoms per type. This will be used to determine
 !--- subroutine cutofflength() 
@@ -160,9 +160,6 @@ call CUTOFFLENGTH()
 
 !--- update box-related variables
 call UpdateBoxParams()
-
-!--- scaled to unscaled coordinates
-call xs2xu(pos)
 
 !--- get global number of atoms
 i8=NATOMS ! Convert 4 byte to 8 byte

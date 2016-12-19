@@ -9,9 +9,7 @@ real(8),intent(in) :: pos(3,NBUFFER),v(3,NBUFFER)
 character(MAXPATHLENGTH),intent(in) :: fileNameBase
 
 if(isBinary) then
-  call xu2xs(pos)
   call WriteBIN(atype,pos,v,q,fileNameBase)
-  call xs2xu(pos)
 endif
 
 if(isBondFile) call WriteBND(fileNameBase)
@@ -255,14 +253,14 @@ end subroutine
 end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
-subroutine ReadBIN(atype, pos, v, q, f, fileName)
+subroutine ReadBIN(atype, rreal, v, q, f, fileName)
 use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
 implicit none
 
 character(*),intent(in) :: fileName
 real(8),allocatable,dimension(:) :: atype,q
-real(8),allocatable,dimension(:,:) :: pos,v,f
+real(8),allocatable,dimension(:,:) :: rreal,v,f
 
 integer :: i,i1
 
@@ -276,8 +274,12 @@ integer,allocatable :: idata(:)
 real(8),allocatable :: dbuf(:)
 real(8) :: ddata(6), d10(10)
 
+real(8) :: rnorm(3,NBUFFER), mat(3,3)
+integer :: j
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
+
 
 ! Meta Data: 
 !  Total Number of MPI ranks and MPI ranks in xyz (4 integers)
@@ -328,7 +330,7 @@ call MPI_File_Read(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr
 
 if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
 if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
-if(.not.allocated(pos)) call allocatord2d(pos,1,3,1,NBUFFER)
+if(.not.allocated(rreal)) call allocatord2d(rreal,1,3,1,NBUFFER)
 if(.not.allocated(v)) call allocatord2d(v,1,3,1,NBUFFER)
 if(.not.allocated(f)) call allocatord2d(f,1,3,1,NBUFFER)
 if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
@@ -337,7 +339,7 @@ f(:,:)=0.0
 
 do i=1, NATOMS
     i1=10*(i-1)
-    pos(1:3,i)=dbuf(i1+1:i1+3)
+    rnorm(1:3,i)=dbuf(i1+1:i1+3)
     v(1:3,i)=dbuf(i1+4:i1+6)
     q(i)=dbuf(i1+7)
     atype(i)=dbuf(i1+8)
@@ -349,6 +351,14 @@ deallocate(dbuf)
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
+call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+do i=1, 3
+do j=1, 3
+   HH(i,j,0)=mat(i,j)
+enddo; enddo
+
+call xs2xu(rnorm,rreal)
+
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
 
@@ -356,13 +366,13 @@ return
 end
 
 !--------------------------------------------------------------------------
-subroutine WriteBIN(atype, pos, v, q, fileNameBase)
+subroutine WriteBIN(atype, rreal, v, q, fileNameBase)
 use atoms
 !--------------------------------------------------------------------------
 implicit none
 
 real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: pos(3,NBUFFER),v(3,NBUFFER)
+real(8),intent(in) :: rreal(3,NBUFFER),v(3,NBUFFER)
 character(MAXPATHLENGTH),intent(in) :: fileNameBase
 
 integer :: i,j
@@ -376,8 +386,12 @@ integer,allocatable :: ldata(:),gdata(:)
 real(8) :: ddata(6)
 real(8),allocatable :: dbuf(:)
 
+real(8) :: rnorm(3,NBUFFER)
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
+
+call xu2xs(rreal,rnorm)
 
 if(.not. isBinary) return
 
@@ -429,7 +443,7 @@ call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 allocate(dbuf(10*NATOMS))
 do i=1, NATOMS
    j = (i - 1)*10
-   dbuf(j+1:j+3)=pos(1:3,i)
+   dbuf(j+1:j+3)=rnorm(1:3,i)
    dbuf(j+4:j+6)=v(1:3,i)
    dbuf(j+7)=q(i)
    dbuf(j+8)=atype(i)

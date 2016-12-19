@@ -1,5 +1,5 @@
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
+subroutine COPYATOMS(imode, dr, atype, rreal, v, f, q)
 use atoms
 !
 ! TODO: update notes here
@@ -31,7 +31,9 @@ implicit none
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
 real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+real(8) :: rreal(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+
+real(8) :: pos(3,NBUFFER) ! <- normalized coordinate
 
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
@@ -41,6 +43,9 @@ integer :: ti,tj,tk
 integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 
 call system_clock(ti,tk)
+
+!-- normalized local coordinate will be used through this function. 
+call xu2xs(rreal,pos)
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -107,7 +112,11 @@ if(imode==MODE_MOVE) then
 
 !--- update the number of resident atoms
    NATOMS=ni
+
 endif
+
+!--- by here, we got new atom positions in the normalized coordinate, need to update real coordinates.
+if(imode== MODE_COPY .or. imode == MODE_MOVE) call xs2xu(pos,rreal)
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then

@@ -60,17 +60,14 @@ select case(isQEq)
 end select
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
-call xu2xs(pos)
 call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
 call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
-call xs2xu(pos)
 
 call qeq_initialize()
 
 !--- after the initialization, only the normalized coords are necessary for COPYATOMS()
 !--- The atomic coords are converted back to real at the end of this function.
-call xu2xs(pos)
 call COPYATOMS(MODE_QCOPY1,QCopyDr, atype, pos, vdummy, fdummy, q)
 call get_gradient(Gnew)
 
@@ -151,10 +148,11 @@ do nstep_qeq=0, nmax-1
 
 enddo
 
-call xs2xu(pos)
-
 call system_clock(j1,k1)
 it_timer(1)=it_timer(1)+(j1-i1)
+
+! save # of QEq iteration 
+it_timer(24)=it_timer(24)+nstep_qeq
 
 #ifdef QEQDUMP 
 open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
@@ -185,8 +183,6 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-! check memory footprint 
-it_timer(24)=max(GetTotalMemory(), it_timer(24))
 
 nbplist(:,0) = 0
 

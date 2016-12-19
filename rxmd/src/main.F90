@@ -56,10 +56,7 @@ do nstep=0, ntime_step-1
    pos(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+dt*v(1:3,1:NATOMS)
 
 !--- migrate atoms after positions are updated
-   call xu2xs(pos)
    call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
-   call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
-   call xs2xu(pos)
    
    if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
    call FORCE(atype, pos, f, q)
@@ -74,9 +71,7 @@ enddo
 call OUTPUT(atype, pos, v, q,  GetFileNameBase(current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
-call xu2xs(pos)
 call WriteBIN(atype, pos, v, q, GetFileNameBase(-1))
-call xs2xu(pos)
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
@@ -88,7 +83,7 @@ end PROGRAM
 
 !------------------------------------------------------------------------------
 subroutine FinalizeMD(irt)
-use atoms
+use atoms; use MemoryAllocator
 !------------------------------------------------------------------------------
 implicit none
 integer :: i
@@ -111,6 +106,8 @@ if(myid==0) then
    print'(a20,i12)', 'MAXNEIGHBS10: ', ibuf1(3)
    print'(a20,i12)', 'MAXNBUFFER(MOVE): ', ibuf1(1)+ibuf1(4)
    print'(a20,i12)', 'MAXNBUFFER(COPY): ', ibuf1(1)+ibuf1(5)
+   print'(a20,i12)', 'QEq Iterations: ', it_timer_max(24)
+   print'(a20,f12.2)','Memory (MB): ', GetTotalMemory()*1d-6
    print*
 
    print'(a20,f12.4,3x,f12.4)','QEq: ',  dble(it_timer_max(1))/irt, dble(it_timer_min(1))/irt
@@ -139,7 +136,6 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','WritePDB: ', dble(it_timer_max(21))/irt, dble(it_timer_min(21))/irt
    print'(a20,f12.4,3x,f12.4)','ReadBIN: ', dble(it_timer_max(22))/irt, dble(it_timer_min(22))/irt
    print'(a20,f12.4,3x,f12.4)','WriteBIN: ', dble(it_timer_max(23))/irt, dble(it_timer_min(23))/irt
-   print'(a20,f12.4,3x,f12.4)','Memory (GB): ', it_timer_max(24)*1d-9, it_timer_min(24)*1d-9
    print*
 
    print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(Ntimer))/irt, dble(it_timer_min(Ntimer))/irt
@@ -241,12 +237,12 @@ wt0 = MPI_WTIME()
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine LINKEDLIST(atype, pos, cellDims, headAtom, atomList, NatomPerCell, Ncells, NLAYERS)
+subroutine LINKEDLIST(atype, rreal, cellDims, headAtom, atomList, NatomPerCell, Ncells, NLAYERS)
 use atoms
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER), cellDims(3)
+real(8),intent(in) :: atype(NBUFFER), rreal(3,NBUFFER), cellDims(3)
 
 integer,intent(in) :: Ncells(3), NLAYERS
 integer,intent(out) :: atomList(NBUFFER)
@@ -256,10 +252,14 @@ integer,intent(out) :: NatomPerCell(-NLAYERS:Ncells(1)-1+NLAYERS, &
 integer,intent(out) :: headAtom(-NLAYERS:Ncells(1)-1+NLAYERS, & 
                                 -NLAYERS:Ncells(2)-1+NLAYERS, &
                                 -NLAYERS:Ncells(3)-1+NLAYERS) 
+
+real(8) :: rnorm(3,NBUFFER)
 integer :: n, l(3), j
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
+
+call xu2xs(rreal,rnorm)
 
 headAtom(:,:,:) = -1; atomList(:) = 0; NatomPerCell(:,:,:)=0
 
@@ -268,7 +268,7 @@ do n=1, copyptr(6)
 
    if(nint(atype(n))==0) cycle
 
-   l(1:3) = floor(pos(1:3,n)/cellDims(1:3))
+   l(1:3) = floor(rnorm(1:3,n)/cellDims(1:3))
 
    atomList(n) = headAtom(l(1), l(2), l(3))
    headAtom(l(1), l(2), l(3)) = n
@@ -553,38 +553,40 @@ return
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs(pos)
-! unscaled coordinate to scaled coordinate. shift coordinate to scaled-local.
+subroutine xu2xs(rreal, rnorm)
+! update normalized coordinate from real coordinate. Subtract obox to make them local. 
 use atoms
-real(8) :: pos(3,NBUFFER)
+real(8),intent(in) :: rreal(3,NBUFFER)
+real(8),intent(out) :: rnorm(3,NBUFFER)
 
 !--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
 
 do i=1, NBUFFER
-   rr(1:3) = pos(1:3,i)
-   pos(1,i)=sum(HHi(1,1:3)*rr(1:3))
-   pos(2,i)=sum(HHi(2,1:3)*rr(1:3))
-   pos(3,i)=sum(HHi(3,1:3)*rr(1:3))
-   pos(1:3,i) = pos(1:3,i) - OBOX(1:3)
+   rr(1:3) = rreal(1:3,i)
+   rnorm(1,i)=sum(HHi(1,1:3)*rr(1:3))
+   rnorm(2,i)=sum(HHi(2,1:3)*rr(1:3))
+   rnorm(3,i)=sum(HHi(3,1:3)*rr(1:3))
+   rnorm(1:3,i) = rnorm(1:3,i) - OBOX(1:3)
 enddo
 
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu(pos)
-! scaled coordinate to unscaled coordinate. shift coordinate to unscaled-global.
+subroutine xs2xu(rnorm,rreal)
+! update real coordinate from normalized coordinate
 use atoms
 !--------------------------------------------------------------------------------------------------------------
-real(8) :: pos(3,NBUFFER)
+real(8),intent(in) :: rnorm(3,NBUFFER)
+real(8),intent(out) :: rreal(3,NBUFFER)
 
 real(8) :: rr(3)
 
 do i=1, NBUFFER
-   rr(1:3) = pos(1:3,i) + OBOX(1:3)
-   pos(1,i)=sum(HH(1,1:3,0)*rr(1:3))
-   pos(2,i)=sum(HH(2,1:3,0)*rr(1:3))
-   pos(3,i)=sum(HH(3,1:3,0)*rr(1:3))
+   rr(1:3) = rnorm(1:3,i) + OBOX(1:3)
+   rreal(1,i)=sum(HH(1,1:3,0)*rr(1:3))
+   rreal(2,i)=sum(HH(2,1:3,0)*rr(1:3))
+   rreal(3,i)=sum(HH(3,1:3,0)*rr(1:3))
 enddo
 
 end subroutine
