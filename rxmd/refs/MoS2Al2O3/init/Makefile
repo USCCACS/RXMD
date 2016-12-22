@@ -1,0 +1,32 @@
+# suffix rules
+.SUFFIXES: .o .f90 .F90
+.f90.o:
+	$(FC) -c $(CPP) $(OPT) $<
+
+.F90.o:
+	$(FC) -c $(CPP) $(OPT) $<
+
+# macros    
+#FC = ifort
+#FC = xlf
+FC = gfortran
+
+OPT =
+CPP = 
+LDFLAGS =
+
+TARGETS = geninit
+all: $(TARGETS)
+
+# explicit rules
+geninit: geninit.o
+	$(FC) -o $@ $^ $(LDFLAGS)
+	./geninit moo3.xyz
+	cp -v rxff.bin ../DAT
+
+nocopy: geninit.o
+	$(FC) -o $@ $^ $(LDFLAGS)
+	./geninit input.xyz
+
+clean:
+	rm -f all.bin rxff.bin geninit.xyz *.o *.mod *.MOD $(TARGETS)

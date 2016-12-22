@@ -59,12 +59,24 @@ select case(isQEq)
 
 end select
 
+#ifdef QEQDUMP 
+open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
+#endif
+
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
 call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
 call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
 
 call qeq_initialize()
+
+#ifdef QEQDUMP 
+do i=1, NATOMS
+   do j1=1,nbplist(i,0)
+      write(91,'(3i6,f16.12,4f20.12)') -1, l2g(atype(i)),nint(atype(i)), hessian(j1,i)
+   enddo
+enddo
+#endif
 
 !--- after the initialization, only the normalized coords are necessary for COPYATOMS()
 !--- The atomic coords are converted back to real at the end of this function.
@@ -79,6 +91,12 @@ call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
 
 GEst2=1.d99
 do nstep_qeq=0, nmax-1
+
+#ifdef QEQDUMP 
+do i=1, NATOMS
+   write(91,'(3i6,f16.12,4f20.12)') nstep_qeq, l2g(atype(i)),nint(atype(i)),q(i),hs(i),ht(i),hshs(i),hsht(i)
+enddo
+#endif
 
 #ifdef QEQDUMP 
   qsum = sum(q(1:NATOMS))
@@ -155,10 +173,6 @@ it_timer(1)=it_timer(1)+(j1-i1)
 it_timer(24)=it_timer(24)+nstep_qeq
 
 #ifdef QEQDUMP 
-open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
-do i=1, NATOMS
-   write(91,'(2i6,f16.12,4f20.12)') l2g(atype(i)),nint(atype(i)),q(i),hs(i),ht(i),hshs(i),hsht(i)
-enddo
 close(91)
 #endif
 

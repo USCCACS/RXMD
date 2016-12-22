@@ -43,9 +43,9 @@ do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo
 
-!$omp parallel default(shared)
+!!$omp parallel default(shared)
 CALL BOCALC(NMINCELL, atype, pos)
-!$omp end parallel
+!!$omp end parallel
 !$omp parallel default(shared)
 CALL ENbond()
 CALL Ebond()
@@ -61,7 +61,13 @@ CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q)
 #ifdef RFDUMP
 open(81,file="rfdump"//trim(rankToString(myid))//".txt")
 do i=1, NATOMS
-   write(81,'(2i6,6f20.12)') gtype(i),nint(atype(i)),pos(1:3,i),f(1:3,i)
+   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'pos',nint(atype(i)),pos(1:3,i)
+enddo
+do i=1, NATOMS
+   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'frc',nint(atype(i)),f(1:3,i)
+enddo
+do i=1, NATOMS
+   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'chg',nint(atype(i)),q(i)
 enddo
 close(81)
 #endif

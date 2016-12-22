@@ -7,9 +7,9 @@ real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 
 integer :: ti,tj,tk
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
 !--- calculate BO prime 
 CALL BOPRIM()  
@@ -17,10 +17,10 @@ CALL BOPRIM()
 !--- calculate full BO
 CALL BOFULL() 
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(6)=it_timer(6)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 CONTAINS
 
@@ -39,19 +39,21 @@ real(8) :: dr(3), dr2, arg_BOpij(3)
 
 real(8) :: cutoff_vpar30
 
-!$omp single
+!!$omp single
 cutoff_vpar30 =  cutof2_bo*vpar30
-!$omp end single
+!!$omp end single
 
 !--- initialize deltap(1:,1) to -Val(atype(i))
-!$omp do 
+!!$omp do 
 do i=1, copyptr(6)
    ity = nint(atype(i))
    deltap(i,1) = -Val(ity) 
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp do
+!!$omp do
+!$omp parallel do default(shared) &
+!$omp private(n,i,j,j1,i1,ity,jty,inxn,c1,c2,c3,dr,dr2,arg_BOpij)
 do i=1, copyptr(6)
    ity = nint(atype(i))
 
@@ -119,7 +121,8 @@ do i=1, copyptr(6)
       endif
    enddo
 enddo
-!$omp end do
+!!$omp end do
+!$omp end parallel do
  
 END SUBROUTINE
 
@@ -151,14 +154,20 @@ real(8) :: BOp0, BOpsqr
 
 real(8) :: exppboc1i,exppboc2i,exppboc1j,exppboc2j   !<kn>
 
-!$omp do
+!!$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
    deltap(i,2) = deltap(i,1) + Val(ity) - Valboc(ity)
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp do 
+!!$omp do 
+!$omp parallel do default(shared) &
+!$omp private(c1,c2,c3,n,i,i1,j,j1,ity,jty,inxn,exp1,exp2,exp12, &
+!$omp fn1,fn2,fn3,fn4,fn5,fn23,fn45,fn145,fn1145,u1ij,u1ji,u1ij_inv2,u1ji_inv2, &
+!$omp Cf1Aij,Cf1Bij,exp_delt22,Cf1ij,Cf1ji,pboc34,BOpij_2,u45ij,u45ji, & 
+!$omp exph_45ij,exph_45ji,Cf45ij,Cf45ji,fn45_inv,Cf1ij_div1,Cf1ji_div1,BOp0,BOpsqr, &
+!$omp exppboc1i,exppboc2i,exppboc1j,exppboc2j)
 do i=1, copyptr(6)
    ity = nint(atype(i))
   
@@ -290,16 +299,17 @@ do i=1, copyptr(6)
 
    enddo ! do j1=1,nbrlist(i,0) loop end
 enddo
-!$omp end do
+!!$omp end do
+!$omp end parallel do
 
 !--- Calculate delta(i):
 !--- Initialize detal(i)
-!$omp do
+!!$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
    delta(i) = -Val(ity) + sum( BO(0,i,1:nbrlist(i,0)) )
 enddo
-!$omp end do
+!!$omp end do
 
 END SUBROUTINE
 
