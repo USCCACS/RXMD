@@ -1,3 +1,4 @@
 #!/bin/sh
 
-cd init; make clean; make -j 12
+INITDIR=`dirname $0`/../init
+cd ${INITDIR}; make clean; make -j 12

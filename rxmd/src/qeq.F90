@@ -16,10 +16,15 @@ real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
 real(8),intent(out) :: q(NBUFFER)
 real(8) :: vdummy(1,1), fdummy(1,1)
 
-integer :: i,l2g
+integer :: i,j,l2g
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
-real(8) :: Est, GEst1, GEst2,lmin(2), g_h(2), h_hsh(2)
+real(8) :: Est, GEst1, GEst2, g_h(2), h_hsh(2)
+#ifdef QEQDUMP
+real(4) :: lmin(2)
+#else
+real(8) :: lmin(2)
+#endif
 real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, mu
 real(8) :: qsum, gqsum
@@ -40,8 +45,9 @@ select case(isQEq)
     qsfp(1:NATOMS)=q(1:NATOMS)
     qsfv(1:NATOMS)=0.d0
 !--- Initialization of the two vector QEq 
+    qs(:)=0.d0
+    qt(:)=0.d0
     qs(1:NATOMS)=q(1:NATOMS)
-    qt(1:NATOMS)=0.d0
     nmax=NMAXQEq
 
 !=== Extended Lagrangian method ===!
@@ -73,7 +79,8 @@ call qeq_initialize()
 #ifdef QEQDUMP 
 do i=1, NATOMS
    do j1=1,nbplist(i,0)
-      write(91,'(3i6,f16.12,4f20.12)') -1, l2g(atype(i)),nint(atype(i)), hessian(j1,i)
+      j = nbplist(i,j1)
+      write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(j1,i)
    enddo
 enddo
 #endif
@@ -92,11 +99,6 @@ call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
 GEst2=1.d99
 do nstep_qeq=0, nmax-1
 
-#ifdef QEQDUMP 
-do i=1, NATOMS
-   write(91,'(3i6,f16.12,4f20.12)') nstep_qeq, l2g(atype(i)),nint(atype(i)),q(i),hs(i),ht(i),hshs(i),hsht(i)
-enddo
-#endif
 
 #ifdef QEQDUMP 
   qsum = sum(q(1:NATOMS))
@@ -108,7 +110,7 @@ enddo
   call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 #ifdef QEQDUMP 
-  if(myid==0) print'(i5,5es25.15)', nstep_qeq, 0.5d0*log(Gnew(1:2)/NATOMS), GEst1, GEst2, gqsum
+  if(myid==0) print'(i5,5es25.15)', nstep_qeq, 0.5d0*log(Gnew(1:2)/GNATOMS), GEst1, GEst2, gqsum
 #endif
 
   if( ( 0.5d0*( abs(GEst2) + abs(GEst1) ) < QEq_tol) ) exit 
@@ -187,9 +189,13 @@ use atoms; use parameters; use MemoryAllocator
 ! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
-integer :: i,j, ity, jty, n, m, mn, nn, ist=0
+integer :: i,j, ity, jty, n, m, mn, nn
 integer :: c1,c2,c3, c4,c5,c6
-real(8) :: dr(3), dr2, hsan
+#ifdef QEQDUMP
+real(4) :: dr(3), dr2
+#else
+real(8) :: dr(3), dr2
+#endif
 real(8) :: drtb
 integer :: itb, inxn
 
@@ -201,7 +207,7 @@ call system_clock(ti,tk)
 nbplist(:,0) = 0
 
 !$omp parallel do schedule(guided), default(shared), &
-!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,hsan,drtb,itb,inxn)
+!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1

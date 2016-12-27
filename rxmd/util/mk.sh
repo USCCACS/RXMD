@@ -1,3 +1,4 @@
 #!/bin/sh
 
-cd src; make clean; make -j 12
+SRCDIR=`dirname $0`/../src
+cd ${SRCDIR} ; make clean; make -j 12
