@@ -269,9 +269,13 @@ do myid=0,nprocs-1
         case(3) 
           write(20,'(a3, $)') "O  "
         case(4) 
-          write(20,'(a3, $)') "N  "
+          write(20,'(a3, $)') "S  "
+        case(5) 
+          write(20,'(a3, $)') "Mo "
         case(6) 
-          write(20,'(a3, $)') "Si "
+          write(20,'(a3, $)') "Ni "
+        case(7) 
+          write(20,'(a3, $)') "Al "
       end select
       write(20,'(3f12.5)') rr(1:3)
    enddo
