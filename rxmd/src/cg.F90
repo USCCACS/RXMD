@@ -4,7 +4,7 @@ use atoms
 !---------------------------------------------------------------------------------
 integer,parameter :: CG_MaxMinLoop = 500
 integer,parameter :: CG_MaxLineMinLoop = 100
-integer,parameter :: CG_MaxBracketLoop = 100
+integer,parameter :: CG_MaxBracketLoop = 20
 integer,parameter :: CG_MaxGSLoop = 100
 
 
@@ -14,7 +14,9 @@ real(8),parameter :: CG_WC2 = 0.1d0
 
 !--- golden section tolerance
 real(8),parameter :: CG_GStol = 1d-6
-real(8),parameter :: CG_tol = 1d-6
+
+!--- conjugate gradient tolerance. ftol in rxmd.in
+real(8) :: CG_tol = 1d-4
 
 real(8),parameter :: CG_EPS= 1d-16 ! a check to emit warning message
 
@@ -35,19 +37,22 @@ real(8) :: vnorm, stepl, beta1,beta2,beta3
 
 integer :: cgLoop, i
 
-if(myid==0)  print'(a30)', 'start structural optimization.'
+CG_tol = ftol
+v(:,:)=0.d0
+
+if(myid==0) print'(a40,1x,es8.2)', NEW_LINE('A')//'Start structural optimization.', ftol
+
 call QEq(atype, pos, q)
 call FORCE(atype, pos, gnew, q)
+
+!--- initialize search direction with gradient
+p(1:3,1:NATOMS)=gnew(1:3,1:NATOMS)
+
 PE(0)=sum(PE(1:13))
 call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 GPEnew=GPE(0)
 
-!!--- Normalize gradient and use it as the initial search direction.
-!call NormalizeVec3D(gnew,vnorm)
-!print*,'vnorm,maxvalue',vnorm,maxval(gnew(1:3,1:NATOMS))
-!gnew=gnew*vnorm
-p(1:3,1:NATOMS)=gnew(1:3,1:NATOMS)
-
+!--- if no bracket range was found here, you are at the energy minimum already. 
 call BracketSearchRange(atype,pos,p,stepl)
 
 do cgLoop = 0, CG_MaxMinLoop-1
@@ -58,6 +63,8 @@ do cgLoop = 0, CG_MaxMinLoop-1
    call QEq(atype, pos, q)
    call FORCE(atype, pos, gnew, q)
 
+   call OUTPUT(atype, pos, v, q, GetFileNameBase(cgLoop))
+
    GPEold=GPEnew
    PE(0)=sum(PE(1:13))
    call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
@@ -65,6 +72,8 @@ do cgLoop = 0, CG_MaxMinLoop-1
 
    if(abs(GPEnew-GPEold)<=CG_tol*GNATOMS) then
       if(myid==0) print'(a30,i6)','Energy converged.', cgLoop
+
+      call OUTPUT(atype, pos, v, q, GetFileNameBase(cgLoop))
       exit
    endif
 
@@ -94,10 +103,13 @@ subroutine BracketSearchRange(atype,pos,p,stepl)
 implicit none
 real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER)
 real(8),intent(out) :: stepl
+real(8) :: vdummy(3,NBUFFER), qdummy(NBUFFER)
 integer :: bracketingLoop
 logical :: Elower, WolfeC1, WolfeC2
 
 real(8) :: PE
+
+if(myid==0) print'(a40)', NEW_LINE('A')//'Start BracketSearchRange()'
 
 stepl=1d-2/GNATOMS; Elower=.true.; WolfeC1=.true.; WolfeC2=.true.
 
@@ -112,11 +124,17 @@ do bracketingLoop = 0, CG_MaxBracketLoop-1
       'stepl,PE,Elow,Wolfe1,Wolfe2: ', stepl, PE, Elower, WolfeC1, WolfeC2
 
    if(.not.WolfeC1 .or. .not.WolfeC1) then
-      if(myid==0) print'(a30,es15.5)', 'bracket has been found: ', stepl
-      exit
+      if(myid==0) print'(a30,es15.5,a1)', 'bracket has been found: ', stepl
+      return 
    endif
 
 enddo 
+
+if(myid==0) print'(a)', &
+'bracket was not found. saving the last configuration and terminating structural optimization'
+call OUTPUT(atype, pos, vdummy, qdummy, "nobracket")
+
+stop
 
 end subroutine BracketSearchRange
 
@@ -132,7 +150,8 @@ real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER),stepl
 logical,intent(out) :: isLowerEnergy,isArmijoRule,isCurvature
 
 real(8) :: atypeTmp(NBUFFER),posTmp(3,NBUFFER),pTmp(3,NBUFFER),qTmp(NBUFFER)
-! TODO: v is dummy but COPYATOM(MOVE) moves it. Thus needs to allocate 3xNBUFFER array here.
+! FIXME: here we don't really need v but COPYATOM(MOVE) requires it for the move mode. 
+!        thus, I am allocating a 3xNBUFFER dummy array here. a better implementation needed. 
 real(8) :: vdummy(3,NBUFFER) 
 real(8) :: GPE(0:13), GPEbefore, GPEafter, fbefore(3,NBUFFER), fafter(3,NBUFFER)
 real(8) :: pDotdF, pDotdFShift
@@ -150,7 +169,7 @@ GPEbefore=GPE(0)
 posTmp(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*p(1:3,1:NATOMS)
 atypeTmp(1:NATOMS)=atype(1:NATOMS)
 
-! TODO: local number of atoms will change after COPYATOM(MOVE). 
+! FIXME local number of atoms will change after COPYATOM(MOVE). 
 ! Need to retrieve the origianl value consistent with the coordinates before the move.
 NATOMSTmp = NATOMS
 
@@ -199,6 +218,8 @@ real(8) :: atypeTmp(NBUFFER),posTmp(3,NBUFFER),fdummy(1,1)
 integer :: lineMinLoop, NATOMSTmp
 real(8) :: stepl, step0
 
+if(myid==0) print'(a40)', NEW_LINE('A')//'Start LineMinimization()'
+
 step0=0.d0
 
 call GoldenSectionSearch(atype,pos,p,step0,stepl)
@@ -224,6 +245,8 @@ real(8) :: ratio = 1.d0/1.61803398875d0 ! inverse of golden ratio
 
 integer :: GSLoop
 
+if(myid==0) print'(a30)', 'start golden section step.'
+
 bx=dx-(dx-ax)*ratio
 cx=ax+(dx-ax)*ratio
 PEbx=EvaluateEnergyWithStep(atype,pos,p,bx)
@@ -235,7 +258,7 @@ do GSLoop = 0, CG_MaxLineMinLoop-1
       'ax,bx,cx,dx,PEbx,PEcx: ', ax,bx,cx,dx,PEbx,PEcx
 
    if(abs(ax-dx)<=CG_GStol/GNATOMS) then
-      if(myid==0) print'(a30,es15.5)', 'golden section step finished: ', dx
+      if(myid==0) print'(a30)', 'golden section step finished.'
       exit
    endif
 
