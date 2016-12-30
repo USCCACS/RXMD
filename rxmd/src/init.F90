@@ -506,7 +506,7 @@ integer :: i,j,k
 
 real(8) :: latticePerNode(3), rr(3), dr2
 real(8) :: maxrcell
-integer :: imesh(3), maximesh 
+integer :: imesh(3), maximesh, ii(3), i1
 
 !--- initial estimate of LL cell dims
 nblcsize(1:3)=3d0
@@ -529,10 +529,15 @@ nbnmesh=0
 do i=-imesh(1), imesh(1)
 do j=-imesh(2), imesh(2)
 do k=-imesh(3), imesh(3)
-   rr(1:3) = (/i,j,k/)*nblcsize(1:3)
-   dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= (rctap*1.2d0)**2) nbnmesh = nbnmesh + 1
-   !if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
+   ii(1:3) = [i,j,k]
+   do i1 = 1, 3
+      if(ii(i1)>0) then
+         ii(i1)=ii(i1)-1
+      else if(ii(i1)<0) then
+         ii(i1)=ii(i1)+1
+      endif
+   enddo
+   if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
 enddo; enddo; enddo
 
 call allocatori2d(nbmesh,1,3,1,nbnmesh)
@@ -542,10 +547,17 @@ nbnmesh=0
 do i=-imesh(1), imesh(1)
 do j=-imesh(2), imesh(2)
 do k=-imesh(3), imesh(3)
-   rr(1:3) = (/i,j,k/)*nblcsize(1:3)
+   ii(1:3) = [i,j,k]
+   do i1 = 1, 3
+      if(ii(i1)>0) then
+         ii(i1)=ii(i1)-1
+      else if(ii(i1)<0) then
+         ii(i1)=ii(i1)+1
+      endif
+   enddo
+   rr(1:3) = ii(1:3)*nblcsize(1:3)
    dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= (rctap*1.2d0)**2) then
-   !if(dr2 <= rctap**2) then
+   if(dr2 <= rctap**2) then
       nbnmesh = nbnmesh + 1
       nbmesh(1:3,nbnmesh) = (/i, j, k/)
    endif

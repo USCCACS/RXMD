@@ -20,11 +20,7 @@ integer :: i,j,l2g
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2, g_h(2), h_hsh(2)
-#ifdef QEQDUMP
 real(4) :: lmin(2)
-#else
-real(8) :: lmin(2)
-#endif
 real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, mu
 real(8) :: qsum, gqsum
@@ -190,12 +186,8 @@ use atoms; use parameters; use MemoryAllocator
 implicit none
 integer :: i,j, ity, jty, n, m, mn, nn
 integer :: c1,c2,c3, c4,c5,c6
-#ifdef QEQDUMP
-real(4) :: dr(3), dr2
-#else
-real(8) :: dr(3), dr2
-#endif
-real(8) :: drtb
+real(4) :: dr2
+real(8) :: dr(3), drtb
 integer :: itb, inxn
 
 integer :: ti,tj,tk
