@@ -71,7 +71,6 @@ open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
 call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
-call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
 call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
 
 call qeq_initialize()

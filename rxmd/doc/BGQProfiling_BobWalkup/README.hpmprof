@@ -1,0 +1,57 @@
+This directory has an experimental profiler based on the interrupt
+mechanism provided by BGPM.  That requires SWDISTRIB mode of BGPM.
+You can choose a counter event and threshold value, and when the
+counter reaches that threshold, an interrupt is delivered, and the
+handler records a "hit" at the program-counter location.  The data
+is thus a histogram of hits at various instruction addresses, and 
+can be displayed using "bfdprof".  I use a special file format for
+the histogram data, recognized by bfdprof, but not by other tools.
+At the present time, profiling is enabled on the master thread only,
+and events can be chosen from the listed "punit" and "L2" events.
+See the BGPM event list in 
+
+       /bgsys/drivers/ppcfloor/bgpm/docs/html/bgpm_events.html
+and/or /bgsys/drivers/ppcfloor/spi/include/upci/events.h
+
+The default profiling method uses the cycle-counter event with a
+threshold value of 1600000.  That corresponds to regular time-sampling
+with 1000 samples/sec.  The "hits" are saved as integer values, which
+should not overflow, even if the job runs for days.  For other
+events, it is useful to know how to set a threshold value so that you
+will get a reasonable number of "hits".  You can get that information
+by first running a job that prints the accumulated counter values.
+
+To specify a profiling event, set HPM_PROFILE_EVENT=number, where 
+"number" is the event id listed in the event tables.  For example
+with the V1R2 driver, L1 D-cache misses corresponds to event
+PEVT_LSU_COMMIT_LD_MISSES  = event number 82, so you would set env 
+variable HPM_PROFILE_EVENT=82.  You control the threshold for
+triggering an interrupt by HPM_PROFILE_THRESHOLD=number, where
+"number" is the number of events between interrupts.
+
+If you want to profile the whole code from MPI_Init() to MPI_Finalize(),
+you need to link with the libhpmprof.a in this directory, and set
+env variable HPM_PROFILE=yes.  Instead of profiling the whole code,
+you can bracket the code section that you want to sample with calls:
+
+C/C++ : HPM_Prof_start();
+        do_work();
+        HPM_Prof_stop();
+
+Fortran : call hpm_prof_start()
+          call do_work()
+          call hpm_prof_stop()
+
+Histogram output is written in the wrapper for MPI_Finalize(), using
+the same output controls as for other MPI/HPM outputs.  The histogram
+data can be analyzed uing "bfdprof".  Be sure to include -g as compile
+and link options, so that "bfdprof" can properly translate from the
+recorded instruction addresses to source-file and line number.
+
+some potentially interesting events to look at include :
+
+PEVT_LSU_COMMIT_LD_MISSES   = 82  ;   L1 D-cache miss
+PEVT_L1P_BAS_MISS           = 146 ;   L1P miss
+PEVT_CYCLES                 = 211 ;   clock cycles
+PEVT_IU_AXU_FXU_DEP_HIT_CYC =  40 ;   stall cycles due to dependency
+

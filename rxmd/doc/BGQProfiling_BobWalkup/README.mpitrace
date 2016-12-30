@@ -1,0 +1,474 @@
+This README describes libraries that can be used to gather MPI timining
+data, hardware counter data, and other performance measurements.  The
+MPI measurements use the "PMPI" profiling interface:  for each MPI
+routine, there is a wrapper that collects timing data, and calls the
+equivalent PMPI routine:
+
+int MPI_Send(...) {
+  start_timing();
+  PMPI_Send(...);
+  stop_timing();
+  log_the_event();
+}
+
+There is one combined wrapper-set for apps that use Fortran and C:
+
+libmpitrace.a   : wrappers for MPI only  
+
+libmpihpm.a     : wrappers for MPI plus hardware counters for pure
+                  MPI applications
+
+libmpihpm_smp.a : wrappers for MPI plus hardware counters for mixed
+                  MPI + OpenMP applications
+
+The libmpihpm.a library is the same as the libmpitrace.a library,
+with the addition that hardware counters are started in the wrapper
+for MPI_Init() and stopped in the wrapper for MPI_Finalize().  It is
+also possible to monitor a specific code section with counters, or
+just for MPI information.  See the section on hardware counters for
+more information on libmpihpm.a and libmpihpm_smp.a
+
+
+The wrappers can be used in two modes.  The default mode is to collect
+only a timing summary.  The other mode is to collect both a timing
+summary and a time-history of MPI calls suitable for graphical display.
+To enable this event-tracing method from the beginning of the program, 
+you can set an environment variable:
+
+export TRACE_ALL_EVENTS=yes
+
+This will save a record of all MPI events after MPI_Init() until the
+application completes, or until the limited trace buffer is full.
+For better control, one can put calls in the code to start/stop
+event tracing for selected code blocks.  For more information on event 
+tracing, see the Event Tracing section.
+
+
+In summary mode (the default) you normally get just the total elapsed
+time in each MPI routine, the total "communication" time, and some info
+on message-size distributions.	You can get MPI profiling information
+that associates elapsed time in MPI routines with instruction address
+or call site in the application by setting an environment variable:
+
+export PROFILE_BY_CALL_SITE=yes
+
+This option adds some overhead because it has to do a traceback to
+identify the code location for each MPI call, but it provides some extra
+information that can be very useful.  In some cases there may be nested
+layers on top of MPI, and you may need to profile higher up the call 
+chain.  You can do this by setting another environment variable.  For 
+example, setting TRACEBACK_LEVEL=2 tells the library to save addresses 
+starting not with the location of the MPI call (level = 1), but from the
+parent in the call chain (level = 2).	To use this profiling option, 
+compile and link with -g; and then use the addr2line utility to 
+translate from instruction address to source file and line number.
+
+Also, in summary mode, the default is to save just the summary data
+from MPI rank 0, and the MPI ranks with the min, max, and median
+communication times.  That way the number of text files generated
+remains small even for very large process counts.  The file for MPI
+rank 0 has a collection of some of the basic data from every rank,
+so there is not much information lost.  Also, if you use the -pg
+profiling option, the same output filter is applied to the generation
+of gmon.out files : by default you will only get gmon.out files for
+MPI rank 0 and the ranks with the min, max, and median communication
+times.  If you want all gmon.out files and/or all MPI summary files,
+you can set SAVE_ALL_TASKS=yes as an env variable at runtime.  Also,
+for added flexibility, you can define a list of MPI ranks that will
+be used to save detailed output, set the env variable SAVE_LIST to
+a comma-separated list of MPI ranks in MPI_COMM_WORLD; for example:
+export SAVE_LIST="0,10,20,30,40,50".
+
+
+In either mode there is an option to collect information about the 
+number of hops for point-to-point communication on the torus network.
+This feature can be enabled by setting an environment variable:
+
+export TRACE_SEND_PATTERN=yes
+
+When this variable is set, the wrappers keep track of how many bytes are
+sent to each task, and a matrix is written during MPI_Finalize which 
+lists how many bytes were sent from each task to all other tasks.  This 
+matrix can be used as input to external utilities that can generate 
+efficient mappings of MPI tasks onto torus coordinates.  The wrappers 
+also provide the average number of hops for all flavors of MPI_Send.  
+The wrappers do not track the message-traffic patterns in collective 
+calls, such as MPI_Alltoall.  Only point-to-point send operations are 
+tracked.  In addition to the send_bytes matrix, there are pattern files
+written, listing the destination ranks and the location and number of
+bytes sent to each destination rank.
+
+In summary mode, the time spent in MPI routines is accumulated starting
+in MPI_Init() and stopping in MPI_Finalize().  In some cases you may want
+to collect MPI timing data for only a certain interval.  You can do this
+by calling routines to start/stop the collection of summary statistics:
+
+Fortran syntax:
+        call summary_start()
+        do work + MPI ...
+        call summary_stop()
+
+C syntax:
+  summary_start();
+  do work + MPI ...
+  summary_stop();
+
+If you control summary statistics in this way, the accumulated data and
+timers are reset when the first call to summary_start() is made, and
+the output files should contain MPI timing data for just the interval
+that you specified.
+
+-----------------------------------------------------------------------
+
+How to Use:
+
+To use one of these libraries, just add the trace library after the
+user's .o and .a files, but before the MPI library in the link order.
+This amounts to a small change in the makefile for the linking step.
+Run the application as you normally would.  The wrapper for MPI_Finalize()
+writes the timing summaries in files called mpi_profile.*.  In this
+version of the wrappers, these text files have names:
+
+mpi_profile.jobid.rank
+
+where rank is the MPI rank in MPI_COMM_WORLD.  The jobid was added to
+the name of the mpi_profile to ensure a unique name for each job.  The 
+mpi_profile for rank 0 is special: it contains a timing summary from each 
+task.  Detailed information is saved from the ranks with the minimum, 
+maximum, and median times spent in MPI calls, by defualt, but you can
+control output as described above.
+
+-----------------------------------------------------------------------
+
+Hardware Counters:
+
+With the libmpihpm.a library, you get hardware counter data in addition 
+to MPI information.  The wrapper for MPI_Finalize() writes one extra 
+file for each MPI rank that is saving detailed data:
+
+hpm_process_summary.jobid.rank  (text file with a readable summary)
+
+and it writes one file with aggregate counts for each process in the
+job :
+
+hpm_job_summary.jobid.rank
+
+There are two libraries that include hardware counters: libmpihpm.a, 
+and libmpihpm_smp.a.  The libmpihpm.a library is intended for pure MPI
+applications, and the libmpihpm_smp.a is intended for applications 
+that mix OpenMP and MPI. In both cases, the MPI wrappers call 
+HPM_Start("mpiAll") in MPI_Init() and they call HPM_Stop("mpiAll") in 
+MPI_Finalize; so you should always get counter data for the "mpiAll" 
+code-block.  You can also add calls to HPM_Start/HPM_Stop as described 
+below to collect data on specific code blocks.
+
+Fortran syntax:
+      call hpm_start('myblock')
+      do work ...
+      call hpm_stop('myblock')
+
+C syntax:
+  HPM_Start("myblock");
+  do work ...
+  HPM_Stop("myblock");
+
+C prototypes:
+ void HPM_Start(char *);
+ void HPM_Stop(char *);
+
+C++ prototypes:
+ extern "C" void HPM_Start(char *);
+ extern "C" void HPM_Stop(char *);
+
+To use the libraries that have hardware counters, you need to link
+with the appropriate system libraries:
+
+/bgusr/walkup/mpi_trace/bgq/lib/libmpihpm.a \
+/bgsys/drivers/ppcfloor/bgpm/lib/libbgpm.a \
+ -L/bgsys/drivers/ppcfloor/spi/lib -lSPI_upci_cnk
+
+and add -qsmp if using libmpihpm_smp.a.
+
+BG/Q has counters that are shared across the node for things like
+memory and network resources.  If you want to interpret the shared
+counters, it is best if all processes on a given node make the same
+sequence of HPM_Start()/HPM_Stop() calls.  The default setting is
+for counter data to be collected and aggregated over all of the 
+processes that share a node.  That corresponds to HPM_SCOPE=node.
+You can also set HPM_SCOPE=process, which will just report counts
+per MPI process, without performing node-aggregation or computing
+derived metrics.  The default counter group is HPM_GROUP=0, which
+provides a lot of basic information.  Additional counter groups can
+be defined ... see hpm.c.
+
+-----------------------------------------------------------------------
+
+Output Location:
+
+Normally the mpi_profile files and hpm files are written in the
+working directory.  You can specify an alternative location by setting
+the env variable TRACE_DIR to a directory where you have write 
+permission.
+
+-----------------------------------------------------------------------
+
+Event Tracing:
+
+You can save a time-stamped record of each MPI call by setting an 
+environment variable:
+
+export TRACE_ALL_EVENTS=yes
+
+This will save a record of all MPI events after MPI_Init() until the
+application completes, or until the limited trace buffer is full.
+For better control, you can put calls in the code to start/stop
+tracing around specific code blocks:
+
+Fortran syntax:
+        call trace_start()
+        do work + mpi ...
+        call trace_stop()
+
+C syntax:
+  void trace_start(void);
+  void trace_stop(void);
+
+  trace_start();
+  do work + mpi ...
+  trace_stop();
+
+C++ syntax:
+  extern "C" void trace_start(void);
+  extern "C" void trace_stop(void);
+
+  trace_start();
+  do work + mpi ...
+  trace_stop();
+
+When event tracing is enabled, the wrappers save a time-stamped record
+of every MPI call for graphical display.  This adds some overhead,
+about 1-2 microseconds per call.  The event-tracing method uses a small
+buffer in memory - up to 5*10**4 events per task - and so this is best
+suited for short-running applications, or time-stepping codes for just a
+few steps. The "traceview" utility can be used to display the tracefile
+recorded with event-tracing mode.  To use the event-tracing mode, add 
+-g for both compilation and linking - this is needed to identify the 
+source-file and line-number for each event.  The default trace buffer
+is enough for 50000 MPI calls, using 48 bytes per call.  You can set
+an environment variable to control the trace buffer size:
+
+export TRACE_BUFFER_SIZE=10000000 (for 10**7 bytes)
+
+however, remember that this buffer is in memory, which may be a
+constrained resource.
+
+When saving MPI event records, it is easy to generate trace files that
+are just too large to visualize.  To cut down on the data volume, the
+default behavior when you set TRACE_ALL_EVENTS=yes is to save event
+records from MPI tasks 0-255, or for all MPI processes if there are 256
+or fewer processes in MPI_COMM_WORLD.  That should be enough to provide
+a good visual record of the communication pattern.  If you want to save
+data from all tasks, you have to set TRACE_ALL_TASKS=yes.  To provide
+more control, you can set TRACE_MAX_RANK=#.  For example, if you set
+TRACE_MAX_RANK=2048, you will get trace data from 2048 tasks, 0-2047,
+provided you actually have at least 2048 tasks in your job.  By using
+the time-stamped trace feature selectively, both in time (trace_start/
+trace_stop), and by MPI rank, you can get good insight into the MPI
+performance of very large complex parallel applications.
+
+Some applications call certain MPI routines very frequently, which can
+cause trace buffers to overflow very quickly.  You can turn off tracing
+for such routines to keep trace files manageable.  For example, you can
+set an env variable:
+
+export TRACE_DISABLE_LIST="MPI_Comm_rank,MPI_Iprobe"
+or in mpirun: -env "TRACE_DISABLE_LIST=MPI_Comm_rank,MPI_Iprobe"
+
+to disable tracing for MPI_Comm_rank() and MPI_Iprobe().  You can specify
+the list using a comma to separate the items in the list, and the test is
+not sensitive to the case (upper/lower).  The listed routines will still 
+be profiled in the timing summary, but they will be excluded from the 
+events trace file.
+
+Trace records contain the starting and ending time for each MPI call and
+also the parent and grandparent instruction addresses.	You can associate
+instruction addresses with source-file and line-number information using
+the addr2line utility:
+
+addr2line -e your.x  hex_instruction_address
+
+The -g option can be used along with optimization, but sometimes the
+actual parent or grandparent may be off a line or two - still adequate to
+completly identify the event.  The "parent address" is the return address
+after the MPI call.  This is typically the next executable statement
+after the called MPI routine, so don't expect a perfect line-by-line
+source-code association with your MPI calls.
+
+-----------------------------------------------------------------------
+
+Profiling:
+
+The timing libraries provide some support for several profiling methods.
+If you use standard Unix profiling (-pg option), the libraries will
+automatically save the gmon.out files from only rank 0, and the ranks
+that had the min, max, and median times in MPI.  That prevents the 
+system from generating one gmon.out file per MPI rank, which is to be
+avoided when the number of MPI ranks is very large.  The methods that
+are used to control MPI profiling output, SAVE_LIST, and SAVE_ALL_TASKS,
+also apply to other profiling outputs.
+
+In libmpitrace.a and libmpihpm.a there is experimental support for
+Vprof.  You can set an environment variable VPROF_PROFILE=yes to enable
+Vprof-profiling from MPI_Init() to MPI_Finalize().  Alternativly, you
+can add calls to vprof_start()/vprof_stop() around a specific code block
+that you want to profile. This is a change from the standard vprof 
+package, which used vmon_begin()/vmon_done().  The reason for the change
+is that vmon_done() was designed to both stop profiling and write the
+output file, but it is more convenient to separate those functions.  
+With vprof_start()/vprof_stop() the "stop" routine just stops profiling.
+The file write is handled in the wrapper for MPI_Finalize().  That way
+it is possible to use the same output filter that is used for the other
+profiling functions (default is output from MPI rank 0 and the ranks
+with min, max, and median times in MPI).  The vprof GUI interface and 
+the command-line utility "cprof" can be built for the BG/Q front-end for
+analysis of the vmon.out files. Typical use would be: 
+
+cprof -e -n your.exe vmon.out.rank >cprofile.rank &
+
+For historical reasons, there is an additional function-level profiling
+feature.  This was added for BG/L in the years before BG/L supported
+profiling with -pg.  The idea was to get the compiler to automatically
+instrument entry/exit for each compiled routine.  To use this feature, 
+you must use XL compilers and compile with the option:
+
+-qdebug=function_trace
+
+A simple "flat profile" is obtained, by starting an elapsed-time timer
+upon entry, and stopping the timer upon exit for each routine compiled 
+with -qdebug=function_trace. To enable the feature, add the environment 
+variable:
+
+FLAT_PROFILE=yes
+
+when you submit your job.  This feature also turns on memory tracking,
+and a report of memory utilization is printed in the wrapper for 
+MPI_Finalize().  This feature works best for codes that do not make
+frequent function calls, and for single-threaded applications.  The
+overhead is prohibitive for applications that make frequent function
+calls.  It is recommended to use either -pg or the vprof profiling 
+method.
+
+-----------------------------------------------------------------------
+
+Changes:
+
+1. March 19,2004.  Changed the basic event structure to 48 bytes to make
+   event structures a multiple of sizeof(double).  This solves problems
+   with structure alignment on different architectures. Both the trace
+   libraries and "traceview" need to be updated to work correctly with
+   the larger event structures.
+
+2. June 15, 2004.  Added a feature to monitor the pattern of point-to-
+   point communication on the torus.  This can be enabled by setting
+   TRACE_SEND_PATTERN=yes as an environment variable.  Also changed
+   the clock frequency from hard-coded to a variable obtained from the
+   BG/L personality.
+
+3. July 19, 2004.  Added TRACEBACK_ERRORS env variable.  If this is set
+   to "yes", you get a traceback with any MPI error.  The traceback
+   lists instruction addresses, so use addr2line to get source file and
+   line number.
+
+4. January 27, 2004.  Changed the default behavior to save data from a
+   maximum of 256 MPI processes (0-255), when event tracing is enabled.
+   Added env variable "TRACE_ALL_TASKS=yes" if you really want traces
+   from all tasks; and "MAX_TRACE_RANK=#" is you only want to save data
+   from MPI ranks 0, ..., #-1.
+
+5. March 7, 2005.  Added a first version of function profiling.  Add the
+   env variable FLAT_PROFILE=yes, and compile all routines to be profiled
+   with -qdebug=function_trace; and you should get flat profiles at the
+   end, when MPI_Finalize is called.  The method uses elapsed-time timers
+   around entry and exit of each routine, and thus adds some overhead.
+
+6. May 18, 2005.  Added code to correctly track point-to-point send
+   operations for arbitrary communicators.  Also the number of hops
+   should now be computed correctly for both torus and mesh topologies.
+   These changes affect jobs that specify TRACE_SEND_PATTERN=yes.
+
+7. May 26, 2005.  Added memory-tracking code to the function_trace
+   routines.  When the code is compiled with -qdebug=function_trace,
+   and FLAT_PROFILE=yes is set in the run script, there will be both
+   routine-level timing data and memory utilization statistics printed
+   when MPI_Finalize is called.
+
+8. June 23, 2005. Added bgl_perfctr() option to start hardware counters
+   in MPI_Init() and stop them in MPI_Finalize().  The HPM enabled
+   wrappers are in libmpihpm_c/f.a, and to use them you must also link
+   with the bgl performance-counter library: -lbgl_perfctr.rts.
+
+9. August 30, 2005.  Fixed bgl_perfctr() to work in virtual node mode.
+
+10.February 7, 2006.  Added profiling by the calling point.  If you
+   set an env variable PROFILE_BY_CALLER=yes, you get a summary of
+   MPI elapsed times listed with the instruction address in the app.
+   This should make it possible to identify where in the code the MPI
+   time is comming from.  You need to use addr2line to translate from
+   instruction address to source file and line number, so -g is required
+   when compiling and linking if you want to use this option.
+
+11.March 24, 2006.  Changed to a single library for Fortran, C/C++, or
+   any mixture, due to changes in the BG/L MPI layer.  No longer need
+   separate libs for different languages.
+
+12.April 5, 2006. Added a feature to start/stop the collection of
+   cumulative MPI timing, by adding calls to the code.  The default
+   remains to start timing in MPI_Init and stop in MPI_Finalize. To
+   collect statistics for just a selected code block, insert calls 
+   to summary_start()/summary_stop().
+   
+13.Sept. 19, 2006.  Added an option to save output from all tasks:
+   set env variable SAVE_ALL_TASKS=yes.  This option will result in
+   one summary output file from each MPI rank, and it will preserve
+   the gmon.out file from each MPI rank.  This can result in a very
+   large amount of data generated upon program termination, so the
+   default behavior remains to save only output from MPI ranks 0, and
+   the ranks with the min, max, and median communication times.
+  
+14.January 22, 2007.  Added entry points for MPI-IO routines.  The
+   "communication time" is still the same, cumulative over MPI 1.2
+   message-passing functions; the time spent in MPI-IO is reported
+   separately.
+
+15.March 2007.  Fixed code to profile by call site, and changed the
+   env variable from old PROFILE_BY_CALLER to PROFILE_BY_CALL_SITE
+   for compatibility with Linux and AIX versions.  For event tracing,
+   the trace buffer size (in bytes) can now be set by an env variable:
+   TRACE_BUFFER_SIZE=4800000 for example.  Each event record takes 48
+   bytes, and the default size is 30000 events, or 1440000 bytes.
+
+16.May 2008.  Fixed BGP hardware counter code, and added BGP_STATS
+   and BGP_STATS_INTERVAL env variables for an experimental way to
+   get "real-time" statistics from running jobs.
+
+17.November 2008.  Added env variable TRACE_DISABLE_LIST which can
+   be used to turn-off event tracing for certain MPI routines.  This
+   can help keep trace files manageable when the application calls
+   certain routines (MPI_Iprobe or MPI_Comm_rank) too frequently.
+
+18.November 2008.  Added the ability to start/stop the BGP counters
+
+ ...
+
+
+21.December 2009.  Added automatic pattern-file generation when the
+   env variable TRACE_SEND_PATTERN=yes.  Changed to a sparse-matrix
+   format for the send_bytes matrix:
+      -------------------------
+      num_ranks (4 bytes)
+      -------------------------
+      num_partners (4 bytes)
+      array of [bytes(float), dest_rank(int)] of size num_partners
+      -------------------------
+      repeat for every rank, just keeping terms with bytes > 0.
+      
