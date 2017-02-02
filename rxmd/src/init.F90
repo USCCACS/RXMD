@@ -537,6 +537,8 @@ do k=-imesh(3), imesh(3)
          ii(i1)=ii(i1)+1
       endif
    enddo
+   rr(1:3) = ii(1:3)*nblcsize(1:3)
+   dr2 = sum(rr(1:3)*rr(1:3))
    if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
 enddo; enddo; enddo
 
