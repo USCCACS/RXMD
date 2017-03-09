@@ -1,7 +1,7 @@
 module params
 implicit none
-integer,parameter :: vprocs(3)=(/1,1,1/)
-integer,parameter :: mc(3)=(/2,2,2/)
+integer,parameter :: vprocs(3)=(/2,1,1/)
+integer,parameter :: mc(3)=(/1,1,1/)
 
 integer,parameter :: nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 integer,parameter :: mctot=mc(1)*mc(2)*mc(3)
@@ -124,10 +124,10 @@ do i=1, natoms
        itype0(i)=2
      case("O  ") 
        itype0(i)=3
-     case("N  ") 
+     case("Fe ") 
        itype0(i)=4
-     case("Si ") 
-       itype0(i)=6
+     case("S  ") 
+       itype0(i)=8
    end select
 enddo
 close(1)
@@ -265,9 +265,9 @@ do myid=0,nprocs-1
         case(3) 
           write(20,'(a3, $)') "O  "
         case(4) 
-          write(20,'(a3, $)') "N  "
-        case(6) 
-          write(20,'(a3, $)') "Si "
+          write(20,'(a3, $)') "Fe "
+        case(8) 
+          write(20,'(a3, $)') "S  "
       end select
       write(20,'(3f12.5)') rr(1:3)
    enddo
