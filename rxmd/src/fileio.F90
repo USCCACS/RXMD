@@ -218,13 +218,17 @@ do i=1, NATOMS
     case(3) 
       write(PDBOneLine,100)'ATOM  ',0, 'O', igd, pos(1:3,i), tt, ss
     case(4) 
-      write(PDBOneLine,100)'ATOM  ',0, 'N', igd, pos(1:3,i), tt, ss
+      write(PDBOneLine,100)'ATOM  ',0, 'Fe', igd, pos(1:3,i), tt, ss
     case(5) 
-      write(PDBOneLine,100)'ATOM  ',0, 'S', igd, pos(1:3,i), tt, ss
+      write(PDBOneLine,100)'ATOM  ',0, 'Al', igd, pos(1:3,i), tt, ss
     case(6) 
-      write(PDBOneLine,100)'ATOM  ',0,'Si', igd, pos(1:3,i), tt, ss
+      write(PDBOneLine,100)'ATOM  ',0,'Ni', igd, pos(1:3,i), tt, ss
     case(7) 
-      write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(1:3,i), tt, ss
+      write(PDBOneLine,100)'ATOM  ',0,'Cu', igd, pos(1:3,i), tt, ss
+    case(8) 
+      write(PDBOneLine,100)'ATOM  ',0,'S', igd, pos(1:3,i), tt, ss
+    case(9) 
+      write(PDBOneLine,100)'ATOM  ',0,'Cr', igd, pos(1:3,i), tt, ss
   end select
 
   PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
