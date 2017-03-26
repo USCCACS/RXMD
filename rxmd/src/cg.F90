@@ -46,7 +46,7 @@ call QEq(atype, pos, q)
 call FORCE(atype, pos, gnew, q)
 
 !--- initialize search direction with gradient
-p(1:3,1:NATOMS)=gnew(1:3,1:NATOMS)
+p(1:NATOMS,1:3)=gnew(1:NATOMS,1:3)
 
 PE(0)=sum(PE(1:13))
 call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
@@ -58,7 +58,7 @@ call BracketSearchRange(atype,pos,p,stepl)
 do cgLoop = 0, CG_MaxMinLoop-1
 
    call LineMinimization(atype,pos,p,gnew,stepl)
-   gold(1:3,1:NATOMS)=gnew(1:3,1:NATOMS)
+   gold(1:NATOMS,1:3)=gnew(1:NATOMS,1:3)
 
    call QEq(atype, pos, q)
    call FORCE(atype, pos, gnew, q)
@@ -84,7 +84,7 @@ do cgLoop = 0, CG_MaxMinLoop-1
    if(myid==0) print'(a30,i6,4es15.5,2es20.10)', &
      'b1,b2,b3,(b2-b3)/b1: ',cgLoop,beta1,beta2,beta3,(beta2-beta3)/beta1,GPEnew,GPEold
 
-   p(1:3,1:NATOMS) = (beta2-beta3)/beta1*p(1:3,1:NATOMS) + gnew(1:3,1:NATOMS)
+   p(1:NATOMS,1:3) = (beta2-beta3)/beta1*p(1:NATOMS,1:3) + gnew(1:NATOMS,1:3)
 
    call BracketSearchRange(atype,pos,p,stepl)
 
