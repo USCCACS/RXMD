@@ -12,7 +12,7 @@ use atoms; use parameters
 !-------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), pos(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3)
 real(8),intent(out) :: q(NBUFFER)
 real(8) :: vdummy(1,1), fdummy(1,1)
 
@@ -217,7 +217,7 @@ do c3=0, nbcc(3)-1
       do n=1, nbnacell(c4,c5,c6)
 
          if(i/=j) then
-            dr(1:3) = pos(1:3,i) - pos(1:3,j)
+            dr(1:3) = pos(i,1:3) - pos(j,1:3)
             dr2 =  sum(dr(1:3)*dr(1:3))
 
             if(dr2 < rctap2) then

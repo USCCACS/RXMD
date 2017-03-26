@@ -123,9 +123,9 @@ enddo
 
 call allocatord1d(atype,1,NBUFFER)
 call allocatord1d(q,1,NBUFFER)
-call allocatord2d(pos,1,3,1,NBUFFER)
-call allocatord2d(v,1,3,1,NBUFFER)
-call allocatord2d(f,1,3,1,NBUFFER)
+call allocatord2d(pos,1,NBUFFER,1,3)
+call allocatord2d(v,1,NBUFFER,1,3)
+call allocatord2d(f,1,NBUFFER,1,3)
 
 call allocatord1d(deltalp,1,NBUFFER)
 
@@ -315,8 +315,8 @@ do i=1, NATOMS, 2
      enddo
 
      vsl = sqrt(-2.d0 * log(vsqr)/vsqr)
-     v(k,i)   = vv(1)*vsl
-     v(k,i+1) = vv(2)*vsl
+     v(i,k)   = vv(1)*vsl
+     v(i+1,k) = vv(2)*vsl
   enddo
   
 enddo
@@ -325,7 +325,7 @@ enddo
 vCM(:)=0.d0;  mm = 0.d0
 do i=1, NATOMS
    ity = nint(atype(i))
-   vCM(1:3)=vCM(1:3) + mass(ity)*v(1:3,i)
+   vCM(1:3)=vCM(1:3) + mass(ity)*v(i,1:3)
    mm = mm + mass(ity)
 enddo
  
@@ -338,10 +338,10 @@ GvCM(:)=GvCM(:)/Gmm
 !--- set the total momentum to be zero and get the current kinetic energy. 
 KE = 0.d0
 do i=1, NATOMS
-   v(1:3,i) = v(1:3,i) - GvCM(1:3)
+   v(i,1:3) = v(i,1:3) - GvCM(1:3)
 
    ity = nint(atype(i))
-   KE = KE + hmas(ity)*sum( v(1:3,i)*v(1:3,i) )
+   KE = KE + hmas(ity)*sum( v(i,1:3)*v(i,1:3) )
 enddo
 
 call MPI_ALLREDUCE (KE, GKE, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)

@@ -31,9 +31,9 @@ implicit none
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
 real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: rreal(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+real(8) :: rreal(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
 
-real(8) :: pos(3,NBUFFER) ! <- normalized coordinate
+real(8) :: pos(NBUFFER,3) ! <- normalized coordinate
 
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
@@ -99,8 +99,8 @@ if(imode==MODE_MOVE) then
 !--- if atype is smaller than zero (this is done in store_atoms), ignore the atom.
       if(ity>0) then
         ni=ni+1
-        pos(1:3,ni) = pos(1:3,i)
-        v(1:3,ni) = v(1:3,i)
+        pos(ni,1:3) = pos(i,1:3)
+        v(ni,1:3) = v(i,1:3)
         atype(ni) = atype(i)
         q(ni) = q(i)
         qs(ni) = qs(i)
@@ -232,9 +232,9 @@ if(imode/=MODE_CPBK) then
 
         select case(imode)
         case(MODE_MOVE)
-           sbuffer(ns+1:ns+3) = pos(1:3,n)
+           sbuffer(ns+1:ns+3) = pos(n,1:3)
            sbuffer(ns+1+is) = sbuffer(ns+1+is) + sft
-           sbuffer(ns+4:ns+6) = v(1:3,n)
+           sbuffer(ns+4:ns+6) = v(n,1:3)
            sbuffer(ns+7) = atype(n)
            sbuffer(ns+8) = q(n)
            sbuffer(ns+9) = qs(n)
@@ -246,7 +246,7 @@ if(imode/=MODE_CPBK) then
            atype(n) = -1.d0 
 
         case(MODE_COPY)
-           sbuffer(ns+1:ns+3) = pos(1:3,n)
+           sbuffer(ns+1:ns+3) = pos(n,1:3)
            sbuffer(ns+1+is) = sbuffer(ns+1+is) + sft
            sbuffer(ns+4) = atype(n)
            sbuffer(ns+5) = q(n)
@@ -286,7 +286,7 @@ else if(imode==MODE_CPBK) then
 
    do n=copyptr(is-1)+1, copyptr(is)
       sbuffer(ns+1) = dble(frcindx(n))
-      sbuffer(ns+2:ns+4) = f(1:3,n)
+      sbuffer(ns+2:ns+4) = f(n,1:3)
 #ifdef STRESS
       sbuffer(ns+5:ns+10) = astr(1:6,n)
 #endif
@@ -341,8 +341,8 @@ if(imode /= MODE_CPBK) then
 
       select case(imode)
          case(MODE_MOVE)
-              pos(1:3,m) = rbuffer(ine+1:ine+3)
-              v(1:3,m) = rbuffer(ine+4:ine+6)
+              pos(m,1:3) = rbuffer(ine+1:ine+3)
+              v(m,1:3) = rbuffer(ine+4:ine+6)
               atype(m) = rbuffer(ine+7)
               q(m)  = rbuffer(ine+8)
               qs(m) = rbuffer(ine+9)
@@ -351,7 +351,7 @@ if(imode /= MODE_CPBK) then
               qsfv(m) = rbuffer(ine+12)
       
          case(MODE_COPY)
-              pos(1:3,m) = rbuffer(ine+1:ine+3)
+              pos(m,1:3) = rbuffer(ine+1:ine+3)
               atype(m) = rbuffer(ine+4)
               q(m)  = rbuffer(ine+5)
               frcindx(m) = nint(rbuffer(ine+6))
@@ -384,7 +384,7 @@ else if(imode == MODE_CPBK) then
       ine=i*ne
 !--- Append the transferred forces into the original position of force array.
       m = nint(rbuffer(ine+1))
-      f(1:3,m) = f(1:3,m) + rbuffer(ine+2:ine+4)
+      f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
 #ifdef STRESS
       astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
 #endif
@@ -444,17 +444,17 @@ logical :: isInside
 i = mod(dflag,2)  !<- i=1 means positive, i=0 means negative direction 
 select case(dflag)
    case(1) 
-      isInside = lbox(1) - dr(1) < pos(1,idx)
+      isInside = lbox(1) - dr(1) < pos(idx,1)
    case(2) 
-      isInside = pos(1,idx) <= dr(1)
+      isInside = pos(idx,1) <= dr(1)
    case(3) 
-      isInside = lbox(2) - dr(2) < pos(2,idx)
+      isInside = lbox(2) - dr(2) < pos(idx,2)
    case(4) 
-      isInside = pos(2,idx) <= dr(2)
+      isInside = pos(idx,2) <= dr(2)
    case(5) 
-      isInside = lbox(3) - dr(3) < pos(3,idx)
+      isInside = lbox(3) - dr(3) < pos(idx,3)
    case(6) 
-      isInside = pos(3,idx) <= dr(3)
+      isInside = pos(idx,3) <= dr(3)
    case default
       write(6,*) "ERROR: no matching directional flag in isInside: ", dflag
 end select

@@ -5,7 +5,7 @@ use atoms; use parameters
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 
-real(8) :: atype(NBUFFER),pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
+real(8) :: atype(NBUFFER),pos(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
 
 integer :: i,ity, j,jty,icmp, m,n
 integer :: c1,c2,c3,c4,c5,c6
@@ -24,12 +24,12 @@ call COPYATOMS(atype, pos, v, f, qdummy, MODE_STRESSCALC, dr)
 do i=1, NATOMS
   ity = atype(i)
   mh = mass(ity)
-  xx = mh*v(1,i)*v(1,i)
-  yy = mh*v(2,i)*v(2,i)
-  zz = mh*v(3,i)*v(3,i)
-  yz = mh*v(2,i)*v(3,i)
-  zx = mh*v(1,i)*v(3,i)
-  xy = mh*v(1,i)*v(2,i)
+  xx = mh*v(i,1)*v(i,1)
+  yy = mh*v(i,2)*v(i,2)
+  zz = mh*v(i,3)*v(i,3)
+  yz = mh*v(i,2)*v(i,3)
+  zx = mh*v(i,1)*v(i,3)
+  xy = mh*v(i,1)*v(i,2)
 
 !--- one step values.
   astr(1,i) = astr(1,i) + xx

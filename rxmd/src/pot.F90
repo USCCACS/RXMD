@@ -5,8 +5,8 @@ use parameters; use atoms
 implicit none
 
 real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: pos(3,NBUFFER)
-real(8),intent(inout) :: f(3,NBUFFER)
+real(8),intent(in) :: pos(NBUFFER,3)
+real(8),intent(inout) :: f(NBUFFER,3)
 
 real(8) :: vdummy(1,1) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
@@ -61,10 +61,10 @@ CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q)
 #ifdef RFDUMP
 open(81,file="rfdump"//trim(rankToString(myid))//".txt")
 do i=1, NATOMS
-   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'pos',nint(atype(i)),pos(1:3,i)
+   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'pos',nint(atype(i)),pos(i,1:3)
 enddo
 do i=1, NATOMS
-   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'frc',nint(atype(i)),f(1:3,i)
+   write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'frc',nint(atype(i)),f(i,1:3)
 enddo
 do i=1, NATOMS
    write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'chg',nint(atype(i)),q(i)
@@ -98,10 +98,10 @@ do i=1, copyptr(6)
 
   do j1=1, nbrlist(i,0)
      j=nbrlist(i,j1)
-     dr(1:3) = pos(1:3,i) - pos(1:3,j)
+     dr(1:3) = pos(i,1:3) - pos(j,1:3)
      ff(1:3) = ccbnd(i)*dBOp(i,j1)*dr(1:3)
-     f(1:3,i) = f(1:3,i) - ff(1:3)
-     f(1:3,j) = f(1:3,j) + ff(1:3)
+     f(i,1:3) = f(i,1:3) - ff(1:3)
+     f(j,1:3) = f(j,1:3) + ff(1:3)
 #ifdef STRESS
      ia=i; ja=j
      include 'stress'
@@ -346,7 +346,7 @@ do j=1, NATOMS
       i=nbrlist(j,i1)
       ity = itype(i)
 
-      rij(1:3) = pos(1:3,i) - pos(1:3,j)
+      rij(1:3) = pos(i,1:3) - pos(j,1:3)
       rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )
 
       do k1=i1+1, nbrlist(j,0)
@@ -360,7 +360,7 @@ do j=1, NATOMS
          k=nbrlist(j,k1)
          kty = itype(k)
 
-         rjk(1:3) = pos(1:3,j) - pos(1:3,k)
+         rjk(1:3) = pos(j,1:3) - pos(k,1:3)
          rjk(0) = sqrt( sum(rjk(1:3)*rjk(1:3)) )  
 
          cos_ijk = -sum( rij(1:3)*rjk(1:3) ) / ( rij(0) * rjk(0) ) 
@@ -572,15 +572,15 @@ do i=1, NATOMS
 
             if ( (j/=k).and.(i/=k).and.(inxnhb/=0) ) then
 
-               rik(1:3) = pos(1:3,i) - pos(1:3,k)
+               rik(1:3) = pos(i,1:3) - pos(k,1:3)
                rik2 = sum(rik(1:3)*rik(1:3))
 
                if(rik2<rchb2) then
    
-                  rjk(1:3) = pos(1:3,j) - pos(1:3,k)
+                  rjk(1:3) = pos(j,1:3) - pos(k,1:3)
                   rjk(0) = sqrt( sum(rjk(1:3)*rjk(1:3)) )
    
-                  rij(1:3) = pos(1:3,i) - pos(1:3,j)
+                  rij(1:3) = pos(i,1:3) - pos(j,1:3)
                   rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )  
    
                   cos_ijk = -sum( rij(1:3)*rjk(1:3) ) / (rij(0) * rjk(0) ) 
@@ -611,17 +611,17 @@ do i=1, NATOMS
                   ff(1:3) = CEhb(3)*rjk(1:3)
 
 !$omp atomic
-                  f(1,j) = f(1,j) - ff(1)
+                  f(j,1) = f(j,1) - ff(1)
 !$omp atomic
-                  f(2,j) = f(2,j) - ff(2)
+                  f(j,2) = f(j,2) - ff(2)
 !$omp atomic
-                  f(3,j) = f(3,j) - ff(3)
+                  f(j,3) = f(j,3) - ff(3)
 !$omp atomic
-                  f(1,k) = f(1,k) + ff(1)
+                  f(k,1) = f(k,1) + ff(1)
 !$omp atomic
-                  f(2,k) = f(2,k) + ff(2)
+                  f(k,2) = f(k,2) + ff(2)
 !$omp atomic
-                  f(3,k) = f(3,k) + ff(3)
+                  f(k,3) = f(k,3) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -688,7 +688,7 @@ do i=1, NATOMS
 
          if(jid<iid) then
 
-            dr(1:3) = pos(1:3,i) - pos(1:3,j)
+            dr(1:3) = pos(i,1:3) - pos(j,1:3)
             dr2 = sum(dr(1:3)*dr(1:3))
 
             if(dr2<=rctap2) then
@@ -722,17 +722,17 @@ do i=1, NATOMS
                ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
     
 !$omp atomic
-               f(1,i) = f(1,i) - ff(1)
+               f(i,1) = f(i,1) - ff(1)
 !$omp atomic
-               f(2,i) = f(2,i) - ff(2)
+               f(i,2) = f(i,2) - ff(2)
 !$omp atomic
-               f(3,i) = f(3,i) - ff(3)
+               f(i,3) = f(i,3) - ff(3)
 !$omp atomic
-               f(1,j) = f(1,j) + ff(1)
+               f(j,1) = f(j,1) + ff(1)
 !$omp atomic
-               f(2,j) = f(2,j) + ff(2)
+               f(j,2) = f(j,2) + ff(2)
 !$omp atomic
-               f(3,j) = f(3,j) + ff(3)
+               f(j,3) = f(j,3) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -864,7 +864,7 @@ do j=1,NATOMS
         delta_ang_k = delta(k) + Val(kty) - Valangle(kty)
         delta_ang_jk = delta_ang_j + delta_ang_k  
 
-        rjk(1:3) = pos(1:3,j) - pos(1:3,k)
+        rjk(1:3) = pos(j,1:3) - pos(k,1:3)
         rjk(0) = sqrt( sum(rjk(1:3)*rjk(1:3)) )
          
         do i1=1, nbrlist(j,0)
@@ -881,7 +881,7 @@ do j=1,NATOMS
 
               ity = itype(i)
 
-              rij(1:3) = pos(1:3,i) - pos(1:3,j)
+              rij(1:3) = pos(i,1:3) - pos(j,1:3)
               rij(0) = sqrt( sum(rij(1:3)*rij(1:3)) )
 
 !--- Calculate the angle i-j-k
@@ -912,7 +912,7 @@ do j=1,NATOMS
 !--- NOTICE: cutoff condition to ignore bonding.
                  if( (BO(0,j,i1)*(BO(0,j,k1)**2)*BO(0,k,l1)) > MINBO0) then
 
-                 rkl(1:3) = pos(1:3,k) - pos(1:3,l)
+                 rkl(1:3) = pos(k,1:3) - pos(l,1:3)
                  rkl(0) = sqrt( sum(rkl(1:3)*rkl(1:3)) )
 
                  exp_tor2(1) = exp(-ptor2(inxn)*BOij)  ! i-j
@@ -1070,22 +1070,22 @@ do j1=1, nbrlist(i,0)
   i1 = nbrindx(i,j1)
 
   Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
-  dr(1:3) = pos(1:3,i)-pos(1:3,j)
+  dr(1:3) = pos(i,1:3)-pos(j,1:3)
   ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
 
 !$omp atomic
-  f(1,i) = f(1,i) - ff(1)
+  f(i,1) = f(i,1) - ff(1)
 !$omp atomic
-  f(2,i) = f(2,i) - ff(2)
+  f(i,2) = f(i,2) - ff(2)
 !$omp atomic
-  f(3,i) = f(3,i) - ff(3)
+  f(i,3) = f(i,3) - ff(3)
 
 !$omp atomic
-  f(1,j) = f(1,j) + ff(1)
+  f(j,1) = f(j,1) + ff(1)
 !$omp atomic
-  f(2,j) = f(2,j) + ff(2)
+  f(j,2) = f(j,2) + ff(2)
 !$omp atomic
-  f(3,j) = f(3,j) + ff(3)
+  f(j,3) = f(j,3) + ff(3)
 
 #ifdef STRESS
   ia=i; ja=j
@@ -1120,21 +1120,21 @@ real(8) :: Cbond(3),dr(3),ff(3)
 
 Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
 
-dr(1:3) = pos(1:3,i) - pos(1:3,j)
+dr(1:3) = pos(i,1:3) - pos(j,1:3)
 ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
 !$omp atomic
-f(1,i) = f(1,i) - ff(1)
+f(i,1) = f(i,1) - ff(1)
 !$omp atomic
-f(2,i) = f(2,i) - ff(2)
+f(i,2) = f(i,2) - ff(2)
 !$omp atomic
-f(3,i) = f(3,i) - ff(3)
+f(i,3) = f(i,3) - ff(3)
 
 !$omp atomic
-f(1,j) = f(1,j) + ff(1)
+f(j,1) = f(j,1) + ff(1)
 !$omp atomic
-f(2,j) = f(2,j) + ff(2)
+f(j,2) = f(j,2) + ff(2)
 !$omp atomic
-f(3,j) = f(3,j) + ff(3)
+f(j,3) = f(j,3) + ff(3)
 
 #ifdef STRESS
 ia=i; ja=j
@@ -1172,21 +1172,21 @@ Cbond(1) = cf(1)*(A0(i,j1) + BO(0,i,j1)*A1(i,j1))*dBOp(i,j1)        & !full BO
          + cf(2)*BO(2,i,j1)*( dln_BOp(2,i,j1)+A1(i,j1)*dBOp(i,j1) ) & !pi   BO
          + cf(3)*BO(3,i,j1)*( dln_BOp(3,i,j1)+A1(i,j1)*dBOp(i,j1) )   !pipi BO
 
-dr(1:3) = pos(1:3,i)-pos(1:3,j)
+dr(1:3) = pos(i,1:3)-pos(j,1:3)
 ff(1:3) = Cbond(1)*dr(1:3)
 
 !$omp atomic
-f(1,i) = f(1,i) - ff(1)
+f(i,1) = f(i,1) - ff(1)
 !$omp atomic
-f(2,i) = f(2,i) - ff(2)
+f(i,2) = f(i,2) - ff(2)
 !$omp atomic
-f(3,i) = f(3,i) - ff(3)
+f(i,3) = f(i,3) - ff(3)
 !$omp atomic
-f(1,j) = f(1,j) + ff(1)
+f(j,1) = f(j,1) + ff(1)
 !$omp atomic
-f(2,j) = f(2,j) + ff(2)
+f(j,2) = f(j,2) + ff(2)
 !$omp atomic
-f(3,j) = f(3,j) + ff(3)
+f(j,3) = f(j,3) + ff(3)
 
 #ifdef STRESS
 ia=i; ja=j
@@ -1268,32 +1268,32 @@ fijjk(1:3)= -fij(1:3) + fjk(1:3)
 fjkkl(1:3)= -fjk(1:3) + fkl(1:3)
 
 !$omp atomic
-f(1,i) = f(1,i) + fij(1) 
+f(i,1) = f(i,1) + fij(1) 
 !$omp atomic
-f(2,i) = f(2,i) + fij(2) 
+f(i,2) = f(i,2) + fij(2) 
 !$omp atomic
-f(3,i) = f(3,i) + fij(3) 
+f(i,3) = f(i,3) + fij(3) 
 
 !$omp atomic
-f(1,j) = f(1,j) + fijjk(1)
+f(j,1) = f(j,1) + fijjk(1)
 !$omp atomic
-f(2,j) = f(2,j) + fijjk(2)
+f(j,2) = f(j,2) + fijjk(2)
 !$omp atomic
-f(3,j) = f(3,j) + fijjk(3)
+f(j,3) = f(j,3) + fijjk(3)
 
 !$omp atomic
-f(1,k) = f(1,k) + fjkkl(1)
+f(k,1) = f(k,1) + fjkkl(1)
 !$omp atomic
-f(2,k) = f(2,k) + fjkkl(2)
+f(k,2) = f(k,2) + fjkkl(2)
 !$omp atomic
-f(3,k) = f(3,k) + fjkkl(3)
+f(k,3) = f(k,3) + fjkkl(3)
 
 !$omp atomic
-f(1,l) = f(1,l) - fkl(1)
+f(l,1) = f(l,1) - fkl(1)
 !$omp atomic
-f(2,l) = f(2,l) - fkl(2)
+f(l,2) = f(l,2) - fkl(2)
 !$omp atomic
-f(3,l) = f(3,l) - fkl(3)
+f(l,3) = f(l,3) - fkl(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -1347,25 +1347,25 @@ fjk(1:3) =-coCC*(Ck(1)*rij(1:3) + Ck(2)*rjk(1:3))
 fijjk(1:3) =  -fij(1:3) + fjk(1:3) 
 
 !$omp atomic
-f(1,i) = f(1,i) + fij(1)
+f(i,1) = f(i,1) + fij(1)
 !$omp atomic
-f(2,i) = f(2,i) + fij(2)
+f(i,2) = f(i,2) + fij(2)
 !$omp atomic
-f(3,i) = f(3,i) + fij(3)
+f(i,3) = f(i,3) + fij(3)
 
 !$omp atomic
-f(1,j) = f(1,j) + fijjk(1)
+f(j,1) = f(j,1) + fijjk(1)
 !$omp atomic
-f(2,j) = f(2,j) + fijjk(2)
+f(j,2) = f(j,2) + fijjk(2)
 !$omp atomic
-f(3,j) = f(3,j) + fijjk(3)
+f(j,3) = f(j,3) + fijjk(3)
 
 !$omp atomic
-f(1,k) = f(1,k) - fjk(1)
+f(k,1) = f(k,1) - fjk(1)
 !$omp atomic
-f(2,k) = f(2,k) - fjk(2)
+f(k,2) = f(k,2) - fjk(2)
 !$omp atomic
-f(3,k) = f(3,k) - fjk(3)
+f(k,3) = f(k,3) - fjk(3)
 
 #ifdef STRESS
 ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)

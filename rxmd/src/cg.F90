@@ -26,11 +26,11 @@ contains
 subroutine ConjugateGradient(atype,pos)
 !---------------------------------------------------------------------------------
 implicit none
-real(8) :: atype(NBUFFER),pos(3,NBUFFER)
-real(8) :: f(3,NBUFFER),v(3,NBUFFER),q(NBUFFER)
+real(8) :: atype(NBUFFER),pos(NBUFFER,3)
+real(8) :: f(NBUFFER,3),v(NBUFFER,3),q(NBUFFER)
 
-real(8) :: p(3,NBUFFER) ! search direction
-real(8) :: gold(3,NBUFFER),gnew(3,NBUFFER) ! old and new gradients
+real(8) :: p(NBUFFER,3) ! search direction
+real(8) :: gold(NBUFFER,3),gnew(NBUFFER,3) ! old and new gradients
 real(8) :: GPE(0:13),GPEold,GPEnew
 
 real(8) :: vnorm, stepl, beta1,beta2,beta3
@@ -40,7 +40,7 @@ integer :: cgLoop, i
 CG_tol = ftol
 v(:,:)=0.d0
 
-if(myid==0) print'(a40,1x,es8.2)', NEW_LINE('A')//'Start structural optimization.', ftol
+if(myid==0) print'(a40,1x,es9.2)', NEW_LINE('A')//'Start structural optimization.', ftol
 
 call QEq(atype, pos, q)
 call FORCE(atype, pos, gnew, q)
@@ -101,9 +101,9 @@ subroutine BracketSearchRange(atype,pos,p,stepl)
 ! output: step length to bracket an energy minimum along the search direction.
 !---------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER),pos(NBUFFER,3),p(NBUFFER,3)
 real(8),intent(out) :: stepl
-real(8) :: vdummy(3,NBUFFER), qdummy(NBUFFER)
+real(8) :: vdummy(NBUFFER,3), qdummy(NBUFFER)
 integer :: bracketingLoop
 logical :: Elower, WolfeC1, WolfeC2
 
@@ -146,14 +146,14 @@ subroutine WolfeConditions(atype,pos,p,stepl,isLowerEnergy,isArmijoRule,isCurvat
 ! doesn't return force and new NATOM. Can be simplified. 
 !---------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER),stepl
+real(8),intent(in) :: atype(NBUFFER),pos(NBUFFER,3),p(NBUFFER,3),stepl
 logical,intent(out) :: isLowerEnergy,isArmijoRule,isCurvature
 
-real(8) :: atypeTmp(NBUFFER),posTmp(3,NBUFFER),pTmp(3,NBUFFER),qTmp(NBUFFER)
+real(8) :: atypeTmp(NBUFFER),posTmp(NBUFFER,3),pTmp(NBUFFER,3),qTmp(NBUFFER)
 ! FIXME: here we don't really need v but COPYATOM(MOVE) requires it for the move mode. 
 !        thus, I am allocating a 3xNBUFFER dummy array here. a better implementation needed. 
-real(8) :: vdummy(3,NBUFFER) 
-real(8) :: GPE(0:13), GPEbefore, GPEafter, fbefore(3,NBUFFER), fafter(3,NBUFFER)
+real(8) :: vdummy(NBUFFER,3) 
+real(8) :: GPE(0:13), GPEbefore, GPEafter, fbefore(NBUFFER,3), fafter(NBUFFER,3)
 real(8) :: pDotdF, pDotdFShift
 integer :: NATOMSTmp
 
@@ -166,7 +166,7 @@ call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WO
 GPEbefore=GPE(0)
 
 ! Evaluate df(x+alpha*p) and f(x+alpha*p)
-posTmp(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*p(1:3,1:NATOMS)
+posTmp(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+stepl*p(1:NATOMS,1:3)
 atypeTmp(1:NATOMS)=atype(1:NATOMS)
 
 ! FIXME local number of atoms will change after COPYATOM(MOVE). 
@@ -190,8 +190,8 @@ isArmijoRule = GPEafter <= GPEbefore + pDotdF*CG_WC1*stepl
 ! cannot take their vector dot-product without moving the search vector. 
 
 NATOMS = NATOMSTmp 
-posTmp(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*p(1:3,1:NATOMS)
-pTmp(1:3,1:NATOMS)=p(1:3,1:NATOMS)
+posTmp(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+stepl*p(1:NATOMS,1:3)
+pTmp(1:NATOMS,1:3)=p(1:NATOMS,1:3)
 atypeTmp(1:NATOMS)=atype(1:NATOMS)
 call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atypeTmp,posTmp,pTmp,vdummy,qTmp)
 
@@ -213,8 +213,8 @@ subroutine LineMinimization(atype,pos,p,g,stepl)
 ! output: updated coordinate and associated gradient vector. 
 !---------------------------------------------------------------------------------
 implicit none
-real(8) :: atype(NBUFFER),pos(3,NBUFFER),g(3,NBUFFER),p(3,NBUFFER),q(NBUFFER)
-real(8) :: atypeTmp(NBUFFER),posTmp(3,NBUFFER),fdummy(1,1)
+real(8) :: atype(NBUFFER),pos(NBUFFER,3),g(NBUFFER,3),p(NBUFFER,3),q(NBUFFER)
+real(8) :: atypeTmp(NBUFFER),posTmp(NBUFFER,3),fdummy(1,1)
 integer :: lineMinLoop, NATOMSTmp
 real(8) :: stepl, step0
 
@@ -228,7 +228,7 @@ call GoldenSectionSearch(atype,pos,p,step0,stepl)
 NATOMStmp = MigrateVec3D(pos,p,g,stepl)
 
 ! Then, migrate atom type, position, and search vector; atype, pos, p.
-pos(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*p(1:3,1:NATOMS)
+pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+stepl*p(1:NATOMS,1:3)
 call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0], atype, pos, p, fdummy, q)
 
 return
@@ -239,7 +239,7 @@ subroutine GoldenSectionSearch(atype,pos,p,ax,dx)
 ! ax,dx: left and right boundaries of search range. 
 !---------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER)
+real(8),intent(in) :: atype(NBUFFER),pos(NBUFFER,3),p(NBUFFER,3)
 real(8) :: ax,bx,cx,dx,PEbx,PEcx
 real(8) :: ratio = 1.d0/1.61803398875d0 ! inverse of golden ratio
 
@@ -289,15 +289,15 @@ function MigrateVec3D(pos, vec, dir, stepl) result(newNATOMS)
 !TODO: come up a better way to migrate vectors
 !---------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: pos(3,NBUFFER),stepl,dir(3,NBUFFER)
-real(8) :: vec(3,NBUFFER)
-real(8) :: atypedummy(NBUFFER),posTmp(3,NBUFFER),fdummy(1,1),qdummy(NBUFFER)
+real(8),intent(in) :: pos(NBUFFER,3),stepl,dir(NBUFFER,3)
+real(8) :: vec(NBUFFER,3)
+real(8) :: atypedummy(NBUFFER),posTmp(NBUFFER,3),fdummy(1,1),qdummy(NBUFFER)
 integer :: NATOMSTmp, newNATOMS
 
 !--- keep current NATOMS
 NATOMSTmp=NATOMS
 
-posTmp(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*dir(1:3,1:NATOMS)
+posTmp(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+stepl*dir(1:NATOMS,1:3)
 call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0], atypedummy, posTmp, vec, fdummy, qdummy)
 
 !-- this NATOMS is consistent with the migrated vector.
@@ -315,13 +315,13 @@ function DotProductVec3D(v1, v2, Nelems) result (ret)
 !---------------------------------------------------------------------------------
 implicit none
 integer,intent(in) :: Nelems
-real(8),intent(in) :: v1(3,Nelems), v2(3,Nelems) 
+real(8),intent(in) :: v1(Nelems,3), v2(Nelems,3) 
 integer :: i
 real(8) :: vsum, ret
 
 vsum = 0.d0
 do i=1, Nelems
-   vsum = vsum + sum(v1(1:3,i)*v2(1:3,i))
+   vsum = vsum + sum(v1(i,1:3)*v2(i,1:3))
 enddo
 
 call MPI_ALLREDUCE(vsum, ret, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
@@ -334,7 +334,7 @@ end function DotProductVec3D
 subroutine NormalizeVec3D(v, vnorm) 
 !---------------------------------------------------------------------------------
 implicit none
-real(8) :: v(3,NBUFFER)
+real(8) :: v(NBUFFER,3)
 real(8) :: vsum, vnorm 
 integer :: i
 
@@ -345,7 +345,7 @@ if(abs(vnorm)<CG_EPS) then
     'WARNING: Norm of vector was found too small in NormalizeVector(): vnorm = ', vnorm
 endif
 
-v(1:3,1:NATOMS)=v(1:3,1:NATOMS)/vnorm
+v(1:NATOMS,1:3)=v(1:NATOMS,1:3)/vnorm
 
 return
 end subroutine NormalizeVec3D
@@ -353,16 +353,16 @@ end subroutine NormalizeVec3D
 !---------------------------------------------------------------------------------
 function EvaluateEnergyWithStep(atype,pos,p,stepl) result(potentialEnergy)
 !---------------------------------------------------------------------------------
-real(8),intent(in) :: atype(NBUFFER),pos(3,NBUFFER),p(3,NBUFFER),stepl
+real(8),intent(in) :: atype(NBUFFER),pos(NBUFFER,3),p(NBUFFER,3),stepl
 real(8) :: potentialEnergy
 
-real(8) :: atypeTmp(NBUFFER),posTmp(3,NBUFFER),fTmp(3,NBUFFER),qTmp(NBUFFER)
+real(8) :: atypeTmp(NBUFFER),posTmp(NBUFFER,3),fTmp(NBUFFER,3),qTmp(NBUFFER)
 ! TODO: v is dummy but COPYATOM(MOVE) moves it. Thus needs to allocate 3xNBUFFER array here.
-real(8) :: vdummy(3,NBUFFER) 
+real(8) :: vdummy(NBUFFER,3) 
 real(8) :: GPE(0:13)
 integer :: NATOMSTmp
 
-posTmp(1:3,1:NATOMS)=pos(1:3,1:NATOMS)+stepl*p(1:3,1:NATOMS)
+posTmp(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+stepl*p(1:NATOMS,1:3)
 atypeTmp(1:NATOMS)=atype(1:NATOMS)
 
 ! TODO: local number of atoms will change after COPYATOM(MOVE). 
