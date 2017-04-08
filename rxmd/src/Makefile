@@ -45,5 +45,7 @@ main.F90 : cg.mod
 
 cg.mod : cg.o
 
+fileio.o : param.o
+
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h
