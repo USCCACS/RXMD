@@ -1,13 +1,10 @@
 module params
 implicit none
-integer,parameter :: vprocs(3)=(/1,1,1/)
-integer,parameter :: mc(3)=(/1,1,1/)
+integer :: vprocs(3)=(/1,1,1/)
+integer :: mc(3)=(/1,1,1/)
 
-integer,parameter :: nprocs=vprocs(1)*vprocs(2)*vprocs(3)
-integer,parameter :: mctot=mc(1)*mc(2)*mc(3)
-integer :: lnatoms(0:nprocs-1)  ! local # of atoms
-integer :: lnatoms1(0:nprocs-1) ! prefix sum of above
-integer :: lnatoms2(0:nprocs-1) ! temp counter
+integer :: nprocs, mctot
+integer,allocatable :: lnatoms(:), lnatoms1(:), lnatoms2(:)
 real(8) :: L1,L2,L3,Lalpha,Lbeta,Lgamma
 real(8) :: lbox(3),obox(3), dtype
 real(8) :: H(3,3), Hi(3,3), rr(3),rr1(3),vv(3),qq,rmin(3), rmax(3)
@@ -129,16 +126,41 @@ implicit none
 integer :: i, j, k, n, ia, myid, sID
 integer(8) :: ii=0
 character(6) :: a6
+character(64) :: argv
 
-!--- get structure file name
-do i = 1, iargc()
-   if(i==1) call getarg(i,inputFileName)
-   if(i==2) call getarg(i,ffieldFileName)
+!--- get input parameters
+do i=1, command_argument_count()
+   call get_command_argument(i,argv)
+   select case(adjustl(argv))
+     case("--help","-h")
+       if(myid==0) print'(a)', "-mc 1 1 1 -vprocs 1 1 1 -inputxyz input.xyz --ffield ffield"
+       stop
+     case("-mc")
+       call get_command_argument(i+1,argv); read(argv,*) mc(1)
+       call get_command_argument(i+2,argv); read(argv,*) mc(2)
+       call get_command_argument(i+3,argv); read(argv,*) mc(3)
+     case("-vprocs")
+       call get_command_argument(i+1,argv); read(argv,*) vprocs(1)
+       call get_command_argument(i+2,argv); read(argv,*) vprocs(2)
+       call get_command_argument(i+3,argv); read(argv,*) vprocs(3)
+     case("-inputxyz")
+       call get_command_argument(i+1,argv)
+       inputFileName=adjustl(argv)
+     case("-ffield")
+       call get_command_argument(i+1,argv)
+       ffieldFileName=adjustl(argv)
+     case default
+   end select
 enddo
+
+mctot=mc(1)*mc(2)*mc(3)
+nprocs=vprocs(1)*vprocs(2)*vprocs(3)
+allocate(lnatoms(0:nprocs-1),lnatoms1(0:nprocs-1), lnatoms2(0:nprocs-1))
 
 open(1,file=inputFileName,form="formatted")
 write(6,'(a,2x,a)') ' input file: ', trim(inputFileName)
 write(6,'(a,2x,a)') ' ffield file: ', trim(ffieldFileName)
+write(6,'(a,i9,3i6)') ' nprocs,vprocs',nprocs, vprocs(1:3)
 write(6,'(a,i9,3i6)') ' mctot,mc',mctot, mc(1:3)
 
 call getAtomNames(ffieldFileName)

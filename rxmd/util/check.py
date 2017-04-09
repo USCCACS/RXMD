@@ -1,29 +1,33 @@
 import subprocess
 import os
-import difflib
 import shutil
 
 curDir=os.getcwd()
 
 rxmdCom=[curDir+"/rxmd"]
-geninitCom=[curDir+"/init/geninit",'input.xyz','ffield']
+geninitCom=[curDir+"/init/geninit",'-inputxyz','input.xyz','-ffield','ffield']
 cleanCom=['make','-f',curDir+"/init/Makefile",'clean']
 
+# reference tests 
 refNames=['rdx','sic','FeS','rdx-exL','sic-exL']
+extraArgs={key:[] for key in refNames}
+
+# create 2x2x2 unit cells for FeS test
+extraArgs['FeS']+=['-mc','2','2','2']
 
 logFile="logfile.txt"
 refFile="reffile.txt"
 
-for d in refNames:
+for ref in refNames:
     print '==================================='
-    print d
+    print ref
     print '==================================='
-    refDir = curDir + "/refs/" + d
+    refDir = curDir + "/refs/" + ref
     cwd = os.chdir(refDir)
     print 'changed dir to {}'.format(refDir)
 
 # create a new system
-    subprocess.call(geninitCom)
+    subprocess.call(geninitCom+extraArgs[ref])
     shutil.move('./rxff.bin','DAT/rxff.bin')
 
 # run a short run and compare the output against reference output from previous run
