@@ -9,11 +9,14 @@ rxmdCom=[curDir+"/rxmd"]
 geninitCom=[curDir+"/init/geninit",'input.xyz','ffield']
 cleanCom=['make','-f',curDir+"/init/Makefile",'clean']
 
-refNames=["rdx","sic"]
+refNames=['rdx','sic','FeS','rdx-exL','sic-exL']
+
 logFile="logfile.txt"
 refFile="reffile.txt"
 
 for d in refNames:
+    print '==================================='
+    print d
     print '==================================='
     refDir = curDir + "/refs/" + d
     cwd = os.chdir(refDir)

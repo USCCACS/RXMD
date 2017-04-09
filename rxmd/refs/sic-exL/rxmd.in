@@ -3,7 +3,7 @@
 300  1.0   100       <treq> <vsfact> <sstep>
 500    10            <fstep>  <pstep>
 1 1 1                <vprocs>
-1  500  1.d-6  1      <isQEq> <NMAXQEq> <QEq_tol> <qstep> 
+2  500  1.d-6  1      <isQEq> <NMAXQEq> <QEq_tol> <qstep> 
 1.0  2.0              <Lex_fqs> <Lex_k>
 .false. .false. .false. <isBinary> <isBondFile> <isPDB>
 1.d-6                <ftol> 
