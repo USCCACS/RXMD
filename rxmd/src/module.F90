@@ -25,6 +25,10 @@ logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 
+logical :: saveSummary=.false.
+character(MAXPATHLENGTH) :: SummaryPath="summary.dat"
+integer,parameter :: SummaryFD=30 ! file descriptor for summary file
+
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
 !  6-NBUFFER for qeq
