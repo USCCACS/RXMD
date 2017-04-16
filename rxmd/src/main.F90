@@ -31,7 +31,7 @@ do nstep=0, ntime_step-1
 
    if(mod(nstep,pstep)==0) then
        call PRINTE(atype, v, q)
-       if(saveSummary) call SaveSummaryData(SummaryFD, nstep)
+       if(saveRunProfile) call SaveRunProfileData(RunProfileFD, nstep)
    endif
    if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
@@ -87,7 +87,7 @@ call MPI_FINALIZE(ierr)
 end PROGRAM
 
 !------------------------------------------------------------------------------
-subroutine SaveSummaryData(fd, MDstep)
+subroutine SaveRunProfileData(fd, MDstep)
 use base; use atoms
 !------------------------------------------------------------------------------
 implicit none
@@ -120,7 +120,7 @@ integer,intent(in) :: irt ! time resolution
 integer,allocatable :: ibuf(:),ibuf1(:)
 
 !--- close summary file
-if(saveSummary) close(SummaryFd)
+if(saveRunProfile) close(RunProfileFd)
 
 allocate(ibuf(nmaxas),ibuf1(nmaxas))
 ibuf(:)=0

@@ -40,8 +40,8 @@ do i=1, command_argument_count()
      case("--rxmdin", "-in")
        call get_command_argument(i+1,argv)
        ParmPath=adjustl(argv)
-     case("--summary")
-       saveSummary=.true.
+     case("--profile")
+       saveRunProfile=.true.
      case default
    end select
 
@@ -49,7 +49,7 @@ enddo
 
 !--- summary file keeps potential energies, box parameters during MD simulation
 !--- intended to be used for validation of code change. 
-if(saveSummary) open(SummaryFD, file=SummaryPath, status='unknown')
+if(saveRunProfile) open(RunProfileFD, file=RunProfilePath, status='unknown')
 
 
 !--- read MD control parameters
