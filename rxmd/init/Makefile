@@ -7,9 +7,7 @@
 	$(FC) -c $(CPP) $(OPT) $<
 
 # macros    
-#FC = ifort
-#FC = xlf
-FC = gfortran
+FC = mpif90
 
 OPT =
 CPP = 
