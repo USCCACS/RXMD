@@ -1,12 +1,0 @@
-tput: No value for $TERM and no -T specified
-amplxe: Collection started. To stop the collection, either press CTRL-C or enter from another console window: amplxe-cl -r /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_vtune_naive -command stop.
-amplxe: Collection started. To stop the collection, either press CTRL-C or enter from another console window: amplxe-cl -r /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_vtune_naive -command stop.
-amplxe: Collection started. To stop the collection, either press CTRL-C or enter from another console window: amplxe-cl -r /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_vtune_naive -command stop.
-amplxe: Collection started. To stop the collection, either press CTRL-C or enter from another console window: amplxe-cl -r /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_vtune_naive -command stop.
-amplxe: Warning: To enable hardware event-base sampling, VTune Amplifier has disabled the NMI watchdog timer. The watchdog timer will be re-enabled after collection completes.
-amplxe: Collection stopped.
-amplxe: Collection stopped.
-amplxe: Collection stopped.
-amplxe: Collection stopped.
-amplxe: Using result path `/gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_vtune_naive'
-amplxe: Executing actions  0 %                                                 amplxe: Executing actions 100 %                                                amplxe: Executing actions 100 % done                                           
