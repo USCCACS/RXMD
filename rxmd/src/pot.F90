@@ -686,7 +686,7 @@ do i=1, NATOMS
 
          jid = gtype(j)
 
-         if(jid<iid) then
+!         if(jid<iid) then
 
             dr(1:3) = pos(1:3,i) - pos(1:3,j)
             dr2 = sum(dr(1:3)*dr(1:3))
@@ -716,23 +716,23 @@ do i=1, NATOMS
                CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
                CEclmb = CEclmb*qij
 
-               PE(11) = PE(11) + PEvdw
-               PE(12) = PE(12) + PEclmb
+               PE(11) = PE(11) + 0.5*PEvdw
+               PE(12) = PE(12) + 0.5*PEclmb
 
                ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
     
-!$omp atomic
+!!$omp atomic
                f(1,i) = f(1,i) - ff(1)
-!$omp atomic
+!!$omp atomic
                f(2,i) = f(2,i) - ff(2)
-!$omp atomic
+!!$omp atomic
                f(3,i) = f(3,i) - ff(3)
-!$omp atomic
-               f(1,j) = f(1,j) + ff(1)
-!$omp atomic
-               f(2,j) = f(2,j) + ff(2)
-!$omp atomic
-               f(3,j) = f(3,j) + ff(3)
+!!$omp atomic
+!               f(1,j) = f(1,j) + ff(1)
+!!$omp atomic
+!               f(2,j) = f(2,j) + ff(2)
+!!$omp atomic
+!               f(3,j) = f(3,j) + ff(3)
 
 !--- stress calculation
 #ifdef STRESS
@@ -741,7 +741,7 @@ do i=1, NATOMS
 #endif
 
             endif
-         endif
+!         endif
 
     enddo  !do j1 = 1, nbplist(i,0) 
 enddo

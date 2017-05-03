@@ -1,0 +1,72 @@
+Jobid: 91130
+qsub --mode script -q cache-quad -A Comp_Perf_Workshop -n 1 -t 30 -O rxmd_knl_t1 run.job
+Wed May 03 12:28:47 2017 +0000 (UTC) submitted with cwd set to: /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd
+jobid 91130 submitted from terminal /dev/pts/2
+Wed May 03 12:29:11 2017 +0000 (UTC) 
+Wed May 03 12:29:11 2017 +0000 (UTC) Command: '/gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/run.job'
+Wed May 03 12:29:11 2017 +0000 (UTC) 
+Wed May 03 12:29:11 2017 +0000 (UTC) Environment:
+Wed May 03 12:29:11 2017 +0000 (UTC) SHELL=/bin/bash
+Wed May 03 12:29:11 2017 +0000 (UTC) COBALT_PARTNAME=2268
+Wed May 03 12:29:11 2017 +0000 (UTC) COBALT_JOBID=91130
+Wed May 03 12:29:11 2017 +0000 (UTC) COBALT_STARTTIME=1493814540
+Wed May 03 12:29:11 2017 +0000 (UTC) LOGNAME=sctiwari
+Wed May 03 12:29:11 2017 +0000 (UTC) USER=sctiwari
+Wed May 03 12:29:11 2017 +0000 (UTC) COBALT_ENDTIME=1493816340
+Wed May 03 12:29:11 2017 +0000 (UTC) COBALT_PARTSIZE=1
+Wed May 03 12:29:11 2017 +0000 (UTC) HOME=/home/sctiwari
+Wed May 03 12:29:11 2017 +0000 (UTC) COBALT_JOBSIZE=1
+Wed May 03 12:29:11 2017 +0000 (UTC) 
+Wed May 03 12:29:11 2017 +0000 (UTC) Info: stdin received from /dev/null
+Wed May 03 12:29:11 2017 +0000 (UTC) Info: stdout sent to /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_knl_t1.output
+Wed May 03 12:29:11 2017 +0000 (UTC) Info: stderr sent to /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_knl_t1.error
+Wed May 03 12:29:11 2017 +0000 (UTC) 
+Wed May 03 12:29:46 2017 +0000 (UTC) Info: task completed normally with an exit code of 1; initiating job cleanup and removal
+Jobid: 91131
+qsub --mode script -q cache-quad -A Comp_Perf_Workshop -n 1 -t 30 -O rxmd_knl_t1 run.job
+Wed May 03 12:34:01 2017 +0000 (UTC) submitted with cwd set to: /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd
+jobid 91131 submitted from terminal /dev/pts/2
+Wed May 03 12:34:27 2017 +0000 (UTC) 
+Wed May 03 12:34:27 2017 +0000 (UTC) Command: '/gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/run.job'
+Wed May 03 12:34:27 2017 +0000 (UTC) 
+Wed May 03 12:34:27 2017 +0000 (UTC) Environment:
+Wed May 03 12:34:27 2017 +0000 (UTC) SHELL=/bin/bash
+Wed May 03 12:34:27 2017 +0000 (UTC) COBALT_PARTNAME=3834
+Wed May 03 12:34:27 2017 +0000 (UTC) COBALT_JOBID=91131
+Wed May 03 12:34:27 2017 +0000 (UTC) COBALT_STARTTIME=1493814856
+Wed May 03 12:34:27 2017 +0000 (UTC) LOGNAME=sctiwari
+Wed May 03 12:34:27 2017 +0000 (UTC) USER=sctiwari
+Wed May 03 12:34:27 2017 +0000 (UTC) COBALT_ENDTIME=1493816656
+Wed May 03 12:34:27 2017 +0000 (UTC) COBALT_PARTSIZE=1
+Wed May 03 12:34:27 2017 +0000 (UTC) HOME=/home/sctiwari
+Wed May 03 12:34:27 2017 +0000 (UTC) COBALT_JOBSIZE=1
+Wed May 03 12:34:27 2017 +0000 (UTC) 
+Wed May 03 12:34:27 2017 +0000 (UTC) Info: stdin received from /dev/null
+Wed May 03 12:34:27 2017 +0000 (UTC) Info: stdout sent to /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_knl_t1.output
+Wed May 03 12:34:27 2017 +0000 (UTC) Info: stderr sent to /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_knl_t1.error
+Wed May 03 12:34:27 2017 +0000 (UTC) 
+Wed May 03 12:35:23 2017 +0000 (UTC) Info: task completed normally with an exit code of 0; initiating job cleanup and removal
+Jobid: 91132
+qsub --mode script -q cache-quad -A Comp_Perf_Workshop -n 1 -t 30 -O rxmd_knl_t1 run.job
+Wed May 03 12:35:38 2017 +0000 (UTC) submitted with cwd set to: /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd
+jobid 91132 submitted from terminal /dev/pts/2
+Wed May 03 12:36:28 2017 +0000 (UTC) 
+Wed May 03 12:36:28 2017 +0000 (UTC) Command: '/gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/run.job'
+Wed May 03 12:36:28 2017 +0000 (UTC) 
+Wed May 03 12:36:28 2017 +0000 (UTC) Environment:
+Wed May 03 12:36:28 2017 +0000 (UTC) SHELL=/bin/bash
+Wed May 03 12:36:28 2017 +0000 (UTC) COBALT_PARTNAME=3824
+Wed May 03 12:36:28 2017 +0000 (UTC) COBALT_JOBID=91132
+Wed May 03 12:36:28 2017 +0000 (UTC) COBALT_STARTTIME=1493814976
+Wed May 03 12:36:28 2017 +0000 (UTC) LOGNAME=sctiwari
+Wed May 03 12:36:28 2017 +0000 (UTC) USER=sctiwari
+Wed May 03 12:36:28 2017 +0000 (UTC) COBALT_ENDTIME=1493816776
+Wed May 03 12:36:28 2017 +0000 (UTC) COBALT_PARTSIZE=1
+Wed May 03 12:36:28 2017 +0000 (UTC) HOME=/home/sctiwari
+Wed May 03 12:36:28 2017 +0000 (UTC) COBALT_JOBSIZE=1
+Wed May 03 12:36:28 2017 +0000 (UTC) 
+Wed May 03 12:36:28 2017 +0000 (UTC) Info: stdin received from /dev/null
+Wed May 03 12:36:28 2017 +0000 (UTC) Info: stdout sent to /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_knl_t1.output
+Wed May 03 12:36:28 2017 +0000 (UTC) Info: stderr sent to /gpfs/theta-fs1/home/sctiwari/rxmd/rxmd/rxmd_knl_t1.error
+Wed May 03 12:36:28 2017 +0000 (UTC) 
+Wed May 03 12:38:30 2017 +0000 (UTC) Info: task completed normally with an exit code of 2; initiating job cleanup and removal

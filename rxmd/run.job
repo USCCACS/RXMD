@@ -1,0 +1,23 @@
+#!/bin/bash
+#COBALT -q cache-quad
+#COBALT -A Comp_Perf_Workshop
+#COBALT -n 1
+#COBALT -t 30
+#COBALT -O rxmd_knl_t1
+
+NPROCS=4
+TOT_NPROCS=$((NPROCS*COBALT_PARTSIZE))
+HT=1
+NTHREADS=16   #$((64*HT/NPROCS))
+
+source /opt/intel/vtune_amplifier_xe_2017/amplxe-vars.sh
+
+export PATH=/opt/intel/vtune_amplifier_xe_2017/bin64:$PATH
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/vtune_amplifier_xe_2017/lib64
+export PMI_NO_FORK=1
+#amplxe-cl -finalize -r rxmd_vtune_naive_stack_1/ --search-dir=/home/sctiwari/rxmd/rxmd
+#amplxe-gui rxmd_vtune_naive/
+#aprun -n $TOT_NPROCS -N $NPROCS -cc depth -d $NTHREADS -j $HT ./rxmd
+
+#aprun -n $TOT_NPROCS -N $NPROCS -cc depth -d $NTHREADS -j $HT amplxe-cl -collect advanced-hotspots -knob collection-detail=stack-sampling -data-limit=0 -r rxmd_vtune_naive_stack_1 -finalization-mode=none ./rxmd 
+aprun -n $TOT_NPROCS -N $NPROCS -cc depth -d $NTHREADS -j $HT -e OMP_NUM_THREADS=16 amplxe-cl -collect advanced-hotspots -data-limit=0 -r rxmd_vtune_naive -finalization-mode=none ./rxmd 
