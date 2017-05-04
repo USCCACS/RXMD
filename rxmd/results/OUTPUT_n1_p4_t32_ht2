@@ -1,0 +1,66 @@
+              rxmd has started
+----------------------------------------------------------------
+         req/alloc # of procs:        4  /        4
+       Number of Total Threads        32
+         req proc arrengement:        2        2        1
+                parameter set:Reactive MD-force field: nitramines (RDX/HMX/TATB/PETN)               
+                time step[fs]:    2.50E-01
+ MDMODE CURRENTSTEP NTIMESTPE:  1         0       500
+  isQEq,QEq_tol,NMAXQEq,qstep:     1   1.0E-07   500  1000
+                Lex_fqs,Lex_k:   1.000   2.000
+            treq,vsfact,sstep:     300.000   1.000      100
+                  fstep,pstep: 10000   100
+               NATOMS GNATOMS:                    2688                   10752
+                         LBOX:       0.500       0.500       1.000
+                  Hmatrix [A]:         52.720          0.000          0.000
+                  Hmatrix [A]:          0.000         46.280          0.000
+                  Hmatrix [A]:          0.000          0.000         42.840
+               lata,latb,latc:      52.720      46.280      42.840
+          lalpha,lbeta,lgamma:      90.000      90.000      90.000
+               density [g/cc]:    1.8061
+         # of linkedlist cell:     8     7    13
+            maxrc, lcsize [A]:     3.160        3.29      3.31      3.30
+    # of linkedlist cell (NB):     8     7    14
+              lcsize [A] (NB):      3.29      3.31      3.06
+     MAXNEIGHBS, MAXNEIGHBS10:    30   700
+            NMINCELL, NBUFFER:     3    30000
+    FFPath, DataDir, ParmPath:      ffield          DAT      rxmd.in
+          # of atoms per type:        1536 - 1        3072 - 2        3072 - 3        3072 - 4 
+----------------------------------------------------------------
+nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)
+----------------------------------------------
+        MAXNEIGHBS:           12
+      MAXNEIGHBS10:          447
+  MAXNBUFFER(MOVE):           20
+  MAXNBUFFER(COPY):        10104
+    QEq Iterations:           54
+       Memory (MB):       357.51
+ 
+               QEq:       0.6086         0.6043
+    qeq_initialize:       0.1370         0.1284
+           get_hsh:       0.1737         0.1731
+      get_gradient:       0.1186         0.1146
+ 
+        LINKEDLIST:       1.4922         1.3009
+         COPYATOMS:       4.7839         2.7116
+      NEIGHBORLIST:       1.4434         1.3433
+     GetNBPairList:      12.8021        11.5153
+ 
+            BOCALC:       1.9472         1.6622
+            ENbond:       4.7775         4.7114
+             Ebond:       0.2011         0.1832
+             Elnpr:       1.4043         1.3652
+               Ehb:       2.8768         2.8175
+               E3b:       8.2204         7.9396
+               E4b:      11.6533        10.7260
+  ForceBondedTerms:       1.7834         1.4100
+ 
+          WriteBND:       0.0000         0.0000
+          WritePDB:       0.0000         0.0000
+           ReadBIN:       0.0196         0.0182
+          WriteBIN:       0.0000         0.0000
+ 
+       total (sec):      50.5570        50.5569
+----------------------------------------------
+    rxmd successfully finished
+Application 3277645 resources: utime ~6463s, stime ~92s, Rss ~55104, inblocks ~0, outblocks ~0

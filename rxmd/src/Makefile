@@ -27,4 +27,4 @@ cg.mod : cg.o
 fileio.o : param.o
 
 clean:
-	rm -f PI* $(OBJ) $(EXE) *.mod *.MOD
+	rm -f PI* $(OBJS) $(EXE) *.mod *.MOD module.o

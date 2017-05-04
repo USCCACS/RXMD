@@ -249,6 +249,11 @@ if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
+#ifdef _OPENMP
+   write(6,'(a30,I30)')      "Total number of threads:", omp_get_max_threads()
+#else
+   write(6,'(a30)')      "No Threads available"
+#endif
    write(6,'(a30,a70)')      "parameter set:", FFDescript
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
