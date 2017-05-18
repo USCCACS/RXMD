@@ -1,11 +1,11 @@
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(atype, pos, v, q, fileNameBase)
+subroutine OUTPUT(atype, pos, v, f, q, fileNameBase)
 use atoms 
 !----------------------------------------------------------------------------------------
 implicit none
 
 real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: pos(3,NBUFFER),v(3,NBUFFER)
+real(8),intent(in) :: pos(3,NBUFFER),v(3,NBUFFER),f(3,NBUFFER)
 character(MAXPATHLENGTH),intent(in) :: fileNameBase
 
 if(isBinary) then
@@ -159,7 +159,12 @@ integer (kind=MPI_OFFSET_KIND) :: fileSize
 integer :: localDataSize
 integer :: fh ! file handler
 
+#ifdef PROFILE
+integer,parameter :: PDBLineSize=106
+#else
 integer,parameter :: PDBLineSize=67
+#endif
+
 character(PDBLineSize) :: PDBOneLine
 
 character(len=:),allocatable :: PDBAllLines
@@ -211,7 +216,13 @@ do i=1, NATOMS
   ss = q(i)*10 ! 10x atomic charge
 
   igd = l2g(atype(i))
-  write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(1:3,i), tt, ss
+  
+  #ifdef PROFILE
+    write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(1:3,i), tt, ss, f(1:3,i)
+  #else
+    write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(1:3,i), tt, ss
+  #endif
+
 
   PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
   PDBAllLines=trim(PDBAllLines)//trim(PDBOneLine)
@@ -228,7 +239,11 @@ deallocate(PDBAllLines)
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
-100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
+#ifdef PROFILE
+  100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2,3f13.3)
+#else
+  100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
+#endif
 
 call system_clock(tj,tk)
 it_timer(21)=it_timer(21)+(tj-ti)
