@@ -34,7 +34,7 @@ do nstep=0, ntime_step-1
        if(saveRunProfile) call SaveRunProfileData(RunProfileFD, nstep)
    endif
    if(mod(nstep,fstep)==0) &
-        call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
+        call OUTPUT(atype, pos, v, f, q, GetFileNameBase(current_step+nstep))
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:3,1:NATOMS)=vsfact*v(1:3,1:NATOMS)
@@ -73,7 +73,7 @@ do nstep=0, ntime_step-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(atype, pos, v, q,  GetFileNameBase(current_step+nstep))
+call OUTPUT(atype, pos, v, f, q,  GetFileNameBase(current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(-1))
@@ -254,9 +254,8 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
-   GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
-   tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
+   write(6,'(i9,3es13.5,13es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
+   GPE(1:13), tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
 
 #ifdef STRESS
    write(6,'(6es13.5)') pint(1,1)*USTRS, pint(2,2)*USTRS, pint(3,3)*USTRS, &
