@@ -7,7 +7,7 @@ BUILDDIR := $(ROOTDIR)/src
 SRCNAMES := $(filter-out pot.F90, $(SRCS) ) module.F90
 SRCPATHS := $(foreach file, $(SRCNAMES), $(BUILDDIR)/$(file) )
 
-$(EXE): pre_build $(OBJS)
+$(EXE): $(OBJS)
 	$(FC) -o $(EXE) $(LDFLAGS) $(OBJS) module.o
 	mv $(EXE) ../$(EXE)
 
