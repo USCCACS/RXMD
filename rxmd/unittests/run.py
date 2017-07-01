@@ -9,12 +9,12 @@ def CleanBuildDir(path):
 def BuildExec(path):
     subprocess.call(['make','-C',path,'-j','12'])
 
-def BuildGetinit(rootPath):
+def BuildGeninit(rootPath):
 
     initPath=os.path.join(rootPath,'init')
     print "initPath = %s"%(initPath)
 
-    print "\n\nbuilding getinit..\n"
+    print "\n\nbuilding geninit..\n"
     CleanBuildDir(initPath)
     BuildExec(initPath)
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
     parser.add_argument('-r','--run', help="run all unit tests.", action="store_true", default=False)
     parser.add_argument('-c','--clean',help="clean up unit tests directories.", action="store_true", default=False)
-    parser.add_argument('-g','--getinit',help="build getinit that is used in each test.", action="store_true", default=False)
+    parser.add_argument('-g','--geninit',help="build geninit that is used in each test.", action="store_true", default=False)
 
     cwdPath=os.getcwd()
     rootPath=os.path.dirname(os.path.join('..',cwdPath))
@@ -84,8 +84,8 @@ if __name__ == "__main__":
     if args.run:
         RunUnitTests(cwdPath,unitTests)
 
-    if args.getinit:
-        BuildGetinit(rootPath)
+    if args.geninit:
+        BuildGeninit(rootPath)
 
     if args.clean:
         Clean(cwdPath,rootPath,unitTests)
