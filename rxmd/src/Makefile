@@ -16,4 +16,4 @@ cg.mod : cg.o
 fileio.o : param.o
 
 clean:
-	rm -f PI* *.o *.mod *.MOD mpif.h
+	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
