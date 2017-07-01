@@ -1,7 +1,7 @@
 # suffix rules
 .SUFFIXES: .o .F90 .cpp .mod
 .F90.o: 
-	$(FC) -c $(CPP) $(OPT) $<
+	$(FC) $(OPT) $(CPP) -c $<
 
 %.o: %.mod
 

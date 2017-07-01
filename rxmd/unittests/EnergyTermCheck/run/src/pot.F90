@@ -149,6 +149,10 @@ real(8) :: PE2, PE3, PE4
 
 integer :: ti,tj,tk
 
+#ifndef ELNPR
+return
+#endif
+
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
@@ -320,6 +324,10 @@ real(8) :: CE3body_d(3), CE3body_b(3), CE3body_a, coeff(3)
 real(8) :: BOij,BOjk
 
 integer :: ti,tj,tk
+
+#ifndef E3B
+return
+#endif
 
 !$omp master
 call system_clock(ti,tk)
@@ -549,6 +557,10 @@ real(8) :: PEhb, CEhb(3), ff(3)
 
 integer :: ti,tj,tk
 
+#ifndef EHB
+return
+#endif
+
 !$omp master 
 call system_clock(ti,tk)
 !$omp end master
@@ -670,6 +682,10 @@ integer :: ti,tj,tk
 
 real(8) :: PE11,PE12,PE13
 
+#ifndef ENBOND
+return
+#endif
+
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
@@ -765,6 +781,10 @@ real(8) :: exp_be12,  CEbo, PEbo, coeff(3)
 integer :: iid,jid
 integer :: ti,tj,tk
 
+#ifndef EBOND
+return
+#endif
+
 !$omp master
 call system_clock(ti,tk)
 !$omp end master
@@ -837,6 +857,10 @@ real(8) :: BOij, BOjk, BOkl
 integer :: jid,kid
 
 integer :: ti,tj,tk
+
+#ifndef E4B
+return
+#endif
 
 !$omp master
 call system_clock(ti,tk)

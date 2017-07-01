@@ -8,7 +8,7 @@ EXE := rxmd
 run:
 	make -C init 
 	make -C src pre_build
-	make -C src -j 24
+	make -C src -j 24 -e ENERGYTERMS="EBOND ENBOND ELNPR E3B E4B EHB"
 	./$(EXE)
 	@diff rfdump0.txt ../refs/rfdump0.txt
 
