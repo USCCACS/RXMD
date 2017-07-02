@@ -29,7 +29,10 @@ call system_clock(it1,irt)
 
 do nstep=0, ntime_step-1
 
-   if(mod(nstep,pstep)==0) call PRINTE(atype, v, q)
+   if(mod(nstep,pstep)==0) then
+       call PRINTE(atype, v, q)
+       if(saveRunProfile) call SaveRunProfileData(RunProfileFD, nstep)
+   endif
    if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
 
@@ -84,6 +87,30 @@ call MPI_FINALIZE(ierr)
 end PROGRAM
 
 !------------------------------------------------------------------------------
+subroutine SaveRunProfileData(fd, MDstep)
+use base; use atoms
+!------------------------------------------------------------------------------
+implicit none
+integer :: i, fd, MDstep
+
+write(fd,'(i9,a3)') MDstep," : " 
+
+do i=1,3
+   write(fd,'(3es16.8)') HH(1:3,i,0)
+enddo
+
+write(fd,'(14es16.8)') GPE(0:13)
+
+!do i=1, NATOMS
+!   write(fd,'(es25.13,9f15.5)') atype(i),pos(1:3,i),v(1:3,i),f(1:3,i)
+!enddo
+
+write(fd,*) 
+write(fd,*) 
+
+end subroutine
+
+!------------------------------------------------------------------------------
 subroutine FinalizeMD(irt)
 use atoms; use MemoryAllocator
 !------------------------------------------------------------------------------
@@ -91,6 +118,9 @@ implicit none
 integer :: i
 integer,intent(in) :: irt ! time resolution
 integer,allocatable :: ibuf(:),ibuf1(:)
+
+!--- close summary file
+if(saveRunProfile) close(RunProfileFd)
 
 allocate(ibuf(nmaxas),ibuf1(nmaxas))
 ibuf(:)=0
@@ -150,6 +180,7 @@ endif
 deallocate(ibuf,ibuf1)
 
 end subroutine
+
 !------------------------------------------------------------------------------
 subroutine vkick(dtf, atype, v, f)
 use atoms

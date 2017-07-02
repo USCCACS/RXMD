@@ -7,9 +7,7 @@
 	$(FC) -c $(CPP) $(OPT) $<
 
 # macros    
-#FC = ifort
-#FC = xlf
-FC = gfortran
+FC = mpif90
 
 OPT =
 CPP = 
@@ -29,4 +27,4 @@ nocopy: geninit.o
 	./geninit input.xyz
 
 clean:
-	rm -f all.bin rxff.bin geninit.xyz *.o *.mod *.MOD $(TARGETS)
+	rm -f all.bin rxff.bin ../DAT/rxff.bin geninit.xyz *.o *.mod *.MOD $(TARGETS)

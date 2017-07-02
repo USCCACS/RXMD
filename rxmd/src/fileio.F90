@@ -145,6 +145,7 @@ end subroutine
 
 !--------------------------------------------------------------------------
 subroutine WritePDB(fileNameBase)
+use parameters
 !--------------------------------------------------------------------------
 implicit none
 
@@ -210,22 +211,7 @@ do i=1, NATOMS
   ss = q(i)*10 ! 10x atomic charge
 
   igd = l2g(atype(i))
-  select case(ity)
-    case(1) 
-      write(PDBOneLine,100)'ATOM  ',0, 'C', igd, pos(i,1:3), tt, ss
-    case(2) 
-      write(PDBOneLine,100)'ATOM  ',0, 'H', igd, pos(i,1:3), tt, ss
-    case(3) 
-      write(PDBOneLine,100)'ATOM  ',0, 'O', igd, pos(i,1:3), tt, ss
-    case(4) 
-      write(PDBOneLine,100)'ATOM  ',0, 'N', igd, pos(i,1:3), tt, ss
-    case(5) 
-      write(PDBOneLine,100)'ATOM  ',0, 'S', igd, pos(i,1:3), tt, ss
-    case(6) 
-      write(PDBOneLine,100)'ATOM  ',0,'Si', igd, pos(i,1:3), tt, ss
-    case(7) 
-      write(PDBOneLine,100)'ATOM  ',0,'Al', igd, pos(i,1:3), tt, ss
-  end select
+  write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(1:3,i), tt, ss
 
   PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
   PDBAllLines=trim(PDBAllLines)//trim(PDBOneLine)

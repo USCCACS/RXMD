@@ -1,13 +1,10 @@
 module params
 implicit none
-integer,parameter :: vprocs(3)=(/1,1,1/)
-integer,parameter :: mc(3)=(/2,2,2/)
+integer :: vprocs(3)=(/1,1,1/)
+integer :: mc(3)=(/1,1,1/)
 
-integer,parameter :: nprocs=vprocs(1)*vprocs(2)*vprocs(3)
-integer,parameter :: mctot=mc(1)*mc(2)*mc(3)
-integer :: lnatoms(0:nprocs-1)  ! local # of atoms
-integer :: lnatoms1(0:nprocs-1) ! prefix sum of above
-integer :: lnatoms2(0:nprocs-1) ! temp counter
+integer :: nprocs, mctot
+integer,allocatable :: lnatoms(:), lnatoms1(:), lnatoms2(:)
 real(8) :: L1,L2,L3,Lalpha,Lbeta,Lgamma
 real(8) :: lbox(3),obox(3), dtype
 real(8) :: H(3,3), Hi(3,3), rr(3),rr1(3),vv(3),qq,rmin(3), rmax(3)
@@ -17,10 +14,46 @@ real(8),allocatable :: pos0(:,:), pos1(:,:)
 character(3),allocatable :: ctype0(:), ctype1(:)
 integer,allocatable :: itype0(:)
 real(8),allocatable :: itype1(:)
-character(256) :: fname 
+
+character(256) :: inputFileName="input.xyz"
+character(256) :: ffieldFileName="../ffield"
+
 character(256) :: fnote
 
+character(len=:),allocatable :: atomNames(:)
+integer :: numParams, numAtomNames
+
 contains
+
+!----------------------------------------------------------------
+subroutine getAtomNames(fileName)
+implicit none
+!----------------------------------------------------------------
+integer :: i
+character(256) :: fileName
+
+open(20,file=fileName)
+read(20,*)
+read(20,*) numParams
+do i=1, numParams
+   read(20,*)
+enddo
+read(20,*) numAtomNames
+read(20,*)
+read(20,*)
+read(20,*)
+allocate( character(3) :: atomNames(numAtomNames) )
+do i=1, numAtomNames
+   read(20,*) atomNames(i)
+   read(20,*)
+   read(20,*)
+   read(20,*)
+   print'(i3,a,a2 $)',i,'-',atomNames(i)
+enddo
+close(20)
+print*
+
+end subroutine
 
 !----------------------------------------------------------------
 subroutine getbox(la,lb,lc,angle1,angle2,angle3)
@@ -93,12 +126,44 @@ implicit none
 integer :: i, j, k, n, ia, myid, sID
 integer(8) :: ii=0
 character(6) :: a6
+character(64) :: argv
 
-!--- get structure file name
-call getarg(1,fname)
+!--- get input parameters
+do i=1, command_argument_count()
+   call get_command_argument(i,argv)
+   select case(adjustl(argv))
+     case("--help","-h")
+       if(myid==0) print'(a)', "-mc 1 1 1 -vprocs 1 1 1 -inputxyz input.xyz --ffield ffield"
+       stop
+     case("-mc")
+       call get_command_argument(i+1,argv); read(argv,*) mc(1)
+       call get_command_argument(i+2,argv); read(argv,*) mc(2)
+       call get_command_argument(i+3,argv); read(argv,*) mc(3)
+     case("-vprocs")
+       call get_command_argument(i+1,argv); read(argv,*) vprocs(1)
+       call get_command_argument(i+2,argv); read(argv,*) vprocs(2)
+       call get_command_argument(i+3,argv); read(argv,*) vprocs(3)
+     case("-inputxyz")
+       call get_command_argument(i+1,argv)
+       inputFileName=adjustl(argv)
+     case("-ffield")
+       call get_command_argument(i+1,argv)
+       ffieldFileName=adjustl(argv)
+     case default
+   end select
+enddo
 
-open(1,file=fname,form="formatted")
-write(6,'(2a,1x,a,i9,3i6)') 'input file: ', trim(fname),' mctot,mc',mctot, mc(1:3)
+mctot=mc(1)*mc(2)*mc(3)
+nprocs=vprocs(1)*vprocs(2)*vprocs(3)
+allocate(lnatoms(0:nprocs-1),lnatoms1(0:nprocs-1), lnatoms2(0:nprocs-1))
+
+open(1,file=inputFileName,form="formatted")
+write(6,'(a,2x,a)') ' input file: ', trim(inputFileName)
+write(6,'(a,2x,a)') ' ffield file: ', trim(ffieldFileName)
+write(6,'(a,i9,3i6)') ' nprocs,vprocs',nprocs, vprocs(1:3)
+write(6,'(a,i9,3i6)') ' mctot,mc',mctot, mc(1:3)
+
+call getAtomNames(ffieldFileName)
 
 !--- read # of atoms and file description
 read(1,*) natoms, fnote
@@ -117,18 +182,15 @@ allocate(ctype1(natoms*mctot),pos1(3,natoms*mctot),itype1(natoms*mctot))
 do i=1, natoms
    read(1,*) ctype0(i),pos0(1:3,i)
    ctype0(i)=adjustl(ctype0(i))
-   select case(ctype0(i)) 
-     case("C  ") 
-       itype0(i)=1
-     case("H  ") 
-       itype0(i)=2
-     case("O  ") 
-       itype0(i)=3
-     case("N  ") 
-       itype0(i)=4
-     case("Si ") 
-       itype0(i)=6
-   end select
+
+   do j=1, numAtomNames
+      if(ctype0(i)==atomNames(j)) then
+         !print*, ctype0(i), atomNames(j)
+         itype0(i)=j
+         exit
+      endif
+   enddo
+
 enddo
 close(1)
 
@@ -234,7 +296,7 @@ write(30) 0
 write(30) L1, L2, L3, Lalpha, Lbeta, Lgamma
 
 write(20,'(i12)') sum(lnatoms(:))
-write(20,'(a)') trim(fname)
+write(20,'(a)') trim(inputFileName)
 do myid=0,nprocs-1
    write(a6(1:6),'(i6.6)') myid
 
@@ -257,18 +319,8 @@ do myid=0,nprocs-1
       rr(1)=sum(H(1,1:3)*rr1(1:3))
       rr(2)=sum(H(2,1:3)*rr1(1:3))
       rr(3)=sum(H(3,1:3)*rr1(1:3))
-      select case(nint(dtype)) 
-        case(1) 
-          write(20,'(a3, $)') "C  "
-        case(2) 
-          write(20,'(a3, $)') "H  "
-        case(3) 
-          write(20,'(a3, $)') "O  "
-        case(4) 
-          write(20,'(a3, $)') "N  "
-        case(6) 
-          write(20,'(a3, $)') "Si "
-      end select
+
+      write(20,'(a3, $)') atomNames(nint(dtype))
       write(20,'(3f12.5)') rr(1:3)
    enddo
 
