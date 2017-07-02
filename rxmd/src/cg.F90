@@ -40,7 +40,7 @@ integer :: cgLoop, i
 CG_tol = ftol
 v(:,:)=0.d0
 
-if(myid==0) print'(a40,1x,es8.2)', NEW_LINE('A')//'Start structural optimization.', ftol
+if(myid==0) print'(a40,1x,es10.2)', NEW_LINE('A')//'Start structural optimization.', ftol
 
 call QEq(atype, pos, q)
 call FORCE(atype, pos, gnew, q)
