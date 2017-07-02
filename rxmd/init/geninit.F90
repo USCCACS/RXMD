@@ -34,11 +34,11 @@ character(256) :: fileName
 
 open(20,file=fileName)
 read(20,*)
-read(20,*), numParams
+read(20,*) numParams
 do i=1, numParams
    read(20,*)
 enddo
-read(20,*), numAtomNames
+read(20,*) numAtomNames
 read(20,*)
 read(20,*)
 read(20,*)

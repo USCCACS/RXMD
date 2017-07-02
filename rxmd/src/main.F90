@@ -96,7 +96,7 @@ integer :: i, fd, MDstep
 write(fd,'(i9,a3)') MDstep," : " 
 
 do i=1,3
-   write(fd,'(3es16.8)'), HH(1:3,i,0)
+   write(fd,'(3es16.8)') HH(1:3,i,0)
 enddo
 
 write(fd,'(14es16.8)') GPE(0:13)

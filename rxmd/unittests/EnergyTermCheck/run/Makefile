@@ -10,7 +10,6 @@ run:
 	make -C src pre_build
 	make -C src -j 24 -e ENERGYTERMS="EBOND ENBOND ELNPR E3B E4B EHB"
 	./$(EXE)
-	@diff rfdump0.txt ../refs/rfdump0.txt > diff.log
 
 # build getinit and rxmd to get .o & .mod files. 
 build:
@@ -19,7 +18,7 @@ build:
 	make -C $(ROOTDIR)/src -j 24
 
 clean:
-	rm -vf $(EXE) DAT/* *.txt *.log
+	rm -vf $(EXE) DAT/* *.ref *.log
 	make -C init clean
 	make -C src clean
 

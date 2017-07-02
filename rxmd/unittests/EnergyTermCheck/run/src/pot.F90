@@ -58,7 +58,7 @@ CALL E4b()
 CALL ForceBondedTerms(NMINCELL)
 CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
 
-open(81,file="rfdump"//trim(rankToString(myid))//".txt")
+open(81,file="rfdump"//trim(rankToString(myid))//".ref")
 do i=1, NATOMS
    write(81,'(i6,1x,a3,i6,7f14.6)') gtype(i),'pos',nint(atype(i)),pos(1:3,i)
 enddo
