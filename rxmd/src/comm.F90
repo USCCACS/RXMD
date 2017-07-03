@@ -161,23 +161,26 @@ if (mypar == 0) then
      call MPI_Probe(tn2, 11, MPI_COMM_WORLD, recv_stat, ierr)
      call MPI_Get_count(recv_stat, MPI_DOUBLE_PRECISION, nr, ierr)
 
-     allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
+     call CheckSizeThenReallocate(rbuffer,nr)
+
      call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, 11, MPI_COMM_WORLD, recv_stat, ierr)
 
-     if(nr==1) nr=0 ! no atom data received. reset nr.
-
+     ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
+     ! recv_size == 1 means no atom data to be received. 
+     if(nr==1) nr=0 
 
 elseif (mypar == 1) then
 
      call MPI_Probe(tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
      call MPI_Get_count(recv_stat, MPI_DOUBLE_PRECISION, nr, ierr)
 
-     ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
-     ! if recv_size == 1, which means no atom data to be received. 
-     allocate(rbuffer(nr), stat=ast); if(ast/=0) print*,"ERROR: rbuffer@send_recv: 2"
+     call CheckSizeThenReallocate(rbuffer,nr)
+
      call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
 
-     if(nr==1) nr=0 ! no atom data received. reset nr.
+     ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
+     ! recv_size == 1 means no atom data to be received. 
+     if(nr==1) nr=0 
 
      if (ns > 0) then
         call MPI_SEND(sbuffer, ns, MPI_DOUBLE_PRECISION, tn1, 11, MPI_COMM_WORLD, ierr)
@@ -216,7 +219,7 @@ if(imode/=MODE_CPBK) then
    ni = copyptr(cptridx)*ne
 
 !--- <sbuffer> will deallocated in store_atoms.
-   if(ni>0) allocate(sbuffer(ni),stat=ast)
+   call CheckSizeThenReallocate(sbuffer,ni)
 
 !--- get the coordinate Index to be Shifted.
    is = int((dflag-1)/2) !<- [012] means [xyz]
@@ -282,7 +285,7 @@ else if(imode==MODE_CPBK) then
    is = 7 - dflag !<- [654321] reversed order direction flag
 
    n = copyptr(is) - copyptr(is-1) + 1
-   allocate(sbuffer(n*ne),stat=ast)
+   call CheckSizeThenReallocate(sbuffer,n*ne)
 
    do n=copyptr(is-1)+1, copyptr(is)
       sbuffer(ns+1) = dble(frcindx(n))
@@ -302,7 +305,7 @@ endif
 if(myid==tn) then
    if(ns>0) then
       nr=ns
-      allocate(rbuffer(nr), stat=ast)
+      call CheckSizeThenReallocate(rbuffer,nr)
       rbuffer(1:ns) = sbuffer(1:ns)
    else
       nr=0
@@ -403,11 +406,6 @@ endif
 !--- update the total # of transfered elements.
 na=na+nr
 
-!--- if a node doesn't have a partner node for a certain direction, the buffers will not be allocated. 
-!--- check the allocation status of <sbuffer> and <rbuffer> before deallocating them. 
-if(allocated(sbuffer)) deallocate(sbuffer)
-if(allocated(rbuffer)) deallocate(rbuffer)
-
 end subroutine append_atoms
 
 !--------------------------------------------------------------------------------------------------------------
@@ -460,5 +458,24 @@ select case(dflag)
 end select
 
 end function
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine CheckSizeThenReallocate(buffer,nsize)
+implicit none
+!--------------------------------------------------------------------------------------------------------------
+real(8),allocatable :: buffer(:)
+integer,intent(IN) :: nsize
+integer :: ast
+
+if(allocated(buffer)) then
+   if(nsize > size(buffer)) then
+       deallocate(buffer)
+       allocate(buffer(2*nsize), stat=ast)
+   endif
+else
+   allocate(buffer(nsize), stat=ast)
+endif
+
+end subroutine
 
 end subroutine COPYATOMS
