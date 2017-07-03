@@ -150,6 +150,10 @@ if(myid==0) then
 
    print'(a20,f12.4,3x,f12.4)','LINKEDLIST: ',  dble(it_timer_max(3))/irt, dble(it_timer_min(3))/irt
    print'(a20,f12.4,3x,f12.4)','COPYATOMS: ',    dble(it_timer_max(4))/irt, dble(it_timer_min(4))/irt
+   print'(a20,f12.4,3x,f12.4)','send_rec: ', dble(it_timer_max(25))/irt, dble(it_timer_min(25))/irt
+   print'(a20,f12.4,3x,f12.4)','store_atoms: ', dble(it_timer_max(26))/irt, dble(it_timer_min(26))/irt
+   print'(a20,f12.4,3x,f12.4)','append_atoms: ', dble(it_timer_max(27))/irt, dble(it_timer_min(27))/irt
+
    print'(a20,f12.4,3x,f12.4)','NEIGHBORLIST: ', dble(it_timer_max(5))/irt, dble(it_timer_min(5))/irt
    print'(a20,f12.4,3x,f12.4)','GetNBPairList: ', dble(it_timer_max(15))/irt, dble(it_timer_min(15))/irt
    print*
@@ -292,7 +296,7 @@ integer :: n, l(3), j
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-call xu2xs(rreal,rnorm)
+call xu2xs(rreal,rnorm,copyptr(6))
 
 headAtom(:,:,:) = -1; atomList(:) = 0; NatomPerCell(:,:,:)=0
 
@@ -586,16 +590,17 @@ return
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs(rreal, rnorm)
+subroutine xu2xs(rreal, rnorm, nmax)
 ! update normalized coordinate from real coordinate. Subtract obox to make them local. 
 use atoms
 real(8),intent(in) :: rreal(NBUFFER,3)
 real(8),intent(out) :: rnorm(NBUFFER,3)
+integer,intent(in) :: nmax
 
 !--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
 
-do i=1, NBUFFER
+do i=1,nmax
    rr(1:3) = rreal(i,1:3)
    rnorm(i,1)=sum(HHi(1,1:3)*rr(1:3))
    rnorm(i,2)=sum(HHi(2,1:3)*rr(1:3))
@@ -606,16 +611,17 @@ enddo
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu(rnorm,rreal)
+subroutine xs2xu(rnorm,rreal,nmax)
 ! update real coordinate from normalized coordinate
 use atoms
 !--------------------------------------------------------------------------------------------------------------
 real(8),intent(in) :: rnorm(NBUFFER,3)
 real(8),intent(out) :: rreal(NBUFFER,3)
+integer,intent(in) :: nmax
 
 real(8) :: rr(3)
 
-do i=1, NBUFFER
+do i=1,nmax 
    rr(1:3) = rnorm(i,1:3) + OBOX(1:3)
    rreal(i,1)=sum(HH(1,1:3,0)*rr(1:3))
    rreal(i,2)=sum(HH(2,1:3,0)*rr(1:3))

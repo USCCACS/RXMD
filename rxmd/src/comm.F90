@@ -38,14 +38,17 @@ real(8) :: pos(NBUFFER,3) ! <- normalized coordinate
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
 
-integer :: ti,tj,tk
+integer :: ti,tj,tk,tti,ttj
 
 integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 
-call system_clock(ti,tk)
+call system_clock(tti,tk)
 
-!-- normalized local coordinate will be used through this function. 
-call xu2xs(rreal,pos)
+!--- Normalized local coordinate will be used through this function. 
+!--- How many atom coords need to be normalized depends on who calls this.
+!--- For example function calls during QEq (MODE_QCOPY1 & MODE_QCOPY2) assume
+!--- atom information of the extended domain regions. 
+call xu2xs(rreal,pos,max(NATOMS,copyptr(6)))
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -116,7 +119,7 @@ if(imode==MODE_MOVE) then
 endif
 
 !--- by here, we got new atom positions in the normalized coordinate, need to update real coordinates.
-if(imode== MODE_COPY .or. imode == MODE_MOVE) call xs2xu(pos,rreal)
+if(imode== MODE_COPY .or. imode == MODE_MOVE) call xs2xu(pos,rreal,copyptr(6))
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
@@ -125,8 +128,8 @@ if(mod(nstep,pstep)==0) then
   if(imode==MODE_COPY) maxas(ni,5)=na/ne
 endif
 
-call system_clock(tj,tk)
-it_timer(4)=it_timer(4)+(tj-ti)
+call system_clock(ttj,tk)
+it_timer(4)=it_timer(4)+(ttj-tti)
 
 return
 CONTAINS 
@@ -148,6 +151,8 @@ real(8) :: recv_size
 
 if(myid==tn1) return 
 
+call system_clock(ti,tk)
+
 if (mypar == 0) then
 
      ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
@@ -166,7 +171,7 @@ if (mypar == 0) then
      call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, 11, MPI_COMM_WORLD, recv_stat, ierr)
 
      ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
-     ! recv_size == 1 means no atom data to be received. 
+     ! nr == 1 means no atom data to be received. 
      if(nr==1) nr=0 
 
 elseif (mypar == 1) then
@@ -179,7 +184,7 @@ elseif (mypar == 1) then
      call MPI_RECV(rbuffer, nr, MPI_DOUBLE_PRECISION, tn2, 10, MPI_COMM_WORLD, recv_stat, ierr)
 
      ! the number of elements per data packet has to be greater than 1, for example NE_COPY = 10.
-     ! recv_size == 1 means no atom data to be received. 
+     ! nr == 1 means no atom data to be received. 
      if(nr==1) nr=0 
 
      if (ns > 0) then
@@ -189,6 +194,9 @@ elseif (mypar == 1) then
      endif
 
 endif
+
+call system_clock(tj,tk)
+it_timer(25)=it_timer(25)+(tj-ti)
 
 end subroutine
 
@@ -207,6 +215,8 @@ real(8),intent(IN) :: dr(3)
 integer :: n,ni,is
 real(8) :: sft 
 integer :: cptridx
+
+call system_clock(ti,tk)
 
 !--- reset the number of atoms to be sent
 ns=0
@@ -228,7 +238,7 @@ if(imode/=MODE_CPBK) then
 !--- xshift() returns the edge length of one node assuming all of node size is same.
    sft=xshift(dflag)
 
-!--- start buffering data depending on modes. all copy&move modes use dr() to select atoms.
+!--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
    do n=1, copyptr(cptridx)
 
       if(inBuffer(dflag,n,dr)) then
@@ -312,6 +322,9 @@ if(myid==tn) then
    endif
 endif
 
+call system_clock(tj,tk)
+it_timer(26)=it_timer(26)+(tj-ti)
+
 end subroutine store_atoms
 
 !--------------------------------------------------------------------------------------------------------------
@@ -323,6 +336,8 @@ use atoms
 implicit none
 integer,intent(IN) :: dflag, imode 
 integer :: m, i, ine
+
+call system_clock(ti,tk)
 
 if( (na+nr)/ne > NBUFFER) then
     print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER: ", &
@@ -405,6 +420,9 @@ endif
 
 !--- update the total # of transfered elements.
 na=na+nr
+
+call system_clock(tj,tk)
+it_timer(27)=it_timer(27)+(tj-ti)
 
 end subroutine append_atoms
 
