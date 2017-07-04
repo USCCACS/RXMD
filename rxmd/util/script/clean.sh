@@ -4,4 +4,4 @@
 (cd src; make clean)
 rm -fv DAT/* rxmd *.txt
 
-find refs/*/DAT -type f ! -name .gitignore | xargs rm -v
+find regtests/*/DAT -type f ! -name .gitignore | xargs rm -v
