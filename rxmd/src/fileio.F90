@@ -211,7 +211,7 @@ do i=1, NATOMS
   ss = q(i)*10 ! 10x atomic charge
 
   igd = l2g(atype(i))
-  write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(1:3,i), tt, ss
+  write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(i,1:3), tt, ss
 
   PDBOneLine(PDBLineSize:PDBLineSize)=NEW_LINE('A')
   PDBAllLines=trim(PDBAllLines)//trim(PDBOneLine)
