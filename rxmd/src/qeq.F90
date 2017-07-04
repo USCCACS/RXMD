@@ -197,7 +197,7 @@ call system_clock(ti,tk)
 
 nbplist(:,0) = 0
 
-!$omp parallel do schedule(guided), default(shared), &
+!$omp parallel do schedule(runtime), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
@@ -275,7 +275,7 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-!$omp parallel do default(shared), schedule(guided), private(i,j,j1,ity,eta_ity,Est1),reduction(+:Est)
+!$omp parallel do default(shared), schedule(runtime), private(i,j,j1,ity,eta_ity,Est1),reduction(+:Est)
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
@@ -318,7 +318,7 @@ real(8) :: gssum, gtsum
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-!$omp parallel do default(shared), schedule(guided), private(gssum, gtsum, eta_ity,i,j,j1,ity)
+!$omp parallel do default(shared), schedule(runtime), private(gssum, gtsum, eta_ity,i,j,j1,ity)
 do i=1,NATOMS
 
    gssum=0.d0

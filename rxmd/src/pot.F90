@@ -43,9 +43,9 @@ do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo
 
-!!$omp parallel default(shared)
+!$omp parallel default(shared)
 CALL BOCALC(NMINCELL, atype, pos)
-!!$omp end parallel
+!$omp end parallel
 !$omp parallel default(shared)
 CALL ENbond()
 CALL Ebond()

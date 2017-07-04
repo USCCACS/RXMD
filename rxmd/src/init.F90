@@ -51,7 +51,6 @@ enddo
 !--- intended to be used for validation of code change. 
 if(saveRunProfile) open(RunProfileFD, file=RunProfilePath, status='unknown')
 
-
 !--- read MD control parameters
 open(1, file=trim(ParmPath), status="old")
 read(1,*) mdmode
@@ -367,6 +366,9 @@ use atoms; use parameters
 implicit none
 integer :: ity,jty,inxn
 real(8) :: dr,BOsig
+
+!--- cutoff_vpar30 = cutof2_bo*vpar30, used in BOPRIM()
+cutoff_vpar30 = cutof2_bo*vpar30
 
 !--- get the cutoff length based on sigma bonding interaction.
 

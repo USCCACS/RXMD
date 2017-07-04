@@ -91,6 +91,9 @@ integer,parameter :: is_idEh = 1
 !real(8),parameter :: cutof2_bo = 1d-4
 !integer,parameter :: is_idEh = 0
 
+! cutoff_vpar30 = cutof2_bo*vpar30, used in BOPRIM()
+real(8) :: cutoff_vpar30
+
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
@@ -283,7 +286,6 @@ integer,intent(in) :: irank
 write(rankToString,*) irank
 rankToString = adjustl(rankToString)
 end function rankToString
-
 
 !-------------------------------------------------------------------------------------------
 function GetFileNameBase(nstep) result(fileNameBase)
