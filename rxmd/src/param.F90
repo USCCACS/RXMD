@@ -33,6 +33,20 @@ real(8) :: dnull
 real(8),allocatable :: vpar(:), bo131(:), bo132(:), bo133(:)
 real(8),allocatable :: rvdw1(:), eps(:), alf(:), vop(:)
 
+!--- read MD control parameters
+open(1, file="rxmd.in", status="old")
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) 
+read(1,*) isLG
+close(1)
+
 dnull = 0.d0
 !--- Start Getting Parameters
 open(4,file=trim(adjustl(ffFileName)),status="old")
@@ -77,6 +91,10 @@ allocate(vop(nso), gamW(nso,nso))
 
 !--- Coulomb & Charge equilibration:
 allocate(chi(nso), eta(nso), gam(nso), gamij(nso,nso))
+
+!----initiate RXFFLG -------------!
+allocate (C_lg(nso, nso), Re_lg(nso))
+!----end initiation RXFFLG---------!
  
 !--- Parameters that still don't depend on atom type yet
 plp1(1:nso) = vpar(16)
@@ -85,6 +103,7 @@ povun4(1:nso) = vpar(32)
 povun6(1:nso) = vpar(7)
 povun7(1:nso) = vpar(9)
 povun8(1:nso) = vpar(10)
+
 
 !--- skip 3 lines
 read(4,*)
@@ -96,6 +115,7 @@ do i1=1, nso  !collect info on each type of atom
    read(4,1250) alf(i1),vop(i1),Valboc(i1),povun5(i1),dnull,chi(i1),eta(i1),dnull
    read(4,1250) vnq(i1),plp2(i1),dnull,bo131(i1),bo132(i1),bo133(i1),dnull,dnull   
    read(4,1250) povun2(i1), pval3(i1),dnull,Valval(i1),pval5(i1)
+   if (isLG) read(4,1250) C_lg(i1, i1), Re_lg(i1)
 enddo
 
 nlpopt(1:nso) = 0.5d0*(Vale(1:nso) - Val(1:nso))
@@ -165,7 +185,11 @@ enddo
 !--- Changes to off-diagonal terms:
 read(4,1100) nodmty  !# of off-diag terms 
 do i2=1, nodmty
+   if (isLG) then 
+   read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2, C_lg(nodm1, nodm2)
+   else 
    read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2
+   endif
    if(rsig.GT.0.d0) r0s(nodm1,nodm2)=rsig
    if(rsig.GT.0.d0) r0s(nodm2,nodm1)=rsig 
    if(rpi.GT.0.d0)  r0p(nodm1,nodm2)=rpi
