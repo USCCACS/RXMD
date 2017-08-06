@@ -244,18 +244,11 @@ i=ntime_step/pstep+1
 allocate(maxas(i,nmaxas))
 maxas(:,:)=0
 
-!-------check RXFF-LG values-----!
-!if(myid==0) then 
-!do i=1, nso 
-!    print '(4f12.5, 2X, f12.5)', C_lg(i, 1:4), Re_lg(i)
-!enddo 
-!endif
-!------------end RXFF-lg check -----!
-
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
    if (isLG) write (6,'(a)') "ReaxFF-LG: Implementation from Liu et al. "
+   if (isLG) write (6,'(a)') " ReaxFF-LG is implemented Only for C H O N" 
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
    write(6,'(a30,a70)')      "parameter set:", FFDescript
@@ -447,6 +440,16 @@ call allocatord3d(TBL_EClmb,0,1,1,NTABLE,1,nboty)
 call allocatord3d(TBL_Evdw,0,1,1,NTABLE,1,nboty)
 call allocatord2d(TBL_EClmb_QEq,1,NTABLE,1,nboty)
 
+!-------check RXFF-LG values-----!
+!if(myid==0) then 
+!do i=1, nso 
+!    print '(8f12.5, 2X, f12.5)', C_lg(i, :), Re_lg(i)
+!enddo 
+!endif
+!------------end RXFF-lg check -----!
+
+
+
 !--- unit distance in r^2 scale
 UDR = rctap2/NTABLE
 UDRi = 1.d0/UDR
@@ -508,12 +511,7 @@ do jty=ity, nso
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
          TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 )
 if (isLG) then 
-         if(ity>4 .or.jty>4 ) then 
-                call MPI_Finalize(MPI_COMM_WORLD, 10, ierr)
-                if (myid==0) print *, "LG not implemented for this atom type"
-         endif 
-  
-         if(ity>nso .or.jty>nso) cycle
+         if (ity > 4 .or. jty >4) cycle   
          dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
          dr6_lg = dr_lg**6
          Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
@@ -523,7 +521,7 @@ if (isLG) then
          TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
          TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg&
                                 +dTap*E_core+Tap*dE_core
-endif 
+endif
 
       enddo
    endif
