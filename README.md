@@ -31,9 +31,9 @@ To get started,  clone this repository to your computer.
 
 ## How to install
 
-Then change working directory.
+Frist, change working directory to **rxmd/**
 ```
-~$ cd rxmd/rxmd
+~$ cd rxmd
 ```
 you will see following files and directories.
 
@@ -124,7 +124,7 @@ This project is licensed under the GPU 3.0 license - see the [LICENSE.md](LICENS
 ## Publications
 * Mechanochemistry of shock-induced nanobubble collapse near silica in water
 K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
-[Applied Physics Letters 101, 073108: 1-4  (2012)] (http://aip.scitation.org/doi/10.1063/1.4746270)
+[Applied Physics Letters 101, 073108: 1-4  (2012)](http://aip.scitation.org/doi/10.1063/1.4746270)
 
 * Structure and dynamics of shock-induced nanobubble collapse in water
 M. Vedadi, A. Choubey, K. Nomura, R. K. Kalia, A. Nakano, P. Vashishta, and A. C. T. van Duin,
