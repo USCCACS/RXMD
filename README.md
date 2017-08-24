@@ -1,10 +1,10 @@
 # rxmd : Linear Scalable Parallel ReaxFF Molecular Dynamics Simulator
 
-**rxmd** has been developed to simulate large-scale Reactive Force Field molecular dynamcis (MD) simulations on from commodity laptops to high-end supercomputing platforms. **rxmd** has been used in various class of material researches, such as shock-induced chemical reactions, stress corrosion cracking, underwater bubble collapse, facture of self-healing ceramics and oxidation of nanoparticles. 
+**rxmd** has been developed to simulate large-scale Reactive Force Field molecular dynamics (MD) simulations on from commodity laptops to high-end supercomputing platforms. **rxmd** has been used in a various class of material studies, such as shock-induced chemical reactions, stress corrosion cracking, underwater bubble collapse, fracture of self-healing ceramics and oxidation of nanoparticles. 
 
 ## Prerequisites
 
-**rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will only a Fortran compiler that supoprt OpenMP and MPI (Message Passing Interface) library to compile the code and run it. Modern Fortran compilers natively support OpenMP and you can find many freely distributed MPI libraries online. Please refer to MPI library developper site about how to install their library. 
+**rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will need only a Fortran compiler that supports OpenMP and MPI (Message Passing Interface) library to compile the code and run it. Modern Fortran compilers natively support OpenMP, and you can find many freely distributed MPI libraries online. Please refer to MPI library developer site about how to install their library. 
 
 **rxmd** has been tested on following environments.
 
@@ -24,7 +24,7 @@ Cray Mpich 7.6.0
 
 ## Getting Started
 
-To get started, simply clone this repository to your computer. 
+To get started,  clone this repository to your computer. 
 ```
 ~$ git clone https://github.com/USCCACS/rxmd.git
 ```
@@ -43,7 +43,7 @@ DAT/          conf/         ffield        regtests/     src/          util/
 Makefile.inc  doc/          init/         rxmd.in       unittests/
 ```
 
-Two directories are important for you to get started here, **src/** and **init/**. **src/** to compile rxmd executable and **init/** to generate intial configuration for MD simulation. Type
+Two directories (**src/** and **init/**) are important for you to get started here. **src/** to compile rxmd executable and **init/** to generate initial configuration for MD simulation. Type
 
 ```
 rxmd $ make -C init/
@@ -53,7 +53,7 @@ to generate an initial configuration and place the input file **rxff.bin** in **
 ```
 rxmd $ make -C src/
 ```
-to compile the rxmd exectuable. You will have **rxmd** plus **DAT/rxff.bin**, then you are ready to run a simulation. 
+to compile the rxmd executable. Make sure you have **rxmd** and **DAT/rxff.bin**, then you are ready to run a simulation. 
 
 ```
 rxmd $ ls
@@ -66,18 +66,18 @@ rxff.bin
 ```
 
 ## How to run rxmd
-Default input parameters are set for single process job where tou can simply start simulation by typing
+Default input parameters are set to run a single process job. Type
 ```
 rxmd $ ./rxmd
 ```
 
-How to run a multi process job depends on which MPI library you use, but most likely **mpirun** just works. 
+How to run a multi process job depends on which MPI library you use, but most likely **mpirun** just works for you. 
 
 ```
 rxmd $ mpirun -np nprocessors ./rxmd
 ```
 
-If you see following output, congratulations! You have everything working.
+If you see following outputs, congratulations! You have everything working.
 
 ```
 rxmd $ ./rxmd 
@@ -123,21 +123,21 @@ This project is licensed under the GPU 3.0 license - see the [LICENSE.md](LICENS
 
 ## Publications
 * Mechanochemistry of shock-induced nanobubble collapse near silica in water
-K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta
+K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Applied Physics Letters 101, 073108: 1-4  (2012)] (http://aip.scitation.org/doi/10.1063/1.4746270)
 
 * Structure and dynamics of shock-induced nanobubble collapse in water
-M. Vedadi, A. Choubey, K. Nomura, R. K. Kalia, A. Nakano, P. Vashishta, and A. C. T. van Duin 
+M. Vedadi, A. Choubey, K. Nomura, R. K. Kalia, A. Nakano, P. Vashishta, and A. C. T. van Duin,
 [Physical Review Letters 105, 014503: 1-4  (2010)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.105.014503)
 
 * Embrittlement of metal by solute segregation-induced amorphization
-H. Chen,R. K. Kalia, E. Kaxiras, G. Lu, A. Nakano, K. Nomura, A. C. T. van Duin, P. Vashishta, and Z. Yuan
+H. Chen,R. K. Kalia, E. Kaxiras, G. Lu, A. Nakano, K. Nomura, A. C. T. van Duin, P. Vashishta, and Z. Yuan,
 [Physical Review Letters 104, 155502: 1-4  (2010)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.104.155502)
 
 * Metascalable molecular dynamics simulation of nano-mechano-chemistry
-F. Shimojo, R. K. Kalia, A. Nakano, K. Nomura, and P. Vashishta
+F. Shimojo, R. K. Kalia, A. Nakano, K. Nomura, and P. Vashishta,
 [Journal of Physics: Condensed Matter 20, 294204: 1-9  (2008)](http://iopscience.iop.org/article/10.1088/0953-8984/20/29/294204)
 
 * A scalable parallel algorithm for large-scale reactive force-field molecular dynamics simulations
-K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta
+K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Computer Physics Communications 178, 73-87  (2008)](http://www.sciencedirect.com/science/article/pii/S0010465507003748)
