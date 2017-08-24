@@ -70,7 +70,7 @@ def UpdateRef(ref,currentRefPath, refPath):
     print "  Copying %s to %s"%(currentRefPath, refPath)
     shutil.copyfile(currentRefPath, refPath)
 
-def RunUnitTests(cwdPath,regTests,runTestFunc,runRefFunc):
+def RunRegTests(cwdPath,regTests,runTestFunc,runRefFunc):
 
     for t in regTests:
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         BuildExecs(rootPath)
 
     if args.run:
-        RunUnitTests(cwdPath,regTests,RunTest,CompareRef)
+        RunRegTests(cwdPath,regTests,RunTest,CompareRef)
 
     if args.update:
-        RunUnitTests(cwdPath,regTests,False,UpdateRef)
+        RunRegTests(cwdPath,regTests,False,UpdateRef)
