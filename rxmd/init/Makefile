@@ -7,7 +7,7 @@
 	$(FC) -c $(CPP) $(OPT) $<
 
 # macros    
-FC = mpif90
+FC = ifort -check all -traceback 
 
 OPT =
 CPP = 

@@ -62,6 +62,7 @@ read(1,*) isQEq, NMAXQEq, QEq_tol, qstep
 read(1,*) Lex_fqs, Lex_k
 read(1,*) isBinary, isBondFile, isPDB
 read(1,*) ftol
+read(1,*) isLG
 close(1)
 
 !--- an error trap
@@ -246,6 +247,8 @@ maxas(:,:)=0
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
+   if (isLG) write (6,'(a)') "ReaxFF-LG: Implementation from Liu et al. "
+   if (isLG) write (6,'(a)') " ReaxFF-LG is implemented Only for C H O N" 
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
    write(6,'(a30,a70)')      "parameter set:", FFDescript
@@ -428,12 +431,24 @@ real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
 real(8) :: exp1, exp2
 real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
 real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
+real(8) :: dr_lg, dr6_lg
+real(8) :: rres, Elg, dElg, E_core, dE_core
 
 !--- first element in table 0: potential
 !---                        1: derivative of potential
 call allocatord3d(TBL_EClmb,0,1,1,NTABLE,1,nboty)
 call allocatord3d(TBL_Evdw,0,1,1,NTABLE,1,nboty)
 call allocatord2d(TBL_EClmb_QEq,1,NTABLE,1,nboty)
+
+!-------check RXFF-LG values-----!
+!if(myid==0) then 
+!do i=1, nso 
+!    print '(8f12.5, 2X, f12.5)', C_lg(i, :), Re_lg(i)
+!enddo 
+!endif
+!------------end RXFF-lg check -----!
+
+
 
 !--- unit distance in r^2 scale
 UDR = rctap2/NTABLE
@@ -494,7 +509,19 @@ do jty=ity, nso
 
          TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 ) 
+         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 )
+if (isLG) then 
+         if (ity > 4 .or. jty >4) cycle   
+         dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
+         dr6_lg = dr_lg**6
+         Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
+         E_core=ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
+         dE_core=-acore(ity,jty)*E_core/rcore(ity,jty)/dr1
+         dElg=C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+         TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
+         TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg&
+                                +dTap*E_core+Tap*dE_core
+endif
 
       enddo
    endif

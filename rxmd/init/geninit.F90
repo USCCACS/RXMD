@@ -1,7 +1,7 @@
 module params
 implicit none
-integer :: vprocs(3)=(/1,1,1/)
-integer :: mc(3)=(/1,1,1/)
+integer :: vprocs(3)=(/2,2,1/)
+integer :: mc(3)=(/2,2,2/)
 
 integer :: nprocs, mctot
 integer,allocatable :: lnatoms(:), lnatoms1(:), lnatoms2(:)
@@ -42,9 +42,11 @@ read(20,*) numAtomNames
 read(20,*)
 read(20,*)
 read(20,*)
+
 allocate( character(3) :: atomNames(numAtomNames) )
 do i=1, numAtomNames
    read(20,*) atomNames(i)
+   read(20,*)
    read(20,*)
    read(20,*)
    read(20,*)

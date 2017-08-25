@@ -320,7 +320,7 @@ module parameters
 
 integer :: nso    !Number of different types of atoms
 integer :: nboty  !Number of different bonds given
-
+logical :: isLG
 ! Atom Dependant (ie where they appear in input file - not implementation in code)
 character(2),allocatable :: atmname(:)      !holds the Chemical Abbrev for each atomtype
 real(8),allocatable :: Val(:),Valboc(:)  !Valency of atomtype (norm, boc) 
@@ -363,7 +363,15 @@ real(8),allocatable :: phb1(:), phb2(:), phb3(:), r0hb(:)   !Hydrogren Bond Ener
 real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waals Energy (eq. 21ab)
 real(8) :: pvdW1, pvdW1h, pvdW1inv
 
+real(8), allocatable :: C_lg(:,:), Re_lg(:)
+!---------lg and new vdw part----
+integer:: vdw_type
+real(8), allocatable:: rcore2(:),ecore2(:),acore2(:)
+logical :: isflag
+real(8), allocatable::rcore(:,:),ecore(:,:),acore(:,:)
+
 !Taper function 
+
 real(8),parameter :: rctap0 = 10.d0 ![A]
 real(8) :: rctap, rctap2, CTap(0:7)
 
