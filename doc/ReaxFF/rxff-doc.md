@@ -40,7 +40,7 @@
     If the simulation needs to be performed on a scaled system then the integral multiples in x, y and z directions should be specified as arguments to array mc(3).  
   
     For example:
-    1.	If the system is  and you specify mc(3) = (/2,3,2/) then the final system size will be  and hence the number of processors should be specified accordingly as mentioned above in 2.2.  
+    1.If the system is  13x13x17 Aand you specify mc(3) = (/2,3,2/) then the final system size will be  and hence the number of processors  	should be specified accordingly as mentioned above in 2.2.  
     
     
 **These steps will ensure that the binaries created are correct and hence will ensure appropriate simulation results, if the simulation is performed properly**
