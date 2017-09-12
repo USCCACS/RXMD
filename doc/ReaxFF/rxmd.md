@@ -17,7 +17,6 @@
     Line 3 – Line Natoms + 2: Atomic coordinates (atype	x	y	z)  
     where atype is a string for describing the atom type such as C, H, O, N, S, Mo, Ni, Al and x, y, z specifies the Cartesian coordinates.  
     
-    Few example files are attached with this documentation to give a better idea of initial file format.
     
 **2.2.Parameters to be specified for geninit.f90 file**
     
