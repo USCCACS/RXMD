@@ -101,7 +101,7 @@
       isPDB: This parameter can be given a true or a false value and defines whether information related to atomic trajectories is saved to the file in PDB format or not.
 
 
-# 3.Running a parallel job:
+## 3.Running a parallel job:
 
 1.The first step is to create binaries corresponding to your system which can be done 	by following the steps in 1 in init folder.  
 2.After creating binaries ensure that you are at the root directory such that init 	directory is one level below you. Then create a folder called DAT and copy all the 
