@@ -146,6 +146,8 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 
 ```
 
+To learn more about **rxmd**, please refer to [RXMD Manual](doc/ReaxFF/RXMDManual.md).
+
 ## License
 
 This project is licensed under the GPU 3.0 license - see the [LICENSE.md](LICENSE.md) file for details

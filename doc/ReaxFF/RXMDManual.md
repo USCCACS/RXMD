@@ -1,6 +1,5 @@
 ## 1. Initial System Preparation 
 
-
   1. Obtain the unit cell or the prepared system coordinates in xyz file format.  
   For example: If properties of a system such as RDX, FOX-7, TATB, CaDPA etc. is to be determined, obtain the unit cell for the desired system from literature. Or, if the simulation is to be performed for some other systems containing voids, vacuums etc. prepare the system accordingly and verify the coordinates in xyz format using some visualization software like VMD, Ovito, VESTA etc. to check if the system looks right or not.  
   
@@ -49,14 +48,14 @@
 
   **The input file rxmd.in has following format:**
 	
-	<mode>
-	<dt>	<time_step>
-	<treq>  <vsfact>  <sstep>
-            <fstep> <pstep>
-	<vprocs>
-	<isQEq> <NMAXQEq> <QEq_tol> <qstep>
-	<isBinary> <isBondFile> <isPDB>
-	<ftol>
+  <mode>
+  <dt>	<time_step>
+  <treq>  <vsfact>  <sstep>
+  <fstep> <pstep>
+  <vprocs>
+  <isQEq> <NMAXQEq> <QEq_tol> <qstep>
+  <isBinary> <isBondFile> <isPDB>
+  <ftol>
   
  ***Here the keywords mean:***  
  
