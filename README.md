@@ -4,7 +4,7 @@
 
 ## 0. Prerequisites
 
-**rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will need only a Fortran compiler that supports OpenMP and MPI (Message Passing Interface) library to compile the code and run it. Modern Fortran compilers natively support OpenMP, and you can find many freely distributed MPI libraries online. Please refer to MPI library developer site about how to install their library. 
+**rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will need 1) a Fortran compiler that supports OpenMP, and 2) MPI (Message Passing Interface) library for parallel and distributed simulation. Modern Fortran compilers natively support OpenMP, and you can find many freely available MPI libraries online. Please refer to MPI library developer website about how to install their library. 
 
 **rxmd** has been tested on following environments.
 
@@ -31,7 +31,7 @@ To get started,  clone this repository to your computer.
 
 ## 2. How to build RXMD
 
-### 2.1 Directories
+### 2.1 Working Directory
 Frist, change working directory to **rxmd/**
 ```
 ~$ cd rxmd
@@ -46,11 +46,11 @@ Makefile.inc  doc/          init/         rxmd.in       unittests/
 
 Here, two directories, **src/** and **init/**, are especially important for you. **src/** contains all rxmd source codes and **init/** has a program and input files to generate an initial configurations for simulation. 
 
-### 2.2 Configure Makefiles 
+### 2.2 Configure Makefiles
 
-There are two Makefile files **Makefile.inc** and **init/Makefile** that you might need to modify according to your computing environment, i.e. compiler, MPI library etc. 
+There are two Makefile files **Makefile.inc** and **init/Makefile** that you might need to modify according to your computing environment. 
 
-- **Makefile.inc** defines which compiler you like to use to build the **rxmd** executable. We have several predefined compiler settings in **Makefile.inc**. Please uncomment the macro **FC** you want to use. 
+- **Makefile.inc** defines which compiler you like to use to build the **rxmd** executable. We have several predefined compiler settings in **Makefile.inc**. Please enable the macro **FC** for the Fortran compiler and compiler flags you want to use. Also do not forget disable macros you don't want to use. 
 
 - **init/Makefile** is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
 
@@ -63,10 +63,8 @@ FC = mpif90 -O3
 ```
 - **init/Makefile**
 ```
-FC = mpif90
+FC = ifort
 ```
-
-
 
 Example 2) BlueGene/Q
 
@@ -82,19 +80,19 @@ FC = mpif90 -O3 -qhot
 FC = xlf
 ```
 
+### 2.3 Prepare Initial Geometry
 
-
-### 2.3 Compile
-
-Next step is to generate initial MD configuration, which is read from the **rxmd** executable. Type make like below. 
+Next step is to generate initial MD geometry. Type the make command shown below. 
 
 ```
 rxmd $ make -C init/
 ```
 
-It compiles the standalone application **geninit**, read a geometry file (init.xyz by default) in **init/** directory, replicate the geometry and save the entire initial MD geometry into **rxff.bin** file, and place **rxff.bin** file in **DAT/** directory. 
+This compiles the standalone application **geninit**, read a geometry file (init.xyz by default) in **init/** directory, replicate the geometry and save the entire initial MD geometry into **rxff.bin** file, and then place **rxff.bin** file in **DAT/** directory. 
 
-Next, type the command below to compile the **rxmd** executable.
+### 2.4 Build RXMD
+
+Type the command below to build the **rxmd** executable.
 
 ```
 rxmd $ make -C src/
