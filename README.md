@@ -17,8 +17,8 @@ IBM XL Fortran V14.1
 ### - MPI library: 
 ```
 OpenMPI 1.8.8
-MPICH 
-MVAPCHI 
+MPICH2
+MVAPICH2 
 Cray Mpich 7.6.0
 ```
 
@@ -29,7 +29,7 @@ To get started,  clone this repository to your computer.
 ~$ git clone https://github.com/USCCACS/rxmd.git
 ```
 
-## How to install
+## How to Compile
 
 Frist, change working directory to **rxmd/**
 ```
@@ -43,7 +43,27 @@ DAT/          conf/         ffield        regtests/     src/          util/
 Makefile.inc  doc/          init/         rxmd.in       unittests/
 ```
 
-Two directories (**src/** and **init/**) are important for you to get started here. **src/** to compile rxmd executable and **init/** to generate initial configuration for MD simulation. Type
+Among them, two directories, **src/** and **init/**, are especially important to get started here. **src/** contains all source codes and **init/** has program and input files to generate an initial configurations for MD simulation. 
+
+To build the **rxmd** executable, first we need to make sure what compiler we want to use. There are two files **Makefile.inc** and **init/Makefile** that you would need to modify according to your computing environment, i.e. compiler, MPI library etc. 
+
+- **Makefile.inc** is to specify what compiler you like to use to build the executable. We have several predefined compiler settings in the file. Please select and uncomment the macro **FC** you want to use. 
+
+Example) mpif90 with gfortran optimization flags. 
+```
+# gfortran
+FC = mpif90 -fopenmp -O3 -ffast-math
+```
+
+- **init/Makefile** defines how to build a standalone software to generate intial configuration. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
+
+Example)
+```
+# macros    
+FC = mpif90
+```
+
+Now we have the compiler setting done! Next step is to generate initial MD configuration and **rxmd** executable. From the working directory, type
 
 ```
 rxmd $ make -C init/
