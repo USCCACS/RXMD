@@ -55,6 +55,7 @@ There are two Makefile files **Makefile.inc** and **init/Makefile** that you mig
 - **init/Makefile** is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
 
 Example 1) Linux Computer with Intel Compiler
+
 Many HPC centers have Intel Fortran compiler and its MPI binding installed. If this is the case, enable following lines in **Makefile.inc** and **init/Makefile**.
 - **Makefile.inc** 
 ```
