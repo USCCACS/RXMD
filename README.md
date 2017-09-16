@@ -63,17 +63,18 @@ Example)
 FC = mpif90
 ```
 
-Now we have the compiler setting done! Next step is to generate initial MD configuration and **rxmd** executable. From the working directory, type
+Now we have the compiler setting done! Next step is to generate initial MD configuration and **rxmd** executable. From the working directory, type the command below to generate an initial configuration and place the input file **rxff.bin** in **DAT/** directory. 
 
 ```
 rxmd $ make -C init/
 ```
-to generate an initial configuration and place the input file **rxff.bin** in **DAT/** directory. Then type
+Then type the command below to compile the rxmd executable.
 
 ```
 rxmd $ make -C src/
 ```
-to compile the rxmd executable. Make sure you have **rxmd** and **DAT/rxff.bin**, then you are ready to run a simulation. 
+
+Make sure you have **rxmd** and **DAT/rxff.bin** in place, then you are ready to run a simulation.
 
 ```
 rxmd $ ls
