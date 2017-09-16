@@ -6,8 +6,10 @@
 .F90.o:
 	$(FC) -c $(CPP) $(OPT) $<
 
-# macros    
-FC = mpif90
+# Fortran Compiler 
+FC = gfortran
+#FC = xlf
+#FC = ifort
 
 OPT =
 CPP = 

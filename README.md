@@ -2,7 +2,7 @@
 
 **rxmd** has been developed to simulate large-scale Reactive Force Field molecular dynamics (MD) simulations on from commodity laptops to high-end supercomputing platforms. **rxmd** has been used in a various class of material studies, such as shock-induced chemical reactions, stress corrosion cracking, underwater bubble collapse, fracture of self-healing ceramics and oxidation of nanoparticles. 
 
-## Prerequisites
+## 0. Prerequisites
 
 **rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will need only a Fortran compiler that supports OpenMP and MPI (Message Passing Interface) library to compile the code and run it. Modern Fortran compilers natively support OpenMP, and you can find many freely distributed MPI libraries online. Please refer to MPI library developer site about how to install their library. 
 
@@ -22,15 +22,16 @@ MVAPICH2
 Cray Mpich 7.6.0
 ```
 
-## Getting Started
+## 1. Getting Started
 
 To get started,  clone this repository to your computer. 
 ```
 ~$ git clone https://github.com/USCCACS/rxmd.git
 ```
 
-## How to Compile
+## 2. How to build RXMD
 
+### 2.1 Directories
 Frist, change working directory to **rxmd/**
 ```
 ~$ cd rxmd
@@ -43,39 +44,63 @@ DAT/          conf/         ffield        regtests/     src/          util/
 Makefile.inc  doc/          init/         rxmd.in       unittests/
 ```
 
-Among them, two directories, **src/** and **init/**, are especially important to get started here. **src/** contains all source codes and **init/** has program and input files to generate an initial configurations for MD simulation. 
+Here, two directories, **src/** and **init/**, are especially important for you. **src/** contains all rxmd source codes and **init/** has a program and input files to generate an initial configurations for simulation. 
 
-To build the **rxmd** executable, first we need to make sure what compiler we want to use. There are two files **Makefile.inc** and **init/Makefile** that you would need to modify according to your computing environment, i.e. compiler, MPI library etc. 
+### 2.2 Configure Makefiles 
 
-- **Makefile.inc** is to specify what compiler you like to use to build the executable. We have several predefined compiler settings in the file. Please select and uncomment the macro **FC** you want to use. 
+There are two Makefile files **Makefile.inc** and **init/Makefile** that you might need to modify according to your computing environment, i.e. compiler, MPI library etc. 
 
-Example) mpif90 with gfortran optimization flags. 
+- **Makefile.inc** defines which compiler you like to use to build the **rxmd** executable. We have several predefined compiler settings in **Makefile.inc**. Please uncomment the macro **FC** you want to use. 
+
+- **init/Makefile** is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
+
+Example 1) Linux Computer with Intel Compiler
+Many HPC centers have Intel Fortran compiler and its MPI binding installed. If this is the case, enable following lines in **Makefile.inc** and **init/Makefile**.
+- **Makefile.inc** 
 ```
-# gfortran
-FC = mpif90 -fopenmp -O3 -ffast-math
+# Intel Compiler
+FC = mpif90 -O3
 ```
-
-- **init/Makefile** defines how to build a standalone software to generate intial configuration. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
-
-Example)
+- **init/Makefile**
 ```
-# macros    
 FC = mpif90
 ```
 
-Now we have the compiler setting done! Next step is to generate initial MD configuration and the **rxmd** executable. From the working directory type the make command below, which compiles the standalone application **geninit** to read a geometry file (init.xyz by default) in the directory, replicate it to cover the entire initial MD geometry (rxff.bin), and place it in **DAT/** directory. 
+
+
+Example 2) BlueGene/Q
+
+IBM provides Fortran XL Compiler and MPI library for BlueGene Series. Please enable following lines in **Makefile.inc** and **init/Makefile**.
+
+- **Makefile.inc** 
+```
+# xl fortran
+FC = mpif90 -O3 -qhot
+```
+- **init/Makefile**
+``` 
+FC = xlf
+```
+
+
+
+### 2.3 Compile
+
+Next step is to generate initial MD configuration, which is read from the **rxmd** executable. Type make like below. 
 
 ```
 rxmd $ make -C init/
 ```
 
-Then type the command below to compile the **rxmd** executable.
+It compiles the standalone application **geninit**, read a geometry file (init.xyz by default) in **init/** directory, replicate the geometry and save the entire initial MD geometry into **rxff.bin** file, and place **rxff.bin** file in **DAT/** directory. 
+
+Next, type the command below to compile the **rxmd** executable.
 
 ```
 rxmd $ make -C src/
 ```
 
-Make sure you have **rxmd** and **DAT/rxff.bin** in place, then you are ready to run a simulation.
+Check to see if you the **rxmd** executable and the initial geomerty input **DAT/rxff.bin** in place, then you are ready to start a simulation.
 
 ```
 rxmd $ ls
@@ -87,7 +112,7 @@ rxmd $ ls DAT/
 rxff.bin
 ```
 
-## How to run rxmd
+## 3. How to run
 
 Default input parameters are set to run a single process job. Type
 ```
@@ -148,12 +173,12 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 
 To learn more about **rxmd**, please refer to [RXMD Manual](https://github.com/USCCACS/rxmd/blob/master/doc/ReaxFF/RXMDManual.md).
 
-## License
+## 4. License
 
 This project is licensed under the GPU 3.0 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
 
-## Publications
+## 5. Publications
 * Mechanochemistry of shock-induced nanobubble collapse near silica in water
 K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Applied Physics Letters 101, 073108: 1-4  (2012)](http://aip.scitation.org/doi/10.1063/1.4746270)
