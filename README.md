@@ -63,12 +63,13 @@ Example)
 FC = mpif90
 ```
 
-Now we have the compiler setting done! Next step is to generate initial MD configuration and **rxmd** executable. From the working directory, type the command below to generate an initial configuration and place the input file **rxff.bin** in **DAT/** directory. 
+Now we have the compiler setting done! Next step is to generate initial MD configuration and the **rxmd** executable. From the working directory type the make command below, which compiles the standalone application **geninit** to read a geometry file (init.xyz by default) in the directory, replicate it to cover the entire initial MD geometry (rxff.bin), and place it in **DAT/** directory. 
 
 ```
 rxmd $ make -C init/
 ```
-Then type the command below to compile the rxmd executable.
+
+Then type the command below to compile the **rxmd** executable.
 
 ```
 rxmd $ make -C src/
@@ -87,6 +88,7 @@ rxff.bin
 ```
 
 ## How to run rxmd
+
 Default input parameters are set to run a single process job. Type
 ```
 rxmd $ ./rxmd
@@ -134,6 +136,13 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
         0 -9.82464E+01 -9.82464E+01  0.00000E+00 -1.369E+02  1.287E+00 -1.362E+00  5.208E-01 -1.398E-03  3.821E+01     0.00    0.00    0.00  41    0.36    0.23
        10 -9.82465E+01 -9.82467E+01  2.32025E-04 -1.369E+02  1.290E+00 -1.364E+00  5.214E-01 -1.397E-03  3.821E+01     0.08    0.00   -0.00  32    0.36    0.27
        20 -9.82466E+01 -9.82471E+01  4.80178E-04 -1.369E+02  1.287E+00 -1.366E+00  5.202E-01 -1.408E-03  3.821E+01     0.16    0.00   -0.00   4    0.36    0.25
+
+...
+
+
+       total (sec):       2.9980         2.9980
+----------------------------------------------
+    rxmd successfully finished
 
 ```
 
