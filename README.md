@@ -113,7 +113,14 @@ rxff.bin
 
 ## 3. How to run
 
-Default input parameters are set to run a single process job. Type
+Default input parameters are set to run a single process job. In **rxmd.in**, the parameter **vprocs** defines how many MPI ranks in x, y, and z directions. Make sure you have **1 1 1** here. 
+
+```
+rxmd $ grep vprocs rxmd.in 
+1 1 1                <vprocs>
+```
+
+To run single MPI rank job on a typical Linux computer, you can simply type
 ```
 rxmd $ ./rxmd
 ```
