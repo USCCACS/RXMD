@@ -635,7 +635,7 @@ subroutine ScaleTemperature(atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
-real(8) :: atype(NBUFFER), v(3,NBUFFER)
+real(8) :: atype(NBUFFER), v(NBUFFER,3)
 
 integer :: i,ity
 real(8) :: Ekinetic, ctmp

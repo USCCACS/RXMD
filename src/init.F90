@@ -304,7 +304,7 @@ use parameters; use atoms
 implicit none
 
 real(8) :: atype(NBUFFER)
-real(8) :: v(3,NBUFFER)
+real(8) :: v(NBUFFER,3)
 
 integer :: i, k, ity
 real(8) :: vv(2), vsqr, vsl, rndm(2)
