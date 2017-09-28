@@ -16,7 +16,7 @@ integer,allocatable :: itype0(:)
 real(8),allocatable :: itype1(:)
 
 character(256) :: inputFileName="input.xyz"
-character(256) :: ffieldFileName="../ffield"
+character(256) :: ffieldFileName="../ffield_lg"
 
 character(256) :: fnote
 

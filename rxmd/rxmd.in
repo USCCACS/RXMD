@@ -7,4 +7,3 @@
 1.0  2.0              <Lex_fqs> <Lex_k>
 .false. .false. .false. <isBinary> <isBondFile> <isPDB>
 1.d-6                <ftol> 
-.true.		     <isLG>

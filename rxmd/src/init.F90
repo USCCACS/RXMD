@@ -275,9 +275,13 @@ if(myid==0) then
    lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
    write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
-   write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
+   if (isLG) then 
+        write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
+                          trim(FFPath_lg), trim(DataDir), trim(ParmPath)
+      else
+        write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
                           trim(FFPath), trim(DataDir), trim(ParmPath)
-
+   endif
    print'(a30 $)','# of atoms per type:'
    do ity=1, nso
       if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
