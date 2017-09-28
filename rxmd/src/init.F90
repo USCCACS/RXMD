@@ -62,7 +62,6 @@ read(1,*) isQEq, NMAXQEq, QEq_tol, qstep
 read(1,*) Lex_fqs, Lex_k
 read(1,*) isBinary, isBondFile, isPDB
 read(1,*) ftol
-read(1,*) isLG
 close(1)
 
 !--- an error trap

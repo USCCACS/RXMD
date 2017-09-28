@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------------------
-SUBROUTINE GETPARAMS(ffFileName, ffFileHeader)
+SUBROUTINE GETPARAMS(ffFileName,ffFileName_lg, ffFileHeader)
 use parameters
 !-------------------------------------------------------------------------------------------
 !  This subroutine is designed solely to obtain the parameters used in the Ecalc.f90 
@@ -11,9 +11,11 @@ implicit none
 real(8),parameter :: pi=3.14159265358979d0
 
 character(*),intent(in) :: ffFileName  ! force field parm file
+character(*),intent(in) :: ffFileName_lg
 character(*),intent(inout) :: ffFileHeader ! 1st line of the FF file
 
 integer :: i,j,inxn   !counters for initialization
+integer :: stat, statlg
 integer :: i0,i1,i2,i3,i4,ih  !Counters: # corresp to #-atom depend 
 
 !--- Parameters that count number of entries in each field:
@@ -34,23 +36,17 @@ real(8) :: diag_C_lg
 real(8),allocatable :: vpar(:), bo131(:), bo132(:), bo133(:)
 real(8),allocatable :: rvdw1(:), eps(:), alf(:), vop(:)
 
-!--- read MD control parameters
-open(1, file="rxmd.in", status="old")
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) 
-read(1,*) isLG
-close(1)
 
 dnull = 0.d0
 !--- Start Getting Parameters
-open(4,file=trim(adjustl(ffFileName)),status="old")
+open(4,file=trim(adjustl(ffFileName)),status="old", iostat=stat)
+
+if (stat/=0) then 
+        open(4,file=trim(adjustl(ffFileName_lg)),status="old",iostat=statlg)
+        isLG=.true.
+        print *, "isLG true"
+endif 
+
 read(4,'(a100)') ffFileHeader
 
 read(4,*) npar  !num of parameters (independ of atom choice)

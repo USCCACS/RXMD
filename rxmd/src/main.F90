@@ -14,7 +14,7 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 if(myid==0)  print'(a30)', 'rxmd has started'
 
 !--- read ffield file
-CALL GETPARAMS(FFPath,FFDescript)
+CALL GETPARAMS(FFPath,FFPath_lg,FFDescript)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
