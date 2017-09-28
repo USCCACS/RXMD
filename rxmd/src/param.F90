@@ -44,7 +44,7 @@ open(4,file=trim(adjustl(ffFileName)),status="old", iostat=stat)
 if (stat/=0) then 
         open(4,file=trim(adjustl(ffFileName_lg)),status="old",iostat=statlg)
         isLG=.true.
-        print *, "isLG true"
+        !print *, "isLG true"
 endif 
 
 read(4,'(a100)') ffFileHeader
