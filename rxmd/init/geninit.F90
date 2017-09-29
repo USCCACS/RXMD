@@ -16,7 +16,7 @@ integer,allocatable :: itype0(:)
 real(8),allocatable :: itype1(:)
 
 character(256) :: inputFileName="input.xyz"
-character(256) :: ffieldFileName="../ffield_lg"
+character(256) :: ffieldFileName="../ffield"
 
 character(256) :: fnote
 
@@ -29,10 +29,17 @@ contains
 subroutine getAtomNames(fileName)
 implicit none
 !----------------------------------------------------------------
-integer :: i
+integer :: i, stat
+logical :: isLG
 character(256) :: fileName
 
-open(20,file=fileName)
+open(20,file=fileName, iostat=stat, action='read')
+if (stat/=0) then
+        print *, "LG forcefield identified"
+        open(20,file=trim(fileName)//"_lg",  action='read')
+        isLG=.true.
+endif 
+
 read(20,*)
 read(20,*) numParams
 do i=1, numParams
@@ -44,14 +51,24 @@ read(20,*)
 read(20,*)
 
 allocate( character(3) :: atomNames(numAtomNames) )
-do i=1, numAtomNames
-   read(20,*) atomNames(i)
-   read(20,*)
-   read(20,*)
-   read(20,*)
-   read(20,*)
-   print'(i3,a,a2 $)',i,'-',atomNames(i)
-enddo
+if (isLG) then 
+   do i=1, numAtomNames
+        read(20,*) atomNames(i)
+        read(20,*)
+        read(20,*)
+        read(20,*)
+        read(20,*)
+        print'(i3,a,a2 $)',i,'-',atomNames(i)
+   enddo
+else 
+   do i=1, numAtomNames
+        read(20,*) atomNames(i)
+        read(20,*)
+        read(20,*)
+        read(20,*)
+        print'(i3,a,a2 $)',i,'-',atomNames(i)
+   enddo
+endif 
 close(20)
 print*
 
