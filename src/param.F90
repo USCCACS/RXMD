@@ -240,9 +240,6 @@ do i=1, nvaty
    inxn3(i3,i2,i1) = i
 enddo
 
-inxn3(1,2,2)=0 !react.f, line 4933
-inxn3(2,2,1)=0 !react.f, line 4933
-
 !--- Valency Terms which do not depend on inxn type:
 pval6(1:nvaty) = vpar(15)
 pval8(1:nvaty) = vpar(34)
