@@ -1,7 +1,7 @@
 module params
 implicit none
 integer :: vprocs(3)=(/1,1,1/)
-integer :: mc(3)=(/1,1,1/)
+integer :: mc(3)=(/2,3,1/)
 
 integer :: nprocs, mctot
 integer,allocatable :: lnatoms(:), lnatoms1(:), lnatoms2(:)
@@ -20,7 +20,7 @@ character(256) :: ffieldFileName="../ffield"
 
 character(256) :: fnote
 
-character(len=:),allocatable :: atomNames(:)
+character(len=3),allocatable :: atomNames(:)
 integer :: numParams, numAtomNames
 
 contains

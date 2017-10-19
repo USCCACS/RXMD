@@ -98,6 +98,11 @@ do i1=1, nso  !collect info on each type of atom
    read(4,1250) povun2(i1), pval3(i1),dnull,Valval(i1),pval5(i1)
 enddo
 
+!--- update for Mo
+do i1=1,nso
+   if(mass(i1)<21.d0 .and. Valboc(i1)/=Valval(i1) ) Valboc(i1)=Valval(i1)
+enddo
+
 nlpopt(1:nso) = 0.5d0*(Vale(1:nso) - Val(1:nso))
 !--- duplicate values
 Valangle(1:nso) = Valboc(1:nso)

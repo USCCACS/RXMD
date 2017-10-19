@@ -258,8 +258,10 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
-   GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
+   !write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
+   !GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
+   write(6,'(i9,3es13.5,13es20.10,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
+   GPE(1:13), &
    tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
 
 #ifdef STRESS

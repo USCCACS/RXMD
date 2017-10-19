@@ -148,7 +148,7 @@ real(8) :: exppboc1i,exppboc2i,exppboc1j,exppboc2j   !<kn>
 !$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
-   deltap(i,2) = deltap(i,1) + Val(ity) - Valboc(ity)
+   deltap(i,2) = deltap(i,1) + Val(ity) - Valval(ity) ! update for Mo
 enddo
 !$omp end do
 
