@@ -6,8 +6,7 @@ EXE := rxmd
 
 # create rxff.bin and run
 run:
-	make -C $(ROOTDIR)/init 
-	cp -v $(ROOTDIR)/DAT/rxff.bin DAT/
+	make -C init 
 	$(ROOTDIR)/$(EXE) | grep nste -A 2  | tail -n 1 | awk '{print $$1,$$2,$$3,$$5,$$6,$$7,$$8,$$9,$$10}' > DAT/OldCode.log
 
 update_refs:
@@ -23,6 +22,7 @@ build:
 
 clean:
 	rm -vf $(EXE) DAT/* *.ref *.log rxmd_old
+	make -C init clean
 	make -C init_old clean
 	make -C LGsrc-relax clean
 
