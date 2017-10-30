@@ -132,21 +132,21 @@ character(64) :: argv
 do i=1, command_argument_count()
    call get_command_argument(i,argv)
    select case(adjustl(argv))
-     case("--help","-h")
-       if(myid==0) print'(a)', "-mc 1 1 1 -vprocs 1 1 1 -inputxyz input.xyz --ffield ffield"
+     case("-help","-h")
+       if(myid==0) print'(a)', "-mc 1 1 1 -vprocs 1 1 1 -inputxyz input.xyz -ffield ffield"
        stop
-     case("-mc")
+     case("-mc","-m")
        call get_command_argument(i+1,argv); read(argv,*) mc(1)
        call get_command_argument(i+2,argv); read(argv,*) mc(2)
        call get_command_argument(i+3,argv); read(argv,*) mc(3)
-     case("-vprocs")
+     case("-vprocs","-v")
        call get_command_argument(i+1,argv); read(argv,*) vprocs(1)
        call get_command_argument(i+2,argv); read(argv,*) vprocs(2)
        call get_command_argument(i+3,argv); read(argv,*) vprocs(3)
-     case("-inputxyz")
+     case("-inputxyz","-i")
        call get_command_argument(i+1,argv)
        inputFileName=adjustl(argv)
-     case("-ffield")
+     case("-ffield","-f")
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
      case default
