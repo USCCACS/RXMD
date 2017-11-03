@@ -1,7 +1,7 @@
 module params
 implicit none
 integer :: vprocs(3)=(/1,1,1/)
-integer :: mc(3)=(/2,3,1/)
+integer :: mc(3)=(/1,1,1/)
 
 integer :: nprocs, mctot
 integer,allocatable :: lnatoms(:), lnatoms1(:), lnatoms2(:)
@@ -23,7 +23,96 @@ character(256) :: fnote
 character(len=3),allocatable :: atomNames(:)
 integer :: numParams, numAtomNames
 
+logical :: getReal=.false., getNorm=.false.
+
 contains
+
+!----------------------------------------------------------------
+subroutine convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma,mc,natoms,ctype,pos,note)
+implicit none
+!----------------------------------------------------------------
+real(8),intent(in) :: L1,L2,L3,lalpha,lbeta,lgamma
+integer,intent(in) :: mc(3)
+integer,intent(in) :: natoms
+real(8),intent(inout) :: pos(3,natoms)
+character(3),intent(in) :: ctype(natoms)
+character(256),intent(in) :: note
+
+integer :: i,j,k,n
+real(8) :: hh(3,3), rr(3)
+character(8) :: outFile
+
+call getBox(L1,L2,L3,lalpha,lbeta,lgamma)
+
+write(6,'(a)') '------------------------------------------------------------'
+
+if(getReal) then
+  print'(a)','converting coordinates : normalized to real'
+  outFile="real.xyz"
+else if(getNorm) then
+  print'(a)','converting coordinates : real to normalized'
+  outFile="norm.xyz"
+else
+  print'(a)','no coordinate conversion detected '
+  return
+endif
+open(40,file=outFile,form="formatted")
+
+!--- write header part
+write(40,'(i12,3x,a)') natoms*mc(1)*mc(2)*mc(3),'"'//trim(adjustl(note))//'"'
+write(40,'(3f10.5, 3f10.3)') L1*mc(1),L2*mc(2),L3*mc(3),lalpha,lbeta,lgamma
+write(6,'(a)') "header after conversion :"
+write(6,'(i12,3x,a)') natoms*mc(1)*mc(2)*mc(3),'"'//trim(adjustl(note))//'"'
+write(6,'(3f10.5, 3f10.3)') L1*mc(1),L2*mc(2),L3*mc(3),lalpha,lbeta,lgamma
+
+write(6,'(a)') '------------------------------------------------------------'
+
+if(getReal) then !--- from normalized to real coordinates
+
+  call getBox(L1*mc(1),L2*mc(2),L3*mc(3),lalpha,lbeta,lgamma)
+  do i=0,mc(1)-1
+  do j=0,mc(2)-1
+  do k=0,mc(3)-1
+     do n=1,natoms
+
+        rr(1:3)=pos(1:3,n)+(/i,j,k/)
+        rr(1:3)=rr(1:3)/mc(1:3)
+
+        rr(1)=sum(h(1,1:3)*rr(1:3))
+        rr(2)=sum(h(2,1:3)*rr(1:3))
+        rr(3)=sum(h(3,1:3)*rr(1:3))
+
+        write(40,'(a3,1x,3f15.9)') ctype(n),rr(1:3)
+     enddo
+  enddo; enddo; enddo
+
+else if(getNorm) then !--- from real to normalized coordinates
+
+  do i=0,mc(1)-1
+  do j=0,mc(2)-1
+  do k=0,mc(3)-1
+     do n=1,natoms
+
+        rr(1)=sum(hi(1,1:3)*pos(1:3,n))
+        rr(2)=sum(hi(2,1:3)*pos(1:3,n))
+        rr(3)=sum(hi(3,1:3)*pos(1:3,n))
+
+        rr(1:3)=rr(1:3)+(/i,j,k/)
+        rr(1:3)=rr(1:3)/mc(1:3)
+
+        write(40,'(a3,1x,3f15.9)') ctype(n),rr(1:3)
+     enddo
+  enddo; enddo; enddo
+
+else
+endif
+
+close(40)
+print'(2a)','coordinates are saved in ',outFile
+
+stop
+
+end subroutine
 
 !----------------------------------------------------------------
 subroutine getAtomNames(fileName)
@@ -31,6 +120,10 @@ implicit none
 !----------------------------------------------------------------
 integer :: i
 character(256) :: fileName
+
+write(6,'(a)') '------------------------------------------------------------'
+
+write(6,'(2a)') 'reading atom name in ', trim(fileName)
 
 open(20,file=fileName)
 read(20,*)
@@ -51,12 +144,14 @@ do i=1, numAtomNames
    print'(i3,a,a2 $)',i,'-',atomNames(i)
 enddo
 close(20)
-print*
+
+write(6,*)
+write(6,'(a)') '------------------------------------------------------------'
 
 end subroutine
 
 !----------------------------------------------------------------
-subroutine getbox(la,lb,lc,angle1,angle2,angle3)
+subroutine getBox(la,lb,lc,angle1,angle2,angle3)
 !----------------------------------------------------------------
 implicit none
 real(8),intent(in) :: la,lb,lc, angle1,angle2,angle3
@@ -133,7 +228,7 @@ do i=1, command_argument_count()
    call get_command_argument(i,argv)
    select case(adjustl(argv))
      case("-help","-h")
-       if(myid==0) print'(a)', "-mc 1 1 1 -vprocs 1 1 1 -inputxyz input.xyz -ffield ffield"
+       print'(a)', "./geninit -mc 1 1 1 -vprocs 1 1 1 -inputxyz input.xyz -ffield ffield [-r or -n]"
        stop
      case("-mc","-m")
        call get_command_argument(i+1,argv); read(argv,*) mc(1)
@@ -149,6 +244,10 @@ do i=1, command_argument_count()
      case("-ffield","-f")
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
+     case("-getreal","-r")
+       getReal=.true.
+     case("-getnorm","-n")
+       getNorm=.true.
      case default
    end select
 enddo
@@ -158,23 +257,23 @@ nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 allocate(lnatoms(0:nprocs-1),lnatoms1(0:nprocs-1), lnatoms2(0:nprocs-1))
 
 open(1,file=inputFileName,form="formatted")
-write(6,'(a,2x,a)') ' input file: ', trim(inputFileName)
-write(6,'(a,2x,a)') ' ffield file: ', trim(ffieldFileName)
-write(6,'(a,i9,3i6)') ' nprocs,vprocs',nprocs, vprocs(1:3)
-write(6,'(a,i9,3i6)') ' mctot,mc',mctot, mc(1:3)
+write(6,'(a)') '------------------------------------------------------------'
+write(6,'(a20,a)') ' input file: ', trim(inputFileName)
+write(6,'(a20,a)') ' ffield file: ', trim(ffieldFileName)
+write(6,'(a20,i9,3i6)') ' nprocs,vprocs: ',nprocs, vprocs(1:3)
+write(6,'(a20,i9,3i6)') ' mctot,mc: ',mctot, mc(1:3)
+write(6,'(a)') '------------------------------------------------------------'
 
 call getAtomNames(ffieldFileName)
 
 !--- read # of atoms and file description
 read(1,*) natoms, fnote
-print'(i9,3x,a)',natoms, trim(fnote)
+print'(i9,3x,a)', natoms, trim(fnote)
 
 !--- read lattice parameters
 read(1,*) L1, L2, L3, Lalpha, Lbeta, Lgamma
-!print'(a,3x,6f12.3)','1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
-!           L1, L2, L3, Lalpha, Lbeta, Lgamma
-
-call getbox(L1,L2,L3,lalpha,lbeta,lgamma)
+print'(a,3x,6f12.3)','1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
+           L1, L2, L3, Lalpha, Lbeta, Lgamma
 
 !--- allocate arrays for atom position and type
 allocate(ctype0(natoms),pos0(3,natoms),itype0(natoms))
@@ -190,9 +289,12 @@ do i=1, natoms
          exit
       endif
    enddo
-
 enddo
 close(1)
+
+if(getNorm .or. getReal) & 
+  call convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma, &
+                                mc,natoms,ctype0,pos0,fnote)
 
 !--- repeat the unit cell
 ntot=0
@@ -201,10 +303,7 @@ do iy=0, mc(2)-1
 do iz=0, mc(3)-1
 do i=1, natoms
    ntot=ntot+1
-   !rr(1)=sum(Hi(1,1:3)*pos0(1:3,i))
-   !rr(2)=sum(Hi(2,1:3)*pos0(1:3,i))
-   !rr(3)=sum(Hi(3,1:3)*pos0(1:3,i))
-   rr(1:3)=pos0(1:3,i) !!! THIS IS FOR NORMALIZED COORD XYZ !!!
+   rr(1:3)=pos0(1:3,i) 
    rr(1)=(rr(1)+ix)/mc(1)
    rr(2)=(rr(2)+iy)/mc(2)
    rr(3)=(rr(3)+iz)/mc(3)
@@ -239,7 +338,7 @@ print'(a,3es15.5,3x,3es15.5)','rmin(1:3),rmax(1:3): ', rmin(1:3), rmax(1:3)
 !--- update natoms & H-matrix 
 natoms=natoms*mctot
 L1=L1*mc(1); L2=L2*mc(2); L3=L3*mc(3)
-call getbox(L1,L2,L3,lalpha,lbeta,lgamma)
+call getBox(L1,L2,L3,lalpha,lbeta,lgamma)
 
 !--- count how many atoms per MPI domain, get lnatoms()
 lnatoms(:)=0
