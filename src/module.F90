@@ -4,11 +4,13 @@ module base
 ! position, atom type, velocity, force & charge
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos, v, f
+real(8),allocatable,dimension(:,:) :: spos
 
 Interface
-   SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
+   SUBROUTINE INITSYSTEM(atype, pos, spos, v, f, q)
       real(8),allocatable,dimension(:) :: atype, q
       real(8),allocatable,dimension(:,:) :: pos,v,f
+      real(8),allocatable,dimension(:,:) :: spos
    end subroutine
 end Interface
 
@@ -16,11 +18,8 @@ end module
 !-------------------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------------------
-module atoms
+module cmdline_args
 !-------------------------------------------------------------------------------------------
-include 'mpif.h'
-
-!--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
@@ -28,6 +27,78 @@ character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 logical :: saveRunProfile=.false.
 character(MAXPATHLENGTH) :: RunProfilePath="profile.dat"
 integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
+
+!--- LG flag
+logical :: isLG=.false.
+
+contains 
+
+!-------------------------------------------------------------------------------------------
+subroutine get_cmdline_args()
+implicit none
+!-------------------------------------------------------------------------------------------
+
+integer :: i
+character(64) :: argv
+
+!--- read FF file, output dir, MD parameter file paths from command line
+do i=1, command_argument_count()
+   call get_command_argument(i,argv)
+   select case(adjustl(argv))
+     case("--help","-h")
+       print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
+       stop
+     case("--ffield", "-ff")
+       call get_command_argument(i+1,argv)
+       FFPath=adjustl(argv)
+     case("--outDir", "-o")
+       call get_command_argument(i+1,argv)
+       DataDir=adjustl(argv)
+     case("--rxmdin", "-in")
+       call get_command_argument(i+1,argv)
+       ParmPath=adjustl(argv)
+     case("--lg","-lg")
+       print'(a30)','Enabling LG term'
+       isLG=.true.
+     case("--profile")
+       saveRunProfile=.true.
+     case default
+   end select
+
+enddo
+
+end subroutine
+
+end module
+
+!-------------------------------------------------------------------------------------------
+module atoms
+use cmdline_args
+!-------------------------------------------------------------------------------------------
+include 'mpif.h'
+
+!! FIXME : PQEq parameters from Saber. Assuming 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
+!################################################################
+!#E P     Xo      Jo        Z        Rc      Rs          Ks
+!################################################################ 
+! C 1  5.50813  9.81186 1.000000  0.75900  0.75900    198.84054 
+! H 1  4.72484 15.57338 1.000000  0.37100  0.37100   2037.20061 
+! O 1  8.30811 14.66128 1.000000  0.66900  0.66900    414.04451 
+! N 1  7.78778 10.80315 1.000000  0.71500  0.71500    301.87609 
+! S 1  8.19185  8.64528 1.000000  1.04700  1.04700    114.50472 
+!Si 1  4.80466  6.45956 1.000000  1.17600  1.17600     60.04769 
+! F 1  8.70340 17.27715 1.000000  0.70600  0.70600    596.16463 
+! P 1  6.52204  7.13703 1.000000  1.10200  1.10200     91.47760 
+!Cl 1  8.20651  9.73890 1.000000  0.99400  0.99400    152.32280 
+
+! 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
+logical :: isPolarizable(7) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
+real(8) :: X0pqeq(7) = (/5.50813d0, 4.72484d0, 8.30811d0, 7.78778d0, 8.19185d0, 4.80466d0, 8.70340d0/)
+real(8) :: J0pqeq(7) = (/9.81186d0, 15.57338d0, 14.66128d0, 10.80315d0, 8.64528d0, 6.45956d0, 17.27715d0/)
+real(8) :: Zpqeq(7) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
+real(8) :: Rcpqeq(7) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
+real(8) :: Rspqeq(7) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
+real(8) :: Kspqeq(7) = (/198.84054d0, 2037.20061d0, 414.04451d0, 301.87609d0, 114.50472d0, 60.04769d0, 596.16463d0/)
 
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
@@ -96,11 +167,11 @@ real(8) :: cutoff_vpar30
 
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
 
 integer :: NBUFFER=10000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=700 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer,parameter :: MAXNEIGHBS10=1000 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff.
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
@@ -315,6 +386,8 @@ module parameters
 !    in cross-checking and updates).  However, please note that there are a few changes made
 !    aside from the obvious f77 -> f90 switch.  I have tried to clearly note these. 
 !-------------------------------------------------------------------------------------------
+use cmdline_args
+
 
 !Independant Parameters
 
@@ -364,7 +437,8 @@ real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waal
 real(8) :: pvdW1, pvdW1h, pvdW1inv
 
 !Taper function 
-real(8),parameter :: rctap0 = 10.d0 ![A]
+!real(8),parameter :: rctap0 = 10.d0 ![A]
+real(8),parameter :: rctap0 = 12.d0 ![A]   ! for PQEq
 real(8) :: rctap, rctap2, CTap(0:7)
 
 ! hydrogen bonding interaction cutoff
@@ -408,6 +482,11 @@ real(8)  :: vpar30,vpar1,vpar2
 
 !--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
 real(8),allocatable :: switch(:,:) 
+
+!--- LG params 
+real(8), allocatable :: C_lg(:,:), Re_lg(:)
+real(8), allocatable :: rcore2(:),ecore2(:),acore2(:)
+real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
 
 end module parameters 
 

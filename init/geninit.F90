@@ -25,6 +25,8 @@ integer :: numParams, numAtomNames
 
 logical :: getReal=.false., getNorm=.false.
 
+logical :: isLG
+
 contains
 
 !----------------------------------------------------------------
@@ -141,6 +143,7 @@ do i=1, numAtomNames
    read(20,*)
    read(20,*)
    read(20,*)
+   if(isLG) read(20,*)
    print'(i3,a,a2 $)',i,'-',atomNames(i)
 enddo
 close(20)
@@ -244,6 +247,8 @@ do i=1, command_argument_count()
      case("-ffield","-f")
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
+     case("-lg")
+       isLG = .true. 
      case("-getreal","-r")
        getReal=.true.
      case("-getnorm","-n")

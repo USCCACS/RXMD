@@ -1,5 +1,5 @@
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
+SUBROUTINE INITSYSTEM(atype, pos, spos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
@@ -8,13 +8,12 @@ implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos,v,f
+real(8),allocatable,dimension(:,:) :: spos
 
 integer :: i,j,k, ity, l(3), ist=0
 real(8) :: mm, gmm, dns, mat(3,3)
 integer(8) :: i8
 real(8) :: rcsize(3), maxrcell
-
-character(64) :: argv
 
 Interface
    subroutine ReadBIN(atype, pos, v, q, f, fileName)
@@ -30,27 +29,14 @@ Interface
    end subroutine
 end interface
 
-!--- read FF file, output dir, MD parameter file paths from command line
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-   select case(adjustl(argv))
-     case("--help","-h")
-       if(myid==0) print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
-       stop
-     case("--ffield", "-ff")
-       call get_command_argument(i+1,argv)
-       FFPath=adjustl(argv)
-     case("--outDir", "-o")
-       call get_command_argument(i+1,argv)
-       DataDir=adjustl(argv)
-     case("--rxmdin", "-in")
-       call get_command_argument(i+1,argv)
-       ParmPath=adjustl(argv)
-     case("--profile")
-       saveRunProfile=.true.
-     case default
-   end select
-
+!--- for PQEq
+do ity=1, 4
+  if( .not. isPolarizable(ity) ) then
+     if(myid==0) print'(a,i3,a)','atom type ', i, ' is not polarizable. Disabling Z & K'
+     Zpqeq(ity)=0.d0
+     Kspqeq(ity)=0.d0
+  else
+  endif
 enddo
 
 !--- summary file keeps potential energies, box parameters during MD simulation
@@ -138,6 +124,9 @@ call allocatord1d(q,1,NBUFFER)
 call allocatord2d(pos,1,NBUFFER,1,3)
 call allocatord2d(v,1,NBUFFER,1,3)
 call allocatord2d(f,1,NBUFFER,1,3)
+
+call allocatord2d(spos,1,NBUFFER,1,3)
+spos(:,:)=0.d0
 
 call allocatord1d(deltalp,1,NBUFFER)
 
@@ -435,6 +424,9 @@ real(8) :: exp1, exp2
 real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
 real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
 
+real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
+
+
 !--- first element in table 0: potential
 !---                        1: derivative of potential
 call allocatord3d(TBL_EClmb,0,1,1,NTABLE,1,nboty)
@@ -485,6 +477,9 @@ do jty=ity, nso
           TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)      
           TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
           TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*dr3gamij
+!--- PEQq calculation
+         !alphaij = sqrt( (Rcpqeq(ity)*Rcpqeq(jty)) / (Rcpqeq(ity)+Rcpqeq(jty)) )
+         !TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*erf(alphaij*dr1)/dr1
 
 !if(inxn==1.and.myid==0) print*,i,TBL_Evdw(i,inxn,0), TBL_Eclmb(i,inxn,0)
 
@@ -501,6 +496,23 @@ do jty=ity, nso
          TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
          TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 ) 
+
+         if(isLG) then
+            if (ity > 4 .or. jty > 4) cycle   
+
+            dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
+            dr6_lg = dr_lg**6
+
+            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
+            E_core=ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
+
+            dE_core=-acore(ity,jty)*E_core/rcore(ity,jty)/dr1
+            dElg=C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+
+            TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
+            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg &
+                                + dTap*E_core+Tap*dE_core
+         endif
 
       enddo
    endif

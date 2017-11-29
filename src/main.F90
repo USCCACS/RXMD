@@ -13,15 +13,18 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 
 if(myid==0)  print'(a30)', 'rxmd has started'
 
+!--- process command line arguments
+call get_cmdline_args()
+
 !--- read ffield file
 CALL GETPARAMS(FFPath,FFDescript)
 
 !--- initialize the MD system
-CALL INITSYSTEM(atype, pos, v, f, q)
+CALL INITSYSTEM(atype, pos, spos, v, f, q)
 
 if(mdmode==10) call ConjugateGradient(atype,pos)
 
-call QEq(atype, pos, q)
+call QEq(atype, pos, spos, q)
 call FORCE(atype, pos, f, q)
 
 !--- Enter Main MD loop 
@@ -63,7 +66,7 @@ do nstep=0, ntime_step-1
 !--- migrate atoms after positions are updated
    call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
    
-   if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
+   if(mod(nstep,qstep)==0) call QEq(atype, pos, spos, q)
    call FORCE(atype, pos, f, q)
 
 !--- update velocity

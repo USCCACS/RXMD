@@ -33,6 +33,9 @@ real(8) :: dnull
 real(8),allocatable :: vpar(:), bo131(:), bo132(:), bo133(:)
 real(8),allocatable :: rvdw1(:), eps(:), alf(:), vop(:)
 
+!--- for LG extension
+real(8) :: offdiag_C_lg
+
 dnull = 0.d0
 !--- Start Getting Parameters
 open(4,file=trim(adjustl(ffFileName)),status="old")
@@ -77,6 +80,13 @@ allocate(vop(nso), gamW(nso,nso))
 
 !--- Coulomb & Charge equilibration:
 allocate(chi(nso), eta(nso), gam(nso), gamij(nso,nso))
+
+!--- LG term
+if(isLG) then
+   allocate(C_lg(nso, nso), Re_lg(nso))
+   allocate(rcore2(nso),ecore2(nso),acore2(nso))
+   allocate(rcore(nso,nso),ecore(nso,nso),acore(nso,nso))
+endif
  
 !--- Parameters that still don't depend on atom type yet
 plp1(1:nso) = vpar(16)
@@ -95,7 +105,15 @@ do i1=1, nso  !collect info on each type of atom
    read(4,1200) atmname(i1),rat(i1),Val(i1),mass(i1),rvdw1(i1),eps(i1),gam(i1),rapt(i1),Vale(i1)
    read(4,1250) alf(i1),vop(i1),Valboc(i1),povun5(i1),dnull,chi(i1),eta(i1),dnull
    read(4,1250) vnq(i1),plp2(i1),dnull,bo131(i1),bo132(i1),bo133(i1),dnull,dnull   
-   read(4,1250) povun2(i1), pval3(i1),dnull,Valval(i1),pval5(i1)
+
+   if (isLG) then 
+      read(4,1250) povun2(i1),pval3(i1),dnull,Valval(i1),pval5(i1),rcore2(i1),ecore2(i1),acore2(i1)
+      read(4,1250) C_lg(i1, i1), Re_lg(i1)
+      print'(a,2i6,2f15.5)','C_lg(i1, i1), Re_lg(i1)', i1,i1, C_lg(i1, i1), Re_lg(i1)
+   else
+      read(4,1250) povun2(i1), pval3(i1),dnull,Valval(i1),pval5(i1)
+   endif
+
 enddo
 
 !--- update for Mo
@@ -121,6 +139,12 @@ do i1=1,nso
       alpij(i1,i2) = sqrt( alf(i1)*alf(i2) )
       gamW(i1,i2) = sqrt( vop(i1)*vop(i2) )  
       gamij(i1,i2) = ( gam(i1)*gam(i2) )**(-1.5d0) !<- gamcco in reac.f
+
+!--- for LG
+      rcore(i1,i2) = sqrt( rcore2(i1)*rcore2(i2) )
+      ecore(i1,i2) = sqrt( ecore2(i1)*ecore2(i2) )
+      acore(i1,i2) = sqrt( acore2(i1)*acore2(i2) )
+
    enddo
 enddo  
 
@@ -170,7 +194,16 @@ enddo
 !--- Changes to off-diagonal terms:
 read(4,1100) nodmty  !# of off-diag terms 
 do i2=1, nodmty
-   read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2
+
+   if (isLG) then 
+     read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2, offdiag_C_lg
+     C_lg(nodm1, nodm2)=offdiag_C_lg
+     C_lg(nodm2, nodm1)=offdiag_C_lg
+     print'(a,2i6,2f15.5)','C_lg(nodm1, nodm2) ', nodm1, nodm2, C_lg(nodm1, nodm2) 
+   else 
+     read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2
+   endif
+
    if(rsig.GT.0.d0) r0s(nodm1,nodm2)=rsig
    if(rsig.GT.0.d0) r0s(nodm2,nodm1)=rsig 
    if(rpi.GT.0.d0)  r0p(nodm1,nodm2)=rpi
