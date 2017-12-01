@@ -1,14 +1,13 @@
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITSYSTEM(atype, pos, spos, v, f, q)
+SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use parameters; use atoms; use MemoryAllocator
+use parameters; use atoms; use MemoryAllocator 
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos,v,f
-real(8),allocatable,dimension(:,:) :: spos
 
 integer :: i,j,k, ity, l(3), ist=0
 real(8) :: mm, gmm, dns, mat(3,3)
@@ -29,15 +28,15 @@ Interface
    end subroutine
 end interface
 
-!--- for PQEq
-do ity=1, 4
-  if( .not. isPolarizable(ity) ) then
-     if(myid==0) print'(a,i3,a)','atom type ', i, ' is not polarizable. Disabling Z & K'
-     Zpqeq(ity)=0.d0
-     Kspqeq(ity)=0.d0
-  else
-  endif
-enddo
+!--- for PQEq. cutoff length
+rctap = rctap0
+rctap2 = rctap**2
+
+CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
+          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
+          20.d0/(rctap)**7 /)
+
+call initialize_pqeq()
 
 !--- summary file keeps potential energies, box parameters during MD simulation
 !--- intended to be used for validation of code change. 
@@ -125,6 +124,7 @@ call allocatord2d(pos,1,NBUFFER,1,3)
 call allocatord2d(v,1,NBUFFER,1,3)
 call allocatord2d(f,1,NBUFFER,1,3)
 
+!--- For PQEq
 call allocatord2d(spos,1,NBUFFER,1,3)
 spos(:,:)=0.d0
 
@@ -422,9 +422,12 @@ real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
 
 real(8) :: exp1, exp2
 real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
-real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
+real(8) :: Tap, dTap, fn13, dfn13, rij_vd1
 
 real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
+
+real(8) :: clmb,dclmb,erf_alphaijr,derf_alphaijr
+real(8) :: alpha_i, alpha_j
 
 
 !--- first element in table 0: potential
@@ -463,25 +466,15 @@ do jty=ity, nso
          rij_vd1 = dr2**pvdW1h
          Tap = CTap(7)*dr7 + CTap(6)*dr6 + &
                CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+
          fn13 = (rij_vd1 + gamwinvp)**pvdW1inv
          exp1 = exp( alphaij*(1.d0 - fn13 / rvdW0) )
          exp2 = sqrt(exp1)
 
-         dr3gamij = ( dr3 + gamij(ity,jty) )**( -1.d0/3.d0 )
+         TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)      
 
-!!--- Energy Calculation:
-!      PEvd = Tap*Dij0*(exp1 - 2d0*exp2)      
-!      PEclmb = Tap*Cclmb*q(i)*q(j)*dr3gamij
-!if(myid==0) print*,i, Tap*Dij0*(exp1 - 2d0*exp2), Tap*Cclmb*dr3gamij
-
-          TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)      
-          TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
-          TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*dr3gamij
-!--- PEQq calculation
-         !alphaij = sqrt( (Rcpqeq(ity)*Rcpqeq(jty)) / (Rcpqeq(ity)+Rcpqeq(jty)) )
-         !TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*erf(alphaij*dr1)/dr1
-
-!if(inxn==1.and.myid==0) print*,i,TBL_Evdw(i,inxn,0), TBL_Eclmb(i,inxn,0)
+!FIXME for now the potential table is not used for the coulomb energy.
+         !TBL_Eclmb_QEq(i,inxn) = Cclmb0_qeq*Tap*erf_alphaijr/dr1
 
 !--- Force Calculation:
          dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
@@ -489,29 +482,30 @@ do jty=ity, nso
 
          dfn13 = ((rij_vd1 + gamwinvp)**(pvdW1inv-1.d0)) * (dr2**(pvdW1h-1.d0)) 
 
-!      CEvdw = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
-!           - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-!      CEclmb = Cclmb*q(i)*q(j)*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr(0) ) 
-
          TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 ) 
+
+!FIXME for now table is not used for the coulomb energy calculation.
+         !TBL_Eclmb(1,i,inxn) = dTap
 
          if(isLG) then
+
+!FIXME LG extension supports only C,H,O,N at this moment. We should use element name instead of fixed numbers.  
             if (ity > 4 .or. jty > 4) cycle   
 
             dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
             dr6_lg = dr_lg**6
 
-            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
-            E_core=ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
 
-            dE_core=-acore(ity,jty)*E_core/rcore(ity,jty)/dr1
-            dElg=C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
+            E_core = ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
+
+            dElg = C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+            dE_core = -acore(ity,jty)*E_core/rcore(ity,jty)/dr1
 
             TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
-            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg &
-                                + dTap*E_core+Tap*dE_core
+            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg + dTap*E_core+Tap*dE_core
+
          endif
 
       enddo

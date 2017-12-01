@@ -667,7 +667,10 @@ real(8) :: drtb, drtb1
 
 integer :: ti,tj,tk
 
-real(8) :: PE11,PE12,PE13
+real(8) :: qic,qjc,Ecc,Esc,Ecs,Ess
+real(8) :: fcc(3),fsc(3),fcs(3),fss(3)
+real(8) :: drcc(3),drsc(3),drcs(3),drss(3)
+real(8) :: ffi(3),ffj(3),Eshell
 
 !$omp master
 call system_clock(ti,tk)
@@ -679,9 +682,17 @@ do i=1, NATOMS
    ity = itype(i) 
    iid = gtype(i)
    
-   PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
+   Eshell = 0.d0
+   if(isPolarizable(ity)) then
+      dr2 = sum( spos(i,1:3)*spos(i,1:3) )
+      Eshell = 0.5d0*Kspqeq(ity)*dr2
+   endif
 
-    do j1 = 1, nbplist(i,0) 
+   PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2) + Eshell
+
+   qic = q(i) + Zpqeq(ity)
+
+   do j1 = 1, nbplist(i,0) 
          j = nbplist(i,j1)
 
          jid = gtype(j)
@@ -696,10 +707,8 @@ do i=1, NATOMS
                jty = itype(j)
 
                inxn = inxn2(ity, jty)
-!                  dr(0) = sqrt(dr2)
 
 !--- get table index and residual value
-!                  itb = int(dr(0)*UDRi)
                itb = int(dr2*UDRi)
                itb1 = itb+1
                drtb = dr2 - itb*UDR
@@ -709,17 +718,38 @@ do i=1, NATOMS
 !--- van del Waals:
                PEvdw  = drtb1*TBL_Evdw(0,itb,inxn)  + drtb*TBL_Evdw(0,itb1,inxn)
                CEvdw  = drtb1*TBL_Evdw(1,itb,inxn)  + drtb*TBL_Evdw(1,itb1,inxn)
+
 !--- Coulomb:
-               qij = q(i)*q(j)
-               PEclmb = drtb1*TBL_Eclmb(0,itb,inxn) + drtb*TBL_Eclmb(0,itb1,inxn)
-               PEclmb = PEclmb*qij
-               CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
-               CEclmb = CEclmb*qij
+               qjc = q(j) + Zpqeq(jty)
+               qij = qic*qjc
+
+               drcc(1:3) = dr(1:3) ! rc(i) - rc(j)
+               call get_coulomb_and_dcoulomb_pqeq(drcc, alphacc(ity,jty), Ecc, fcc)
+
+               Esc=0.d0; Ecs=0.d0; Ess=0.d0
+               fsc(:)=0.d0; fcs(:)=0.d0; fss(:)=0.d0; 
+
+               if( isPolarizable(ity) ) then
+                   drsc(1:3) = dr(1:3) + spos(i,1:3) ! (rc(i) + rs(i)) - rc(j)
+                   call get_coulomb_and_dcoulomb_pqeq(drsc, alphasc(ity,jty), Esc, fsc)
+               endif
+
+               if(isPolarizable(jty)) then
+                   drcs(1:3) = dr(1:3) - spos(j,1:3) ! rc(i) - (rc(j) + rs(j))
+                   call get_coulomb_and_dcoulomb_pqeq(drcs, alphasc(jty,ity), Ecs, fcs)
+               endif
+
+               if( isPolarizable(ity) .and. isPolarizable(jty) ) then
+                   drss(1:3) = dr(1:3) + spos(i,1:3) - spos(j,1:3) ! (rc(i) + rs(i)) - (rc(j) + rs(j))
+                   call get_coulomb_and_dcoulomb_pqeq(drss, alphass(ity,jty), Ess, fss)
+               endif
+
+               PEclmb = Ecc*qij - Esc*Zpqeq(ity)*qjc - Ecs*qic*Zpqeq(jty) + Ess*Zpqeq(ity)*Zpqeq(jty)
 
                PE(11) = PE(11) + PEvdw
                PE(12) = PE(12) + PEclmb
 
-               ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
+               ff(1:3) = CEvdw*dr(1:3) + fcc(1:3) + fsc(1:3) + fcs(1:3) + fss(1:3)
     
 !$omp atomic
                f(i,1) = f(i,1) - ff(1)

@@ -1,5 +1,5 @@
 !------------------------------------------------------------------------------
-subroutine QEq(atype, pos, spos, q)
+subroutine PQEq(atype, pos, q)
 use atoms; use parameters
 ! Two vector electronegativity equilization routine
 !
@@ -12,8 +12,9 @@ use atoms; use parameters
 !-------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3), spos(NBUFFER,3)
+real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3)
 real(8),intent(out) :: q(NBUFFER)
+
 real(8) :: fpqeq(NBUFFER)
 real(8) :: vdummy(1,1), fdummy(1,1)
 
@@ -164,6 +165,9 @@ do nstep_qeq=0, nmax-1
 
 enddo
 
+!--- for PQEq
+call update_shell_positions()
+
 call system_clock(j1,k1)
 it_timer(1)=it_timer(1)+(j1-i1)
 
@@ -179,24 +183,57 @@ return
 CONTAINS
 
 !-----------------------------------------------------------------------------------------------------------------------
-real(8) function coulomb(dr1,dr2,inxn)
+subroutine update_shell_positions()
 implicit none
 !-----------------------------------------------------------------------------------------------------------------------
-real(8),intent(in) :: dr1(3),dr2(3)
-integer,intent(in) :: inxn
-integer :: itb
-real(8) :: drtb,dr(3),drr
+integer :: i,ity,j,jty,j1,inxn
+real(8) :: shelli(3),shellj(3), qjc, clmb, dclmb, dr2
+real(8) :: sforce(NATOMS,3), sf(3)
 
-dr(1:3) = dr1(1:3) - dr2(1:3)
+do i=1, NATOMS
 
-drr = sum(dr(1:3)*dr(1:3))
-itb = int(drr*UDRi)
-drtb = drr - itb*UDR
-drtb = drtb*UDRi
+   sforce(i,1:3)=0.d0
+   ity = nint(atype(i))
 
-coulomb =  (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
+   ! if i-atom is not polarizable, no force acting on i-shell. 
+   if( isPolarizable(ity) ) cycle 
 
-end function
+   sforce(i,1:3) = sforce(i,1:3) - Kspqeq(ity)*spos(i,1:3) ! Eq. (37)
+
+   shelli(1:3) = pos(i,1:3) + spos(i,1:3)
+
+   do j1 = 1, nbplist(i,0)
+
+      j = nbplist(i,j1)
+      jty = nint(atype(j))
+
+      inxn = inxn2(ity, jty)
+
+      qjc = q(j) + Zpqeq(jty)
+      shellj(1:3) = pos(j,1:3) + spos(j,1:3)
+
+      ! j-atom can be either polarizable or non-polarizable. In either case,
+      ! there will be force on i-shell from j-core.  qjc takes care of the difference.  Eq. (38)
+      !call get_coulomb_and_dcoulomb(shelli(1:3)-pos(j,1:3),inxn,sf)
+      sforce(i,1:3)=sforce(i,1:3)-sf(1:3)*qjc*Zpqeq(ity)
+
+      ! if j-atom is polarizable, there will be force on i-shell from j-shell. Eq. (38)
+      if( isPolarizable(jty) ) then 
+         !call get_coulomb_and_dcoulomb(shelli(1:3)-shellj(1:3),inxn,sf)
+         sforce(i,1:3)=sforce(i,1:3)-sf(1:3)*Zpqeq(ity)*Zpqeq(jty)
+      endif
+
+   enddo
+
+enddo
+
+!--- update shell positions after finishing the shell-force calculation.  Eq. (39)
+do i=1, NATOMS
+   ity = nint(atype(i))
+   if( isPolarizable(ity) ) spos(i,1:3) = spos(i,1:3) + sforce(i,1:3)/Kspqeq(ity)
+enddo
+
+end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
@@ -209,14 +246,12 @@ integer :: i,j, ity, jty, n, m, mn, nn
 integer :: c1,c2,c3, c4,c5,c6
 real(4) :: dr2
 real(8) :: dr(3), drtb
-real(8) :: alphaij
-real(8) :: pqeqc, pqeqs
+real(8) :: alphaij, pqeqc, pqeqs, ff(3)
 integer :: itb, inxn
 
 integer :: ti,tj,tk
 
 call system_clock(ti,tk)
-
 
 nbplist(:,0) = 0
 
@@ -249,7 +284,7 @@ do c3=0, nbcc(3)-1
 
                jty = nint(atype(j))
 
-!--- make a neighbor list with cutoff length = 10[A]
+!--- make neighbor-list upto the taper function cutoff
 !$omp atomic
                nbplist(i,0) = nbplist(i,0) + 1
                nbplist(i,nbplist(i,0)) = j
@@ -261,26 +296,20 @@ do c3=0, nbcc(3)-1
 
                inxn = inxn2(ity, jty)
 
-!--- PEQq : contribution from core_i to core_j
-               pqeqc = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn) 
+!--- PEQq : 
+!print'(a,4i6,i9,3es15.5)','i,j,ity,jty,itb,pqeqc',i,j,ity,jty,itb,sqrt(dr2),pqeqc,fpqeq(i)
+               ! contribution from core(i)-core(j)
+               call get_coulomb_and_dcoulomb_pqeq(dr,alphacc(ity,jty),pqeqc,ff)
 
-               !hessian(nbplist(i,0),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
-               hessian(nbplist(i,0),i) = pqeqc  ! J-term will be added later
+               hessian(nbplist(i,0),i) = pqeqc
 
-!!--- PEQq : contribution from shell_j to core_i
-!               dr(1:3) = dr(1:3) - spos(j,1:3) ! pos(i,1:3) - (pos(j,1:3)+spos(j,1:3))  
-!               dr2 =  sum(dr(1:3)*dr(1:3))
-!
-!!--- get table index and residual value
-!               itb = int(dr2*UDRi)
-!               drtb = dr2 - itb*UDR
-!               drtb = drtb*UDRi
-!
-!               pqeqs =  (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn) 
+               ! contribution from C(r_icjc) and C(r_icjs) if j-atom is polarizable
+               if( isPolarizable(jty) ) then ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
+                  call get_coulomb_and_dcoulomb_pqeq(dr-spos(j,1:3),alphasc(jty,ity),pqeqs,ff)
 
-               pqeqs = coulomb(dr(1:3),spos(j,1:3), inxn) ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
+                  fpqeq(i) = fpqeq(i) + (pqeqc - pqeqs) * Zpqeq(jty) ! Eq. 30
+               endif
 
-               fpqeq(i) = fpqeq(i) + (pqeqc - pqeqs) * Zpqeq(jty) ! Eq. 30
 
             endif
          endif
@@ -316,7 +345,7 @@ real(8),intent(OUT) :: Est
 integer :: i,j,j1, ity, jty, inxn
 real(8) :: eta_ity, Est1, dr2
 
-real(8) :: Ccicj,Ccisj,Csicj,Csisj,shelli(3),shellj(3),qic,qjc
+real(8) :: Ccicj,Ccisj,Csicj,Csisj,shelli(3),shellj(3),qic,qjc,ff(3)
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
@@ -346,11 +375,10 @@ do i=1, NATOMS
       qjc = q(j) + Zpqeq(jty)
       shellj(1:3) = pos(j,1:3) + spos(j,1:3)
 
-      inxn = inxn2(ity, jty)
       Ccicj = hessian(j1,i)
-      Ccisj = coulomb(pos(i,1:3), shellj(1:3), inxn)
-      Csicj = coulomb(shelli(1:3), pos(j,1:3), inxn)
-      Csisj = coulomb(shelli(1:3), shellj(1:3), inxn)
+      call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Csicj,ff)
+      call get_coulomb_and_dcoulomb_pqeq(pos(i,1:3)-shellj(1:3),alphasc(jty,ity),Ccisj,ff)
+      call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Csisj,ff)
 
       hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
       hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
@@ -414,4 +442,4 @@ it_timer(19)=it_timer(19)+(tj-ti)
 
 end subroutine
 
-end subroutine QEq
+end subroutine PQEq

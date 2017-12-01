@@ -108,8 +108,7 @@ do i1=1, nso  !collect info on each type of atom
 
    if (isLG) then 
       read(4,1250) povun2(i1),pval3(i1),dnull,Valval(i1),pval5(i1),rcore2(i1),ecore2(i1),acore2(i1)
-      read(4,1250) C_lg(i1, i1), Re_lg(i1)
-      print'(a,2i6,2f15.5)','C_lg(i1, i1), Re_lg(i1)', i1,i1, C_lg(i1, i1), Re_lg(i1)
+      read(4,1250) C_lg(i1,i1), Re_lg(i1)
    else
       read(4,1250) povun2(i1), pval3(i1),dnull,Valval(i1),pval5(i1)
    endif
@@ -199,7 +198,6 @@ do i2=1, nodmty
      read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2, offdiag_C_lg
      C_lg(nodm1, nodm2)=offdiag_C_lg
      C_lg(nodm2, nodm1)=offdiag_C_lg
-     print'(a,2i6,2f15.5)','C_lg(nodm1, nodm2) ', nodm1, nodm2, C_lg(nodm1, nodm2) 
    else 
      read(4,1400) nodm1,nodm2,deodmh,rodmh,godmh,rsig,rpi,rpi2
    endif
@@ -361,12 +359,5 @@ Cclmb = Cclmb0  !Eclmb
 !--- Definition of the stiffness parameter <eta> is different from 
 !--- the original code and our code. It's need to be multiplied by 2.
 eta(:) = eta(:)*2.d0
-
-rctap = rctap0
-rctap2 = rctap**2
-
-CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
-          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
-          20.d0/(rctap)**7 /)
 
 END SUBROUTINE

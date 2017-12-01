@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------------------
 subroutine COPYATOMS(imode, dr, atype, rreal, v, f, q)
-use atoms
+use atoms; use pqeq_vars
 !
 ! TODO: update notes here
 !
@@ -110,6 +110,8 @@ if(imode==MODE_MOVE) then
         qt(ni) = qt(i)
         qsfp(ni) = qsfp(i)
         qsfv(ni) = qsfv(i)
+!--- For PQEq
+        spos(ni,1:3) = spos(i,1:3)
       endif
    enddo 
 
@@ -254,6 +256,7 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+10) = qt(n)
            sbuffer(ns+11) = qsfp(n)
            sbuffer(ns+12) = qsfv(n)
+           sbuffer(ns+13:ns+15) = spos(n,1:3)
   
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
            atype(n) = -1.d0 
@@ -268,6 +271,7 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+8) = qt(n)
            sbuffer(ns+9) = hs(n)
            sbuffer(ns+10) = ht(n)
+           sbuffer(ns+11:ns+13) = spos(n,1:3)
 
         case(MODE_QCOPY1)
            sbuffer(ns+1) = qs(n)
@@ -367,6 +371,7 @@ if(imode /= MODE_CPBK) then
               qt(m) = rbuffer(ine+10)
               qsfp(m) = rbuffer(ine+11)
               qsfv(m) = rbuffer(ine+12)
+              spos(m,1:3) = rbuffer(ine+13:ine+15)
       
          case(MODE_COPY)
               pos(m,1:3) = rbuffer(ine+1:ine+3)
@@ -377,6 +382,7 @@ if(imode /= MODE_CPBK) then
               qt(m) = rbuffer(ine+8)
               hs(m) = rbuffer(ine+9)
               ht(m) = rbuffer(ine+10)
+              spos(m,1:3) = rbuffer(ine+11:ine+13)
       
            case(MODE_QCOPY1)
               qs(m) = rbuffer(ine+1)
