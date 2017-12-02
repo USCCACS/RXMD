@@ -188,7 +188,7 @@ implicit none
 !-----------------------------------------------------------------------------------------------------------------------
 integer :: i,ity,j,jty,j1,inxn
 real(8) :: shelli(3),shellj(3), qjc, clmb, dclmb, dr2
-real(8) :: sforce(NATOMS,3), sf(3)
+real(8) :: sforce(NATOMS,3), sf(3), Esc, Ess
 
 do i=1, NATOMS
 
@@ -196,7 +196,7 @@ do i=1, NATOMS
    ity = nint(atype(i))
 
    ! if i-atom is not polarizable, no force acting on i-shell. 
-   if( isPolarizable(ity) ) cycle 
+   if( .not. isPolarizable(ity) ) cycle 
 
    sforce(i,1:3) = sforce(i,1:3) - Kspqeq(ity)*spos(i,1:3) ! Eq. (37)
 
@@ -214,12 +214,12 @@ do i=1, NATOMS
 
       ! j-atom can be either polarizable or non-polarizable. In either case,
       ! there will be force on i-shell from j-core.  qjc takes care of the difference.  Eq. (38)
-      !call get_coulomb_and_dcoulomb(shelli(1:3)-pos(j,1:3),inxn,sf)
+      call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Esc,sf)
       sforce(i,1:3)=sforce(i,1:3)-sf(1:3)*qjc*Zpqeq(ity)
 
       ! if j-atom is polarizable, there will be force on i-shell from j-shell. Eq. (38)
       if( isPolarizable(jty) ) then 
-         !call get_coulomb_and_dcoulomb(shelli(1:3)-shellj(1:3),inxn,sf)
+         call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Ess,sf)
          sforce(i,1:3)=sforce(i,1:3)-sf(1:3)*Zpqeq(ity)*Zpqeq(jty)
       endif
 
