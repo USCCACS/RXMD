@@ -697,12 +697,12 @@ do i=1, NATOMS
 
          jid = gtype(j)
 
-         if(jid<iid) then
+         if(iid<jid) then
 
             dr(1:3) = pos(i,1:3) - pos(j,1:3)
             dr2 = sum(dr(1:3)*dr(1:3))
 
-            if(dr2<=rctap2) then
+            !if(dr2<=rctap2) then
 
                jty = itype(j)
 
@@ -723,33 +723,42 @@ do i=1, NATOMS
                qjc = q(j) + Zpqeq(jty)
                qij = qic*qjc
 
+               Ecc=0.d0; Esc=0.d0; Ecs=0.d0; Ess=0.d0
+               fcc(:)=0.d0; fsc(:)=0.d0; fcs(:)=0.d0; fss(:)=0.d0; 
+               drcc(:)=0.d0; drsc(:)=0.d0; drcs(:)=0.d0; drss(:)=0.d0
+
                drcc(1:3) = dr(1:3) ! rc(i) - rc(j)
                call get_coulomb_and_dcoulomb_pqeq(drcc, alphacc(ity,jty), Ecc, fcc)
-
-               Esc=0.d0; Ecs=0.d0; Ess=0.d0
-               fsc(:)=0.d0; fcs(:)=0.d0; fss(:)=0.d0; 
+               fcc(1:3)=Cclmb0*qij*fcc(1:3)
+               Ecc=Cclmb0*Ecc*qij
 
                if( isPolarizable(ity) ) then
                    drsc(1:3) = dr(1:3) + spos(i,1:3) ! (rc(i) + rs(i)) - rc(j)
                    call get_coulomb_and_dcoulomb_pqeq(drsc, alphasc(ity,jty), Esc, fsc)
+                   fsc(1:3)=-Cclmb0*Zpqeq(ity)*qjc*fsc(1:3)
+                   Esc=-Cclmb0*Esc*Zpqeq(ity)*qjc
                endif
 
                if(isPolarizable(jty)) then
                    drcs(1:3) = dr(1:3) - spos(j,1:3) ! rc(i) - (rc(j) + rs(j))
                    call get_coulomb_and_dcoulomb_pqeq(drcs, alphasc(jty,ity), Ecs, fcs)
+                   fcs(1:3)=-Cclmb0*Zpqeq(jty)*qic*fcs(1:3)
+                   Ecs=-Cclmb0*Ecs*qic*Zpqeq(jty)
                endif
 
                if( isPolarizable(ity) .and. isPolarizable(jty) ) then
                    drss(1:3) = dr(1:3) + spos(i,1:3) - spos(j,1:3) ! (rc(i) + rs(i)) - (rc(j) + rs(j))
                    call get_coulomb_and_dcoulomb_pqeq(drss, alphass(ity,jty), Ess, fss)
+                   fss(1:3)=Cclmb0*Zpqeq(ity)*Zpqeq(jty)*fss(1:3)
+                   Ess=Cclmb0*Ess*Zpqeq(ity)*Zpqeq(jty)
                endif
 
-               PEclmb = Ecc*qij - Esc*Zpqeq(ity)*qjc - Ecs*qic*Zpqeq(jty) + Ess*Zpqeq(ity)*Zpqeq(jty)
+               PEclmb = Ecc + Esc + Ecs + Ess
 
                PE(11) = PE(11) + PEvdw
                PE(12) = PE(12) + PEclmb
 
-               ff(1:3) = CEvdw*dr(1:3) + fcc(1:3) + fsc(1:3) + fcs(1:3) + fss(1:3)
+               ff(1:3) = CEvdw*dr(1:3) + fcc(1:3) + fcs(1:3) + fsc(1:3) + fss(1:3)
     
 !$omp atomic
                f(i,1) = f(i,1) - ff(1)
@@ -769,8 +778,8 @@ do i=1, NATOMS
                 ia=i; ja=j
                 include 'stress'
 #endif
+            !endif
 
-            endif
          endif
 
     enddo  !do j1 = 1, nbplist(i,0) 

@@ -93,12 +93,12 @@ real(8),allocatable,dimension(:,:) :: spos
 integer,parameter :: ntype_pqeq=7 
 logical :: isPolarizable(ntype_pqeq) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
 !logical :: isPolarizable(ntype_pqeq) = (/.false.,.false.,.false.,.false.,.false.,.false.,.false./)
-real(8) :: X0pqeq(ntype_pqeq) = (/5.50813d0, 4.72484d0, 8.30811d0, 7.78778d0, 8.19185d0, 4.80466d0, 8.70340d0/)
-real(8) :: J0pqeq(ntype_pqeq) = (/9.81186d0, 15.57338d0, 14.66128d0, 10.80315d0, 8.64528d0, 6.45956d0, 17.27715d0/)
+real(8) :: X0pqeq(ntype_pqeq) = (/4.224390d0, 3.114070d0, 7.834230d0, 5.049000d0, 0.d0, 0.d0, 0.d0/)
+real(8) :: J0pqeq(ntype_pqeq) = (/8.214880d0, 21.550060d0, 16.727930d0, 9.127260d0, 0.d0, 0.d0, 0.d0/)
 real(8) :: Zpqeq(ntype_pqeq) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
 real(8) :: Rcpqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
 real(8) :: Rspqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-real(8) :: Kspqeq(ntype_pqeq) = (/198.84054d0, 2037.20061d0, 414.04451d0, 301.87609d0, 114.50472d0, 60.04769d0, 596.16463d0/)
+real(8) :: Kspqeq(ntype_pqeq) = (/250d0, 2500d0, 500d0, 360d0, 0.d0, 0.d0, 0.d0 /)
 real(8) :: alphacc(ntype_pqeq,ntype_pqeq)
 real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
 real(8) :: alphass(ntype_pqeq,ntype_pqeq)
@@ -140,9 +140,6 @@ do ity=1,ntype_pqeq
       if( isPolarizable(ity) ) &
           alphasc(ity,jty)=sqrt( (alpha_si*alpha_cj)/(alpha_si + alpha_cj) )
 
-      !print'(a,2i6,3f12.5)','ity,jty,alphacc(ity,jty),alphasc(ity,jty),alphass(ity,jty)', &
-      !    ity,jty,alphacc(ity,jty),alphasc(ity,jty),alphass(ity,jty)
-
    enddo
 
 enddo
@@ -150,10 +147,11 @@ enddo
 end subroutine
 
 !-------------------------------------------------------------------------------------------
-subroutine initialize_pqeq()
+subroutine initialize_pqeq(chi,eta)
 implicit none
 !-------------------------------------------------------------------------------------------
 integer :: ity
+real(8) :: chi(ntype_pqeq),eta(ntype_pqeq)
 
 call set_alphaij_pqeq()
 
@@ -163,6 +161,9 @@ do ity = 1, ntype_pqeq
      print'(a,i3,a)','atom type ', ity, ' is not polarizable. Setting Z & K to zero.'
      Zpqeq(ity)=0.d0
      Kspqeq(ity)=0.d0
+  else
+    chi(ity)=X0pqeq(ity)
+    eta(ity)=J0pqeq(ity)
   endif
 enddo
 
@@ -252,7 +253,7 @@ integer :: NBUFFER=10000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=1000 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff.
 
-integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
+integer,parameter :: NMINCELL=4  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
 real(8),parameter :: MINANGLE=-0.999999999999d0
 real(8),parameter :: NSMALL = 1.d-10
@@ -429,7 +430,7 @@ character(MAXPATHLENGTH) :: FFDescript
 
 !--- Taper function 
 !real(8),parameter :: rctap0 = 10.d0 ![A]
-real(8),parameter :: rctap0 = 12.d0 ![A]   ! for PQEq
+real(8),parameter :: rctap0 = 12.5d0 ![A]   ! for PQEq
 real(8) :: rctap, rctap2, CTap(0:7)
 
 contains
@@ -458,17 +459,13 @@ drtb1= 1.d0-drtb
 
 dr1i = 1.d0/dr1
 clmb = dr1i
-dclmb = -dr1i*dr1i*dr1i 
+!TODO 1. Tabulate the coulomb term, 2. change the derivatives to our convention, i.e. u(r)'/r^2*dr(1:3)
+!dclmb = -dr1i*dr1i*dr1i 
+dclmb = -dr1i*dr1i
 
 screen = erf(alpha*dr1)
-dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
-
-!print'(a,f10.5,i6,5es15.5)','dr1,itb,alpha,clmb,dclmb,screen,dscreen',dr1,itb,alpha,clmb,dclmb,screen,dscreen
-
-! for now, only the taper term is obtained from the table.
-! always inxn==1 since the taper term doesn't depend on interatomic pair.
-!Tap = drtb1*TBL_Eclmb(0,itb,inxn) + drtb*TBL_Eclmb(0,itb1,inxn)
-!dTap = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
+!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
+dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)
 
 !--- core-core distance is withing the taper cutoff, but core-shell & shell-shell distance can be beyond the cutoff.
 !--- Directly computing the taper function for now. 
@@ -478,12 +475,12 @@ dr5 = dr1*dr2*dr2
 dr6 = dr2*dr2*dr2
 dr7 = dr1*dr2*dr2*dr2
 Tap = CTap(7)*dr7 + CTap(6)*dr6 + CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
-dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + 5d0*CTap(5)*dr3 + 4d0*CTap(4)*dr2
+dTap = 7d0*CTap(7)*dr6 + 6d0*CTap(6)*dr5 + 5d0*CTap(5)*dr4 + 4d0*CTap(4)*dr3
 
 Eclmb = clmb*screen*Tap
 dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
 
-ff(1:3)=dEclmb*rr(1:3)
+ff(1:3)=dEclmb*rr(1:3)/dr1
 
 end subroutine
 

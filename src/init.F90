@@ -36,7 +36,7 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
           84.d0/(rctap)**5, -70.d0/(rctap)**6, &
           20.d0/(rctap)**7 /)
 
-call initialize_pqeq()
+call initialize_pqeq(chi,eta)
 
 !--- summary file keeps potential energies, box parameters during MD simulation
 !--- intended to be used for validation of code change. 
@@ -540,7 +540,7 @@ nbcc(1:3)=int(latticePerNode(1:3)/nblcsize(1:3))
 nblcsize(1:3)=latticePerNode(1:3)/nbcc(1:3)
 maxrcell = maxval(nblcsize(1:3))
 
-!--- get # of linked list cell to cover up the non-bonding (10[A]) cutoff length
+!--- get # of linked list cell to cover up the non-bonding cutoff length
 imesh(1:3)  = int(rctap/nblcsize(1:3)) + 1
 maximesh = maxval(imesh(1:3))
 

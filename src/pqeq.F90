@@ -189,6 +189,9 @@ implicit none
 integer :: i,ity,j,jty,j1,inxn
 real(8) :: shelli(3),shellj(3), qjc, clmb, dclmb, dr2
 real(8) :: sforce(NATOMS,3), sf(3), Esc, Ess
+real(8) :: ff(3)
+
+real(8) :: dr(3)
 
 do i=1, NATOMS
 
@@ -214,13 +217,20 @@ do i=1, NATOMS
 
       ! j-atom can be either polarizable or non-polarizable. In either case,
       ! there will be force on i-shell from j-core.  qjc takes care of the difference.  Eq. (38)
-      call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Esc,sf)
-      sforce(i,1:3)=sforce(i,1:3)-sf(1:3)*qjc*Zpqeq(ity)
+      dr(1:3)=shelli(1:3)-pos(j,1:3)
+      call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(ity,jty),Esc,sf)
+
+      ff(1:3)=-Cclmb0*sf(1:3)*qjc*Zpqeq(ity)
+      sforce(i,1:3)=sforce(i,1:3)+ff(1:3)
 
       ! if j-atom is polarizable, there will be force on i-shell from j-shell. Eq. (38)
       if( isPolarizable(jty) ) then 
-         call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Ess,sf)
-         sforce(i,1:3)=sforce(i,1:3)-sf(1:3)*Zpqeq(ity)*Zpqeq(jty)
+         dr(1:3)=shelli(1:3)-shellj(1:3)
+         call get_coulomb_and_dcoulomb_pqeq(dr,alphass(ity,jty),Ess,sf)
+
+         ff(1:3)=Cclmb0*sf(1:3)*Zpqeq(ity)*Zpqeq(jty)
+         sforce(i,1:3)=sforce(i,1:3)+ff(1:3)
+
       endif
 
    enddo
@@ -230,6 +240,7 @@ enddo
 !--- update shell positions after finishing the shell-force calculation.  Eq. (39)
 do i=1, NATOMS
    ity = nint(atype(i))
+   dr(1:3)=sforce(i,1:3)/Kspqeq(ity)
    if( isPolarizable(ity) ) spos(i,1:3) = spos(i,1:3) + sforce(i,1:3)/Kspqeq(ity)
 enddo
 
@@ -297,19 +308,20 @@ do c3=0, nbcc(3)-1
                inxn = inxn2(ity, jty)
 
 !--- PEQq : 
-!print'(a,4i6,i9,3es15.5)','i,j,ity,jty,itb,pqeqc',i,j,ity,jty,itb,sqrt(dr2),pqeqc,fpqeq(i)
                ! contribution from core(i)-core(j)
                call get_coulomb_and_dcoulomb_pqeq(dr,alphacc(ity,jty),pqeqc,ff)
 
-               hessian(nbplist(i,0),i) = pqeqc
+               hessian(nbplist(i,0),i) = Cclmb0_qeq * pqeqc
+
+               fpqeq(i) = fpqeq(i) + Cclmb0_qeq * pqeqc * Zpqeq(jty) ! Eq. 30
 
                ! contribution from C(r_icjc) and C(r_icjs) if j-atom is polarizable
                if( isPolarizable(jty) ) then ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
-                  call get_coulomb_and_dcoulomb_pqeq(dr-spos(j,1:3),alphasc(jty,ity),pqeqs,ff)
+                  dr(1:3)=dr(1:3)-spos(j,1:3)
+                  call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(jty,ity),pqeqs,ff)
 
-                  fpqeq(i) = fpqeq(i) + (pqeqc - pqeqs) * Zpqeq(jty) ! Eq. 30
+                  fpqeq(i) = fpqeq(i) - Cclmb0_qeq * pqeqs * Zpqeq(jty) ! Eq. 30
                endif
-
 
             endif
          endif
@@ -346,6 +358,7 @@ integer :: i,j,j1, ity, jty, inxn
 real(8) :: eta_ity, Est1, dr2
 
 real(8) :: Ccicj,Ccisj,Csicj,Csisj,shelli(3),shellj(3),qic,qjc,ff(3)
+real(8) :: Eshell
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
@@ -365,7 +378,13 @@ do i=1, NATOMS
 
    dr2 = sum(spos(i,1:3)*spos(i,1:3)) ! distance between core-and-shell for i-atom
 
-   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i) + 0.5d0*Kspqeq(ity)*dr2
+   if(isPolarizable(ity)) then
+      Eshell = 0.5d0*Kspqeq(ity)*dr2
+   else
+      Eshell = 0.d0
+   endif
+
+   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i) + CEchrge*Eshell
 
    do j1 = 1, nbplist(i,0)
       j = nbplist(i,j1)
@@ -375,16 +394,26 @@ do i=1, NATOMS
       qjc = q(j) + Zpqeq(jty)
       shellj(1:3) = pos(j,1:3) + spos(j,1:3)
 
+      Ccicj = 0.d0; Csicj=0.d0; Csisj=0.d0
+
       Ccicj = hessian(j1,i)
-      call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Csicj,ff)
-      call get_coulomb_and_dcoulomb_pqeq(pos(i,1:3)-shellj(1:3),alphasc(jty,ity),Ccisj,ff)
-      call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Csisj,ff)
+      Ccicj = Cclmb0_qeq*Ccicj*qic*qjc*0.5d0
+
+      if(isPolarizable(ity)) then
+         call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Csicj,ff)
+         Csicj=-Cclmb0_qeq*Ccisj*qic*Zpqeq(jty)
+
+         if(isPolarizable(jty)) then
+             call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Csisj,ff)
+             Csisj=Cclmb0_qeq*Csisj*Zpqeq(ity)*Zpqeq(jty)
+         endif
+      endif
 
       hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
       hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
 
 !--- get half of potential energy, then sum it up if atoms are resident.
-      Est1 = Ccicj*qic*qjc - Ccisj*qic*Zpqeq(jty) - Csicj*Zpqeq(ity)*qjc + Csisj*Zpqeq(ity)*Zpqeq(jty)
+      Est1 = Ccicj + Csicj + Csisj
 
       Est = Est + 0.5d0*Est1
       if(j<=NATOMS) Est = Est + 0.5d0*Est1
