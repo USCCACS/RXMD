@@ -278,9 +278,6 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+2) = ht(n)
            sbuffer(ns+3) = q(n)
 
-        case(MODE_STRESSCALC)
-           sbuffer(ns+1:ns+6) = astr(1:6,n)
-
         end select 
 
 !--- increment the number of atoms to be sent 
@@ -300,9 +297,7 @@ else if(imode==MODE_CPBK) then
    do n=copyptr(is-1)+1, copyptr(is)
       sbuffer(ns+1) = dble(frcindx(n))
       sbuffer(ns+2:ns+4) = f(n,1:3)
-#ifdef STRESS
-      sbuffer(ns+5:ns+10) = astr(1:6,n)
-#endif
+
 !--- chenge index to point next atom.
       ns=ns+ne
    enddo
@@ -387,9 +382,6 @@ if(imode /= MODE_CPBK) then
               ht(m) = rbuffer(ine+2)
               q(m)  = rbuffer(ine+3)
 
-           case(MODE_STRESSCALC)
-              astr(1:6,m) = rbuffer(ine+1:ine+6)
-      
       end select
 
      enddo
@@ -403,9 +395,6 @@ else if(imode == MODE_CPBK) then
 !--- Append the transferred forces into the original position of force array.
       m = nint(rbuffer(ine+1))
       f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
-#ifdef STRESS
-      astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
-#endif
    enddo
 
 endif   

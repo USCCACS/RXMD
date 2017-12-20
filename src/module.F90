@@ -110,9 +110,8 @@ real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to d
 
 real(8),parameter :: pi=3.14159265358979d0
 
-! atomic stress tensor
-real(8),allocatable :: astr(:,:) 
-real(8) :: pint(3,3)
+! stress tensor
+real(8) :: astr(6) 
 
 !--- coefficient of bonding energy derivative 
 real(8),allocatable :: ccbnd(:)

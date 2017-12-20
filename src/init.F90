@@ -53,6 +53,8 @@ do i=1, command_argument_count()
 
 enddo
 
+astr(:)=0.d0
+
 !--- summary file keeps potential energies, box parameters during MD simulation
 !--- intended to be used for validation of code change. 
 if(saveRunProfile) open(RunProfileFD, file=RunProfilePath, status='unknown')
@@ -176,12 +178,6 @@ call UpdateBoxParams()
 !--- get global number of atoms
 i8=NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
-#ifdef STRESS
-!--- stress variables
-call allocatord2d(astr(1,6,1,NBUFFER)
-astr(:,:)=0.d0; 
-#endif
 
 !--- Linked List & Near Neighb Parameters
 call allocatori2d(nbrlist,1,NBUFFER,0,MAXNEIGHBS)

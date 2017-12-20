@@ -3,7 +3,7 @@ program rxmd
 use base; use atoms; use parameters; use CG
 !------------------------------------------------------------------------------
 implicit none
-integer :: i,it1,it2,irt,provided
+integer :: i,ity,it1,it2,irt,provided
 real(8) :: ctmp, dr(3)
 
 !call MPI_INIT(ierr)
@@ -65,6 +65,16 @@ do nstep=0, ntime_step-1
    
    if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
    call FORCE(atype, pos, f, q)
+
+do i=1, NBUFFER
+   ity = nint(atype(i))
+   astr(1)=astr(1)+v(i,1)*v(i,1)*mass(ity)*0.5d0
+   astr(2)=astr(2)+v(i,2)*v(i,2)*mass(ity)*0.5d0
+   astr(3)=astr(3)+v(i,3)*v(i,3)*mass(ity)*0.5d0
+   astr(4)=astr(4)+v(i,2)*v(i,3)*mass(ity)*0.5d0
+   astr(5)=astr(5)+v(i,3)*v(i,1)*mass(ity)*0.5d0
+   astr(6)=astr(6)+v(i,1)*v(i,2)*mass(ity)*0.5d0
+enddo
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
@@ -215,7 +225,7 @@ real(8),intent(in) :: v(NBUFFER,3)
 
 integer :: i,ity,cstep
 real(8),save :: wt0
-real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:20),Gbuf(0:20)
+real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:23)
 
 i=nstep/pstep+1
 maxas(i,1)=NATOMS
@@ -227,10 +237,8 @@ do i=1, NATOMS
 enddo
 qq=sum(q(1:NATOMS))
 
-#ifdef STRESS
 !--- pressure 
-ss=sum(astr(1:3,1:NATOMS))
-#endif
+ss=sum(astr(1:3))/3.d0
 
 !--- potential energy 
 PE(0)=sum(PE(1:13))
@@ -238,19 +246,19 @@ PE(0)=sum(PE(1:13))
 !--- copy data into buffer
 buf(0:13) = PE(0:13)
 buf(14) = KE; buf(15) = ss; buf(16) = qq
-call MPI_ALLREDUCE (buf, Gbuf, size(buf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-
+buf(17:22)=astr(1:6)
+call MPI_ALLREDUCE (MPI_IN_PLACE, buf, size(buf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 !--- copy data from buffer
-GPE(0:13) = Gbuf(0:13)
-GKE = Gbuf(14); ss = Gbuf(15); qq = Gbuf(16)
+GPE(0:13) = buf(0:13)
+GKE = buf(14); ss = buf(15); qq = buf(16)
+astr(1:6)=buf(17:22)
 
 !--- compute properties
 GPE(:)=GPE(:)/GNATOMS
 GKE=GKE/GNATOMS
 tt=GKE*UTEMP
-#ifdef STRESS
-ss=ss/3.d0/MDBOX*USTRS
-#endif 
+astr(1:6)=astr(1:6)/MDBOX*USTRS/pstep
+ss=ss/MDBOX*USTRS/pstep
 
 !--- total energy
 GTE = GKE + GPE(0)
@@ -262,12 +270,12 @@ if(myid==0) then
    GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
    tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
 
-#ifdef STRESS
-   write(6,'(6es13.5)') pint(1,1)*USTRS, pint(2,2)*USTRS, pint(3,3)*USTRS, &
-                        pint(2,3)*USTRS, pint(3,1)*USTRS, pint(1,2)*USTRS
-#endif
+   write(6,'(6es13.5)') astr(1:6)
 
 endif
+
+!--- reset stress tensor accumulator
+astr(1:6)=0.d0
 
 !--- save current time
 wt0 = MPI_WTIME()
