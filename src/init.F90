@@ -3,7 +3,10 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use parameters; use atoms; use MemoryAllocator 
+use parameters
+!use atoms
+use pqeq_vars
+use MemoryAllocator 
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q

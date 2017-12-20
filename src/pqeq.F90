@@ -1,6 +1,8 @@
 !------------------------------------------------------------------------------
 subroutine PQEq(atype, pos, q)
-use atoms; use parameters
+!use atoms
+use pqeq_vars
+use parameters
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -210,7 +212,6 @@ do i=1, NATOMS
       j = nbplist(i,j1)
       jty = nint(atype(j))
 
-      inxn = inxn2(ity, jty)
 
       qjc = q(j) + Zpqeq(jty)
       shellj(1:3) = pos(j,1:3) + spos(j,1:3)
@@ -218,18 +219,18 @@ do i=1, NATOMS
       ! j-atom can be either polarizable or non-polarizable. In either case,
       ! there will be force on i-shell from j-core.  qjc takes care of the difference.  Eq. (38)
       dr(1:3)=shelli(1:3)-pos(j,1:3)
-      call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(ity,jty),Esc,sf)
+      call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(ity,jty),Esc, inxnpqeq(ity, jty), TBL_Eclmb_psc,sf)
 
       ff(1:3)=-Cclmb0*sf(1:3)*qjc*Zpqeq(ity)
-      sforce(i,1:3)=sforce(i,1:3)+ff(1:3)
+      sforce(i,1:3)=sforce(i,1:3)-ff(1:3)
 
       ! if j-atom is polarizable, there will be force on i-shell from j-shell. Eq. (38)
       if( isPolarizable(jty) ) then 
          dr(1:3)=shelli(1:3)-shellj(1:3)
-         call get_coulomb_and_dcoulomb_pqeq(dr,alphass(ity,jty),Ess,sf)
+         call get_coulomb_and_dcoulomb_pqeq(dr,alphass(ity,jty),Ess, inxnpqeq(ity, jty), TBL_Eclmb_pss,sf)
 
          ff(1:3)=Cclmb0*sf(1:3)*Zpqeq(ity)*Zpqeq(jty)
-         sforce(i,1:3)=sforce(i,1:3)+ff(1:3)
+         sforce(i,1:3)=sforce(i,1:3)-ff(1:3)
 
       endif
 
@@ -305,20 +306,19 @@ do c3=0, nbcc(3)-1
                drtb = dr2 - itb*UDR
                drtb = drtb*UDRi
 
-               inxn = inxn2(ity, jty)
 
 !--- PEQq : 
                ! contribution from core(i)-core(j)
-               call get_coulomb_and_dcoulomb_pqeq(dr,alphacc(ity,jty),pqeqc,ff)
+               call get_coulomb_and_dcoulomb_pqeq(dr,alphacc(ity,jty),pqeqc,inxnpqeq(ity, jty),TBL_Eclmb_pcc,ff)
 
                hessian(nbplist(i,0),i) = Cclmb0_qeq * pqeqc
 
                fpqeq(i) = fpqeq(i) + Cclmb0_qeq * pqeqc * Zpqeq(jty) ! Eq. 30
 
                ! contribution from C(r_icjc) and C(r_icjs) if j-atom is polarizable
-               if( isPolarizable(jty) ) then ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
-                  dr(1:3)=dr(1:3)-spos(j,1:3)
-                  call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(jty,ity),pqeqs,ff)
+               if( isPolarizable(jty) ) then 
+                  dr(1:3)=dr(1:3)-spos(j,1:3) ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
+                  call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(jty,ity),pqeqs,inxnpqeq(jty, ity),TBL_Eclmb_psc,ff)
 
                   fpqeq(i) = fpqeq(i) - Cclmb0_qeq * pqeqs * Zpqeq(jty) ! Eq. 30
                endif
@@ -400,11 +400,11 @@ do i=1, NATOMS
       Ccicj = Cclmb0_qeq*Ccicj*qic*qjc*0.5d0
 
       if(isPolarizable(ity)) then
-         call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Csicj,ff)
+         call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Csicj,inxnpqeq(ity,jty),TBL_Eclmb_psc,ff)
          Csicj=-Cclmb0_qeq*Ccisj*qic*Zpqeq(jty)
 
          if(isPolarizable(jty)) then
-             call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Csisj,ff)
+             call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Csisj,inxnpqeq(ity,jty),TBL_Eclmb_pss,ff)
              Csisj=Cclmb0_qeq*Csisj*Zpqeq(ity)*Zpqeq(jty)
          endif
       endif

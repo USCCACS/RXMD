@@ -1,6 +1,8 @@
 !----------------------------------------------------------------------------------------------------------------------
 subroutine FORCE(atype, pos, f, q)
-use parameters; use atoms 
+use parameters
+!use atoms 
+use pqeq_vars
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
@@ -728,27 +730,27 @@ do i=1, NATOMS
                drcc(:)=0.d0; drsc(:)=0.d0; drcs(:)=0.d0; drss(:)=0.d0
 
                drcc(1:3) = dr(1:3) ! rc(i) - rc(j)
-               call get_coulomb_and_dcoulomb_pqeq(drcc, alphacc(ity,jty), Ecc, fcc)
+               call get_coulomb_and_dcoulomb_pqeq(drcc, alphacc(ity,jty), Ecc, inxnpqeq(ity,jty), TBL_Eclmb_pcc, fcc)
                fcc(1:3)=Cclmb0*qij*fcc(1:3)
                Ecc=Cclmb0*Ecc*qij
 
                if( isPolarizable(ity) ) then
                    drsc(1:3) = dr(1:3) + spos(i,1:3) ! (rc(i) + rs(i)) - rc(j)
-                   call get_coulomb_and_dcoulomb_pqeq(drsc, alphasc(ity,jty), Esc, fsc)
+                   call get_coulomb_and_dcoulomb_pqeq(drsc, alphasc(ity,jty), Esc, inxnpqeq(ity,jty), TBL_Eclmb_psc, fsc)
                    fsc(1:3)=-Cclmb0*Zpqeq(ity)*qjc*fsc(1:3)
                    Esc=-Cclmb0*Esc*Zpqeq(ity)*qjc
                endif
 
                if(isPolarizable(jty)) then
                    drcs(1:3) = dr(1:3) - spos(j,1:3) ! rc(i) - (rc(j) + rs(j))
-                   call get_coulomb_and_dcoulomb_pqeq(drcs, alphasc(jty,ity), Ecs, fcs)
+                   call get_coulomb_and_dcoulomb_pqeq(drcs, alphasc(jty,ity), Ecs, inxnpqeq(jty,ity), TBL_Eclmb_psc, fcs)
                    fcs(1:3)=-Cclmb0*Zpqeq(jty)*qic*fcs(1:3)
                    Ecs=-Cclmb0*Ecs*qic*Zpqeq(jty)
                endif
 
                if( isPolarizable(ity) .and. isPolarizable(jty) ) then
                    drss(1:3) = dr(1:3) + spos(i,1:3) - spos(j,1:3) ! (rc(i) + rs(i)) - (rc(j) + rs(j))
-                   call get_coulomb_and_dcoulomb_pqeq(drss, alphass(ity,jty), Ess, fss)
+                   call get_coulomb_and_dcoulomb_pqeq(drss, alphass(ity,jty), Ess, inxnpqeq(ity,jty), TBL_Eclmb_pss, fss)
                    fss(1:3)=Cclmb0*Zpqeq(ity)*Zpqeq(jty)*fss(1:3)
                    Ess=Cclmb0*Ess*Zpqeq(ity)*Zpqeq(jty)
                endif

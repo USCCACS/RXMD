@@ -70,113 +70,8 @@ end subroutine
 end module
 
 !-------------------------------------------------------------------------------------------
-module pqeq_vars
-implicit none
-!-------------------------------------------------------------------------------------------
-real(8),allocatable,dimension(:,:) :: spos
-
-!! FIXME : PQEq parameters from Saber. Assuming 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
-!################################################################
-!#E P     Xo      Jo        Z        Rc      Rs          Ks
-!################################################################ 
-!1: C 1  5.50813  9.81186 1.000000  0.75900  0.75900    198.84054 
-!2: H 1  4.72484 15.57338 1.000000  0.37100  0.37100   2037.20061 
-!3: O 1  8.30811 14.66128 1.000000  0.66900  0.66900    414.04451 
-!4: N 1  7.78778 10.80315 1.000000  0.71500  0.71500    301.87609 
-!5: S 1  8.19185  8.64528 1.000000  1.04700  1.04700    114.50472 
-!6:Si 1  4.80466  6.45956 1.000000  1.17600  1.17600     60.04769 
-!7: F 1  8.70340 17.27715 1.000000  0.70600  0.70600    596.16463 
-!8: P 1  6.52204  7.13703 1.000000  1.10200  1.10200     91.47760 
-!9:Cl 1  8.20651  9.73890 1.000000  0.99400  0.99400    152.32280 
-
-! 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
-integer,parameter :: ntype_pqeq=7 
-logical :: isPolarizable(ntype_pqeq) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
-!logical :: isPolarizable(ntype_pqeq) = (/.false.,.false.,.false.,.false.,.false.,.false.,.false./)
-real(8) :: X0pqeq(ntype_pqeq) = (/4.224390d0, 3.114070d0, 7.834230d0, 5.049000d0, 0.d0, 0.d0, 0.d0/)
-real(8) :: J0pqeq(ntype_pqeq) = (/8.214880d0, 21.550060d0, 16.727930d0, 9.127260d0, 0.d0, 0.d0, 0.d0/)
-real(8) :: Zpqeq(ntype_pqeq) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
-real(8) :: Rcpqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-real(8) :: Rspqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-real(8) :: Kspqeq(ntype_pqeq) = (/250d0, 2500d0, 500d0, 360d0, 0.d0, 0.d0, 0.d0 /)
-real(8) :: alphacc(ntype_pqeq,ntype_pqeq)
-real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
-real(8) :: alphass(ntype_pqeq,ntype_pqeq)
-real(8) :: lambda_pqeq = 0.462770d0
-
-contains
-
-!-------------------------------------------------------------------------------------------
-subroutine set_alphaij_pqeq()
-implicit none
-!-------------------------------------------------------------------------------------------
-integer :: ity,jty
-
-real(8) :: alpha_ci,alpha_cj,alpha_si,alpha_sj 
-
-alphacc(:,:)=0.d0
-alphasc(:,:)=0.d0
-alphass(:,:)=0.d0
-
-do ity=1,ntype_pqeq
-
-   alpha_ci=0.5d0*lambda_pqeq/Rcpqeq(ity)**2
-   alpha_si=0.5d0*lambda_pqeq/Rspqeq(ity)**2
-
-   do jty=1,ntype_pqeq
-
-      alpha_cj=0.5d0*lambda_pqeq/Rcpqeq(jty)**2
-      alpha_sj=0.5d0*lambda_pqeq/Rspqeq(jty)**2
-
-      ! core(i)-core(j) term.
-      alphacc(ity,jty)=sqrt( (alpha_ci*alpha_cj)/(alpha_ci + alpha_cj) )
-
-      ! shell(i)-shell(j) term.
-      if( isPolarizable(ity) .and. isPolarizable(jty) ) &
-          alphass(ity,jty)=sqrt( (alpha_si*alpha_sj)/(alpha_si + alpha_sj) )
-
-      ! shell(i)-core(j) term. the first index must be polarizable atom type. 
-      ! C(r_si_cj) is fine but use alphasc(jty,ity) when refer to alphasc for C(r_ci_sj).
-      if( isPolarizable(ity) ) &
-          alphasc(ity,jty)=sqrt( (alpha_si*alpha_cj)/(alpha_si + alpha_cj) )
-
-   enddo
-
-enddo
-
-end subroutine
-
-!-------------------------------------------------------------------------------------------
-subroutine initialize_pqeq(chi,eta)
-implicit none
-!-------------------------------------------------------------------------------------------
-integer :: ity
-real(8) :: chi(ntype_pqeq),eta(ntype_pqeq)
-
-call set_alphaij_pqeq()
-
-!--- for PQEq
-do ity = 1, ntype_pqeq
-  if( .not. isPolarizable(ity) ) then
-     print'(a,i3,a)','atom type ', ity, ' is not polarizable. Setting Z & K to zero.'
-     Zpqeq(ity)=0.d0
-     Kspqeq(ity)=0.d0
-  else
-    chi(ity)=X0pqeq(ity)
-    eta(ity)=J0pqeq(ity)
-  endif
-enddo
-
-end subroutine
-
-end module
-
-
-!-------------------------------------------------------------------------------------------
-
-!-------------------------------------------------------------------------------------------
 module atoms
-use cmdline_args; use pqeq_vars
+use cmdline_args;
 !-------------------------------------------------------------------------------------------
 include 'mpif.h'
 
@@ -435,55 +330,6 @@ real(8) :: rctap, rctap2, CTap(0:7)
 
 contains
 
-!-------------------------------------------------------------------------------------------
-subroutine get_coulomb_and_dcoulomb_pqeq(rr,alpha,Eclmb,ff)
-implicit none
-!-------------------------------------------------------------------------------------------
-real(8),intent(in) :: rr(3),alpha
-real(8) :: Eclmb,ff(3)
-
-integer :: i,itb, itb1, inxn=1
-real(8) :: drtb, drtb1, dr1, dr2, dr1i, dEclmb
-real(8) :: Tap, dTap, clmb, dclmb, screen, dscreen 
-
-real(8) :: dr3,dr4,dr5,dr6,dr7
-
-dr2 = sum(rr(1:3)*rr(1:3))
-dr1 = sqrt(dr2)
-
-itb = int(dr2*UDRi)
-itb1 = itb+1
-drtb = dr2 - itb*UDR
-drtb = drtb*UDRi
-drtb1= 1.d0-drtb
-
-dr1i = 1.d0/dr1
-clmb = dr1i
-!TODO 1. Tabulate the coulomb term, 2. change the derivatives to our convention, i.e. u(r)'/r^2*dr(1:3)
-!dclmb = -dr1i*dr1i*dr1i 
-dclmb = -dr1i*dr1i
-
-screen = erf(alpha*dr1)
-!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
-dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)
-
-!--- core-core distance is withing the taper cutoff, but core-shell & shell-shell distance can be beyond the cutoff.
-!--- Directly computing the taper function for now. 
-dr3 = dr1*dr2
-dr4 = dr2*dr2
-dr5 = dr1*dr2*dr2
-dr6 = dr2*dr2*dr2
-dr7 = dr1*dr2*dr2*dr2
-Tap = CTap(7)*dr7 + CTap(6)*dr6 + CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
-dTap = 7d0*CTap(7)*dr6 + 6d0*CTap(6)*dr5 + 5d0*CTap(5)*dr4 + 4d0*CTap(4)*dr3
-
-Eclmb = clmb*screen*Tap
-dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
-
-ff(1:3)=dEclmb*rr(1:3)/dr1
-
-end subroutine
-
 !-----------------------------------------------------------------------------------------------------------------------
 character(len=256) function rankToString(irank)
 !-----------------------------------------------------------------------------------------------------------------------
@@ -512,6 +358,269 @@ end function
 end module atoms
 
 !-------------------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------------------------
+module pqeq_vars
+use atoms
+implicit none
+!-------------------------------------------------------------------------------------------
+real(8),allocatable,dimension(:,:) :: spos
+integer,allocatable :: inxnpqeq(:,:)
+
+real(8),allocatable :: TBL_Eclmb_pcc(:,:,:),TBL_Eclmb_psc(:,:,:),TBL_Eclmb_pss(:,:,:)
+
+!! FIXME : PQEq parameters from Saber. Assuming 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
+!################################################################
+!#E P     Xo      Jo        Z        Rc      Rs          Ks
+!################################################################ 
+!1: C 1  5.50813  9.81186 1.000000  0.75900  0.75900    198.84054 
+!2: H 1  4.72484 15.57338 1.000000  0.37100  0.37100   2037.20061 
+!3: O 1  8.30811 14.66128 1.000000  0.66900  0.66900    414.04451 
+!4: N 1  7.78778 10.80315 1.000000  0.71500  0.71500    301.87609 
+!5: S 1  8.19185  8.64528 1.000000  1.04700  1.04700    114.50472 
+!6:Si 1  4.80466  6.45956 1.000000  1.17600  1.17600     60.04769 
+!7: F 1  8.70340 17.27715 1.000000  0.70600  0.70600    596.16463 
+!8: P 1  6.52204  7.13703 1.000000  1.10200  1.10200     91.47760 
+!9:Cl 1  8.20651  9.73890 1.000000  0.99400  0.99400    152.32280 
+
+! 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
+integer,parameter :: ntype_pqeq=7,ntype_pqeq2=ntype_pqeq**2
+logical :: isPolarizable(ntype_pqeq) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
+!logical :: isPolarizable(ntype_pqeq) = (/.false.,.false.,.false.,.false.,.false.,.false.,.false./)
+real(8) :: X0pqeq(ntype_pqeq) = (/4.224390d0, 3.114070d0, 7.834230d0, 5.049000d0, 0.d0, 0.d0, 0.d0/)
+real(8) :: J0pqeq(ntype_pqeq) = (/8.214880d0, 21.550060d0, 16.727930d0, 9.127260d0, 0.d0, 0.d0, 0.d0/)
+real(8) :: Zpqeq(ntype_pqeq) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
+real(8) :: Rcpqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
+real(8) :: Rspqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
+real(8) :: Kspqeq(ntype_pqeq) = (/250d0, 2500d0, 500d0, 360d0, 0.d0, 0.d0, 0.d0 /)
+real(8) :: alphacc(ntype_pqeq,ntype_pqeq)
+real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
+real(8) :: alphass(ntype_pqeq,ntype_pqeq)
+real(8) :: lambda_pqeq = 0.462770d0
+
+contains
+
+!-------------------------------------------------------------------------------------------
+subroutine get_coulomb_and_dcoulomb_pqeq(rr,alpha,Eclmb,inxn,TBL_Eclmb,ff)
+implicit none
+!-------------------------------------------------------------------------------------------
+real(8),intent(in) :: rr(3),alpha,TBL_Eclmb(ntype_pqeq2,NTABLE,0:1)
+integer,intent(in) :: inxn
+real(8) :: Ecc,Esc,Ess,dEcc,dEsc,dEss,Eclmb,dEclmb,ff(3)
+
+integer :: i,itb, itb1
+real(8) :: drtb, drtb1, dr1, dr2, dr1i 
+real(8) :: Tap, dTap, clmb, dclmb, screen, dscreen 
+
+real(8) :: dr3,dr4,dr5,dr6,dr7
+
+dr2 = sum(rr(1:3)*rr(1:3))
+
+! note that shell-shell distance could be greater than cutoff though core-core is within the cutoff.
+if(dr2>rctap2) return 
+
+dr1 = sqrt(dr2)
+
+itb = int(dr2*UDRi)
+itb1 = itb+1
+drtb = dr2 - itb*UDR
+drtb = drtb*UDRi
+drtb1= 1.d0-drtb
+
+!dr1i = 1.d0/dr1
+!clmb = dr1i
+!!TODO 1. Tabulate the coulomb term, 2. change the derivatives to our convention, i.e. u(r)'/r^2*dr(1:3)
+!!dclmb = -dr1i*dr1i*dr1i 
+!dclmb = -dr1i*dr1i
+!
+!screen = erf(alpha*dr1)
+!!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
+!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)
+!
+!!--- core-core distance is withing the taper cutoff, but core-shell & shell-shell distance can be beyond the cutoff.
+!!--- Directly computing the taper function for now. 
+!dr3 = dr1*dr2
+!dr4 = dr2*dr2
+!dr5 = dr1*dr2*dr2
+!dr6 = dr2*dr2*dr2
+!dr7 = dr1*dr2*dr2*dr2
+!Tap = CTap(7)*dr7 + CTap(6)*dr6 + CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+!dTap = 7d0*CTap(7)*dr6 + 6d0*CTap(6)*dr5 + 5d0*CTap(5)*dr4 + 4d0*CTap(4)*dr3
+!
+!Eclmb = clmb*screen*Tap
+!dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+!
+!ff(1:3)=dEclmb*rr(1:3)/dr1
+
+Eclmb = drtb1*TBL_Eclmb(inxn,itb,0)  + drtb*TBL_Eclmb(inxn,itb1,0)
+dEclmb = drtb1*TBL_Eclmb(inxn,itb,1)  + drtb*TBL_Eclmb(inxn,itb1,1)
+
+ff(1:3)=dEclmb*rr(1:3)
+
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine set_alphaij_pqeq()
+implicit none
+!-------------------------------------------------------------------------------------------
+integer :: ity,jty
+
+real(8) :: alpha_ci,alpha_cj,alpha_si,alpha_sj 
+
+alphacc(:,:)=0.d0
+alphasc(:,:)=0.d0
+alphass(:,:)=0.d0
+
+do ity=1,ntype_pqeq
+
+   alpha_ci=0.5d0*lambda_pqeq/Rcpqeq(ity)**2
+   alpha_si=0.5d0*lambda_pqeq/Rspqeq(ity)**2
+
+   do jty=1,ntype_pqeq
+
+      alpha_cj=0.5d0*lambda_pqeq/Rcpqeq(jty)**2
+      alpha_sj=0.5d0*lambda_pqeq/Rspqeq(jty)**2
+
+      ! core(i)-core(j) term.
+      alphacc(ity,jty)=sqrt( (alpha_ci*alpha_cj)/(alpha_ci + alpha_cj) )
+
+      ! shell(i)-shell(j) term.
+      if( isPolarizable(ity) .and. isPolarizable(jty) ) &
+          alphass(ity,jty)=sqrt( (alpha_si*alpha_sj)/(alpha_si + alpha_sj) )
+
+      ! shell(i)-core(j) term. the first index must be polarizable atom type. 
+      ! C(r_si_cj) is fine but use alphasc(jty,ity) when refer to alphasc for C(r_ci_sj).
+      if( isPolarizable(ity) ) &
+          alphasc(ity,jty)=sqrt( (alpha_si*alpha_cj)/(alpha_si + alpha_cj) )
+
+   enddo
+
+enddo
+
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine initialize_pqeq(chi,eta)
+implicit none
+!-------------------------------------------------------------------------------------------
+integer :: ity,jty,icounter
+real(8) :: chi(ntype_pqeq),eta(ntype_pqeq)
+
+integer :: i,inxn
+real(8) :: Acc,Asc,Ass
+real(8) :: dr1,dr2,dr3,dr4,dr5,dr6,dr7,dr1i,UDR,UDRi
+real(8) :: clmb,dclmb,screen,dscreen,Tap,dTap,Eclmb,dEclmb
+
+
+call set_alphaij_pqeq()
+
+!--- for PQEq
+do ity = 1, ntype_pqeq
+  if( .not. isPolarizable(ity) ) then
+     print'(a,i3,a)','atom type ', ity, ' is not polarizable. Setting Z & K to zero.'
+     Zpqeq(ity)=0.d0
+     Kspqeq(ity)=0.d0
+  else
+    chi(ity)=X0pqeq(ity)
+    eta(ity)=J0pqeq(ity)
+  endif
+enddo
+
+allocate(inxnpqeq(ntype_pqeq,ntype_pqeq))
+
+icounter=0
+do ity=1, ntype_pqeq
+do jty=ity, ntype_pqeq
+
+   icounter = icounter + 1
+
+   inxnpqeq(ity,jty)=icounter
+   inxnpqeq(jty,ity)=inxnpqeq(ity,jty)
+enddo; enddo
+
+allocate(TBL_Eclmb_pcc(ntype_pqeq2,NTABLE,0:1))
+allocate(TBL_Eclmb_psc(ntype_pqeq2,NTABLE,0:1))
+allocate(TBL_Eclmb_pss(ntype_pqeq2,NTABLE,0:1))
+
+!--- unit distance in r^2 scale
+UDR = rctap2/NTABLE
+UDRi = 1.d0/UDR
+
+do ity=1, ntype_pqeq
+do jty=ity, ntype_pqeq
+
+   Acc = alphacc(ity,jty)
+   Asc = alphasc(ity,jty)
+   Ass = alphass(ity,jty)
+
+   inxn = inxnpqeq(ity,jty)
+
+   do i=1,NTABLE
+
+         dr2 = UDR*i
+         dr1 = sqrt(dr2)
+
+!--- Interaction Parameters:
+         dr3 = dr1*dr2
+         dr4 = dr2*dr2
+         dr5 = dr1*dr2*dr2
+         dr6 = dr2*dr2*dr2
+         dr7 = dr1*dr2*dr2*dr2 
+
+         Tap = CTap(7)*dr7 + CTap(6)*dr6 + &
+               CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+
+!--- Force Calculation:
+         dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
+                5d0*CTap(5)*dr3 + 4d0*CTap(4)*dr2
+
+         dr1i = 1.d0/dr1
+
+         clmb = dr1i
+         dclmb = -dr1i*dr1i*dr1i 
+
+         !--- core-core interaction
+         screen = erf(Acc*dr1)
+         dscreen = 2.d0*Acc*sqrtpi_inv*exp(-Acc*Acc*dr2)*dr1i
+
+         Eclmb = clmb*screen*Tap
+         dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+         TBL_Eclmb_pcc(inxn,i,0) = Eclmb
+         TBL_Eclmb_pcc(inxn,i,1) = dEclmb
+
+         !--- core-shell interaction
+         screen = erf(Asc*dr1)
+         dscreen = 2.d0*Asc*sqrtpi_inv*exp(-Asc*Asc*dr2)*dr1i
+
+         Eclmb = clmb*screen*Tap
+         dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+         TBL_Eclmb_psc(inxn,i,0) = Eclmb
+         TBL_Eclmb_psc(inxn,i,1) = dEclmb
+
+         !--- shell-shell interaction
+         screen = erf(Ass*dr1)
+         dscreen = 2.d0*Ass*sqrtpi_inv*exp(-Ass*Ass*dr2)*dr1i
+
+         Eclmb = clmb*screen*Tap
+         dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+         TBL_Eclmb_pss(inxn,i,0) = Eclmb
+         TBL_Eclmb_pss(inxn,i,1) = dEclmb
+
+   enddo
+
+enddo
+enddo
+
+end subroutine
+
+end module
+
+
+!-------------------------------------------------------------------------------------------
+
 
 !-------------------------------------------------------------------------------------------
 module parameters
