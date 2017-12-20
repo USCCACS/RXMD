@@ -3,7 +3,7 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use parameters; use atoms; use MemoryAllocator
+use parameters; use atoms; use MemoryAllocator; use eField
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
@@ -46,6 +46,11 @@ do i=1, command_argument_count()
      case("--rxmdin", "-in")
        call get_command_argument(i+1,argv)
        ParmPath=adjustl(argv)
+     case("--efield", "-e")
+       call get_command_argument(i+1,argv)
+       read(argv,*) VolDir 
+       call get_command_argument(i+1,argv)
+       read(argv,*) Voltage
      case("--profile")
        saveRunProfile=.true.
      case default
@@ -289,6 +294,8 @@ if(myid==0) then
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 
 endif
+
+call initialize_eField(myid,HH(VolDir,VolDir,0))
 
 END SUBROUTINE
 

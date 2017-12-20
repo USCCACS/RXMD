@@ -1,6 +1,6 @@
 !------------------------------------------------------------------------------
 subroutine QEq(atype, pos, q)
-use atoms; use parameters
+use atoms; use parameters; use eField
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -283,7 +283,7 @@ do i=1, NATOMS
    hshs(i) = eta_ity*hs(i)
    hsht(i) = eta_ity*ht(i)
 
-   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
+   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i) + q(i)*Voltage*sin(VolPhase*pos(i,VolDir))
 
    do j1 = 1, nbplist(i,0)
       j = nbplist(i,j1)
@@ -332,7 +332,7 @@ do i=1,NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
 
-   gs(i) = - chi(ity) - eta_ity*qs(i) - gssum
+   gs(i) = - chi(ity) - eta_ity*qs(i) - gssum - Voltage*sin(VolPhase*pos(i,VolDir))
    gt(i) = - 1.d0     - eta_ity*qt(i) - gtsum
 
 enddo 

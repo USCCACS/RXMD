@@ -1,6 +1,6 @@
 !----------------------------------------------------------------------------------------------------------------------
 subroutine FORCE(atype, pos, f, q)
-use parameters; use atoms 
+use parameters; use atoms ; use eField
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
@@ -49,6 +49,8 @@ CALL Ehb()
 CALL E3b()
 CALL E4b()
 !$omp end parallel 
+
+call EEfield(PE(13),NATOMS,pos,q,f)
 
 CALL ForceBondedTerms(NMINCELL)
 

@@ -16,9 +16,60 @@ end module
 !-------------------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------------------
+module eField
+!-------------------------------------------------------------------------------------------
+real(8) :: Voltage=0.0,VolPhase=0.0
+integer :: VolDir=1
+
+contains
+
+!-------------------------------------------------------------------------------------------
+subroutine initialize_eField(myid, LatticeLength)
+implicit none
+!-------------------------------------------------------------------------------------------
+real(8),parameter :: pi=3.14159265358979d0
+integer,intent(in) :: myid
+real(8),intent(in) :: LatticeLength
+
+VolPhase = 2*pi/LatticeLength
+
+if(myid==0) then
+   print'(a)','-----------------------------------------------------------'
+   print'(a,f12.6,i6,f12.6)','Voltage [Volt], VolDir, VolPhase : ', Voltage, VolDir, VolPhase
+   print'(a)','-----------------------------------------------------------'
+endif
+
+return
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine EEfield(Etotal,NATOMS,pos,q,f)
+implicit none 
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: NATOMS
+real(8),intent(in) :: pos(NATOMS,3),q(NATOMS)
+integer :: i
+real(8) :: Etotal ,f(NATOMS,3), Eenergy, Eforce
+
+do i=1, NATOMS
+
+   Eenergy = q(i)*Voltage*sin(VolPhase*pos(i,VolDir))
+   Eforce = -q(i)*Voltage*VolPhase*cos(VolPhase*pos(i,VolDir))
+
+   Etotal = Etotal + Eenergy
+   f(i,VolDir)=f(i,VolDir)+Eforce
+enddo
+
+return
+end subroutine
+
+end module
+
+!-------------------------------------------------------------------------------------------
 module atoms
 !-------------------------------------------------------------------------------------------
 include 'mpif.h'
+
 
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
