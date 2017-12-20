@@ -53,8 +53,8 @@ real(8) :: Etotal ,f(NATOMS,3), Eenergy, Eforce
 
 do i=1, NATOMS
 
-   Eenergy = q(i)*Voltage*sin(VolPhase*pos(i,VolDir))
-   Eforce = -q(i)*Voltage*VolPhase*cos(VolPhase*pos(i,VolDir))
+   Eenergy = q(i)*Voltage*sin(VolPhase*pos(i,VolDir))*Eev_kcal
+   Eforce = -q(i)*Voltage*VolPhase*cos(VolPhase*pos(i,VolDir))*Eev_kcal
 
    Etotal = Etotal + Eenergy
    f(i,VolDir)=f(i,VolDir)+Eforce
