@@ -50,7 +50,7 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
-call EEfield(PE(13),NATOMS,pos,q,f)
+call EEfield(PE(13),NATOMS,pos,q,f,Eev_kcal)
 
 CALL ForceBondedTerms(NMINCELL)
 

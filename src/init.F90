@@ -49,7 +49,7 @@ do i=1, command_argument_count()
      case("--efield", "-e")
        call get_command_argument(i+1,argv)
        read(argv,*) VolDir 
-       call get_command_argument(i+1,argv)
+       call get_command_argument(i+2,argv)
        read(argv,*) Voltage
      case("--profile")
        saveRunProfile=.true.

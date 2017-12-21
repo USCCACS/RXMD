@@ -43,11 +43,11 @@ return
 end subroutine
 
 !-------------------------------------------------------------------------------------------
-subroutine EEfield(Etotal,NATOMS,pos,q,f)
+subroutine EEfield(Etotal,NATOMS,pos,q,f,Eev_kcal)
 implicit none 
 !-------------------------------------------------------------------------------------------
 integer,intent(in) :: NATOMS
-real(8),intent(in) :: pos(NATOMS,3),q(NATOMS)
+real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),Eev_kcal
 integer :: i
 real(8) :: Etotal ,f(NATOMS,3), Eenergy, Eforce
 
@@ -101,10 +101,10 @@ integer :: ns, nr, na, ne
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
-integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5, MODE_STRESSCALC = 6
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
 
 integer,parameter :: NE_COPY = 10, NE_MOVE = 12
-integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3, NE_STRESSCALC = 6
+integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
 
 #ifdef STRESS
 integer,parameter :: NE_CPBK = 10
@@ -149,7 +149,7 @@ real(8) :: cutoff_vpar30
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER=10000
+integer :: NBUFFER=30000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=700 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 

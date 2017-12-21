@@ -70,8 +70,6 @@ select case(imode)
       ne = NE_QCOPY1
    case(MODE_QCOPY2)
       ne = NE_QCOPY2
-   case(MODE_STRESSCALC)
-      ne = NE_STRESSCALC
    case default
       print'(a,i3)', "ERROR: imode doesn't match in COPYATOMS: ", imode
 end select

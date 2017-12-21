@@ -66,15 +66,15 @@ do nstep=0, ntime_step-1
    if(mod(nstep,qstep)==0) call QEq(atype, pos, q)
    call FORCE(atype, pos, f, q)
 
-do i=1, NBUFFER
-   ity = nint(atype(i))
-   astr(1)=astr(1)+v(i,1)*v(i,1)*mass(ity)*0.5d0
-   astr(2)=astr(2)+v(i,2)*v(i,2)*mass(ity)*0.5d0
-   astr(3)=astr(3)+v(i,3)*v(i,3)*mass(ity)*0.5d0
-   astr(4)=astr(4)+v(i,2)*v(i,3)*mass(ity)*0.5d0
-   astr(5)=astr(5)+v(i,3)*v(i,1)*mass(ity)*0.5d0
-   astr(6)=astr(6)+v(i,1)*v(i,2)*mass(ity)*0.5d0
-enddo
+   do i=1, NATOMS
+      ity = nint(atype(i))
+      astr(1)=astr(1)+v(i,1)*v(i,1)*mass(ity)*0.5d0
+      astr(2)=astr(2)+v(i,2)*v(i,2)*mass(ity)*0.5d0
+      astr(3)=astr(3)+v(i,3)*v(i,3)*mass(ity)*0.5d0
+      astr(4)=astr(4)+v(i,2)*v(i,3)*mass(ity)*0.5d0
+      astr(5)=astr(5)+v(i,3)*v(i,1)*mass(ity)*0.5d0
+      astr(6)=astr(6)+v(i,1)*v(i,2)*mass(ity)*0.5d0
+   end do
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
@@ -270,7 +270,7 @@ if(myid==0) then
    GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
    tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
 
-   write(6,'(6es13.5)') astr(1:6)
+   write(6,'(a,6f12.6)') 'astr(1:6) [GPa]: ',astr(1:6)
 
 endif
 
