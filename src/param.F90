@@ -139,10 +139,12 @@ do i1=1,nso
       gamW(i1,i2) = sqrt( vop(i1)*vop(i2) )  
       gamij(i1,i2) = ( gam(i1)*gam(i2) )**(-1.5d0) !<- gamcco in reac.f
 
+      if (isLG) then
 !--- for LG
-      rcore(i1,i2) = sqrt( rcore2(i1)*rcore2(i2) )
-      ecore(i1,i2) = sqrt( ecore2(i1)*ecore2(i2) )
-      acore(i1,i2) = sqrt( acore2(i1)*acore2(i2) )
+        rcore(i1,i2) = sqrt( rcore2(i1)*rcore2(i2) )
+        ecore(i1,i2) = sqrt( ecore2(i1)*ecore2(i2) )
+        acore(i1,i2) = sqrt( acore2(i1)*acore2(i2) )
+      endif
 
    enddo
 enddo  

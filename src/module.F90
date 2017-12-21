@@ -146,7 +146,7 @@ real(8) :: cutoff_vpar30
 
 integer :: NBUFFER=10000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=1000 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff.
+integer,parameter :: MAXNEIGHBS10=1300 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff.
 
 integer,parameter :: NMINCELL=4  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
@@ -427,35 +427,37 @@ drtb = dr2 - itb*UDR
 drtb = drtb*UDRi
 drtb1= 1.d0-drtb
 
-!dr1i = 1.d0/dr1
-!clmb = dr1i
-!!TODO 1. Tabulate the coulomb term, 2. change the derivatives to our convention, i.e. u(r)'/r^2*dr(1:3)
-!!dclmb = -dr1i*dr1i*dr1i 
-!dclmb = -dr1i*dr1i
-!
-!screen = erf(alpha*dr1)
-!!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
-!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)
-!
-!!--- core-core distance is withing the taper cutoff, but core-shell & shell-shell distance can be beyond the cutoff.
-!!--- Directly computing the taper function for now. 
-!dr3 = dr1*dr2
-!dr4 = dr2*dr2
-!dr5 = dr1*dr2*dr2
-!dr6 = dr2*dr2*dr2
-!dr7 = dr1*dr2*dr2*dr2
-!Tap = CTap(7)*dr7 + CTap(6)*dr6 + CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
-!dTap = 7d0*CTap(7)*dr6 + 6d0*CTap(6)*dr5 + 5d0*CTap(5)*dr4 + 4d0*CTap(4)*dr3
-!
-!Eclmb = clmb*screen*Tap
-!dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
-!
-!ff(1:3)=dEclmb*rr(1:3)/dr1
-
 Eclmb = drtb1*TBL_Eclmb(inxn,itb,0)  + drtb*TBL_Eclmb(inxn,itb1,0)
 dEclmb = drtb1*TBL_Eclmb(inxn,itb,1)  + drtb*TBL_Eclmb(inxn,itb1,1)
 
 ff(1:3)=dEclmb*rr(1:3)
+
+return
+
+dr1i = 1.d0/dr1
+clmb = dr1i
+!TODO 1. Tabulate the coulomb term, 2. change the derivatives to our convention, i.e. u(r)'/r^2*dr(1:3)
+!dclmb = -dr1i*dr1i*dr1i 
+dclmb = -dr1i*dr1i
+
+screen = erf(alpha*dr1)
+!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
+dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)
+
+!--- core-core distance is withing the taper cutoff, but core-shell & shell-shell distance can be beyond the cutoff.
+!--- Directly computing the taper function for now. 
+dr3 = dr1*dr2
+dr4 = dr2*dr2
+dr5 = dr1*dr2*dr2
+dr6 = dr2*dr2*dr2
+dr7 = dr1*dr2*dr2*dr2
+Tap = CTap(7)*dr7 + CTap(6)*dr6 + CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+dTap = 7d0*CTap(7)*dr6 + 6d0*CTap(6)*dr5 + 5d0*CTap(5)*dr4 + 4d0*CTap(4)*dr3
+
+Eclmb = clmb*screen*Tap
+dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+ff(1:3)=dEclmb*rr(1:3)/dr1
 
 end subroutine
 

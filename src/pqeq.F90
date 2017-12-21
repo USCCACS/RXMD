@@ -98,7 +98,6 @@ call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
 GEst2=1.d99
 do nstep_qeq=0, nmax-1
 
-
 #ifdef QEQDUMP 
   qsum = sum(q(1:NATOMS))
   call MPI_ALLREDUCE(qsum, gqsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
@@ -268,7 +267,7 @@ call system_clock(ti,tk)
 nbplist(:,0) = 0
 
 !$omp parallel do schedule(runtime), default(shared), &
-!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
+!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn,pqeqc,pqeqs,ff)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -306,7 +305,6 @@ do c3=0, nbcc(3)-1
                drtb = dr2 - itb*UDR
                drtb = drtb*UDRi
 
-
 !--- PEQq : 
                ! contribution from core(i)-core(j)
                call get_coulomb_and_dcoulomb_pqeq(dr,alphacc(ity,jty),pqeqc,inxnpqeq(ity, jty),TBL_Eclmb_pcc,ff)
@@ -317,7 +315,7 @@ do c3=0, nbcc(3)-1
 
                ! contribution from C(r_icjc) and C(r_icjs) if j-atom is polarizable
                if( isPolarizable(jty) ) then 
-                  dr(1:3)=dr(1:3)-spos(j,1:3) ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
+                  dr(1:3)=pos(i,1:3) - pos(j,1:3) - spos(j,1:3) ! pos(i,1:3)-(pos(j,1:3)+spos(j,1:3))  
                   call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(jty,ity),pqeqs,inxnpqeq(jty, ity),TBL_Eclmb_psc,ff)
 
                   fpqeq(i) = fpqeq(i) - Cclmb0_qeq * pqeqs * Zpqeq(jty) ! Eq. 30
@@ -355,16 +353,17 @@ use atoms; use parameters
 implicit none
 real(8),intent(OUT) :: Est
 integer :: i,j,j1, ity, jty, inxn
-real(8) :: eta_ity, Est1, dr2
+real(8) :: eta_ity, Est1, dr2, dr(3)
 
-real(8) :: Ccicj,Ccisj,Csicj,Csisj,shelli(3),shellj(3),qic,qjc,ff(3)
+real(8) :: Ccicj,Csicj,Csisj,shelli(3),shellj(3),qic,qjc,ff(3)
 real(8) :: Eshell
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-!$omp parallel do default(shared), schedule(runtime), private(i,j,j1,ity,eta_ity,Est1),reduction(+:Est)
+!!$omp parallel do default(shared), reduction(+:Est) &
+!!$omp private(i,j,j1,ity,eta_ity,Est1,Eshell,Ccicj,Csicj,Csisj,shelli,shellj,qic,qjc,ff,dr,dr2)
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
@@ -400,11 +399,13 @@ do i=1, NATOMS
       Ccicj = Cclmb0_qeq*Ccicj*qic*qjc*0.5d0
 
       if(isPolarizable(ity)) then
-         call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-pos(j,1:3),alphasc(ity,jty),Csicj,inxnpqeq(ity,jty),TBL_Eclmb_psc,ff)
-         Csicj=-Cclmb0_qeq*Ccisj*qic*Zpqeq(jty)
+         dr(1:3)=shelli(1:3)-pos(j,1:3)
+         call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(ity,jty),Csicj,inxnpqeq(ity,jty),TBL_Eclmb_psc,ff)
+         Csicj=-Cclmb0_qeq*Csicj*qic*Zpqeq(jty)
 
          if(isPolarizable(jty)) then
-             call get_coulomb_and_dcoulomb_pqeq(shelli(1:3)-shellj(1:3),alphass(ity,jty),Csisj,inxnpqeq(ity,jty),TBL_Eclmb_pss,ff)
+             dr(1:3)=shelli(1:3)-shellj(1:3)
+             call get_coulomb_and_dcoulomb_pqeq(dr,alphass(ity,jty),Csisj,inxnpqeq(ity,jty),TBL_Eclmb_pss,ff)
              Csisj=Cclmb0_qeq*Csisj*Zpqeq(ity)*Zpqeq(jty)
          endif
       endif
@@ -420,7 +421,7 @@ do i=1, NATOMS
    enddo
 
 enddo
-!$omp end parallel do
+!!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(18)=it_timer(18)+(tj-ti)
