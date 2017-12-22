@@ -362,8 +362,8 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-!!$omp parallel do default(shared), reduction(+:Est) &
-!!$omp private(i,j,j1,ity,eta_ity,Est1,Eshell,Ccicj,Csicj,Csisj,shelli,shellj,qic,qjc,ff,dr,dr2)
+!$omp parallel do default(shared), reduction(+:Est) &
+!$omp private(i,j,j1,ity,jty,eta_ity,Est1,Eshell,Ccicj,Csicj,Csisj,shelli,shellj,qic,qjc,ff,dr,dr2)
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
@@ -378,12 +378,12 @@ do i=1, NATOMS
    dr2 = sum(spos(i,1:3)*spos(i,1:3)) ! distance between core-and-shell for i-atom
 
    if(isPolarizable(ity)) then
-      Eshell = 0.5d0*Kspqeq(ity)*dr2
+      Eshell = 0.5d0*Kspqeq(ity)*dr2/CEchrge ! kcal/mol -> ev
    else
       Eshell = 0.d0
    endif
 
-   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i) + CEchrge*Eshell
+   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i) + Eshell
 
    do j1 = 1, nbplist(i,0)
       j = nbplist(i,j1)
@@ -421,7 +421,7 @@ do i=1, NATOMS
    enddo
 
 enddo
-!!$omp end parallel do
+!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(18)=it_timer(18)+(tj-ti)
