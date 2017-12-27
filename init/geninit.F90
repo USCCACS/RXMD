@@ -392,15 +392,15 @@ enddo
 
 qq=0.d0; vv(:)=0.d0; qfsp0=0.d0; qfsv0=0.d0
 open(1,file="all.bin",form="unformatted",access="stream")
-open(20,file="geninit.xyz")
+open(20,file="geninit.xyz") 
 open(30,file="rxff.bin",form="unformatted",access="stream")
 write(30) nprocs, vprocs(1:3)
 write(30) lnatoms(0:nprocs-1)
 write(30) 0
 write(30) L1, L2, L3, Lalpha, Lbeta, Lgamma
 
-write(20,'(i12)') sum(lnatoms(:))
-write(20,'(a)') trim(inputFileName)
+write(20,'(i12,3x,a)') sum(lnatoms(:)), '"'//trim(inputFileName)//'"'
+write(20,'(6f12.3)') L1, L2, L3, Lalpha, Lbeta, Lgamma
 do myid=0,nprocs-1
    write(a6(1:6),'(i6.6)') myid
 
@@ -429,7 +429,7 @@ do myid=0,nprocs-1
    enddo
 
 enddo
-close(1)
+close(1, status='delete')
 close(20)
 close(30)
 
