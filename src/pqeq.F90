@@ -3,6 +3,7 @@ subroutine PQEq(atype, pos, q)
 !use atoms
 use pqeq_vars
 use parameters
+use eField
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -377,13 +378,11 @@ do i=1, NATOMS
 
    dr2 = sum(spos(i,1:3)*spos(i,1:3)) ! distance between core-and-shell for i-atom
 
-   if(isPolarizable(ity)) then
-      Eshell = 0.5d0*Kspqeq(ity)*dr2/CEchrge ! kcal/mol -> ev
-   else
-      Eshell = 0.d0
-   endif
+   if(isPolarizable(ity)) Est = Est + 0.5d0*Kspqeq(ity)*dr2/CEchrge ! kcal/mol -> ev
 
-   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i) + Eshell
+   if(isEfield) Est = Est + q(i)*Voltage*sin(VolPhase*pos(i,VolDir))
+
+   Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
    do j1 = 1, nbplist(i,0)
       j = nbplist(i,j1)
@@ -430,9 +429,9 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_gradient(Gnew)
+use atoms; use parameters
 ! Update gradient vector <g> and new residue <Gnew>
 !-----------------------------------------------------------------------------------------------------------------------
-use atoms; use parameters
 implicit none
 real(8),intent(OUT) :: Gnew(2)
 real(8) :: eta_ity, ggnew(2)
@@ -458,6 +457,8 @@ do i=1,NATOMS
    eta_ity = eta(ity)
 
    gs(i) = - chi(ity) - eta_ity*qs(i) - gssum - fpqeq(i)
+   if(isEfield) gs(i) = gs(i) - Voltage*sin(VolPhase*pos(i,VolDir))
+
    gt(i) = - 1.d0     - eta_ity*qt(i) - gtsum
 
 enddo 

@@ -269,11 +269,11 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') cstep,GTE,GPE(0),GKE, &
+   write(6,'(a,i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') 'energy : ',cstep,GTE,GPE(0),GKE, &
    GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
-   tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0 
+   tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0
 
-   write(6,'(a,6f12.6)') 'astr(1:6) [GPa]: ',astr(1:6)
+   write(6,'(a,i9,6f12.6)') 'stress : ',cstep,astr(1:6)
 
 endif
 
