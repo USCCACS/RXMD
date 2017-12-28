@@ -13,11 +13,64 @@ Interface
 end Interface
 
 end module
+
 !-------------------------------------------------------------------------------------------
+module eField
+!-------------------------------------------------------------------------------------------
+
+real(8) :: Voltage=0.0,VolPhase=0.0
+integer :: VolDir=1
+
+contains
+
+!-------------------------------------------------------------------------------------------
+subroutine initialize_eField(myid, LatticeLength)
+implicit none
+!-------------------------------------------------------------------------------------------
+real(8),parameter :: pi=3.14159265358979d0
+integer,intent(in) :: myid
+real(8),intent(in) :: LatticeLength
+
+VolPhase = 2*pi/LatticeLength
+
+if(myid==0) then
+   print'(a)','-----------------------------------------------------------'
+   print'(a,f12.6,i6,f12.6)','Voltage [V], VolDir, VolPhase : ', Voltage, VolDir, VolPhase
+   print'(a)','-----------------------------------------------------------'
+endif
+
+return
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine EEfield(Etotal,NATOMS,pos,q,f,Eev_kcal)
+implicit none 
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: NATOMS
+real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),Eev_kcal
+integer :: i
+real(8) :: Etotal ,f(NATOMS,3), Eenergy, Eforce
+
+do i=1, NATOMS
+
+   Eenergy = q(i)*Voltage*sin(VolPhase*pos(i,VolDir))*Eev_kcal
+   Eforce = -q(i)*Voltage*VolPhase*cos(VolPhase*pos(i,VolDir))*Eev_kcal
+
+   Etotal = Etotal + Eenergy
+   f(i,VolDir)=f(i,VolDir)+Eforce
+enddo
+
+return
+end subroutine
+
+end module
 
 !-------------------------------------------------------------------------------------------
 module cmdline_args
+implicit none
 !-------------------------------------------------------------------------------------------
+
+!--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
 character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
@@ -26,15 +79,18 @@ logical :: saveRunProfile=.false.
 character(MAXPATHLENGTH) :: RunProfilePath="profile.dat"
 integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
 
-!--- LG flag
 logical :: isLG=.false.
 
-contains 
+logical :: isEfield=.false.
+
+contains
 
 !-------------------------------------------------------------------------------------------
-subroutine get_cmdline_args()
-implicit none
+subroutine get_cmdline_args(myrank)
+use Efield
 !-------------------------------------------------------------------------------------------
+implicit none
+integer,intent(in) :: myrank
 
 integer :: i
 character(64) :: argv
@@ -44,7 +100,7 @@ do i=1, command_argument_count()
    call get_command_argument(i,argv)
    select case(adjustl(argv))
      case("--help","-h")
-       print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
+       if(myrank==0) print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
        stop
      case("--ffield", "-ff")
        call get_command_argument(i+1,argv)
@@ -56,8 +112,15 @@ do i=1, command_argument_count()
        call get_command_argument(i+1,argv)
        ParmPath=adjustl(argv)
      case("--lg","-lg")
-       print'(a30)','Enabling LG term'
+       if(myrank==0) print'(a30)','Enabling LG term'
        isLG=.true.
+     case("--efield", "-e")
+       if(myrank==0) print'(a30)','Enabling electric field'
+       isEfield=.true.
+       call get_command_argument(i+1,argv)
+       read(argv,*) VolDir 
+       call get_command_argument(i+1,argv)
+       read(argv,*) Voltage
      case("--profile")
        saveRunProfile=.true.
      case default
@@ -96,16 +159,12 @@ integer :: ns, nr, na, ne
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
-integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5, MODE_STRESSCALC = 6
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
 
 integer,parameter :: NE_COPY = 13, NE_MOVE = 15
-integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3, NE_STRESSCALC = 6
+integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
 
-#ifdef STRESS
-integer,parameter :: NE_CPBK = 10
-#else
 integer,parameter :: NE_CPBK = 4
-#endif
 
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
@@ -144,7 +203,7 @@ real(8) :: cutoff_vpar30
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
 
-integer :: NBUFFER=10000
+integer :: NBUFFER=30000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=1300 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff.
 
@@ -157,9 +216,8 @@ real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to d
 real(8),parameter :: pi=3.14159265358979d0
 real(8),parameter :: sqrtpi_inv=1.d0/sqrt(pi)
 
-! atomic stress tensor
-real(8),allocatable :: astr(:,:) 
-real(8) :: pint(3,3)
+! stress tensor
+real(8) :: astr(6) 
 
 !--- coefficient of bonding energy derivative 
 real(8),allocatable :: ccbnd(:)
@@ -358,12 +416,11 @@ end function
 end module atoms
 
 !-------------------------------------------------------------------------------------------
-
-!-------------------------------------------------------------------------------------------
 module pqeq_vars
 use atoms
-implicit none
 !-------------------------------------------------------------------------------------------
+implicit none
+
 real(8),allocatable,dimension(:,:) :: spos
 integer,allocatable :: inxnpqeq(:,:)
 
@@ -514,7 +571,6 @@ real(8) :: Acc,Asc,Ass
 real(8) :: dr1,dr2,dr3,dr4,dr5,dr6,dr7,dr1i,UDR,UDRi
 real(8) :: clmb,dclmb,screen,dscreen,Tap,dTap,Eclmb,dEclmb
 
-
 call set_alphaij_pqeq()
 
 !--- for PQEq
@@ -620,8 +676,6 @@ enddo
 end subroutine
 
 end module
-
-
 !-------------------------------------------------------------------------------------------
 
 

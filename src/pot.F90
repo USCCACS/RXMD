@@ -3,6 +3,7 @@ subroutine FORCE(atype, pos, f, q)
 use parameters
 !use atoms 
 use pqeq_vars
+use eField
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
@@ -22,11 +23,6 @@ integer :: gtype(NBUFFER) !-- global ID from atype
 ccbnd(:) = 0.d0
 f(:,:) = 0.d0
 PE(:) = 0.d0
-
-#ifdef STRESS
-!--- stress components have to be transfered back to the original atoms, as the force components. 
-astr(:,:) = 0.d0
-#endif
 
 !--- cache atoms and create linkedlist for bonding and non-bonding neighbor lists. 
 call COPYATOMS(MODE_COPY,NMINCELL*lcsize(1:3),atype,pos,vdummy,f,q) 
@@ -57,7 +53,19 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
+if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,Eev_kcal)
+
 CALL ForceBondedTerms(NMINCELL)
+
+do i=1, NBUFFER
+   astr(1)=astr(1)+pos(i,1)*f(i,1)
+   astr(2)=astr(2)+pos(i,2)*f(i,2)
+   astr(3)=astr(3)+pos(i,3)*f(i,3)
+   astr(4)=astr(4)+pos(i,2)*f(i,3)
+   astr(5)=astr(5)+pos(i,3)*f(i,1)
+   astr(6)=astr(6)+pos(i,1)*f(i,2)
+enddo
+
 CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
 
 #ifdef RFDUMP
@@ -72,11 +80,6 @@ do i=1, NATOMS
    write(81,'(i6,1x,a3,i6,7f20.12)') gtype(i),'chg',nint(atype(i)),q(i)
 enddo
 close(81)
-#endif
-
-!--- calculate kinetic part of stress components and add to <astr>.
-#ifdef STRESS
-call stress()
 #endif
 
 return
@@ -104,10 +107,6 @@ do i=1, copyptr(6)
      ff(1:3) = ccbnd(i)*dBOp(i,j1)*dr(1:3)
      f(i,1:3) = f(i,1:3) - ff(1:3)
      f(j,1:3) = f(j,1:3) + ff(1:3)
-#ifdef STRESS
-     ia=i; ja=j
-     include 'stress'
-#endif
   enddo
 
 !--- reset ccbnd to zero for next turn. first rest is done during initialization.
@@ -625,12 +624,6 @@ do i=1, NATOMS
 !$omp atomic
                   f(k,3) = f(k,3) + ff(3)
 
-!--- stress calculation
-#ifdef STRESS
-                  ia=j; ja=k; dr(1:3)=rjk(1:3)
-                  include 'stress'
-#endif
-
                endif ! if(rik2<rchb2)
             endif
 
@@ -775,11 +768,6 @@ do i=1, NATOMS
 !$omp atomic
                f(j,3) = f(j,3) + ff(3)
 
-!--- stress calculation
-#ifdef STRESS
-                ia=i; ja=j
-                include 'stress'
-#endif
             !endif
 
          endif
@@ -1128,11 +1116,6 @@ do j1=1, nbrlist(i,0)
 !$omp atomic
   f(j,3) = f(j,3) + ff(3)
 
-#ifdef STRESS
-  ia=i; ja=j
-  include 'stress'
-#endif
-
   Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
   Cbond(3)=coeff*BO(0,i,j1)*A2(j,i1) ! Coeff of deltap_j
 
@@ -1176,11 +1159,6 @@ f(j,1) = f(j,1) + ff(1)
 f(j,2) = f(j,2) + ff(2)
 !$omp atomic
 f(j,3) = f(j,3) + ff(3)
-
-#ifdef STRESS
-ia=i; ja=j
-include 'stress'
-#endif
 
 !--- A3 is not necessary anymore with the new BO def. 
 Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
@@ -1228,11 +1206,6 @@ f(j,1) = f(j,1) + ff(1)
 f(j,2) = f(j,2) + ff(2)
 !$omp atomic
 f(j,3) = f(j,3) + ff(3)
-
-#ifdef STRESS
-ia=i; ja=j
-include 'stress'
-#endif
 
 !--- 1st element is "full"-bond order.
 cBO(1:3) = (/cf(1)*BO(0,i,j1),  cf(2)*BO(2,i,j1),  cf(3)*BO(3,i,j1) /)
@@ -1336,16 +1309,6 @@ f(l,2) = f(l,2) - fkl(2)
 !$omp atomic
 f(l,3) = f(l,3) - fkl(3)
 
-!--- stress calculation
-#ifdef STRESS
-ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)
-include 'stress'
-ia=j; ja=k; dr(1:3)=rjk(1:3); ff(1:3)=-fjk(1:3)
-include 'stress'
-ia=k; ja=l; dr(1:3)=rkl(1:3); ff(1:3)=-fkl(1:3)
-include 'stress'
-#endif
-
 !--- Check N3rd ---
 !  print'(a,5f20.13)','N3rd: ',Cwi(1)-Cwi(2)+Cwj(1), Cwi(2)-Cwi(3)+Cwk(1), &
 !        Cwi(3)+Cwl(1), Cwj(2)-Cwj(3)-Cwk(1)+Cwk(2), Cwk(3)-Cwl(2)+Cwl(3)
@@ -1407,13 +1370,6 @@ f(k,1) = f(k,1) - fjk(1)
 f(k,2) = f(k,2) - fjk(2)
 !$omp atomic
 f(k,3) = f(k,3) - fjk(3)
-
-#ifdef STRESS
-ia=i; ja=j; dr(1:3)=rij(1:3); ff(1:3)=-fij(1:3)
-include 'stress'
-ia=j; ja=k; dr(1:3)=rjk(1:3); ff(1:3)=-fjk(1:3)
-include 'stress'
-#endif
 
 !--- Check N3rd ---
 !print'(a,6f20.13)','N3rd: ', &

@@ -7,6 +7,8 @@ use parameters
 !use atoms
 use pqeq_vars
 use MemoryAllocator 
+use eField
+
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
@@ -40,6 +42,8 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
           20.d0/(rctap)**7 /)
 
 call initialize_pqeq(chi,eta)
+
+astr(:)=0.d0
 
 !--- summary file keeps potential energies, box parameters during MD simulation
 !--- intended to be used for validation of code change. 
@@ -169,12 +173,6 @@ call UpdateBoxParams()
 i8=NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
-#ifdef STRESS
-!--- stress variables
-call allocatord2d(astr(1,6,1,NBUFFER)
-astr(:,:)=0.d0; 
-#endif
-
 !--- Linked List & Near Neighb Parameters
 call allocatori2d(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
 call allocatori2d(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
@@ -285,6 +283,8 @@ if(myid==0) then
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 
 endif
+
+if(isEfield) call initialize_eField(myid,HH(VolDir,VolDir,0))
 
 END SUBROUTINE
 
