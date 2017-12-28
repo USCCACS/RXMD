@@ -3,7 +3,6 @@ subroutine PQEq(atype, pos, q)
 !use atoms
 use pqeq_vars
 use parameters
-use eField
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -206,6 +205,9 @@ do i=1, NATOMS
    sforce(i,1:3) = sforce(i,1:3) - Kspqeq(ity)*spos(i,1:3) ! Eq. (37)
 
    shelli(1:3) = pos(i,1:3) + spos(i,1:3)
+
+   if(isEfield) sforce(i,VolDir) = sforce(i,VolDir) - &
+        Zpqeq(ity)*Voltage*VolPhase*cos(VolPhase*shelli(VolDir))*Eev_kcal 
 
    do j1 = 1, nbplist(i,0)
 

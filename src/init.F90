@@ -7,7 +7,6 @@ use parameters
 !use atoms
 use pqeq_vars
 use MemoryAllocator 
-use eField
 
 implicit none
 

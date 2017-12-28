@@ -3,7 +3,6 @@ subroutine FORCE(atype, pos, f, q)
 use parameters
 !use atoms 
 use pqeq_vars
-use eField
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
@@ -53,7 +52,7 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
-if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,Eev_kcal)
+if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
 
 CALL ForceBondedTerms(NMINCELL)
 

@@ -15,57 +15,6 @@ end Interface
 end module
 
 !-------------------------------------------------------------------------------------------
-module eField
-!-------------------------------------------------------------------------------------------
-
-real(8) :: Voltage=0.0,VolPhase=0.0
-integer :: VolDir=1
-
-contains
-
-!-------------------------------------------------------------------------------------------
-subroutine initialize_eField(myid, LatticeLength)
-implicit none
-!-------------------------------------------------------------------------------------------
-real(8),parameter :: pi=3.14159265358979d0
-integer,intent(in) :: myid
-real(8),intent(in) :: LatticeLength
-
-VolPhase = 2*pi/LatticeLength
-
-if(myid==0) then
-   print'(a)','-----------------------------------------------------------'
-   print'(a,f12.6,i6,f12.6)','Voltage [V], VolDir, VolPhase : ', Voltage, VolDir, VolPhase
-   print'(a)','-----------------------------------------------------------'
-endif
-
-return
-end subroutine
-
-!-------------------------------------------------------------------------------------------
-subroutine EEfield(Etotal,NATOMS,pos,q,f,Eev_kcal)
-implicit none 
-!-------------------------------------------------------------------------------------------
-integer,intent(in) :: NATOMS
-real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),Eev_kcal
-integer :: i
-real(8) :: Etotal ,f(NATOMS,3), Eenergy, Eforce
-
-do i=1, NATOMS
-
-   Eenergy = q(i)*Voltage*sin(VolPhase*pos(i,VolDir))*Eev_kcal
-   Eforce = -q(i)*Voltage*VolPhase*cos(VolPhase*pos(i,VolDir))*Eev_kcal
-
-   Etotal = Etotal + Eenergy
-   f(i,VolDir)=f(i,VolDir)+Eforce
-enddo
-
-return
-end subroutine
-
-end module
-
-!-------------------------------------------------------------------------------------------
 module cmdline_args
 implicit none
 !-------------------------------------------------------------------------------------------
@@ -86,11 +35,12 @@ logical :: isEfield=.false.
 contains
 
 !-------------------------------------------------------------------------------------------
-subroutine get_cmdline_args(myrank)
-use Efield
+subroutine get_cmdline_args(myrank, VolDir, Voltage)
 !-------------------------------------------------------------------------------------------
 implicit none
 integer,intent(in) :: myrank
+integer :: VolDir
+real(8) :: Voltage
 
 integer :: i
 character(64) :: argv
@@ -455,7 +405,60 @@ real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
 real(8) :: alphass(ntype_pqeq,ntype_pqeq)
 real(8) :: lambda_pqeq = 0.462770d0
 
+real(8) :: Voltage=0.0,VolPhase=0.0
+integer :: VolDir=1
+
 contains
+
+!-------------------------------------------------------------------------------------------
+subroutine initialize_eField(myid, LatticeLength)
+implicit none
+!-------------------------------------------------------------------------------------------
+real(8),parameter :: pi=3.14159265358979d0
+integer,intent(in) :: myid
+real(8),intent(in) :: LatticeLength
+
+VolPhase = 2*pi/LatticeLength
+
+if(myid==0) then
+   print'(a)','-----------------------------------------------------------'
+   print'(a,f12.6,i6,f12.6)','Voltage [V], VolDir, VolPhase : ', Voltage, VolDir, VolPhase
+   print'(a)','-----------------------------------------------------------'
+endif
+
+return
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine EEfield(Etotal,NATOMS,pos,q,f,atype,Eev_kcal)
+implicit none 
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: NATOMS
+real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),atype(NATOMS),Eev_kcal
+
+integer :: i, ity
+real(8) :: Etotal ,f(NATOMS,3), Eenergy, Eforce, qic, shellix
+
+do i=1, NATOMS
+
+   qic = q(i) + Zpqeq(ity)
+   ity = nint(atype(i))
+
+   Eenergy =  qic*Voltage*sin(VolPhase*pos(i,VolDir))*Eev_kcal
+   Eforce  = -qic*Voltage*VolPhase*cos(VolPhase*pos(i,VolDir))*Eev_kcal
+
+   if(isPolarizable(ity)) then
+      shellix = pos(i,VolDir) + spos(i,VolDir)
+      Eenergy = Eenergy - Zpqeq(ity)*Voltage*sin(VolPhase*shellix)*Eev_kcal
+      Eforce  = Eforce  + Zpqeq(ity)*Voltage*VolPhase*cos(VolPhase*shellix)*Eev_kcal
+   endif
+
+   Etotal = Etotal + Eenergy
+   f(i,VolDir)=f(i,VolDir)+Eforce
+enddo
+
+return
+end subroutine
 
 !-------------------------------------------------------------------------------------------
 subroutine get_coulomb_and_dcoulomb_pqeq(rr,alpha,Eclmb,inxn,TBL_Eclmb,ff)

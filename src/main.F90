@@ -1,6 +1,9 @@
 !------------------------------------------------------------------------------
 program rxmd
-use base; use atoms; use parameters; use CG
+use base
+use pqeq_vars
+use parameters
+use CG
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,ity,it1,it2,irt,provided
@@ -14,7 +17,7 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 if(myid==0)  print'(a30)', 'rxmd has started'
 
 !--- process command line arguments
-call get_cmdline_args(myid)
+call get_cmdline_args(myid, VolDir, Voltage)
 
 !--- read ffield file
 CALL GETPARAMS(FFPath,FFDescript)
