@@ -17,7 +17,7 @@ call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 if(myid==0)  print'(a30)', 'rxmd has started'
 
 !--- process command line arguments
-call get_cmdline_args(myid, VolDir, Voltage)
+call get_cmdline_args(myid, eFieldDir, eFieldStrength)
 
 !--- read ffield file
 CALL GETPARAMS(FFPath,FFDescript)
@@ -71,6 +71,11 @@ do nstep=0, ntime_step-1
    
    if(mod(nstep,qstep)==0) call PQEq(atype, pos, q)
    call FORCE(atype, pos, f, q)
+
+   if(mod(nstep,fstep)==0) then
+        call save_shell_positions(myid, current_step+nstep, NATOMS, NBUFFER, atype,pos,spos,q, &
+                                 lata,latb,latc,lalpha,lbeta,lgamma)
+   endif
 
    do i=1, NATOMS
       ity = nint(atype(i))
