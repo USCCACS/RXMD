@@ -14,7 +14,7 @@ FC = gfortran
 OPT =
 CPP = 
 LDFLAGS =
-RUNFLAGS = -lg
+RUNFLAGS = 
 
 TARGETS = geninit
 all: $(TARGETS)
@@ -28,6 +28,10 @@ geninit: geninit.o
 nocopy: geninit.o
 	$(FC) -o $@ $^ $(LDFLAGS)
 	./geninit $(RUNFLAGS)
+
+rebuild:
+	make clean
+	make
 
 clean:
 	rm -f all.bin rxff.bin ../DAT/rxff.bin geninit.xyz real.xyz norm.xyz *.o *.mod *.MOD $(TARGETS)

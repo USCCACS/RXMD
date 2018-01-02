@@ -17,3 +17,7 @@ fileio.o : param.o
 
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
+
+rebuild:
+	make clean
+	make -j 4
