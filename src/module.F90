@@ -20,6 +20,10 @@ module atoms
 !-------------------------------------------------------------------------------------------
 include 'mpif.h'
 
+real(8) :: springConst
+logical :: hasSpringForce(16)
+real(8),allocatable :: ipos(:,:)
+
 !--- command arguments 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 integer,parameter :: MAXPATHLENGTH=256
@@ -52,7 +56,7 @@ integer :: ns, nr, na, ne
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5, MODE_STRESSCALC = 6
 
-integer,parameter :: NE_COPY = 10, NE_MOVE = 12
+integer,parameter :: NE_COPY = 10, NE_MOVE = 15
 integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3, NE_STRESSCALC = 6
 
 #ifdef STRESS
@@ -98,9 +102,9 @@ real(8) :: cutoff_vpar30
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER=10000
+integer :: NBUFFER=5000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=700 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer,parameter :: MAXNEIGHBS10=500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=3  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
@@ -116,6 +120,7 @@ real(8) :: pint(3,3)
 
 !--- coefficient of bonding energy derivative 
 real(8),allocatable :: ccbnd(:)
+real(8),allocatable :: cdbnd(:)
 
 real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
 integer :: NATOMS         !local # of atoms

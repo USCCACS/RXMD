@@ -18,6 +18,7 @@ integer :: itype(NBUFFER) !-- integer part of atype
 integer :: gtype(NBUFFER) !-- global ID from atype
 
 ccbnd(:) = 0.d0
+cdbnd(:) = 0.d0
 f(:,:) = 0.d0
 PE(:) = 0.d0
 
@@ -82,6 +83,24 @@ return
 CONTAINS 
 
 !----------------------------------------------------------------------
+subroutine SpringForce()
+implicit none
+!----------------------------------------------------------------------
+integer :: i,ity
+real(8) :: rr(3),dr
+
+do i=1, NATOMS
+   ity=nint(atype(i))
+   if(hasSpringForce(ity)) then
+     rr(1:3)=pos(i,1:3)-ipos(i,1:3)
+     f(i,1:3)=f(i,1:3)-springConst*rr(1:3)
+   endif
+enddo
+
+return
+end subroutine
+
+!----------------------------------------------------------------------
 subroutine ForceBondedTerms(nlayer)
 use atoms
 !----------------------------------------------------------------------
@@ -95,6 +114,8 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 do i=1, copyptr(6)
+
+  call ForceD(i,cdbnd(i))
 
   do j1=1, nbrlist(i,0)
      j=nbrlist(i,j1)
@@ -273,7 +294,9 @@ do i=1, NATOMS
       call ForceBbo(i,j1, j,i1, coeff)
 
       CElp_d  = CEover(6) + CEunder(5)
-      call ForceD(j, CElp_d)
+      !call ForceD(j, CElp_d)
+!$omp atomic 
+      cdbnd(j)=cdbnd(j)+CElp_d
    enddo
 
 enddo ! i-loop
@@ -503,8 +526,12 @@ do j=1, NATOMS
                call ForceBbo(j,n1, n,j1, coeff) 
             enddo
 
-            call ForceD(i, CE3body_d(2))
-            call ForceD(k, CE3body_d(3))
+            !call ForceD(i, CE3body_d(2))
+!$omp atomic
+      cdbnd(i)=cdbnd(i)+CE3body_d(2)
+            !call ForceD(k, CE3body_d(3))
+!$omp atomic
+      cdbnd(k)=cdbnd(k)+CE3body_d(3)
 
             call ForceA3(CE3body_a, i, j, k, rij, rjk) 
 
@@ -1007,8 +1034,12 @@ do j=1,NATOMS
                  C4body_b(1:3) = CEconj(1:3) + CEtors(4:6) !dBOij, dBOjk, dBOkl
                  C4body_a(1:3) = CEconj(4:6) + CEtors(7:9) !ijk, jkl, ijkl
 
-                 call ForceD(j, CEtors(3))
-                 call ForceD(k, CEtors(3))
+                 !call ForceD(j, CEtors(3))
+!$omp atomic
+      cdbnd(j)=cdbnd(j)+CEtors(3)
+                 !call ForceD(k, CEtors(3))
+!$omp atomic
+      cdbnd(k)=cdbnd(k)+CEtors(3)
 
                  j1 = nbrindx(j, i1)
                  call ForceB(i,j1, j,i1, C4body_b(1))

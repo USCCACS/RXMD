@@ -110,6 +110,7 @@ if(imode==MODE_MOVE) then
         qt(ni) = qt(i)
         qsfp(ni) = qsfp(i)
         qsfv(ni) = qsfv(i)
+        ipos(ni,1:3) = ipos(i,1:3)
       endif
    enddo 
 
@@ -254,6 +255,8 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+10) = qt(n)
            sbuffer(ns+11) = qsfp(n)
            sbuffer(ns+12) = qsfv(n)
+           sbuffer(ns+13:ns+15) = ipos(n,1:3)
+           sbuffer(ns+13+is) = sbuffer(ns+13+is) + sft
   
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
            atype(n) = -1.d0 
@@ -367,6 +370,7 @@ if(imode /= MODE_CPBK) then
               qt(m) = rbuffer(ine+10)
               qsfp(m) = rbuffer(ine+11)
               qsfv(m) = rbuffer(ine+12)
+              ipos(m,1:3) = rbuffer(ine+13:ine+15)
       
          case(MODE_COPY)
               pos(m,1:3) = rbuffer(ine+1:ine+3)

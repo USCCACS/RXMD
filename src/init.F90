@@ -206,7 +206,8 @@ call allocatord2d(A3,1,NBUFFER,1,MAXNEIGHBS)
 call allocatord1d(nlp,1,NBUFFER)
 call allocatord1d(dDlp,1,NBUFFER)
 call allocatord1d(ccbnd,1,NBUFFER)
-ccbnd(:)=0.d0
+call allocatord1d(cdbnd,1,NBUFFER)
+ccbnd(:)=0.d0; cdbnd(:)=0.d0
 
 !--- 2 vector QEq varialbes
 call allocatord1d(qs,1,NBUFFER)
@@ -249,6 +250,27 @@ i=ntime_step/pstep+1
 allocate(maxas(i,nmaxas))
 maxas(:,:)=0
 
+!--- for spring force
+call allocatord2d(ipos,1,NBUFFER,1,3)
+ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
+
+do i=1, command_argument_count()
+   call get_command_argument(i,argv)
+
+   select case(adjustl(argv))
+     case("--spring", "-s") ! for spring force
+       call get_command_argument(i+1,argv)
+       read(argv,*) springConst
+     case("--apply-spring", "-as") ! for spring force
+       call get_command_argument(i+1,argv)
+       read(argv,*) ity
+       if(ity>size(hasSpringForce)) &
+           print*,'ERROR atomtype exceeds the size of hasSpringForce', ity
+       hasSpringForce(ity)=.true.
+     case default
+   end select
+enddo
+
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
@@ -287,6 +309,14 @@ if(myid==0) then
       if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
    enddo
    print*
+
+   if(springConst>0.d0) then
+     print'(a,f8.2 $)','springConst [kcal/mol] ', springConst 
+     do ity=1, size(hasSpringForce) 
+        if(hasSpringForce(ity)) print'(i3 $)',ity
+     enddo
+     print*
+   endif
 
    print'(a)', "----------------------------------------------------------------"
    write(6,'(a)')  &
