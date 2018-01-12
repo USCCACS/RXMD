@@ -389,8 +389,7 @@ do i=1, NATOMS
 
       Ccicj = 0.d0; Csicj=0.d0; Csisj=0.d0
 
-      Ccicj = hessian(j1,i)
-      Ccicj = Cclmb0_qeq*Ccicj*qic*qjc*0.5d0
+      Ccicj = hessian(j1,i)*Ccicj*qic*qjc*0.5d0 ! hessian() is in [eV]
 
       if(isPolarizable(ity)) then
          dr(1:3)=shelli(1:3)-pos(j,1:3)
