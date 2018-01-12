@@ -20,7 +20,7 @@ module atoms
 !-------------------------------------------------------------------------------------------
 include 'mpif.h'
 
-real(8) :: springConst
+real(8) :: springConst=0.d0
 logical :: hasSpringForce(16)
 real(8),allocatable :: ipos(:,:)
 

@@ -256,7 +256,7 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+11) = qsfp(n)
            sbuffer(ns+12) = qsfv(n)
            sbuffer(ns+13:ns+15) = ipos(n,1:3)
-           sbuffer(ns+13+is) = sbuffer(ns+13+is) + sft
+           sbuffer(ns+13+is) = sbuffer(ns+13+is) + sft*HH(is+1,is+1,0)
   
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
            atype(n) = -1.d0 

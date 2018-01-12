@@ -56,6 +56,8 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
+if(springConst>0.d0) call SpringForce()
+
 CALL ForceBondedTerms(NMINCELL)
 CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
 
