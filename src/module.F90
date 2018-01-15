@@ -5,13 +5,6 @@ module base
 real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos, v, f
 
-Interface
-   SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
-      real(8),allocatable,dimension(:) :: atype, q
-      real(8),allocatable,dimension(:,:) :: pos,v,f
-   end subroutine
-end Interface
-
 end module
 
 !-------------------------------------------------------------------------------------------

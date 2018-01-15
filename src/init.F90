@@ -1,3 +1,5 @@
+module init
+contains
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
@@ -284,8 +286,8 @@ if(myid==0) then
 
 endif
 
-
 END SUBROUTINE
+end module
 
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITVELOCITY(atype, v)

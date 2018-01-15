@@ -1,6 +1,7 @@
 !------------------------------------------------------------------------------
 program rxmd
 use base
+use init
 use pqeq_vars
 use parameters
 use CG
