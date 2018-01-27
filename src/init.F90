@@ -271,24 +271,6 @@ do i=1, command_argument_count()
    end select
 enddo
 
-!--- for repulsive wall
-!--- "-w [123456] pos" applies repulsive potential in +x,-x,+y,-y,+z,-z directions at pos
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-
-   select case(adjustl(argv))
-     case("--wall", "-w") ! for spring force
-       call get_command_argument(i+1,argv)
-       read(argv,*) j 
-       hasWall(j)=.true.
-
-       call get_command_argument(i+1,argv)
-       read(argv,*) wallPos(j)
-     case default
-   end select
-enddo
-
-
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
@@ -335,10 +317,6 @@ if(myid==0) then
      enddo
      print*
    endif
-
-   do i=1,6
-      if(hasWall(i)) print'(a30,i3,f8.2)','repulsive Wall:',i,wallPos(i)
-   enddo 
 
    print'(a)', "----------------------------------------------------------------"
    write(6,'(a)')  &
