@@ -394,7 +394,7 @@ do i=1, NATOMS
       if(isPolarizable(ity)) then
          dr(1:3)=shelli(1:3)-pos(j,1:3)
          call get_coulomb_and_dcoulomb_pqeq(dr,alphasc(ity,jty),Csicj,inxnpqeq(ity,jty),TBL_Eclmb_psc,ff)
-         Csicj=-Cclmb0_qeq*Csicj*qic*Zpqeq(jty)
+         Csicj=-Cclmb0_qeq*Csicj*qjc*Zpqeq(ity)
 
          if(isPolarizable(jty)) then
              dr(1:3)=shelli(1:3)-shellj(1:3)
@@ -407,10 +407,10 @@ do i=1, NATOMS
       hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
 
 !--- get half of potential energy, then sum it up if atoms are resident.
-      Est1 = Ccicj + Csicj + Csisj
+      Est1 = 0.5d0*(Ccicj + Csisj)
 
-      Est = Est + 0.5d0*Est1
-      if(j<=NATOMS) Est = Est + 0.5d0*Est1
+      Est = Est + Est1 + Csicj
+      if(j<=NATOMS) Est = Est + Est1
    enddo
 
 enddo
