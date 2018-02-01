@@ -389,7 +389,7 @@ do i=1, NATOMS
 
       Ccicj = 0.d0; Csicj=0.d0; Csisj=0.d0
 
-      Ccicj = hessian(j1,i)*Ccicj*qic*qjc*0.5d0 ! hessian() is in [eV]
+      Ccicj = hessian(j1,i)*qic*qjc ! hessian() is in [eV]
 
       if(isPolarizable(ity)) then
          dr(1:3)=shelli(1:3)-pos(j,1:3)
@@ -410,7 +410,8 @@ do i=1, NATOMS
       Est1 = 0.5d0*(Ccicj + Csisj)
 
       Est = Est + Est1 + Csicj
-      if(j<=NATOMS) Est = Est + Est1
+!--- nbplist does not distinguish i,j pairs from intra-/inter-node atoms.
+      !if(j<=NATOMS) Est = Est + Est1 
    enddo
 
 enddo
