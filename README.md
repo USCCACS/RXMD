@@ -34,7 +34,7 @@ To get started,  clone this repository to your computer.
 ### 2.1 Working Directory
 Frist, change working directory to **rxmd/**
 ```
-~$ cd rxmd
+~$ cd rxmd-master
 ```
 you will see following files and directories.
 
