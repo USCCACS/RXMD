@@ -202,7 +202,7 @@ do i=1, NATOMS
    ! if i-atom is not polarizable, no force acting on i-shell. 
    if( .not. isPolarizable(ity) ) cycle 
 
-   if(isEfield) sforce(i,eFieldDir) = sforce(i,eFieldDir) + Zpqeq(ity)*eFieldStrength*Eev_kcal
+   if(isEfield) sforce(i,eFieldDir) = sforce(i,eFieldDir) - Zpqeq(ity)*eFieldStrength*Eev_kcal
 
    sforce(i,1:3) = sforce(i,1:3) - Kspqeq(ity)*spos(i,1:3) ! Eq. (37)
    shelli(1:3) = pos(i,1:3) + spos(i,1:3)

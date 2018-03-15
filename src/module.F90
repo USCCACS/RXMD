@@ -456,28 +456,26 @@ implicit none
 integer,intent(in) :: NATOMS
 real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),atype(NATOMS),Eev_kcal
 
+real(8) :: f(NATOMS,3), Etotal
+
 integer :: i, ity
-
-! NOTE : We've dropped the sinusoidal formulation, thus the energy contribution from 
-! electric field is not defined & updated here.
-real(8) :: Etotal 
-
-real(8) :: f(NATOMS,3), Eenergy, Eforce, qic, shellix
+real(8) :: Eenergy, Eforce
 
 do i=1, NATOMS
 
    ity = nint(atype(i))
-   qic = q(i) + Zpqeq(ity)
-
-   Eforce  = -qic*eFieldStrength*Eev_kcal
 
    if(isPolarizable(ity)) then
-      shellix = pos(i,eFieldDir) + spos(i,eFieldDir)
-      Eforce  = Eforce  + Zpqeq(ity)*eFieldStrength*Eev_kcal
+
+       ! E = -Zpqeq(ity)*eField*|rs-rc|. Note that Zpqeq stores a positive value.
+       ! It should have negative sign to represent the shell charge.
+       Eenergy = -Zpqeq(ity)*eFieldStrength*abs(spos(i,eFieldDir))*Eev_kcal
+       Eforce  = -Zpqeq(ity)*eFieldStrength*Eev_kcal
+
+       Etotal = Etotal + Eenergy
+       f(i,eFieldDir) = f(i,eFieldDir) + Eforce
    endif
 
-   Etotal = Etotal + Eenergy
-   f(i,eFieldDir)=f(i,eFieldDir)+Eforce
 enddo
 
 return
