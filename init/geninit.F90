@@ -23,7 +23,7 @@ character(256) :: fnote
 character(len=3),allocatable :: atomNames(:)
 integer :: numParams, numAtomNames
 
-logical :: getReal=.false., getNorm=.false.
+logical :: getReal=.false., getNorm=.false., noCoordinateShift=.false.
 
 contains
 
@@ -248,6 +248,9 @@ do i=1, command_argument_count()
        getReal=.true.
      case("-getnorm","-n")
        getNorm=.true.
+     case("-noCoordinateShift","-nocs")
+       noCoordinateShift=.true.
+       print*,'INFO: enabling noCoordinateShift flag'
      case default
    end select
 enddo
@@ -315,10 +318,12 @@ enddo
 enddo; enddo; enddo
 
 !--- shift coordinates, then shift a bit to avoid zero coordinates
-do i=1, 3
-   rmin(i)=minval(pos1(i,:))
-   pos1(i,:)=pos1(i,:)-rmin(i)
-enddo
+if (noCoordinateShift) then
+   do i=1, 3
+      rmin(i)=minval(pos1(i,:))
+      pos1(i,:)=pos1(i,:)-rmin(i)
+   enddo
+endif
 
 !--- wrap back atom coordinates if necessary
 do i=1, ntot
@@ -424,7 +429,7 @@ do myid=0,nprocs-1
    enddo
 
 enddo
-close(1)
+close(1, status='delete')
 close(20)
 close(30)
 
