@@ -52,7 +52,7 @@ type(pack1darray),allocatable :: pack1d(:)
 type(pack2darray),allocatable :: pack2d(:)
 type(pack2darray),allocatable :: norm2d(:)
 
-integer :: i,tn1,tn2, dflag
+integer :: ixyz,tn1,tn2, dflag
 integer :: ni, ity
 
 integer :: ti,tj,tk,tti,ttj
@@ -69,18 +69,18 @@ do dflag=1, 6
 
    tn1 = target_node(dflag)
    tn2 = target_node(dinv(dflag))
-   i = is_xyz(dflag)
-
+   ixyz = is_xyz(dflag)
+   
    if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
       tn1 = target_node(7-dinv(dflag)) ! <-[563412] 
       tn2 = target_node(7-dflag) ! <-[654321] 
-      i = is_xyz(7-dflag)        ! <-[332211]
+      ixyz = is_xyz(7-dflag)        ! <-[332211]
    endif
 
    call step_preparation(dflag, dr, commflag)
 
    call store_atoms(tn1, dflag, imode)
-   call send_recv(tn1, tn2, myparity(i))
+   call send_recv(tn1, tn2, myparity(ixyz))
    call append_atoms(dflag, imode)
 
 enddo
@@ -189,7 +189,7 @@ subroutine finalize(imode)
 implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: imode
-integer :: a
+integer :: i,a
 
 if(imode==MODE_MOVE) then
 !--- remove atoms which are transfered to neighbor nodes.
@@ -236,7 +236,7 @@ integer :: i
 
 !--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
 do i=1, copyptr(cptridx(dflag))
-   commflag(i) = inBuffer(dflag,i,dr,pos(i,is_xyz(dflag)))
+   commflag(i) = inBuffer(dflag,dr,pos(i,is_xyz(dflag)))
 enddo
 
 return
@@ -507,11 +507,11 @@ integer :: i, j
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-function inBuffer(dflag, idx, dr, rr) result(isInside)
+function inBuffer(dflag, dr, rr) result(isInside)
 use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-integer,intent(IN) :: dflag, idx
+integer,intent(IN) :: dflag
 real(8),intent(IN) :: dr(3), rr
 logical :: isInside
 
