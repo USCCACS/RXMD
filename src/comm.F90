@@ -1,6 +1,5 @@
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr, atype, rreal, v, f, q)
-!subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
+subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
 use atoms
 !
 ! TODO: update notes here
@@ -44,16 +43,14 @@ end type
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
 real(8),target :: atype(NBUFFER), q(NBUFFER)
-real(8),target :: rreal(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
-!real(8),target :: pos(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
+real(8),target :: pos(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
 
-real(8),target :: pos(NBUFFER,3) ! <- normalized coordinate
-! normalized coordinates of initial position for spring force
 real(8),target :: nipos(NBUFFER,3)  
 
 logical :: commflag(NBUFFER)
 type(pack1darray),allocatable :: pack1d(:)
 type(pack2darray),allocatable :: pack2d(:)
+type(pack2darray),allocatable :: norm2d(:)
 
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
@@ -108,14 +105,11 @@ subroutine initialize(imode)
 implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: imode
-integer :: i
-
-!--- Get the normalized local coordinate will be used through this function. 
+integer :: a
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
 
-!--- REMARK: note that MODE_CPBK depends on copyptr() generated during MODE_COPY.
 !--- Since cached atoms are stored after the resident atoms (i.e. i > NATOMS), 
 !--- initialize the cache atom pointer 0th elem with NATOMS.
 copyptr(0)=NATOMS
@@ -124,7 +118,7 @@ copyptr(0)=NATOMS
 select case(imode)
    case(MODE_COPY)
       ne = NE_COPY
-      allocate(pack2d(1),pack1d(7))
+      allocate(pack2d(1),pack1d(7),norm2d(1))
       pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
       pack1d(1)%ptr=>atype
       pack1d(2)%ptr=>q
@@ -133,15 +127,15 @@ select case(imode)
       pack1d(5)%ptr=>hs
       pack1d(6)%ptr=>ht
       pack1d(7)%ptr=>frcindx
-      call xu2xs(NATOMS,rreal,pos)
-      !call xu2xs_inplace(NATOMS,pos)
-      do i=1, NATOMS
-         frcindx(i)=i
+
+      norm2d(1)%ptr=>pos
+      do a=1, NATOMS
+         frcindx(a)=a
       enddo
 
    case(MODE_MOVE)
       ne = NE_MOVE
-      allocate(pack2d(3),pack1d(6))
+      allocate(pack2d(3),pack1d(6),norm2d(2))
       pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
       pack2d(2)%ptr=>v
       pack2d(3)%ptr=>nipos; pack2d(3)%shift=.true.
@@ -151,34 +145,41 @@ select case(imode)
       pack1d(4)%ptr=>qt
       pack1d(5)%ptr=>qsfp
       pack1d(6)%ptr=>qsfv
-      call xu2xs(NATOMS,rreal,pos)
-      call xu2xs(NATOMS,ipos,nipos)
-      !call xu2xs_inplace(NATOMS,pos)
-      !call xu2xs_inplace(NATOMS,nipos)
+
+      norm2d(1)%ptr=>pos 
+      norm2d(2)%ptr=>nipos
 
    case(MODE_QCOPY1)
       ne = NE_QCOPY1
-      allocate(pack1d(2))
+      allocate(pack1d(2),norm2d(1))
       pack1d(1)%ptr=>qs
       pack1d(2)%ptr=>qt
-      call xu2xs(copyptr(6),rreal,pos)
-      !call xu2xs_inplace(copyptr(6),pos)
+
+      norm2d(1)%ptr=>pos
 
    case(MODE_QCOPY2)
       ne = NE_QCOPY2
-      allocate(pack1d(3))
+      allocate(pack1d(3),norm2d(1))
       pack1d(1)%ptr=>hs
       pack1d(2)%ptr=>ht
       pack1d(3)%ptr=>q
-      call xu2xs(copyptr(6),rreal,pos)
-      !call xu2xs_inplace(copyptr(6),pos)
+
+      norm2d(1)%ptr=>pos
 
    case(MODE_CPBK)
       ne = NE_CPBK
+
    case default
       print'(a,i3)', "ERROR: imode doesn't match in COPYATOMS: ", imode
+
 end select
 
+!--- Get the normalized local coordinate will be used through this function. 
+if(allocated(norm2d)) then
+   do a=1,size(norm2d)
+      call xu2xs_inplace(max(copyptr(6),NATOMS),norm2d(a)%ptr)
+   enddo
+endif
 
 end subroutine
 
@@ -211,15 +212,15 @@ if(imode==MODE_MOVE) then
 endif
 
 !--- by here, we got new atom positions in the normalized coordinate, need to update real coordinates.
-if(imode== MODE_COPY .or. imode == MODE_MOVE) then
-   call xs2xu(copyptr(6),pos,rreal)
-   call xs2xu(copyptr(6),nipos,ipos)
-   !call xs2xu_inplace(copyptr(6),pos)
-   !call xs2xu_inplace(copyptr(6),nipos)
+if(allocated(norm2d)) then
+   do a=1,size(norm2d)
+      call xs2xu_inplace(copyptr(6),norm2d(a)%ptr)
+   enddo
 endif
 
 if(allocated(pack1d)) deallocate(pack1d)
 if(allocated(pack2d)) deallocate(pack2d)
+if(allocated(norm2d)) deallocate(norm2d)
 
 end subroutine
 

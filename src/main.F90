@@ -593,12 +593,14 @@ end function
 subroutine xu2xs(nmax, rreal, rnorm)
 ! update normalized coordinate from real coordinate. Subtract obox to make them local. 
 use atoms
+!--------------------------------------------------------------------------------------------------------------
+implicit none
 real(8),intent(in) :: rreal(NBUFFER,3)
 real(8),intent(out) :: rnorm(NBUFFER,3)
 integer,intent(in) :: nmax
 
-!--------------------------------------------------------------------------------------------------------------
 real(8) :: rr(3)
+integer :: i
 
 do i=1,nmax
    rr(1:3) = rreal(i,1:3)
@@ -614,11 +616,12 @@ end subroutine
 subroutine xu2xs_inplace(nmax, rreal)
 ! update normalized coordinate from real coordinate. Subtract obox to make them local. 
 use atoms
-real(8) :: rreal(NBUFFER,3)
-integer,intent(in) :: nmax
-
 !--------------------------------------------------------------------------------------------------------------
+implicit none
+real(8),intent(inout) :: rreal(NBUFFER,3)
+integer,intent(in) :: nmax
 real(8) :: rr(3)
+integer :: i
 
 do i=1,nmax
    rr(1:3) = rreal(i,1:3)
@@ -636,11 +639,13 @@ subroutine xs2xu(nmax,rnorm,rreal)
 ! update real coordinate from normalized coordinate
 use atoms
 !--------------------------------------------------------------------------------------------------------------
+implicit none
 real(8),intent(in) :: rnorm(NBUFFER,3)
 real(8),intent(out) :: rreal(NBUFFER,3)
 integer,intent(in) :: nmax
 
 real(8) :: rr(3)
+integer :: i
 
 do i=1,nmax 
    rr(1:3) = rnorm(i,1:3) + OBOX(1:3)
@@ -656,10 +661,12 @@ subroutine xs2xu_inplace(nmax,rnorm)
 ! update real coordinate from normalized coordinate
 use atoms
 !--------------------------------------------------------------------------------------------------------------
-real(8) :: rnorm(NBUFFER,3)
+implicit none
+real(8),intent(inout) :: rnorm(NBUFFER,3)
 integer,intent(in) :: nmax
 
 real(8) :: rr(3)
+integer :: i
 
 do i=1,nmax 
    rr(1:3) = rnorm(i,1:3) + OBOX(1:3)
