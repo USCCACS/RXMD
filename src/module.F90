@@ -56,9 +56,6 @@ integer :: ns, nr, na, ne
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
 
-integer,parameter :: NE_COPY = 10, NE_MOVE = 15
-integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
-
 #ifdef STRESS
 integer,parameter :: NE_CPBK = 10
 #else

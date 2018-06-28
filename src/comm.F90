@@ -117,8 +117,9 @@ copyptr(0)=NATOMS
 !--- set the number of data per atom 
 select case(imode)
    case(MODE_COPY)
-      ne = NE_COPY
       allocate(pack2d(1),pack1d(7),norm2d(1))
+      ne = size(pack2d)*3+size(pack1d)
+
       pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
       pack1d(1)%ptr=>atype
       pack1d(2)%ptr=>q
@@ -127,15 +128,16 @@ select case(imode)
       pack1d(5)%ptr=>hs
       pack1d(6)%ptr=>ht
       pack1d(7)%ptr=>frcindx
-
       norm2d(1)%ptr=>pos
+
       do a=1, NATOMS
          frcindx(a)=a
       enddo
 
    case(MODE_MOVE)
-      ne = NE_MOVE
       allocate(pack2d(3),pack1d(6),norm2d(2))
+      ne = size(pack2d)*3+size(pack1d)
+
       pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
       pack2d(2)%ptr=>v
       pack2d(3)%ptr=>nipos; pack2d(3)%shift=.true.
@@ -145,25 +147,24 @@ select case(imode)
       pack1d(4)%ptr=>qt
       pack1d(5)%ptr=>qsfp
       pack1d(6)%ptr=>qsfv
-
       norm2d(1)%ptr=>pos 
       norm2d(2)%ptr=>nipos
 
    case(MODE_QCOPY1)
-      ne = NE_QCOPY1
       allocate(pack1d(2),norm2d(1))
+      ne = size(pack2d)*3+size(pack1d)
+
       pack1d(1)%ptr=>qs
       pack1d(2)%ptr=>qt
-
       norm2d(1)%ptr=>pos
 
    case(MODE_QCOPY2)
-      ne = NE_QCOPY2
       allocate(pack1d(3),norm2d(1))
+      ne = size(pack2d)*3+size(pack1d)
+
       pack1d(1)%ptr=>hs
       pack1d(2)%ptr=>ht
       pack1d(3)%ptr=>q
-
       norm2d(1)%ptr=>pos
 
    case(MODE_CPBK)
