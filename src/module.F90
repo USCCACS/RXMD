@@ -254,7 +254,7 @@ integer :: sstep
 integer :: fstep, pstep
 
 !--- <frcindx> FoRCe INDeX. Index to return calculated force to original atoms.
-integer,allocatable :: frcindx(:)
+real(8),allocatable,target :: frcindx(:)
 integer :: copyptr(0:6)
 
 !--- stress components

@@ -106,6 +106,7 @@ subroutine initialize(imode)
 implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: imode
+integer :: i
 
 !--- Get the normalized local coordinate will be used through this function. 
 
@@ -129,8 +130,12 @@ select case(imode)
       pack1d(4)%ptr=>qt
       pack1d(5)%ptr=>hs
       pack1d(6)%ptr=>ht
+      pack1d(7)%ptr=>frcindx
       call xu2xs(NATOMS,rreal,pos)
       !call xu2xs_inplace(NATOMS,pos)
+      do i=1, NATOMS
+         frcindx(i)=i
+      enddo
 
    case(MODE_MOVE)
       ne = NE_MOVE
@@ -360,41 +365,25 @@ if(imode/=MODE_CPBK) then
 
       if(commflag(n)) then
 
-        select case(imode)
-        case(MODE_MOVE,MODE_QCOPY1,MODE_QCOPY2)
+        ioffset=ns
 
-           ioffset=ns
+        if(allocated(pack2d)) then
+           do a=1,size(pack2d)
+              sbuffer(ioffset+1:ioffset+3)=pack2d(a)%ptr(n,1:3)
+              if(pack2d(a)%shift) sbuffer(ioffset+1+is) = sbuffer(ioffset+1+is) + sft
+              ioffset=ioffset+3
+           enddo
+        endif
 
-           if(allocated(pack2d)) then
-              do a=1,size(pack2d)
-                 sbuffer(ioffset+1:ioffset+3)=pack2d(a)%ptr(n,1:3)
-                 if(pack2d(a)%shift) sbuffer(ioffset+1+is) = sbuffer(ioffset+1+is) + sft
-                 ioffset=ioffset+3
-              enddo
-           endif
-
-           if(allocated(pack1d)) then
-              do a=1,size(pack1d)
-                 sbuffer(ioffset+1)=pack1d(a)%ptr(n)
-                 ioffset=ioffset+1
-              enddo
-           endif
+        if(allocated(pack1d)) then
+           do a=1,size(pack1d)
+              sbuffer(ioffset+1)=pack1d(a)%ptr(n)
+              ioffset=ioffset+1
+           enddo
+        endif
 
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
-           if(imode==MODE_MOVE) atype(n) = -1.d0 
-
-        case(MODE_COPY)
-           sbuffer(ns+1:ns+3) = pos(n,1:3)
-           sbuffer(ns+1+is) = sbuffer(ns+1+is) + sft
-           sbuffer(ns+4) = atype(n)
-           sbuffer(ns+5) = q(n)
-           sbuffer(ns+6) = dble(n)
-           sbuffer(ns+7) = qs(n)
-           sbuffer(ns+8) = qt(n)
-           sbuffer(ns+9) = hs(n)
-           sbuffer(ns+10) = ht(n)
-
-        end select 
+        if(imode==MODE_MOVE) atype(n) = -1.d0 
 
 !--- increment the number of atoms to be sent 
         ns = ns + ne
@@ -464,39 +453,23 @@ if(imode /= MODE_CPBK) then
 !--- current atom index; resident + 1 + stored atoms so far + atoms in buffer
       m = copyptr(dflag-1) + 1 + i
 
-      select case(imode)
+      ioffset = ine
 
-         case(MODE_MOVE,MODE_QCOPY1,MODE_QCOPY2)
+      if(allocated(pack2d)) then
+         do a=1,size(pack2d)
+            pack2d(a)%ptr(m,1:3)=rbuffer(ioffset+1:ioffset+3)
+            ioffset=ioffset+3
+         enddo
+      endif
 
-              ioffset = ine
-
-              if(allocated(pack2d)) then
-                 do a=1,size(pack2d)
-                    pack2d(a)%ptr(m,1:3)=rbuffer(ioffset+1:ioffset+3)
-                    ioffset=ioffset+3
-                 enddo
-              endif
-
-              if(allocated(pack1d)) then
-                 do a=1,size(pack1d)
-                    pack1d(a)%ptr(m)=rbuffer(ioffset+1)
-                    ioffset=ioffset+1
-                 enddo
-              endif
+      if(allocated(pack1d)) then
+         do a=1,size(pack1d)
+            pack1d(a)%ptr(m)=rbuffer(ioffset+1)
+            ioffset=ioffset+1
+         enddo
+      endif
       
-         case(MODE_COPY)
-              pos(m,1:3) = rbuffer(ine+1:ine+3)
-              atype(m) = rbuffer(ine+4)
-              q(m)  = rbuffer(ine+5)
-              frcindx(m) = nint(rbuffer(ine+6))
-              qs(m) = rbuffer(ine+7)
-              qt(m) = rbuffer(ine+8)
-              hs(m) = rbuffer(ine+9)
-              ht(m) = rbuffer(ine+10)
-      
-      end select
-
-     enddo
+   enddo
 
 !===== FORCE COPYBACK MODE =============================================================
 else if(imode == MODE_CPBK) then

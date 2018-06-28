@@ -222,7 +222,7 @@ call allocatord2d(hessian,1,MAXNEIGHBS10,1,NBUFFER)
 qs(:)=0.d0; qt(:)=0.d0; gs(:)=0.d0; gt(:)=0.d0; hs(:)=0.d0; ht(:)=0.d0; hshs(:)=0.d0; hsht(:)=0.d0
 
 !--- returning force index array 
-call allocatori1d(frcindx,1,NBUFFER)
+call allocatord1d(frcindx,1,NBUFFER)
 
 !--- setup potential table
 call POTENTIALTABLE()
