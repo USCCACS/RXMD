@@ -61,6 +61,8 @@ integer :: ni, ity
 integer :: ti,tj,tk,tti,ttj
 
 integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
+integer,parameter :: cptridx(6)=(/0,0,2,2,4,4/)
+integer,parameter :: is_xyz(6)=(/1,1,2,2,3,3/)  !<- [xxyyzz]
 
 call system_clock(tti,tk)
 
@@ -70,12 +72,12 @@ do dflag=1, 6
 
    tn1 = target_node(dflag)
    tn2 = target_node(dinv(dflag))
-   i = (dflag+1)/2  !<- [123]
+   i = is_xyz(dflag)
 
    if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
       tn1 = target_node(7-dinv(dflag)) ! <-[563412] 
       tn2 = target_node(7-dflag) ! <-[654321] 
-      i = (6-dflag)/2 + 1         ! <-[321]
+      i = is_xyz(7-dflag)        ! <-[332211]
    endif
 
    call step_preparation(dflag, dr, commflag)
@@ -227,17 +229,12 @@ implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: dflag
 real(8),intent(in) :: dr(3)
-integer :: i,is_xyz,cptridx
-logical :: commflag(NBUFFER)
-
-cptridx=((dflag-1)/2)*2 ! <- [002244]
-
-!--- get the coordinate Index to be Shifted.
-is_xyz = int((dflag-1)/2)+1 !<- [123] means [xyz]
+logical,intent(inout) :: commflag(NBUFFER)
+integer :: i
 
 !--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
-do i=1, copyptr(cptridx)
-   commflag(i) = inBuffer(dflag,i,dr,pos(i,is_xyz))
+do i=1, copyptr(cptridx(dflag))
+   commflag(i) = inBuffer(dflag,i,dr,pos(i,is_xyz(dflag)))
 enddo
 
 return
@@ -255,9 +252,6 @@ implicit none
 integer,intent(IN) ::tn1, tn2, mypar 
 integer :: recv_stat(MPI_STATUS_SIZE)
 real(8) :: recv_size
-
-!--- if the traget node is the node itself, atoms informations are already copied 
-!--- to <rbuffer> in <store_atoms()>. Nothing to do here. Just return from this subroutine.
 
 !--- if myid is the same of target-node ID, don't use MPI call.
 !--- Just copy <sbuffer> to <rbuffer>. Because <send_recv()> will not be used,
@@ -336,19 +330,33 @@ integer,intent(IN) :: tn, dflag, imode
 
 integer :: n,ni,is,a,b,ioffset
 real(8) :: sft 
-integer :: cptridx
 
 call system_clock(ti,tk)
 
 !--- reset the number of atoms to be sent
 ns=0
 
-cptridx=((dflag-1)/2)*2 ! <- [002244]
+if(imode==MODE_CPBK) then
 
-if(imode/=MODE_CPBK) then
+   is = 7 - dflag !<- [654321] reversed order direction flag
+
+   n = copyptr(is) - copyptr(is-1) + 1
+   call CheckSizeThenReallocate(sbuffer,n*ne)
+
+   do n=copyptr(is-1)+1, copyptr(is)
+      sbuffer(ns+1) = dble(frcindx(n))
+      sbuffer(ns+2:ns+4) = f(n,1:3)
+#ifdef STRESS
+      sbuffer(ns+5:ns+10) = astr(1:6,n)
+#endif
+!--- chenge index to point next atom.
+      ns=ns+ne
+   enddo
+
+else
 
 !--- # of elements to be sent. should be more than enough. 
-   ni = copyptr(cptridx)*ne
+   ni = copyptr(cptridx(dflag))*ne
 
 !--- <sbuffer> will deallocated in store_atoms.
    call CheckSizeThenReallocate(sbuffer,ni)
@@ -361,7 +369,7 @@ if(imode/=MODE_CPBK) then
    sft=xshift(dflag)
 
 !--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
-   do n=1, copyptr(cptridx)
+   do n=1, copyptr(cptridx(dflag))
 
       if(commflag(n)) then
 
@@ -391,24 +399,6 @@ if(imode/=MODE_CPBK) then
 
    enddo
 
-!===== FORCE COPYBACK MODE ===========================================================
-else if(imode==MODE_CPBK) then
-
-   is = 7 - dflag !<- [654321] reversed order direction flag
-
-   n = copyptr(is) - copyptr(is-1) + 1
-   call CheckSizeThenReallocate(sbuffer,n*ne)
-
-   do n=copyptr(is-1)+1, copyptr(is)
-      sbuffer(ns+1) = dble(frcindx(n))
-      sbuffer(ns+2:ns+4) = f(n,1:3)
-#ifdef STRESS
-      sbuffer(ns+5:ns+10) = astr(1:6,n)
-#endif
-!--- chenge index to point next atom.
-      ns=ns+ne
-   enddo
-!=========================================================== FORCE COPYBACK MODE ====
 endif
 
 call system_clock(tj,tk)
@@ -429,13 +419,26 @@ integer :: m, i, ine, a, ioffset
 call system_clock(ti,tk)
 
 if( (na+nr)/ne > NBUFFER) then
-    print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER: ", &
-         myid,na,nr,ne,(na+nr)/ne, NBUFFER
-    call MPI_FINALIZE(ierr)
-    stop
+   print'(a,i4,5i8)', "ERROR: over capacity in append_atoms; myid,na,nr,ne,(na+nr)/ne,NBUFFER: ", &
+        myid,na,nr,ne,(na+nr)/ne, NBUFFER
+   call MPI_FINALIZE(ierr)
+   stop
 endif
 
-if(imode /= MODE_CPBK) then  
+if(imode == MODE_CPBK) then  
+
+   do i=0, nr/ne-1
+!--- get current index <ine> in <rbuffer(1:nr)>.
+      ine=i*ne
+!--- Append the transferred forces into the original position of force array.
+      m = nint(rbuffer(ine+1))
+      f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
+#ifdef STRESS
+      astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
+#endif
+   enddo
+
+else
    !--- store the last transfered atom index to <dflag> direction.
    !--- if no data have been received, use the index of previous direction.
    if(nr==0) then 
@@ -471,23 +474,7 @@ if(imode /= MODE_CPBK) then
       
    enddo
 
-!===== FORCE COPYBACK MODE =============================================================
-else if(imode == MODE_CPBK) then
-
-   do i=0, nr/ne-1
-!--- get current index <ine> in <rbuffer(1:nr)>.
-      ine=i*ne
-!--- Append the transferred forces into the original position of force array.
-      m = nint(rbuffer(ine+1))
-      f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
-#ifdef STRESS
-      astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
-#endif
-   enddo
-
 endif   
-!============================================================== FORCE COPYBACK MODE  ===
-
 
 !--- update the total # of transfered elements.
 na=na+nr
@@ -507,12 +494,11 @@ integer,intent(IN) :: dflag
 integer :: i, j
   
   i = mod(dflag,2)  !<- i=1 means positive, i=0 means negative direction 
-  j = int((dflag+1)/2)  !<- [123] means [xyz]
 
   if(i==1) then
-      xshift =-lbox(j)
+      xshift =-lbox(is_xyz(dflag))
   else if(i==0) then
-      xshift = lbox(j)
+      xshift = lbox(is_xyz(dflag))
   endif
    
 !print'(a,i,3f10.3)',"shift: ",myid, xshift
@@ -525,10 +511,8 @@ use atoms
 implicit none
 integer,intent(IN) :: dflag, idx
 real(8),intent(IN) :: dr(3), rr
-integer :: i
 logical :: isInside
 
-i = mod(dflag,2)  !<- i=1 means positive, i=0 means negative direction 
 select case(dflag)
    case(1) 
       isInside = lbox(1) - dr(1) < rr
