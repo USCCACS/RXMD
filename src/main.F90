@@ -296,7 +296,7 @@ integer :: n, l(3), j
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-call xu2xs(rreal,rnorm,copyptr(6))
+call xu2xs(copyptr(6),rreal,rnorm)
 
 headAtom(:,:,:) = -1; atomList(:) = 0; NatomPerCell(:,:,:)=0
 
@@ -590,7 +590,7 @@ return
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs(rreal, rnorm, nmax)
+subroutine xu2xs(nmax, rreal, rnorm)
 ! update normalized coordinate from real coordinate. Subtract obox to make them local. 
 use atoms
 real(8),intent(in) :: rreal(NBUFFER,3)
@@ -611,7 +611,28 @@ enddo
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu(rnorm,rreal,nmax)
+subroutine xu2xs_inplace(nmax, rreal)
+! update normalized coordinate from real coordinate. Subtract obox to make them local. 
+use atoms
+real(8) :: rreal(NBUFFER,3)
+integer,intent(in) :: nmax
+
+!--------------------------------------------------------------------------------------------------------------
+real(8) :: rr(3)
+
+do i=1,nmax
+   rr(1:3) = rreal(i,1:3)
+   rreal(i,1)=sum(HHi(1,1:3)*rr(1:3))
+   rreal(i,2)=sum(HHi(2,1:3)*rr(1:3))
+   rreal(i,3)=sum(HHi(3,1:3)*rr(1:3))
+   rreal(i,1:3) = rreal(i,1:3) - OBOX(1:3)
+enddo
+
+end subroutine
+
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine xs2xu(nmax,rnorm,rreal)
 ! update real coordinate from normalized coordinate
 use atoms
 !--------------------------------------------------------------------------------------------------------------
@@ -629,6 +650,26 @@ do i=1,nmax
 enddo
 
 end subroutine
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine xs2xu_inplace(nmax,rnorm)
+! update real coordinate from normalized coordinate
+use atoms
+!--------------------------------------------------------------------------------------------------------------
+real(8) :: rnorm(NBUFFER,3)
+integer,intent(in) :: nmax
+
+real(8) :: rr(3)
+
+do i=1,nmax 
+   rr(1:3) = rnorm(i,1:3) + OBOX(1:3)
+   rnorm(i,1)=sum(HH(1,1:3,0)*rr(1:3))
+   rnorm(i,2)=sum(HH(2,1:3,0)*rr(1:3))
+   rnorm(i,3)=sum(HH(3,1:3,0)*rr(1:3))
+enddo
+
+end subroutine
+
 
 !-----------------------------------------------------------------------
 subroutine ScaleTemperature(atype, v)

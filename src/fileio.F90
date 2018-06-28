@@ -451,7 +451,7 @@ do j=1, 3
 enddo; enddo
 call UpdateBoxParams()
 
-call xs2xu(rnorm,rreal,NATOMS)
+call xs2xu(NATOMS,rnorm,rreal)
 
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
@@ -485,7 +485,7 @@ real(8) :: rnorm(NBUFFER,3)
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-call xu2xs(rreal,rnorm,NATOMS)
+call xu2xs(NATOMS,rreal,rnorm)
 
 if(.not. isBinary) return
 

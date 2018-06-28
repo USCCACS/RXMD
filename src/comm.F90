@@ -1,5 +1,6 @@
 !--------------------------------------------------------------------------------------------------------------
 subroutine COPYATOMS(imode, dr, atype, rreal, v, f, q)
+!subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
 use atoms
 !
 ! TODO: update notes here
@@ -28,14 +29,31 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 
+type pack2darray
+   real(8),pointer :: ptr(:,:)
+   logical :: shift=.false.
+   character(8) :: name=''
+end type 
+
+type pack1darray
+   real(8),pointer :: ptr(:)
+   logical :: shift=.false.
+   character(8) :: name=''
+end type 
+
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
-real(8) :: atype(NBUFFER), q(NBUFFER)
-real(8) :: rreal(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
+real(8),target :: atype(NBUFFER), q(NBUFFER)
+real(8),target :: rreal(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
+!real(8),target :: pos(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
 
-real(8) :: pos(NBUFFER,3) ! <- normalized coordinate
+real(8),target :: pos(NBUFFER,3) ! <- normalized coordinate
 ! normalized coordinates of initial position for spring force
-real(8) :: nipos(NBUFFER,3)  
+real(8),target :: nipos(NBUFFER,3)  
+
+logical :: commflag(NBUFFER)
+type(pack1darray),allocatable :: pack1d(:)
+type(pack2darray),allocatable :: pack2d(:)
 
 integer :: i,tn1,tn2, dflag
 integer :: ni, ity
@@ -46,13 +64,50 @@ integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 
 call system_clock(tti,tk)
 
-!--- Normalized local coordinate will be used through this function. 
-!--- How many atom coords need to be normalized depends on who calls this.
-!--- For example function calls during QEq (MODE_QCOPY1 & MODE_QCOPY2) assume
-!--- atom information of the extended domain regions. 
-call xu2xs(rreal,pos,max(NATOMS,copyptr(6)))
+call initialize(imode)
 
-call xu2xs(ipos,nipos,max(NATOMS,copyptr(6)))
+do dflag=1, 6
+
+   tn1 = target_node(dflag)
+   tn2 = target_node(dinv(dflag))
+   i = (dflag+1)/2  !<- [123]
+
+   if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
+      tn1 = target_node(7-dinv(dflag)) ! <-[563412] 
+      tn2 = target_node(7-dflag) ! <-[654321] 
+      i = (6-dflag)/2 + 1         ! <-[321]
+   endif
+
+   call step_preparation(dflag, dr, commflag)
+
+   call store_atoms(tn1, dflag, imode)
+   call send_recv(tn1, tn2, myparity(i))
+   call append_atoms(dflag, imode)
+
+enddo
+
+call finalize(imode)
+
+!--- for array size stat
+if(mod(nstep,pstep)==0) then
+  ni=nstep/pstep+1
+  if(imode==MODE_MOVE) maxas(ni,4)=na/ne
+  if(imode==MODE_COPY) maxas(ni,5)=na/ne
+endif
+
+call system_clock(ttj,tk)
+it_timer(4)=it_timer(4)+(ttj-tti)
+
+return
+
+CONTAINS 
+!--------------------------------------------------------------------------------------------------------------
+subroutine initialize(imode)
+implicit none
+!--------------------------------------------------------------------------------------------------------------
+integer,intent(in) :: imode
+
+!--- Get the normalized local coordinate will be used through this function. 
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -66,55 +121,80 @@ copyptr(0)=NATOMS
 select case(imode)
    case(MODE_COPY)
       ne = NE_COPY
+      allocate(pack2d(1),pack1d(7))
+      pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
+      pack1d(1)%ptr=>atype
+      pack1d(2)%ptr=>q
+      pack1d(3)%ptr=>qs
+      pack1d(4)%ptr=>qt
+      pack1d(5)%ptr=>hs
+      pack1d(6)%ptr=>ht
+      call xu2xs(NATOMS,rreal,pos)
+      !call xu2xs_inplace(NATOMS,pos)
+
    case(MODE_MOVE)
       ne = NE_MOVE
-   case(MODE_CPBK)
-      ne = NE_CPBK
+      allocate(pack2d(3),pack1d(6))
+      pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
+      pack2d(2)%ptr=>v
+      pack2d(3)%ptr=>nipos; pack2d(3)%shift=.true.
+      pack1d(1)%ptr=>atype
+      pack1d(2)%ptr=>q
+      pack1d(3)%ptr=>qs
+      pack1d(4)%ptr=>qt
+      pack1d(5)%ptr=>qsfp
+      pack1d(6)%ptr=>qsfv
+      call xu2xs(NATOMS,rreal,pos)
+      call xu2xs(NATOMS,ipos,nipos)
+      !call xu2xs_inplace(NATOMS,pos)
+      !call xu2xs_inplace(NATOMS,nipos)
+
    case(MODE_QCOPY1)
       ne = NE_QCOPY1
+      allocate(pack1d(2))
+      pack1d(1)%ptr=>qs
+      pack1d(2)%ptr=>qt
+      call xu2xs(copyptr(6),rreal,pos)
+      !call xu2xs_inplace(copyptr(6),pos)
+
    case(MODE_QCOPY2)
       ne = NE_QCOPY2
-   case(MODE_STRESSCALC)
-      ne = NE_STRESSCALC
+      allocate(pack1d(3))
+      pack1d(1)%ptr=>hs
+      pack1d(2)%ptr=>ht
+      pack1d(3)%ptr=>q
+      call xu2xs(copyptr(6),rreal,pos)
+      !call xu2xs_inplace(copyptr(6),pos)
+
+   case(MODE_CPBK)
+      ne = NE_CPBK
    case default
       print'(a,i3)', "ERROR: imode doesn't match in COPYATOMS: ", imode
 end select
 
-do dflag=1, 6
-   tn1 = target_node(dflag)
-   tn2 = target_node(dinv(dflag))
-   i = (dflag+1)/2  !<- [123]
 
-   if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
-      tn1 = target_node(7-dinv(dflag)) ! <-[563412] 
-      tn2 = target_node(7-dflag) ! <-[654321] 
-      i = (6-dflag)/2 + 1         ! <-[321]
-   endif
+end subroutine
 
-   call store_atoms(tn1, dflag, imode, dr)
-   call send_recv(tn1, tn2, myparity(i))
-   call append_atoms(dflag, imode)
-
-enddo
-
+!--------------------------------------------------------------------------------------------------------------
+subroutine finalize(imode)
+implicit none
+!--------------------------------------------------------------------------------------------------------------
+integer,intent(in) :: imode
+integer :: a
 
 if(imode==MODE_MOVE) then
 !--- remove atoms which are transfered to neighbor nodes.
-   ni=0
-   do i=1, NATOMS + na/ne
-      ity = nint(atype(i))
 !--- if atype is smaller than zero (this is done in store_atoms), ignore the atom.
-      if(ity>0) then
+   ni=0
+   do i=1, copyptr(6)
+      if(nint(atype(i))>0) then
         ni=ni+1
-        pos(ni,1:3) = pos(i,1:3)
-        v(ni,1:3) = v(i,1:3)
-        atype(ni) = atype(i)
-        q(ni) = q(i)
-        qs(ni) = qs(i)
-        qt(ni) = qt(i)
-        qsfp(ni) = qsfp(i)
-        qsfv(ni) = qsfv(i)
-        nipos(ni,1:3) = nipos(i,1:3)
+        do a=1,size(pack2d)
+           pack2d(a)%ptr(ni,1:3) = pack2d(a)%ptr(i,1:3)
+        enddo
+        do a=1,size(pack1d)
+           pack1d(a)%ptr(ni) = pack1d(a)%ptr(i)
+        enddo
       endif
    enddo 
 
@@ -125,22 +205,39 @@ endif
 
 !--- by here, we got new atom positions in the normalized coordinate, need to update real coordinates.
 if(imode== MODE_COPY .or. imode == MODE_MOVE) then
-   call xs2xu(pos,rreal,copyptr(6))
-   call xs2xu(nipos,ipos,copyptr(6))
+   call xs2xu(copyptr(6),pos,rreal)
+   call xs2xu(copyptr(6),nipos,ipos)
+   !call xs2xu_inplace(copyptr(6),pos)
+   !call xs2xu_inplace(copyptr(6),nipos)
 endif
 
-!--- for array size stat
-if(mod(nstep,pstep)==0) then
-  ni=nstep/pstep+1
-  if(imode==MODE_MOVE) maxas(ni,4)=na/ne
-  if(imode==MODE_COPY) maxas(ni,5)=na/ne
-endif
+if(allocated(pack1d)) deallocate(pack1d)
+if(allocated(pack2d)) deallocate(pack2d)
 
-call system_clock(ttj,tk)
-it_timer(4)=it_timer(4)+(ttj-tti)
+end subroutine
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine step_preparation(dflag, dr, commflag)
+implicit none
+!--------------------------------------------------------------------------------------------------------------
+integer,intent(in) :: dflag
+real(8),intent(in) :: dr(3)
+integer :: i,is_xyz,cptridx
+logical :: commflag(NBUFFER)
+
+cptridx=((dflag-1)/2)*2 ! <- [002244]
+
+!--- get the coordinate Index to be Shifted.
+is_xyz = int((dflag-1)/2)+1 !<- [123] means [xyz]
+
+!--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
+do i=1, copyptr(cptridx)
+   commflag(i) = inBuffer(dflag,i,dr,pos(i,is_xyz))
+enddo
 
 return
-CONTAINS 
+end subroutine
+
 
 !--------------------------------------------------------------------------------------------------------------
 subroutine send_recv(tn1, tn2, mypar)
@@ -157,7 +254,20 @@ real(8) :: recv_size
 !--- if the traget node is the node itself, atoms informations are already copied 
 !--- to <rbuffer> in <store_atoms()>. Nothing to do here. Just return from this subroutine.
 
-if(myid==tn1) return 
+!--- if myid is the same of target-node ID, don't use MPI call.
+!--- Just copy <sbuffer> to <rbuffer>. Because <send_recv()> will not be used,
+!--- <nr> has to be updated here for <append_atoms()>.
+if(myid==tn1) then
+   if(ns>0) then
+      nr=ns
+      call CheckSizeThenReallocate(rbuffer,nr)
+      rbuffer(1:ns) = sbuffer(1:ns)
+   else
+      nr=0
+   endif
+
+   return
+endif
 
 call system_clock(ti,tk)
 
@@ -209,7 +319,7 @@ it_timer(25)=it_timer(25)+(tj-ti)
 end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
-subroutine store_atoms(tn, dflag, imode, dr)
+subroutine store_atoms(tn, dflag, imode)
 use atoms
 ! <nlayer> will be used as a flag to change the behavior of this subroutine. 
 !    <nlayer>==0 migration mode
@@ -218,9 +328,8 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: tn, dflag, imode 
-real(8),intent(IN) :: dr(3)
 
-integer :: n,ni,is
+integer :: n,ni,is,a,b,ioffset
 real(8) :: sft 
 integer :: cptridx
 
@@ -249,24 +358,30 @@ if(imode/=MODE_CPBK) then
 !--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
    do n=1, copyptr(cptridx)
 
-      if(inBuffer(dflag,n,dr)) then
+      if(commflag(n)) then
 
         select case(imode)
-        case(MODE_MOVE)
-           sbuffer(ns+1:ns+3) = pos(n,1:3)
-           sbuffer(ns+1+is) = sbuffer(ns+1+is) + sft
-           sbuffer(ns+4:ns+6) = v(n,1:3)
-           sbuffer(ns+7) = atype(n)
-           sbuffer(ns+8) = q(n)
-           sbuffer(ns+9) = qs(n)
-           sbuffer(ns+10) = qt(n)
-           sbuffer(ns+11) = qsfp(n)
-           sbuffer(ns+12) = qsfv(n)
-           sbuffer(ns+13:ns+15) = nipos(n,1:3)
-           sbuffer(ns+13+is) = sbuffer(ns+13+is) + sft
-  
+        case(MODE_MOVE,MODE_QCOPY1,MODE_QCOPY2)
+
+           ioffset=ns
+
+           if(allocated(pack2d)) then
+              do a=1,size(pack2d)
+                 sbuffer(ioffset+1:ioffset+3)=pack2d(a)%ptr(n,1:3)
+                 if(pack2d(a)%shift) sbuffer(ioffset+1+is) = sbuffer(ioffset+1+is) + sft
+                 ioffset=ioffset+3
+              enddo
+           endif
+
+           if(allocated(pack1d)) then
+              do a=1,size(pack1d)
+                 sbuffer(ioffset+1)=pack1d(a)%ptr(n)
+                 ioffset=ioffset+1
+              enddo
+           endif
+
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
-           atype(n) = -1.d0 
+           if(imode==MODE_MOVE) atype(n) = -1.d0 
 
         case(MODE_COPY)
            sbuffer(ns+1:ns+3) = pos(n,1:3)
@@ -278,18 +393,6 @@ if(imode/=MODE_CPBK) then
            sbuffer(ns+8) = qt(n)
            sbuffer(ns+9) = hs(n)
            sbuffer(ns+10) = ht(n)
-
-        case(MODE_QCOPY1)
-           sbuffer(ns+1) = qs(n)
-           sbuffer(ns+2) = qt(n)
-
-        case(MODE_QCOPY2)
-           sbuffer(ns+1) = hs(n)
-           sbuffer(ns+2) = ht(n)
-           sbuffer(ns+3) = q(n)
-
-        case(MODE_STRESSCALC)
-           sbuffer(ns+1:ns+6) = astr(1:6,n)
 
         end select 
 
@@ -319,19 +422,6 @@ else if(imode==MODE_CPBK) then
 !=========================================================== FORCE COPYBACK MODE ====
 endif
 
-!--- if myid is the same of target-node ID, don't use MPI call.
-!--- Just copy <sbuffer> to <rbuffer>. Because <send_recv()> will not be used,
-!--- <nr> has to be updated here for <append_atoms()>.
-if(myid==tn) then
-   if(ns>0) then
-      nr=ns
-      call CheckSizeThenReallocate(rbuffer,nr)
-      rbuffer(1:ns) = sbuffer(1:ns)
-   else
-      nr=0
-   endif
-endif
-
 call system_clock(tj,tk)
 it_timer(26)=it_timer(26)+(tj-ti)
 
@@ -345,7 +435,7 @@ use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: dflag, imode 
-integer :: m, i, ine
+integer :: m, i, ine, a, ioffset
 
 call system_clock(ti,tk)
 
@@ -357,6 +447,13 @@ if( (na+nr)/ne > NBUFFER) then
 endif
 
 if(imode /= MODE_CPBK) then  
+   !--- store the last transfered atom index to <dflag> direction.
+   !--- if no data have been received, use the index of previous direction.
+   if(nr==0) then 
+      copyptr(dflag) = copyptr(dflag-1)
+   else
+      copyptr(dflag) = copyptr(dflag-1) + nr/ne
+   endif
 
 !--- go over the buffered atom
    do i=0, nr/ne-1
@@ -365,19 +462,27 @@ if(imode /= MODE_CPBK) then
       ine=i*ne
 
 !--- current atom index; resident + 1 + stored atoms so far + atoms in buffer
-      m = NATOMS + 1 + na/ne + i
+      m = copyptr(dflag-1) + 1 + i
 
       select case(imode)
-         case(MODE_MOVE)
-              pos(m,1:3) = rbuffer(ine+1:ine+3)
-              v(m,1:3) = rbuffer(ine+4:ine+6)
-              atype(m) = rbuffer(ine+7)
-              q(m)  = rbuffer(ine+8)
-              qs(m) = rbuffer(ine+9)
-              qt(m) = rbuffer(ine+10)
-              qsfp(m) = rbuffer(ine+11)
-              qsfv(m) = rbuffer(ine+12)
-              nipos(m,1:3) = rbuffer(ine+13:ine+15)
+
+         case(MODE_MOVE,MODE_QCOPY1,MODE_QCOPY2)
+
+              ioffset = ine
+
+              if(allocated(pack2d)) then
+                 do a=1,size(pack2d)
+                    pack2d(a)%ptr(m,1:3)=rbuffer(ioffset+1:ioffset+3)
+                    ioffset=ioffset+3
+                 enddo
+              endif
+
+              if(allocated(pack1d)) then
+                 do a=1,size(pack1d)
+                    pack1d(a)%ptr(m)=rbuffer(ioffset+1)
+                    ioffset=ioffset+1
+                 enddo
+              endif
       
          case(MODE_COPY)
               pos(m,1:3) = rbuffer(ine+1:ine+3)
@@ -388,18 +493,6 @@ if(imode /= MODE_CPBK) then
               qt(m) = rbuffer(ine+8)
               hs(m) = rbuffer(ine+9)
               ht(m) = rbuffer(ine+10)
-      
-           case(MODE_QCOPY1)
-              qs(m) = rbuffer(ine+1)
-              qt(m) = rbuffer(ine+2)
-      
-           case(MODE_QCOPY2)
-              hs(m) = rbuffer(ine+1)
-              ht(m) = rbuffer(ine+2)
-              q(m)  = rbuffer(ine+3)
-
-           case(MODE_STRESSCALC)
-              astr(1:6,m) = rbuffer(ine+1:ine+6)
       
       end select
 
@@ -422,12 +515,6 @@ else if(imode == MODE_CPBK) then
 endif   
 !============================================================== FORCE COPYBACK MODE  ===
 
-!--- store the last transfered atom index to <dflag> direction.
-!--- if no data have been received, use the index of previous direction.
-if(imode /= MODE_CPBK) then
-  if(nr==0) m = copyptr(dflag-1)
-  copyptr(dflag) = m
-endif
 
 !--- update the total # of transfered elements.
 na=na+nr
@@ -459,29 +546,29 @@ integer :: i, j
 end function
 
 !--------------------------------------------------------------------------------------------------------------
-function inBuffer(dflag, idx, dr) result(isInside)
+function inBuffer(dflag, idx, dr, rr) result(isInside)
 use atoms
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: dflag, idx
-real(8),intent(IN) :: dr(3)
+real(8),intent(IN) :: dr(3), rr
 integer :: i
 logical :: isInside
 
 i = mod(dflag,2)  !<- i=1 means positive, i=0 means negative direction 
 select case(dflag)
    case(1) 
-      isInside = lbox(1) - dr(1) < pos(idx,1)
+      isInside = lbox(1) - dr(1) < rr
    case(2) 
-      isInside = pos(idx,1) <= dr(1)
+      isInside = rr <= dr(1)
    case(3) 
-      isInside = lbox(2) - dr(2) < pos(idx,2)
+      isInside = lbox(2) - dr(2) < rr
    case(4) 
-      isInside = pos(idx,2) <= dr(2)
+      isInside = rr <= dr(2)
    case(5) 
-      isInside = lbox(3) - dr(3) < pos(idx,3)
+      isInside = lbox(3) - dr(3) < rr
    case(6) 
-      isInside = pos(idx,3) <= dr(3)
+      isInside = rr <= dr(3)
    case default
       write(6,*) "ERROR: no matching directional flag in isInside: ", dflag
 end select

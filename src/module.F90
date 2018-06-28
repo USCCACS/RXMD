@@ -2,8 +2,8 @@
 module base
 !-------------------------------------------------------------------------------------------
 ! position, atom type, velocity, force & charge
-real(8),allocatable,dimension(:) :: atype, q
-real(8),allocatable,dimension(:,:) :: pos, v, f
+real(8),allocatable,dimension(:),target :: atype, q
+real(8),allocatable,dimension(:,:),target :: pos, v, f
 
 Interface
    SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
@@ -54,10 +54,10 @@ integer :: ns, nr, na, ne
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
-integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5, MODE_STRESSCALC = 6
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
 
 integer,parameter :: NE_COPY = 10, NE_MOVE = 15
-integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3, NE_STRESSCALC = 6
+integer,parameter :: NE_QCOPY1 = 2, NE_QCOPY2 = 3
 
 #ifdef STRESS
 integer,parameter :: NE_CPBK = 10
@@ -102,7 +102,7 @@ real(8) :: cutoff_vpar30
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-integer :: NBUFFER=5000
+integer :: NBUFFER=10000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 integer,parameter :: MAXNEIGHBS10=500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
@@ -179,12 +179,12 @@ logical :: isBinary, isBondFile, isPDB
 !real(8),allocatable :: g(:), h(:), hsh(:)
 
 ! Two vectors electrostatic energy minimization 
-real(8),allocatable :: qs(:),qt(:),gs(:), gt(:), hs(:), ht(:), hshs(:), hsht(:)
+real(8),allocatable,target :: qs(:),qt(:),gs(:), gt(:), hs(:), ht(:), hshs(:), hsht(:)
 
 !--- variables for extended Lagrangian method ---
 !<Lex_fqs> fraction between two QEq vectors
 !<Lex_w> spring constant
-real(8),allocatable :: qsfp(:),qsfv(:),qtfp(:),qtfv(:) 
+real(8),allocatable,target :: qsfp(:),qsfv(:),qtfp(:),qtfv(:) 
 real(8),allocatable :: hessian(:,:)
 real(8) :: Lex_fqs=1.0, Lex_w=1.d0, Lex_w2=1.d0, Lex_k=2.d0
  
