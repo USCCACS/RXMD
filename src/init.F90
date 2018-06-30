@@ -1,9 +1,15 @@
+module init
+contains
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use parameters; use atoms; use MemoryAllocator
+use parameters
+!use atoms
+use pqeq_vars
+use MemoryAllocator 
+
 implicit none
 
 real(8),allocatable,dimension(:) :: atype, q
@@ -13,8 +19,6 @@ integer :: i,j,k, ity, l(3), ist=0
 real(8) :: mm, gmm, dns, mat(3,3)
 integer(8) :: i8
 real(8) :: rcsize(3), maxrcell
-
-character(64) :: argv
 
 Interface
    subroutine ReadBIN(atype, pos, v, q, f, fileName)
@@ -30,28 +34,18 @@ Interface
    end subroutine
 end interface
 
-!--- read FF file, output dir, MD parameter file paths from command line
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-   select case(adjustl(argv))
-     case("--help","-h")
-       if(myid==0) print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
-       stop
-     case("--ffield", "-ff")
-       call get_command_argument(i+1,argv)
-       FFPath=adjustl(argv)
-     case("--outDir", "-o")
-       call get_command_argument(i+1,argv)
-       DataDir=adjustl(argv)
-     case("--rxmdin", "-in")
-       call get_command_argument(i+1,argv)
-       ParmPath=adjustl(argv)
-     case("--profile")
-       saveRunProfile=.true.
-     case default
-   end select
+!--- for PQEq. cutoff length
+rctap = rctap0
+rctap2 = rctap**2
 
-enddo
+CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
+          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
+          20.d0/(rctap)**7 /)
+
+call initialize_pqeq(chi,eta)
+if(isEfield) call initialize_eField(myid)
+
+astr(:)=0.d0
 
 !--- summary file keeps potential energies, box parameters during MD simulation
 !--- intended to be used for validation of code change. 
@@ -139,6 +133,10 @@ call allocatord2d(pos,1,NBUFFER,1,3)
 call allocatord2d(v,1,NBUFFER,1,3)
 call allocatord2d(f,1,NBUFFER,1,3)
 
+!--- For PQEq
+call allocatord2d(spos,1,NBUFFER,1,3)
+spos(:,:)=0.d0
+
 call allocatord1d(deltalp,1,NBUFFER)
 
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
@@ -176,12 +174,6 @@ call UpdateBoxParams()
 !--- get global number of atoms
 i8=NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
-#ifdef STRESS
-!--- stress variables
-call allocatord2d(astr(1,6,1,NBUFFER)
-astr(:,:)=0.d0; 
-#endif
 
 !--- Linked List & Near Neighb Parameters
 call allocatori2d(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
@@ -254,22 +246,22 @@ maxas(:,:)=0
 call allocatord2d(ipos,1,NBUFFER,1,3)
 ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-
-   select case(adjustl(argv))
-     case("--spring", "-s") ! for spring force
-       call get_command_argument(i+1,argv)
-       read(argv,*) springConst
-     case("--apply-spring", "-as") ! for spring force
-       call get_command_argument(i+1,argv)
-       read(argv,*) ity
-       if(ity>size(hasSpringForce)) &
-           print*,'ERROR atomtype exceeds the size of hasSpringForce', ity
-       hasSpringForce(ity)=.true.
-     case default
-   end select
-enddo
+!do i=1, command_argument_count()
+!   call get_command_argument(i,argv)
+!
+!   select case(adjustl(argv))
+!     case("--spring", "-s") ! for spring force
+!       call get_command_argument(i+1,argv)
+!       read(argv,*) springConst
+!     case("--apply-spring", "-as") ! for spring force
+!       call get_command_argument(i+1,argv)
+!       read(argv,*) ity
+!       if(ity>size(hasSpringForce)) &
+!           print*,'ERROR atomtype exceeds the size of hasSpringForce', ity
+!       hasSpringForce(ity)=.true.
+!     case default
+!   end select
+!enddo
 
 !--- print out parameters and open data file
 if(myid==0) then
@@ -325,6 +317,7 @@ if(myid==0) then
 endif
 
 END SUBROUTINE
+end module
 
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITVELOCITY(atype, v)
@@ -463,7 +456,13 @@ real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
 
 real(8) :: exp1, exp2
 real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
-real(8) :: Tap, dTap, fn13, dfn13, dr3gamij, rij_vd1
+real(8) :: Tap, dTap, fn13, dfn13, rij_vd1
+
+real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
+
+real(8) :: clmb,dclmb,erf_alphaijr,derf_alphaijr
+real(8) :: alpha_i, alpha_j
+
 
 !--- first element in table 0: potential
 !---                        1: derivative of potential
@@ -501,22 +500,15 @@ do jty=ity, nso
          rij_vd1 = dr2**pvdW1h
          Tap = CTap(7)*dr7 + CTap(6)*dr6 + &
                CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+
          fn13 = (rij_vd1 + gamwinvp)**pvdW1inv
          exp1 = exp( alphaij*(1.d0 - fn13 / rvdW0) )
          exp2 = sqrt(exp1)
 
-         dr3gamij = ( dr3 + gamij(ity,jty) )**( -1.d0/3.d0 )
+         TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)      
 
-!!--- Energy Calculation:
-!      PEvd = Tap*Dij0*(exp1 - 2d0*exp2)      
-!      PEclmb = Tap*Cclmb*q(i)*q(j)*dr3gamij
-!if(myid==0) print*,i, Tap*Dij0*(exp1 - 2d0*exp2), Tap*Cclmb*dr3gamij
-
-          TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)      
-          TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
-          TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*dr3gamij
-
-!if(inxn==1.and.myid==0) print*,i,TBL_Evdw(i,inxn,0), TBL_Eclmb(i,inxn,0)
+!FIXME for now the potential table is not used for the coulomb energy.
+         !TBL_Eclmb_QEq(i,inxn) = Cclmb0_qeq*Tap*erf_alphaijr/dr1
 
 !--- Force Calculation:
          dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
@@ -524,13 +516,31 @@ do jty=ity, nso
 
          dfn13 = ((rij_vd1 + gamwinvp)**(pvdW1inv-1.d0)) * (dr2**(pvdW1h-1.d0)) 
 
-!      CEvdw = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
-!           - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-!      CEclmb = Cclmb*q(i)*q(j)*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr(0) ) 
-
          TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 ) 
+
+!FIXME for now table is not used for the coulomb energy calculation.
+         !TBL_Eclmb(1,i,inxn) = dTap
+
+         if(isLG) then
+
+!FIXME LG extension supports only C,H,O,N at this moment. We should use element name instead of fixed numbers.  
+            if (ity > 4 .or. jty > 4) cycle   
+
+            dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
+            dr6_lg = dr_lg**6
+
+
+            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
+            E_core = ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
+
+            dElg = C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+            dE_core = -acore(ity,jty)*E_core/rcore(ity,jty)/dr1
+
+            TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
+            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg + dTap*E_core+Tap*dE_core
+
+         endif
 
       enddo
    endif
@@ -564,7 +574,7 @@ nbcc(1:3)=int(latticePerNode(1:3)/nblcsize(1:3))
 nblcsize(1:3)=latticePerNode(1:3)/nbcc(1:3)
 maxrcell = maxval(nblcsize(1:3))
 
-!--- get # of linked list cell to cover up the non-bonding (10[A]) cutoff length
+!--- get # of linked list cell to cover up the non-bonding cutoff length
 imesh(1:3)  = int(rctap/nblcsize(1:3)) + 1
 maximesh = maxval(imesh(1:3))
 

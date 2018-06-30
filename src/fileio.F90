@@ -203,12 +203,9 @@ do i=1, NATOMS
   tt = tt*UTEMP*1d-2 !scale down to use two decimals in PDB format 
 
 !--- sum up diagonal atomic stress components 
-#ifdef STRESS
-  ss = sum(astr(1:3,i))/3.d0
-#endif
-  ss = ss*USTRS
+  ss = sum(astr(1:3))/3.d0*USTRS
 
-  ss = q(i)*10 ! 10x atomic charge
+  tt = q(i)
 
   igd = l2g(atype(i))
   write(PDBOneLine,100)'ATOM  ',0, atmname(ity), igd, pos(i,1:3), tt, ss

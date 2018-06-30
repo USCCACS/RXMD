@@ -167,6 +167,10 @@ select case(imode)
       pack1d(3)%ptr=>q
       norm2d(1)%ptr=>pos
 
+! TODO: needs PQEQ modes
+!   case(MODE_PQEQCOPY1)
+!   case(MODE_PQEQCOPY2)
+
    case(MODE_CPBK)
       ne = NE_CPBK
 
