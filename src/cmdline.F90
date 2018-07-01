@@ -14,7 +14,7 @@ integer,intent(in) :: myrank
 integer :: eFieldDir
 real(8) :: eFieldStrength 
 
-integer :: i,ity,idx
+integer :: ity,idx
 character(MAXSTRLENGTH) :: argv
 
 !--- read FF file, output dir, MD parameter file paths from command line
@@ -57,15 +57,15 @@ if(find_cmdline_argc('--pqeq',idx).or.find_cmdline_argc('-pqeq',idx)) then
     !--- electric field is applied only when PQEq is on
     if(find_cmdline_argc('--efield',idx).or.find_cmdline_argc('-e',idx)) then
         isEfield=.true.
-        call get_command_argument(i+1,argv)
+        call get_command_argument(idx+1,argv)
         read(argv,*) eFieldDir
-        call get_command_argument(i+2,argv)
+        call get_command_argument(idx+2,argv)
         read(argv,*) eFieldStrength
     
         if(myrank==0) then
            print'(a60)',repeat('-',60)
-           print'(a30)','Enabling electric field : eFieldDir, eFieldStrength : '
-           print'(2f10.5)', eFieldDir, eFieldStrength
+           print'(a30)','Enabling electric field : '
+           print'(a30,i3,f10.5)', 'eField [V/A], eFiled direction : ', eFieldDir, eFieldStrength
            print'(a60)',repeat('-',60)
         endif
     endif
