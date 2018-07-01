@@ -25,6 +25,8 @@ integer :: numParams, numAtomNames
 
 logical :: getReal=.false., getNorm=.false., noCoordinateShift=.false.
 
+logical :: isLG
+
 contains
 
 !----------------------------------------------------------------
@@ -141,6 +143,7 @@ do i=1, numAtomNames
    read(20,*)
    read(20,*)
    read(20,*)
+   if(isLG) read(20,*)
    print'(i3,a,a2 $)',i,'-',atomNames(i)
 enddo
 close(20)
@@ -244,6 +247,8 @@ do i=1, command_argument_count()
      case("-ffield","-f")
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
+     case("-lg")
+       isLG = .true. 
      case("-getreal","-r")
        getReal=.true.
      case("-getnorm","-n")
@@ -392,7 +397,7 @@ enddo
 
 qq=0.d0; vv(:)=0.d0; qfsp0=0.d0; qfsv0=0.d0
 open(1,file="all.bin",form="unformatted",access="stream")
-open(20,file="geninit.xyz")
+open(20,file="geninit.xyz") 
 open(30,file="rxff.bin",form="unformatted",access="stream")
 write(30) nprocs, vprocs(1:3)
 write(30) lnatoms(0:nprocs-1)
@@ -400,7 +405,7 @@ write(30) 0
 write(30) L1, L2, L3, Lalpha, Lbeta, Lgamma
 
 write(20,'(i12)') sum(lnatoms(:))
-write(20,'(a)') trim(inputFileName)
+write(20,'(6f12.3,3x,a)') L1, L2, L3, Lalpha, Lbeta, Lgamma, trim(inputFileName)
 do myid=0,nprocs-1
    write(a6(1:6),'(i6.6)') myid
 
