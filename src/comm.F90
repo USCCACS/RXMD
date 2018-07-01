@@ -105,7 +105,7 @@ subroutine initialize(imode)
 implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: imode
-integer :: a
+integer :: a, np2d, np1d, nn2d
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -117,59 +117,88 @@ copyptr(0)=NATOMS
 !--- set the number of data per atom 
 select case(imode)
    case(MODE_COPY)
-      allocate(pack2d(1),pack1d(7),norm2d(1))
+      np2d=1; np1d=7; nn2d=1
+      allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
 
-      pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
-      pack1d(1)%ptr=>atype
-      pack1d(2)%ptr=>q
-      pack1d(3)%ptr=>qs
-      pack1d(4)%ptr=>qt
-      pack1d(5)%ptr=>hs
-      pack1d(6)%ptr=>ht
-      pack1d(7)%ptr=>frcindx
-      norm2d(1)%ptr=>pos
+      a=1
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.
+
+      a=1
+      pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>q;     a=a+1
+      pack1d(a)%ptr=>qs;    a=a+1
+      pack1d(a)%ptr=>qt;    a=a+1
+      pack1d(a)%ptr=>hs;    a=a+1
+      pack1d(a)%ptr=>ht;    a=a+1
+      pack1d(a)%ptr=>frcindx; a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos
 
       do a=1, NATOMS
          frcindx(a)=a
       enddo
 
    case(MODE_MOVE)
-      allocate(pack2d(3),pack1d(6),norm2d(2))
+
+      np2d=2; np1d=6; nn2d=1
+      if(isSpring) np2d=np2d+1
+      if(isSpring) nn2d=nn2d+1
+      if(isPQEq) np2d=np2d+1
+
+      allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
 
-      pack2d(1)%ptr=>pos; pack2d(1)%shift=.true.
-      pack2d(2)%ptr=>v
-      pack2d(3)%ptr=>nipos; pack2d(3)%shift=.true.
-      pack1d(1)%ptr=>atype
-      pack1d(2)%ptr=>q
-      pack1d(3)%ptr=>qs
-      pack1d(4)%ptr=>qt
-      pack1d(5)%ptr=>qsfp
-      pack1d(6)%ptr=>qsfv
-      norm2d(1)%ptr=>pos 
-      norm2d(2)%ptr=>nipos
+      a=1
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
+      pack2d(a)%ptr=>v; a=a+1 
+
+      a=1
+      pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>q;     a=a+1
+      pack1d(a)%ptr=>qs;    a=a+1
+      pack1d(a)%ptr=>qt;    a=a+1
+      pack1d(a)%ptr=>qsfp;  a=a+1
+      pack1d(a)%ptr=>qsfv;  a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos;  a=a+1
+
+      if(isSpring) then
+         pack2d(a)%ptr=>nipos; pack2d(a)%shift=.true.; a=a+1
+         norm2d(a)%ptr=>nipos; a=a+1
+      endif
+      if(isPQEq) then
+         pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
+      endif
 
    case(MODE_QCOPY1)
-      allocate(pack1d(2),norm2d(1))
+
+      np2d=0; np1d=2; nn2d=1
+      allocate(pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
 
-      pack1d(1)%ptr=>qs
-      pack1d(2)%ptr=>qt
-      norm2d(1)%ptr=>pos
+      a=1
+      pack1d(a)%ptr=>qs; a=a+1
+      pack1d(a)%ptr=>qt; a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos
 
    case(MODE_QCOPY2)
-      allocate(pack1d(3),norm2d(1))
+
+      np2d=0; np1d=3; nn2d=1
+      allocate(pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
 
-      pack1d(1)%ptr=>hs
-      pack1d(2)%ptr=>ht
-      pack1d(3)%ptr=>q
-      norm2d(1)%ptr=>pos
+      a=1
+      pack1d(a)%ptr=>hs; a=a+1
+      pack1d(a)%ptr=>ht; a=a+1
+      pack1d(a)%ptr=>q; a=a+1
 
-! TODO: needs PQEQ modes
-!   case(MODE_PQEQCOPY1)
-!   case(MODE_PQEQCOPY2)
+      a=1
+      norm2d(a)%ptr=>pos
 
    case(MODE_CPBK)
       ne = NE_CPBK

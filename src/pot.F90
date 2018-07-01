@@ -57,7 +57,7 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
-if(springConst>0.d0) call SpringForce()
+if(isSpring) call SpringForce()
 if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
 
 CALL ForceBondedTerms(NMINCELL)

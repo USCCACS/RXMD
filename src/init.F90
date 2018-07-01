@@ -9,7 +9,6 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
 use parameters
-!use atoms
 use pqeq_vars
 use MemoryAllocator 
 

@@ -78,6 +78,7 @@ endif
 
 
 if(find_cmdline_argc('--spring',idx).or.find_cmdline_argc('-s',idx)) then
+    isSpring=.true.
     call get_command_argument(idx+1,argv)
     read(argv,*) springConst
     if(myrank==0) then
