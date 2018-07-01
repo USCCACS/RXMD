@@ -45,7 +45,11 @@ enddo
 CALL BOCALC(NMINCELL, atype, pos)
 !$omp end parallel
 !$omp parallel default(shared)
-CALL ENbond()
+if(isPQEq) then
+  CALL ENbond_PQEq() 
+else
+  CALL ENbond()
+endif
 CALL Ebond()
 CALL Elnpr()
 CALL Ehb()
@@ -670,9 +674,111 @@ end subroutine
 
 !----------------------------------------------------------------------------------------------------------
 subroutine ENbond()
+use parameters; use atoms
 !----------------------------------------------------------------------------------------------------------
-!place holder
-end subroutine
+!  This subroutine calculates the energy and the forces due to the Van der Waals and Coulomb terms 
+!----------------------------------------------------------------------------------------------------------
+implicit none
+integer :: i, j,j1, ity,jty
+integer :: c1,c2,c3, m
+
+real(8) :: PEvdw, PEclmb, ff(3)
+real(8) :: dr(0:3), dr2
+real(8) :: CEvdw, CEclmb,qij
+
+integer :: iid, jid
+
+integer :: inxn, itb, itb1
+real(8) :: drtb, drtb1
+
+integer :: ti,tj,tk
+
+real(8) :: PE11,PE12,PE13
+
+!$omp master
+call system_clock(ti,tk)
+!$omp end master
+
+!$omp do schedule(guided) reduction(+:PE)
+do i=1, NATOMS
+
+   ity = itype(i) 
+   iid = gtype(i)
+   
+   PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
+
+    do j1 = 1, nbplist(i,0) 
+         j = nbplist(i,j1)
+
+         jid = gtype(j)
+
+         if(jid<iid) then
+
+            dr(1:3) = pos(i,1:3) - pos(j,1:3)
+            dr2 = sum(dr(1:3)*dr(1:3))
+
+            if(dr2<=rctap2) then
+
+               jty = itype(j)
+
+               inxn = inxn2(ity, jty)
+!                  dr(0) = sqrt(dr2)
+
+!--- get table index and residual value
+!                  itb = int(dr(0)*UDRi)
+               itb = int(dr2*UDRi)
+               itb1 = itb+1
+               drtb = dr2 - itb*UDR
+               drtb = drtb*UDRi
+               drtb1= 1.d0-drtb
+
+!--- van del Waals:
+               PEvdw  = drtb1*TBL_Evdw(0,itb,inxn)  + drtb*TBL_Evdw(0,itb1,inxn)
+               CEvdw  = drtb1*TBL_Evdw(1,itb,inxn)  + drtb*TBL_Evdw(1,itb1,inxn)
+!--- Coulomb:
+               qij = q(i)*q(j)
+               PEclmb = drtb1*TBL_Eclmb(0,itb,inxn) + drtb*TBL_Eclmb(0,itb1,inxn)
+               PEclmb = PEclmb*qij
+               CEclmb = drtb1*TBL_Eclmb(1,itb,inxn) + drtb*TBL_Eclmb(1,itb1,inxn)
+               CEclmb = CEclmb*qij
+
+               PE(11) = PE(11) + PEvdw
+               PE(12) = PE(12) + PEclmb
+
+               ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
+    
+!$omp atomic
+               f(i,1) = f(i,1) - ff(1)
+!$omp atomic
+               f(i,2) = f(i,2) - ff(2)
+!$omp atomic
+               f(i,3) = f(i,3) - ff(3)
+!$omp atomic
+               f(j,1) = f(j,1) + ff(1)
+!$omp atomic
+               f(j,2) = f(j,2) + ff(2)
+!$omp atomic
+               f(j,3) = f(j,3) + ff(3)
+
+!--- stress calculation
+#ifdef STRESS
+                ia=i; ja=j
+                include 'stress'
+#endif
+
+            endif
+         endif
+
+    enddo  !do j1 = 1, nbplist(i,0) 
+enddo
+!$omp end do
+
+!$omp master
+call system_clock(tj,tk)
+it_timer(7)=it_timer(7)+(tj-ti)
+!$omp end master
+
+END subroutine 
 
 !----------------------------------------------------------------------------------------------------------
 subroutine ENbond_PQEq()
