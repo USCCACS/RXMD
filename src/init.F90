@@ -462,10 +462,9 @@ do jty=ity, nso
          exp1 = exp( alphaij*(1.d0 - fn13 / rvdW0) )
          exp2 = sqrt(exp1)
 
-         TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)      
-
-!FIXME for now the potential table is not used for the coulomb energy.
-         !TBL_Eclmb_QEq(i,inxn) = Cclmb0_qeq*Tap*erf_alphaijr/dr1
+         TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)
+         TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
+         TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*dr3gamij
 
 !--- Force Calculation:
          dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
@@ -473,11 +472,10 @@ do jty=ity, nso
 
          dfn13 = ((rij_vd1 + gamwinvp)**(pvdW1inv-1.d0)) * (dr2**(pvdW1h-1.d0)) 
 
+
          TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
                             - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-
-!FIXME for now table is not used for the coulomb energy calculation.
-         !TBL_Eclmb(1,i,inxn) = dTap
+         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 )
 
          if(isLG) then
 
