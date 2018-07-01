@@ -63,7 +63,7 @@ do cgLoop = 0, CG_MaxMinLoop-1
    call QEq(atype, pos, q)
    call FORCE(atype, pos, gnew, q)
 
-   call OUTPUT(atype, pos, v, q, GetFileNameBase(cgLoop))
+   call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,cgLoop))
 
    GPEold=GPEnew
    PE(0)=sum(PE(1:13))
@@ -73,7 +73,7 @@ do cgLoop = 0, CG_MaxMinLoop-1
    if(abs(GPEnew-GPEold)<=CG_tol*GNATOMS) then
       if(myid==0) print'(a30,i6)','Energy converged.', cgLoop
 
-      call OUTPUT(atype, pos, v, q, GetFileNameBase(cgLoop))
+      call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,cgLoop))
       exit
    endif
 

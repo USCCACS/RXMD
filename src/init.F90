@@ -1,4 +1,6 @@
+!------------------------------------------------------------------------------------------
 module init
+!------------------------------------------------------------------------------------------
 contains
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
@@ -42,27 +44,12 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
           84.d0/(rctap)**5, -70.d0/(rctap)**6, &
           20.d0/(rctap)**7 /)
 
-call initialize_pqeq(chi,eta)
-if(isEfield) call initialize_eField(myid)
+if(isPQEq) then
+   call initialize_pqeq(chi,eta)
+   if(isEfield) call initialize_eField(myid)
+endif
 
 astr(:)=0.d0
-
-!--- summary file keeps potential energies, box parameters during MD simulation
-!--- intended to be used for validation of code change. 
-if(saveRunProfile) open(RunProfileFD, file=RunProfilePath, status='unknown')
-
-!--- read MD control parameters
-open(1, file=trim(ParmPath), status="old")
-read(1,*) mdmode
-read(1,*) dt, ntime_step
-read(1,*) treq, vsfact, sstep
-read(1,*) fstep, pstep
-read(1,*) vprocs(1:3)
-read(1,*) isQEq, NMAXQEq, QEq_tol, qstep
-read(1,*) Lex_fqs, Lex_k
-read(1,*) isBinary, isBondFile, isPDB
-read(1,*) ftol
-close(1)
 
 !--- an error trap
 if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
@@ -246,22 +233,6 @@ maxas(:,:)=0
 call allocatord2d(ipos,1,NBUFFER,1,3)
 ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
-!do i=1, command_argument_count()
-!   call get_command_argument(i,argv)
-!
-!   select case(adjustl(argv))
-!     case("--spring", "-s") ! for spring force
-!       call get_command_argument(i+1,argv)
-!       read(argv,*) springConst
-!     case("--apply-spring", "-as") ! for spring force
-!       call get_command_argument(i+1,argv)
-!       read(argv,*) ity
-!       if(ity>size(hasSpringForce)) &
-!           print*,'ERROR atomtype exceeds the size of hasSpringForce', ity
-!       hasSpringForce(ity)=.true.
-!     case default
-!   end select
-!enddo
 
 !--- print out parameters and open data file
 if(myid==0) then

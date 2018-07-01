@@ -1,10 +1,7 @@
 !------------------------------------------------------------------------------
 program rxmd
-use base
-use init
-use pqeq_vars
-use parameters
-use CG
+use base; use init; use pqeq_vars; use parameters
+use CG; use cmdline_args
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,ity,it1,it2,irt,provided
@@ -28,7 +25,11 @@ CALL INITSYSTEM(atype, pos, v, f, q)
 
 if(mdmode==10) call ConjugateGradient(atype,pos)
 
-call PQEq(atype, pos, q)
+if(isPQEq) then
+   call PQEq(atype, pos, q)
+else
+   call QEq(atype, pos, q)
+endif
 call FORCE(atype, pos, f, q)
 
 !--- Enter Main MD loop 
@@ -38,10 +39,9 @@ do nstep=0, ntime_step-1
 
    if(mod(nstep,pstep)==0) then
        call PRINTE(atype, v, q)
-       if(saveRunProfile) call SaveRunProfileData(RunProfileFD, nstep)
    endif
    if(mod(nstep,fstep)==0) &
-        call OUTPUT(atype, pos, v, q, GetFileNameBase(current_step+nstep))
+        call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
@@ -70,7 +70,13 @@ do nstep=0, ntime_step-1
 !--- migrate atoms after positions are updated
    call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
    
-   if(mod(nstep,qstep)==0) call PQEq(atype, pos, q)
+   if(mod(nstep,qstep)==0) then
+      if(isPQEq) then
+         call PQEq(atype, pos, q)
+      else
+         call QEq(atype, pos, q)
+      endif
+   endif
    call FORCE(atype, pos, f, q)
 
    if(mod(nstep,fstep)==0) then
@@ -95,10 +101,10 @@ do nstep=0, ntime_step-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(atype, pos, v, q,  GetFileNameBase(current_step+nstep))
+call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
-call WriteBIN(atype, pos, v, q, GetFileNameBase(-1))
+call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
@@ -107,30 +113,6 @@ call FinalizeMD(irt)
 
 call MPI_FINALIZE(ierr)
 end PROGRAM
-
-!------------------------------------------------------------------------------
-subroutine SaveRunProfileData(fd, MDstep)
-use base; use atoms
-!------------------------------------------------------------------------------
-implicit none
-integer :: i, fd, MDstep
-
-write(fd,'(i9,a3)') MDstep," : " 
-
-do i=1,3
-   write(fd,'(3es16.8)') HH(1:3,i,0)
-enddo
-
-write(fd,'(14es16.8)') GPE(0:13)
-
-!do i=1, NATOMS
-!   write(fd,'(es25.13,9f15.5)') atype(i),pos(1:3,i),v(1:3,i),f(1:3,i)
-!enddo
-
-write(fd,*) 
-write(fd,*) 
-
-end subroutine
 
 !------------------------------------------------------------------------------
 subroutine FinalizeMD(irt)
@@ -278,11 +260,11 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(a,i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') 'energy : ',cstep,GTE,GPE(0),GKE, &
+   write(6,'(a,i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') 'MDstep: ',cstep,GTE,GPE(0),GKE, &
    GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
    tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0
 
-   write(6,'(a,i9,6f12.6)') 'stress : ',cstep,astr(1:6)
+   !write(6,'(a,i9,6f12.6)') 'stress : ',cstep,astr(1:6)
 
 endif
 

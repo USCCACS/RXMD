@@ -8,80 +8,7 @@ real(8),allocatable,dimension(:,:),target :: pos, v, f
 end module
 
 !-------------------------------------------------------------------------------------------
-module cmdline_args
-implicit none
-!-------------------------------------------------------------------------------------------
-
-real(8) :: springConst=0.d0
-logical :: hasSpringForce(16)
-real(8),allocatable :: ipos(:,:)
-
-!--- command arguments 
-logical :: isFF=.false., isData=.false., isMDparm=.false.
-integer,parameter :: MAXPATHLENGTH=256
-character(MAXPATHLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
-
-logical :: saveRunProfile=.false.
-character(MAXPATHLENGTH) :: RunProfilePath="profile.dat"
-integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
-
-logical :: isLG=.false.
-
-logical :: isEfield=.false.
-
-contains
-
-!-------------------------------------------------------------------------------------------
-subroutine get_cmdline_args(myrank, eFieldDir, eFieldStrength)
-!-------------------------------------------------------------------------------------------
-implicit none
-integer,intent(in) :: myrank
-integer :: eFieldDir
-real(8) :: eFieldStrength 
-
-integer :: i
-character(64) :: argv
-
-!--- read FF file, output dir, MD parameter file paths from command line
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-   select case(adjustl(argv))
-     case("--help","-h")
-       if(myrank==0) print'(a)', "--ffield ffield --outDir DAT --rxmdin rxmd.in"
-       stop
-     case("--ffield", "-ff")
-       call get_command_argument(i+1,argv)
-       FFPath=adjustl(argv)
-     case("--outDir", "-o")
-       call get_command_argument(i+1,argv)
-       DataDir=adjustl(argv)
-     case("--rxmdin", "-in")
-       call get_command_argument(i+1,argv)
-       ParmPath=adjustl(argv)
-     case("--lg","-lg")
-       if(myrank==0) print'(a30)','Enabling LG term'
-       isLG=.true.
-     case("--efield", "-e")
-       if(myrank==0) print'(a30)','Enabling electric field'
-       isEfield=.true.
-       call get_command_argument(i+1,argv)
-       read(argv,*) eFieldDir
-       call get_command_argument(i+2,argv)
-       read(argv,*) eFieldStrength
-     case("--profile")
-       saveRunProfile=.true.
-     case default
-   end select
-
-enddo
-
-end subroutine
-
-end module
-
-!-------------------------------------------------------------------------------------------
 module atoms
-use cmdline_args;
 !-------------------------------------------------------------------------------------------
 include 'mpif.h'
 
@@ -324,13 +251,55 @@ real(8) :: UDR, UDRi
 
 integer(8),allocatable :: ibuf8(:)
 
+integer,parameter :: MAXSTRLENGTH=256
+
 !--- FF parameter description
-character(MAXPATHLENGTH) :: FFDescript
+character(MAXSTRLENGTH) :: FFDescript
+
+!--- from cmdline_args
+real(8) :: springConst=0.d0
+logical :: hasSpringForce(16)
+real(8),allocatable :: ipos(:,:)
+
+logical :: isFF=.false., isData=.false., isMDparm=.false.
+character(MAXSTRLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
+
+logical :: saveRunProfile=.false.
+character(MAXSTRLENGTH) :: RunProfilePath="profile.dat"
+integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
+
+logical :: isLG=.false.
+
+logical :: isEfield=.false.
+
 
 !--- Taper function 
 !real(8),parameter :: rctap0 = 10.d0 ![A]
 real(8),parameter :: rctap0 = 12.5d0 ![A]   ! for PQEq
 real(8) :: rctap, rctap2, CTap(0:7)
+
+
+!--- PQEQ variables
+
+real(8),allocatable,target :: spos(:,:)
+integer,allocatable :: inxnpqeq(:,:)
+
+real(8),allocatable :: TBL_Eclmb_pcc(:,:,:),TBL_Eclmb_psc(:,:,:),TBL_Eclmb_pss(:,:,:)
+
+integer :: ntype_pqeq, ntype_pqeq2
+logical,allocatable :: isPolarizable(:)
+character(len=:),allocatable :: Elempqeq(:)
+real(8),allocatable :: X0pqeq(:),J0pqeq(:)
+
+real(8),allocatable :: Zpqeq(:), Rcpqeq(:), Rspqeq(:), Kspqeq(:)
+real(8),allocatable :: alphacc(:,:), alphasc(:,:), alphass(:,:)
+real(8) :: lambda_pqeq = 0.462770d0
+
+real(8) :: eFieldStrength=0.0
+integer :: eFieldDir=1
+
+logical :: isPQEq = .false.
+character(MAXSTRLENGTH) :: PQEqParmPath
 
 contains
 
@@ -344,10 +313,10 @@ rankToString = adjustl(rankToString)
 end function rankToString
 
 !-------------------------------------------------------------------------------------------
-function GetFileNameBase(nstep) result(fileNameBase)
+function GetFileNameBase(DataDir,nstep) result(fileNameBase)
 !-------------------------------------------------------------------------------------------
 integer,intent(in) :: nstep
-character(MAXPATHLENGTH) :: fileNameBase
+character(MAXSTRLENGTH) :: DataDir,fileNameBase
 character(9) :: a9
 
 if(nstep>=0) then
@@ -367,46 +336,49 @@ use atoms
 !-------------------------------------------------------------------------------------------
 implicit none
 
-real(8),allocatable,dimension(:,:) :: spos
-integer,allocatable :: inxnpqeq(:,:)
-
-real(8),allocatable :: TBL_Eclmb_pcc(:,:,:),TBL_Eclmb_psc(:,:,:),TBL_Eclmb_pss(:,:,:)
-
-!! FIXME : PQEq parameters from Saber. Assuming 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
-!################################################################
-!#E P     Xo      Jo        Z        Rc      Rs          Ks
-!################################################################ 
-!1: C 1  5.50813  9.81186 1.000000  0.75900  0.75900    198.84054 
-!2: H 1  4.72484 15.57338 1.000000  0.37100  0.37100   2037.20061 
-!3: O 1  8.30811 14.66128 1.000000  0.66900  0.66900    414.04451 
-!4: N 1  7.78778 10.80315 1.000000  0.71500  0.71500    301.87609 
-!5: S 1  8.19185  8.64528 1.000000  1.04700  1.04700    114.50472 
-!6:Si 1  4.80466  6.45956 1.000000  1.17600  1.17600     60.04769 
-!7: F 1  8.70340 17.27715 1.000000  0.70600  0.70600    596.16463 
-!8: P 1  6.52204  7.13703 1.000000  1.10200  1.10200     91.47760 
-!9:Cl 1  8.20651  9.73890 1.000000  0.99400  0.99400    152.32280 
-
-! 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
-integer,parameter :: ntype_pqeq=7,ntype_pqeq2=ntype_pqeq**2
-logical :: isPolarizable(ntype_pqeq) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
-!logical :: isPolarizable(ntype_pqeq) = (/.false.,.false.,.false.,.false.,.false.,.false.,.false./)
-real(8) :: X0pqeq(ntype_pqeq) = (/4.224390d0, 3.114070d0, 7.834230d0, 5.049000d0, 0.d0, 0.d0, 0.d0/)
-real(8) :: J0pqeq(ntype_pqeq) = (/8.214880d0, 21.550060d0, 16.727930d0, 9.127260d0, 0.d0, 0.d0, 0.d0/)
-!real(8) :: X0pqeq(ntype_pqeq) = (/5.50813d0, 4.72484d0, 8.30811d0, 7.78778d0, 0.d0, 0.d0, 0.d0/)
-!real(8) :: J0pqeq(ntype_pqeq) = (/9.81186d0, 15.57338d0, 14.66128d0, 10.80315d0, 0.d0, 0.d0, 0.d0/)
-
-real(8) :: Zpqeq(ntype_pqeq) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
-real(8) :: Rcpqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-real(8) :: Rspqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-real(8) :: Kspqeq(ntype_pqeq) = (/250d0, 2500d0, 500d0, 360d0, 0.d0, 0.d0, 0.d0/)
-!real(8) :: Kspqeq(ntype_pqeq) = (/198.84054d0, 2037.20061d0, 414.04451d0, 301.87609d0, 0.d0, 0.d0, 0.d0/)
-real(8) :: alphacc(ntype_pqeq,ntype_pqeq)
-real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
-real(8) :: alphass(ntype_pqeq,ntype_pqeq)
-real(8) :: lambda_pqeq = 0.462770d0
-
-real(8) :: eFieldStrength=0.0
-integer :: eFieldDir=1
+!real(8),allocatable,dimension(:,:) :: spos
+!integer,allocatable :: inxnpqeq(:,:)
+!
+!real(8),allocatable :: TBL_Eclmb_pcc(:,:,:),TBL_Eclmb_psc(:,:,:),TBL_Eclmb_pss(:,:,:)
+!
+!!! FIXME : PQEq parameters from Saber. Assuming 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
+!!################################################################
+!!#E P     Xo      Jo        Z        Rc      Rs          Ks
+!!################################################################ 
+!!1: C 1  5.50813  9.81186 1.000000  0.75900  0.75900    198.84054 
+!!2: H 1  4.72484 15.57338 1.000000  0.37100  0.37100   2037.20061 
+!!3: O 1  8.30811 14.66128 1.000000  0.66900  0.66900    414.04451 
+!!4: N 1  7.78778 10.80315 1.000000  0.71500  0.71500    301.87609 
+!!5: S 1  8.19185  8.64528 1.000000  1.04700  1.04700    114.50472 
+!!6:Si 1  4.80466  6.45956 1.000000  1.17600  1.17600     60.04769 
+!!7: F 1  8.70340 17.27715 1.000000  0.70600  0.70600    596.16463 
+!!8: P 1  6.52204  7.13703 1.000000  1.10200  1.10200     91.47760 
+!!9:Cl 1  8.20651  9.73890 1.000000  0.99400  0.99400    152.32280 
+!
+!! 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
+!integer,parameter :: ntype_pqeq=7,ntype_pqeq2=ntype_pqeq**2
+!logical :: isPolarizable(ntype_pqeq) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
+!!logical :: isPolarizable(ntype_pqeq) = (/.false.,.false.,.false.,.false.,.false.,.false.,.false./)
+!real(8) :: X0pqeq(ntype_pqeq) = (/4.224390d0, 3.114070d0, 7.834230d0, 5.049000d0, 0.d0, 0.d0, 0.d0/)
+!real(8) :: J0pqeq(ntype_pqeq) = (/8.214880d0, 21.550060d0, 16.727930d0, 9.127260d0, 0.d0, 0.d0, 0.d0/)
+!!real(8) :: X0pqeq(ntype_pqeq) = (/5.50813d0, 4.72484d0, 8.30811d0, 7.78778d0, 0.d0, 0.d0, 0.d0/)
+!!real(8) :: J0pqeq(ntype_pqeq) = (/9.81186d0, 15.57338d0, 14.66128d0, 10.80315d0, 0.d0, 0.d0, 0.d0/)
+!
+!real(8) :: Zpqeq(ntype_pqeq) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
+!real(8) :: Rcpqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
+!real(8) :: Rspqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
+!real(8) :: Kspqeq(ntype_pqeq) = (/250d0, 2500d0, 500d0, 360d0, 0.d0, 0.d0, 0.d0/)
+!!real(8) :: Kspqeq(ntype_pqeq) = (/198.84054d0, 2037.20061d0, 414.04451d0, 301.87609d0, 0.d0, 0.d0, 0.d0/)
+!real(8) :: alphacc(ntype_pqeq,ntype_pqeq)
+!real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
+!real(8) :: alphass(ntype_pqeq,ntype_pqeq)
+!real(8) :: lambda_pqeq = 0.462770d0
+!
+!real(8) :: eFieldStrength=0.0
+!integer :: eFieldDir=1
+!
+!logical :: isPQEq = .false.
+!character(MAXSTRLENGTH) :: PQEqParmPath
 
 contains
 
@@ -607,7 +579,7 @@ do ity = 1, ntype_pqeq
     Zpqeq(ity)=0.d0
     Kspqeq(ity)=0.d0
   else
-    print'(a)','updating chi and eta with PQEq parameter'
+    print'(a $)','updating chi and eta '
 
     print'(a,4f12.6)', &
       'chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity) :', &
@@ -720,8 +692,7 @@ module parameters
 !    in cross-checking and updates).  However, please note that there are a few changes made
 !    aside from the obvious f77 -> f90 switch.  I have tried to clearly note these. 
 !-------------------------------------------------------------------------------------------
-use cmdline_args
-
+!use cmdline_args
 
 !Independant Parameters
 

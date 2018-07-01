@@ -6,7 +6,7 @@ implicit none
 
 real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
 real(8),intent(in) :: pos(NBUFFER,3),v(NBUFFER,3)
-character(MAXPATHLENGTH),intent(in) :: fileNameBase
+character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
 if(isBinary) then
   call WriteBIN(atype,pos,v,q,fileNameBase)
@@ -24,7 +24,7 @@ subroutine WriteBND(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXPATHLENGTH),intent(in) :: fileNameBase
+character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
 integer :: i, ity, j, j1, jty, m
 integer :: l2g
@@ -149,7 +149,7 @@ use parameters
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXPATHLENGTH),intent(in) :: fileNameBase
+character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
 integer :: i, ity, igd, l2g
 real(8) :: tt=0.d0, ss=0.d0
@@ -464,7 +464,7 @@ implicit none
 
 real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
 real(8),intent(in) :: rreal(NBUFFER,3),v(NBUFFER,3)
-character(MAXPATHLENGTH),intent(in) :: fileNameBase
+character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
 integer :: i,j
 

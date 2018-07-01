@@ -1,14 +1,12 @@
 !-------------------------------------------------------------------------------------------
 SUBROUTINE GETPARAMS(ffFileName, ffFileHeader)
-use parameters
+use parameters; use cmdline_args
 !-------------------------------------------------------------------------------------------
 !  This subroutine is designed solely to obtain the parameters used in the Ecalc.f90 
 !    program from the rxmda.in input file.  It is similar to the input routine used
 !    by Adri in "reac.f::ffinput"
 !-------------------------------------------------------------------------------------------
 implicit none
-
-real(8),parameter :: pi=3.14159265358979d0
 
 character(*),intent(in) :: ffFileName  ! force field parm file
 character(*),intent(inout) :: ffFileHeader ! 1st line of the FF file

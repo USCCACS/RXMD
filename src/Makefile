@@ -15,6 +15,10 @@ cg.mod : cg.o
 
 fileio.o : param.o
 
+cmdline.o : base.mod
+
+param.o : cmdline.o
+
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
 
