@@ -109,8 +109,10 @@ call allocatord2d(v,1,NBUFFER,1,3)
 call allocatord2d(f,1,NBUFFER,1,3)
 
 !--- For PQEq
-call allocatord2d(spos,1,NBUFFER,1,3)
-spos(:,:)=0.d0
+if(isPQEq) then
+   call allocatord2d(spos,1,NBUFFER,1,3)
+   spos(:,:)=0.d0
+endif
 
 call allocatord1d(deltalp,1,NBUFFER)
 

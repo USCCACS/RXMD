@@ -34,7 +34,6 @@ integer :: ns, nr, na, ne
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
-integer,parameter :: MODE_COPY_PQEq = 6, MODE_MOVE_PQEq = 7
 
 integer,parameter :: NE_CPBK = 4
 
@@ -583,9 +582,9 @@ do ity = 1, ntype_pqeq
   else
     print'(a $)','updating chi and eta '
 
-    print'(a,4f12.6)', &
-      'chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity) :', &
-       chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity)
+    print'(a,i3,1x,a2,1x,4f12.6)', &
+      'name,chi,X0pqeq,eta,J0pqeq :', &
+       ity,Elempqeq(ity), chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity)
 
     chi(ity)=X0pqeq(ity)
     eta(ity)=J0pqeq(ity)

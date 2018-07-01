@@ -119,7 +119,7 @@ select case(imode)
    case(MODE_COPY)
 
       np2d=1; np1d=7; nn2d=1
-      if(isPQEq) np2d=np2d+1
+      if(isPQEq) np2d=np2d+1 ! for spos
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
@@ -149,9 +149,12 @@ select case(imode)
    case(MODE_MOVE)
 
       np2d=2; np1d=6; nn2d=1
-      if(isSpring) np2d=np2d+1
-      if(isSpring) nn2d=nn2d+1
-      if(isPQEq) np2d=np2d+1
+
+      if(isPQEq) np2d=np2d+1 ! for spos
+      if(isSpring) then
+         np2d=np2d+1 ! for nipos
+         nn2d=nn2d+1 ! for nipos
+      endif
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
@@ -171,19 +174,19 @@ select case(imode)
       a=1
       norm2d(a)%ptr=>pos;  a=a+1
 
+      if(isPQEq) then
+         pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
+      endif
       if(isSpring) then
          pack2d(a)%ptr=>nipos; pack2d(a)%shift=.true.; a=a+1
          norm2d(a)%ptr=>nipos; a=a+1
-      endif
-      if(isPQEq) then
-         pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
       endif
 
    case(MODE_QCOPY1)
 
       np2d=0; np1d=2; nn2d=1
       allocate(pack1d(np1d),norm2d(nn2d))
-      ne = size(pack2d)*3+size(pack1d)
+      ne = size(pack1d)
 
       a=1
       pack1d(a)%ptr=>qs; a=a+1
@@ -196,7 +199,7 @@ select case(imode)
 
       np2d=0; np1d=3; nn2d=1
       allocate(pack1d(np1d),norm2d(nn2d))
-      ne = size(pack2d)*3+size(pack1d)
+      ne = size(pack1d)
 
       a=1
       pack1d(a)%ptr=>hs; a=a+1
