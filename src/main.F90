@@ -79,7 +79,7 @@ do nstep=0, ntime_step-1
    endif
    call FORCE(atype, pos, f, q)
 
-   if(mod(nstep,fstep)==0) then
+   if(isPQEq .and. mod(nstep,fstep)==0) then
         call save_shell_positions(myid, current_step+nstep, NATOMS, NBUFFER, atype,pos,spos,q, &
                                  lata,latb,latc,lalpha,lbeta,lgamma)
    endif

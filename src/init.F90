@@ -412,7 +412,7 @@ integer :: i, ity,jty,inxn
 real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
 
 real(8) :: exp1, exp2
-real(8) :: gamwinvp, gamWij, alphaij, Dij0, rvdW0
+real(8) :: dr3gamij, gamwinvp, gamWij, alphaij, Dij0, rvdW0
 real(8) :: Tap, dTap, fn13, dfn13, rij_vd1
 
 real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
@@ -461,6 +461,8 @@ do jty=ity, nso
          fn13 = (rij_vd1 + gamwinvp)**pvdW1inv
          exp1 = exp( alphaij*(1.d0 - fn13 / rvdW0) )
          exp2 = sqrt(exp1)
+
+         dr3gamij = ( dr3 + gamij(ity,jty) )**( -1.d0/3.d0 )
 
          TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)
          TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
