@@ -162,6 +162,12 @@ select case(imode)
       a=1
       pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
       pack2d(a)%ptr=>v; a=a+1 
+      if(isPQEq) then
+         pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
+      endif
+      if(isSpring) then
+         pack2d(a)%ptr=>nipos; pack2d(a)%shift=.true.; a=a+1
+      endif
 
       a=1
       pack1d(a)%ptr=>atype; a=a+1
@@ -174,11 +180,7 @@ select case(imode)
       a=1
       norm2d(a)%ptr=>pos;  a=a+1
 
-      if(isPQEq) then
-         pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
-      endif
       if(isSpring) then
-         pack2d(a)%ptr=>nipos; pack2d(a)%shift=.true.; a=a+1
          norm2d(a)%ptr=>nipos; a=a+1
       endif
 

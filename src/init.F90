@@ -263,7 +263,7 @@ if(myid==0) then
    enddo
    print*
 
-   if(springConst>0.d0) then
+   if(isSpring) then
      print'(a,f8.2 $)','springConst [kcal/mol] ', springConst 
      do ity=1, size(hasSpringForce) 
         if(hasSpringForce(ity)) print'(i3 $)',ity
