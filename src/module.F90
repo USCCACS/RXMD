@@ -77,7 +77,7 @@ real(8) :: cutoff_vpar30
 
 integer :: NBUFFER=30000
 integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+integer,parameter :: MAXNEIGHBS10=1500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
 integer,parameter :: NMINCELL=4  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
 real(8),parameter :: MAXANGLE= 0.999999999999d0 

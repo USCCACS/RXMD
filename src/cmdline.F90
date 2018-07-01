@@ -76,7 +76,6 @@ if(find_cmdline_argc('--lg',idx).or.find_cmdline_argc('-lg',idx)) then
     isLG=.true.
 endif
 
-
 if(find_cmdline_argc('--spring',idx).or.find_cmdline_argc('-s',idx)) then
     isSpring=.true.
     call get_command_argument(idx+1,argv)
@@ -227,6 +226,10 @@ if(find_cmdline_argc('--vprocs',idx)) then
     call get_command_argument(idx+3,argv)
     read(argv,*) vprocs(3)
 endif
+
+if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 
+if(find_cmdline_argc('--isBondFile',idx)) isBondFile=.true. 
+if(find_cmdline_argc('--isPDB',idx)) isPDB=.true. 
 
 end subroutine
 !-------------------------------------------------------------------------------------------

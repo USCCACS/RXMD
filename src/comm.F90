@@ -117,12 +117,18 @@ copyptr(0)=NATOMS
 !--- set the number of data per atom 
 select case(imode)
    case(MODE_COPY)
+
       np2d=1; np1d=7; nn2d=1
+      if(isPQEq) np2d=np2d+1
+
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
 
       a=1
-      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
+      if(isPQEq) then
+         pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
+      endif
 
       a=1
       pack1d(a)%ptr=>atype; a=a+1
