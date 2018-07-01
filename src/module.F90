@@ -337,50 +337,6 @@ use atoms
 !-------------------------------------------------------------------------------------------
 implicit none
 
-!real(8),allocatable,dimension(:,:) :: spos
-!integer,allocatable :: inxnpqeq(:,:)
-!
-!real(8),allocatable :: TBL_Eclmb_pcc(:,:,:),TBL_Eclmb_psc(:,:,:),TBL_Eclmb_pss(:,:,:)
-!
-!!! FIXME : PQEq parameters from Saber. Assuming 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
-!!################################################################
-!!#E P     Xo      Jo        Z        Rc      Rs          Ks
-!!################################################################ 
-!!1: C 1  5.50813  9.81186 1.000000  0.75900  0.75900    198.84054 
-!!2: H 1  4.72484 15.57338 1.000000  0.37100  0.37100   2037.20061 
-!!3: O 1  8.30811 14.66128 1.000000  0.66900  0.66900    414.04451 
-!!4: N 1  7.78778 10.80315 1.000000  0.71500  0.71500    301.87609 
-!!5: S 1  8.19185  8.64528 1.000000  1.04700  1.04700    114.50472 
-!!6:Si 1  4.80466  6.45956 1.000000  1.17600  1.17600     60.04769 
-!!7: F 1  8.70340 17.27715 1.000000  0.70600  0.70600    596.16463 
-!!8: P 1  6.52204  7.13703 1.000000  1.10200  1.10200     91.47760 
-!!9:Cl 1  8.20651  9.73890 1.000000  0.99400  0.99400    152.32280 
-!
-!! 1-C, 2-H, 3-O, 4-N (Nov. 27,2017)
-!integer,parameter :: ntype_pqeq=7,ntype_pqeq2=ntype_pqeq**2
-!logical :: isPolarizable(ntype_pqeq) = (/.true.,.true.,.true.,.true.,.false.,.false.,.false./)
-!!logical :: isPolarizable(ntype_pqeq) = (/.false.,.false.,.false.,.false.,.false.,.false.,.false./)
-!real(8) :: X0pqeq(ntype_pqeq) = (/4.224390d0, 3.114070d0, 7.834230d0, 5.049000d0, 0.d0, 0.d0, 0.d0/)
-!real(8) :: J0pqeq(ntype_pqeq) = (/8.214880d0, 21.550060d0, 16.727930d0, 9.127260d0, 0.d0, 0.d0, 0.d0/)
-!!real(8) :: X0pqeq(ntype_pqeq) = (/5.50813d0, 4.72484d0, 8.30811d0, 7.78778d0, 0.d0, 0.d0, 0.d0/)
-!!real(8) :: J0pqeq(ntype_pqeq) = (/9.81186d0, 15.57338d0, 14.66128d0, 10.80315d0, 0.d0, 0.d0, 0.d0/)
-!
-!real(8) :: Zpqeq(ntype_pqeq) =  (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
-!real(8) :: Rcpqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-!real(8) :: Rspqeq(ntype_pqeq) = (/0.75900d0, 0.37100d0, 0.66900d0, 0.71500d0, 1.04700d0, 1.17600d0, 0.70600d0/)
-!real(8) :: Kspqeq(ntype_pqeq) = (/250d0, 2500d0, 500d0, 360d0, 0.d0, 0.d0, 0.d0/)
-!!real(8) :: Kspqeq(ntype_pqeq) = (/198.84054d0, 2037.20061d0, 414.04451d0, 301.87609d0, 0.d0, 0.d0, 0.d0/)
-!real(8) :: alphacc(ntype_pqeq,ntype_pqeq)
-!real(8) :: alphasc(ntype_pqeq,ntype_pqeq)
-!real(8) :: alphass(ntype_pqeq,ntype_pqeq)
-!real(8) :: lambda_pqeq = 0.462770d0
-!
-!real(8) :: eFieldStrength=0.0
-!integer :: eFieldDir=1
-!
-!logical :: isPQEq = .false.
-!character(MAXSTRLENGTH) :: PQEqParmPath
-
 contains
 
 !------------------------------------------------------------------------------
@@ -458,10 +414,10 @@ return
 end subroutine
 
 !-------------------------------------------------------------------------------------------
-subroutine get_coulomb_and_dcoulomb_pqeq(rr,alpha,Eclmb,inxn,TBL_Eclmb,ff)
+subroutine get_coulomb_and_dcoulomb_pqeq(rr,alpha,Eclmb,inxn,TBL_Eclmb_PQEq,ff)
 implicit none
 !-------------------------------------------------------------------------------------------
-real(8),intent(in) :: rr(3),alpha,TBL_Eclmb(ntype_pqeq2,NTABLE,0:1)
+real(8),intent(in) :: rr(3),alpha,TBL_Eclmb_PQEq(ntype_pqeq2,NTABLE,0:1)
 integer,intent(in) :: inxn
 real(8) :: Ecc,Esc,Ess,dEcc,dEsc,dEss,Eclmb,dEclmb,ff(3)
 
@@ -484,8 +440,8 @@ drtb = dr2 - itb*UDR
 drtb = drtb*UDRi
 drtb1= 1.d0-drtb
 
-Eclmb = drtb1*TBL_Eclmb(inxn,itb,0)  + drtb*TBL_Eclmb(inxn,itb1,0)
-dEclmb = drtb1*TBL_Eclmb(inxn,itb,1)  + drtb*TBL_Eclmb(inxn,itb1,1)
+Eclmb = drtb1*TBL_Eclmb_PQEq(inxn,itb,0)  + drtb*TBL_Eclmb_PQEq(inxn,itb1,0)
+dEclmb = drtb1*TBL_Eclmb_PQEq(inxn,itb,1)  + drtb*TBL_Eclmb_PQEq(inxn,itb1,1)
 
 ff(1:3)=dEclmb*rr(1:3)
 
