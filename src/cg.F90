@@ -1,6 +1,6 @@
 !---------------------------------------------------------------------------------
 module CG
-use atoms
+use atoms; use fileio
 !---------------------------------------------------------------------------------
 integer,parameter :: CG_MaxMinLoop = 500
 integer,parameter :: CG_MaxLineMinLoop = 100

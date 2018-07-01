@@ -1,5 +1,6 @@
 !------------------------------------------------------------------------------------------
 module init
+use fileio
 !------------------------------------------------------------------------------------------
 contains
 !------------------------------------------------------------------------------------------
@@ -21,20 +22,6 @@ integer :: i,j,k, ity, l(3), ist=0
 real(8) :: mm, gmm, dns, mat(3,3)
 integer(8) :: i8
 real(8) :: rcsize(3), maxrcell
-
-Interface
-   subroutine ReadBIN(atype, pos, v, q, f, fileName)
-      character(*),intent(in) :: fileName
-      real(8),allocatable,dimension(:) :: atype,q
-      real(8),allocatable,dimension(:,:) :: pos,v,f
-   end subroutine
-
-   subroutine ReadMoS2(atype, pos, v, q, f, fileName)
-      character(*),intent(in) :: fileName
-      real(8),allocatable,dimension(:) :: atype,q
-      real(8),allocatable,dimension(:,:) :: pos,v,f
-   end subroutine
-end interface
 
 !--- for PQEq. cutoff length
 rctap = rctap0

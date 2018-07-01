@@ -1,3 +1,6 @@
+module fileio
+
+contains
 !----------------------------------------------------------------------------------------
 subroutine OUTPUT(atype, pos, v, q, fileNameBase)
 use atoms 
@@ -6,7 +9,7 @@ implicit none
 
 real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
 real(8),intent(in) :: pos(NBUFFER,3),v(NBUFFER,3)
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
 if(isBinary) then
   call WriteBIN(atype,pos,v,q,fileNameBase)
@@ -553,3 +556,4 @@ it_timer(23)=it_timer(23)+(tj-ti)
 return
 end
 
+end module

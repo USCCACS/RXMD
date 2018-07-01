@@ -34,7 +34,7 @@ integer :: ns, nr, na, ne
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
-integer,parameter :: MODE_PQEQCOPY1 = 6, MODE_PQEQCOPY2 = 7
+integer,parameter :: MODE_COPY_PQEq = 6, MODE_MOVE_PQEq = 7
 
 integer,parameter :: NE_CPBK = 4
 
