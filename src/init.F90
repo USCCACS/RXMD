@@ -22,6 +22,8 @@ real(8) :: mm, gmm, dns, mat(3,3)
 integer(8) :: i8
 real(8) :: rcsize(3), maxrcell
 
+wt0 = MPI_WTIME()
+
 !--- for PQEq. cutoff length
 rctap = rctap0
 rctap2 = rctap**2

@@ -41,7 +41,7 @@ if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
     DataDir=trim(adjustl(argv))
 endif
 
-if(find_cmdline_argc('--pqeqin',idx).or.find_cmdline_argc('-pin',idx)) then
+if(find_cmdline_argc('--pqeq',idx).or.find_cmdline_argc('-pqeq',idx)) then
     isPQEq = .true.
     call get_command_argument(idx+1,argv)
     PQEqParmPath=trim(adjustl(argv))

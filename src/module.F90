@@ -212,6 +212,7 @@ integer :: nstep_qeq, qstep
 !-- variables for timing
 integer,parameter :: Ntimer=30
 integer :: it_timer(Ntimer)=0, it_timer_max(Ntimer)=0, it_timer_min(Ntimer)=0
+real(8) :: wt0=0.d0
 
 !---
 ! <mdmode> determines MD mode

@@ -218,7 +218,6 @@ real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
 real(8),intent(in) :: v(NBUFFER,3)
 
 integer :: i,ity,cstep
-real(8),save :: wt0
 real(8) :: qq=0.d0,tt=0.d0,ss=0.d0,buf(0:23)
 
 i=nstep/pstep+1
