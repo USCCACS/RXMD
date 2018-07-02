@@ -241,6 +241,26 @@ if(find_cmdline_argc('--vprocs',idx)) then
     read(argv,*) vprocs(3)
 endif
 
+if(find_cmdline_argc('--isQEq',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*)isQEq 
+endif
+
+if(find_cmdline_argc('--NMAXQEq',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) NMAXQEq
+endif
+
+if(find_cmdline_argc('--QEq_tol',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) QEq_tol
+endif
+
+if(find_cmdline_argc('--qstep',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) qstep
+endif
+
 if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 
 if(find_cmdline_argc('--isBondFile',idx)) isBondFile=.true. 
 if(find_cmdline_argc('--isPDB',idx)) isPDB=.true. 
