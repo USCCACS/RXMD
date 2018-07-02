@@ -166,7 +166,7 @@ end do
 
 10 close(1)
 
-print'(a60)',repeat('-',60)
+if(myid==0) print'(a60)',repeat('-',60)
 
 return
 end
