@@ -144,7 +144,7 @@ real(8) :: TE, KE, PE(0:13)
 real(8) :: GTE, GKE, GPE(0:13)
 
 !--- output file format 
-logical :: isBinary, isBondFile, isPDB
+logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.
 
 !--- one vector charge equlibration
 ! g: gradient,  h: conjugate direction, hsh: hessian * h
@@ -339,33 +339,6 @@ implicit none
 
 contains
 
-!------------------------------------------------------------------------------
-subroutine save_shell_positions(myrank, step, NATOMS, NBUFFER, atype,pos,spos,q, &
-lata,latb,latc,lalpha,lbeta,lgamma)
-implicit none
-!------------------------------------------------------------------------------
-integer,intent(in) :: step, NATOMS, myrank, NBUFFER
-real(8),intent(in) :: pos(NBUFFER,3),spos(NBUFFER,3),atype(NBUFFER),q(NBUFFER)
-real(8),intent(in) :: lata,latb,latc,lalpha,lbeta,lgamma
-
-integer :: i,l2g
-character(len=9) :: a9
-character(len=4) :: a4
-
-write(a4,'(i4.4)') myrank
-write(a9,'(i9.9)') step
-
-open(111,file="DAT/"//a4//"-"//a9//".shell")
-write(111,'(i6,6f12.6)') NATOMS,lata,latb,latc,lalpha,lbeta,lgamma
-do i=1, NATOMS
-   write(111,'(i6,i3,3f12.6,1x,3f12.6,1x,f12.6)') &
-      l2g(atype(i)), nint(atype(i)),pos(i,1:3),spos(i,1:3),q(i)
-enddo
-close(111)
-
-return
-end subroutine
-
 !-------------------------------------------------------------------------------------------
 subroutine initialize_eField(myid)
 implicit none
@@ -532,15 +505,18 @@ call set_alphaij_pqeq()
 !--- for PQEq
 do ity = 1, ntype_pqeq
   if( .not. isPolarizable(ity) ) then
-    print'(a,i3,a)','atom type ', ity, ' is not polarizable. Setting Z & K to zero.'
+    if(myid==0) &
+       print'(a,i3,a)','atom type ', ity, ' is not polarizable. Setting Z & K to zero.'
     Zpqeq(ity)=0.d0
     Kspqeq(ity)=0.d0
   else
-    print'(a $)','updating chi and eta '
+    if(myid==0) then
+       print'(a $)','updating chi and eta '
 
-    print'(a,i3,1x,a2,1x,4f12.6)', &
-      'name,chi,X0pqeq,eta,J0pqeq :', &
-       ity,Elempqeq(ity), chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity)
+       print'(a,i3,1x,a2,1x,4f12.6)', &
+         'name,chi,X0pqeq,eta,J0pqeq :', &
+          ity,Elempqeq(ity), chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity)
+    endif
 
     chi(ity)=X0pqeq(ity)
     eta(ity)=J0pqeq(ity)

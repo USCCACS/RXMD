@@ -17,6 +17,7 @@ endif
 
 if(isBondFile) call WriteBND(fileNameBase)
 if(isPDB) call WritePDB(fileNameBase)
+if(isXYZ) call WriteXYZ(fileNameBase)
 
 return
 
@@ -229,6 +230,100 @@ call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
 100 format(A6,I5,1x,A2,i12,4x,3f8.3,f6.2,f6.2)
+
+call system_clock(tj,tk)
+it_timer(21)=it_timer(21)+(tj-ti)
+
+
+end subroutine
+
+!--------------------------------------------------------------------------
+subroutine WriteXYZ(fileNameBase)
+use parameters
+!--------------------------------------------------------------------------
+implicit none
+
+character(MAXSTRLENGTH),intent(in) :: fileNameBase
+
+integer :: i, ity, idx1, idx0 , l2g
+
+integer (kind=MPI_OFFSET_KIND) :: offset
+integer (kind=MPI_OFFSET_KIND) :: fileSize
+integer :: localDataSize
+integer :: fh ! file handler
+
+integer :: OneLineSize, MetaDataSize
+character(60) :: a60
+character(len=:),allocatable :: OneLine,AllLines
+
+integer :: scanbuf
+
+integer :: ti,tj,tk
+call system_clock(ti,tk)
+
+MetaDataSize = 9 + 60 + 2
+write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
+
+OneLineSize = 3 + 36 + 8 + 1 ! name + pos(i,1:3) + q(i) + newline
+if(isPQEq) OneLineSize = OneLineSize + 36 ! spos(i,1:3)
+
+! get local datasize
+localDataSize=NATOMS*OneLineSize + MetaDataSize
+
+call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".xyz", &
+     MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+! offset will point the end of local write after the scan
+call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+offset=scanbuf
+
+! nprocs-1 rank has the total data size
+call MPI_Bcast(scanbuf,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+fileSize=scanbuf
+
+call MPI_File_set_size(fh, fileSize, ierr)
+
+! set offset at the beginning of the local write
+offset=offset-localDataSize
+
+call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+
+allocate(character(OneLineSize) :: OneLine)
+allocate(character(localDataSize) :: AllLines)
+
+idx0=1 ! allline index
+write(AllLines(idx0:idx0+8),'(i9)') GNATOMS; idx0=idx0+9
+write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+write(AllLines(idx0:idx0+59),'(a60)') a60; idx0=idx0+60
+write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+
+do i=1, NATOMS
+  idx1 = 1 ! oneline index
+
+  ity = nint(atype(i))
+  write(OneLine(idx1:idx1+2),'(a3)') atmname(ity); idx1=idx1+3
+  write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
+  write(OneLine(idx1:idx1+7),'(3f8.3)') q(i); idx1=idx1+8
+  if(isPQEq) then
+     write(OneLine(idx1:idx1+35),'(3es12.3)') spos(i,1:3); idx1=idx1+36
+  endif
+  write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
+
+  write(AllLines(idx0:idx0+OneLineSize-1),'(a)') OneLine; idx0=idx0+OneLineSize
+
+enddo
+
+if(localDataSize>0) then
+    call MPI_File_Write(fh,AllLines,localDataSize, &
+         MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+endif
+
+deallocate(AllLines, OneLine)
+
+call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+call MPI_File_Close(fh,ierr)
 
 call system_clock(tj,tk)
 it_timer(21)=it_timer(21)+(tj-ti)

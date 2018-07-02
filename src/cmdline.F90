@@ -145,6 +145,7 @@ do while (n<nparms)
   istat=getstr(linein, token); read(token,*) Rspqeq(n)
   istat=getstr(linein, token); read(token,*) Kspqeq(n) 
 
+  if(myid==0) & 
   print'(i3,a3,l3,6f12.5)',n,Elempqeq(n),isPolarizable(n), &
       X0pqeq(n), J0pqeq(n), Zpqeq(n), Rcpqeq(n), Rspqeq(n), Kspqeq(n)
 
@@ -174,7 +175,7 @@ read(1,*) fstep, pstep
 read(1,*) vprocs(1:3)
 read(1,*) isQEq, NMAXQEq, QEq_tol, qstep
 read(1,*) Lex_fqs, Lex_k
-read(1,*) isBinary, isBondFile, isPDB
+read(1,*) isBinary, isBondFile, isPDB, isXYZ
 read(1,*) ftol
 close(1)
 
@@ -230,6 +231,7 @@ endif
 if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 
 if(find_cmdline_argc('--isBondFile',idx)) isBondFile=.true. 
 if(find_cmdline_argc('--isPDB',idx)) isPDB=.true. 
+if(find_cmdline_argc('--isXYZ',idx)) isXYZ=.true. 
 
 end subroutine
 !-------------------------------------------------------------------------------------------
