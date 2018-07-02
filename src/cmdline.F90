@@ -17,6 +17,19 @@ real(8) :: eFieldStrength
 integer :: ity,idx
 character(MAXSTRLENGTH) :: argv
 
+if(command_argument_count()>0) then
+  if(myid==0) then
+    write(6,'(a)') repeat('-',60)
+    write(6,'(a $)'), 'commandline args : '
+    do idx=1, command_argument_count()
+       call get_command_argument(idx,argv)
+       write(6,'(a,a1,$)'), trim(adjustl(argv)), ' '
+    enddo 
+    write(6,*)
+    write(6,'(a)') repeat('-',60)
+  endif
+endif
+
 !--- read FF file, output dir, MD parameter file paths from command line
 
 if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
