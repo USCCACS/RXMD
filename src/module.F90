@@ -275,13 +275,11 @@ logical :: isEfield=.false.
 
 
 !--- Taper function 
-!real(8),parameter :: rctap0 = 10.d0 ![A]
-real(8),parameter :: rctap0 = 12.5d0 ![A]   ! for PQEq
+real(8),parameter :: rctap0 = 10.d0 ![A]
+real(8),parameter :: rctap0_pqeq = 12.5d0 ![A]
 real(8) :: rctap, rctap2, CTap(0:7)
 
-
 !--- PQEQ variables
-
 real(8),allocatable,target :: spos(:,:)
 integer,allocatable :: inxnpqeq(:,:)
 

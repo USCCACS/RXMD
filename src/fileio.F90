@@ -268,7 +268,8 @@ OneLineSize = 3 + 36 + 8 + 1 ! name + pos(i,1:3) + q(i) + newline
 if(isPQEq) OneLineSize = OneLineSize + 36 ! spos(i,1:3)
 
 ! get local datasize
-localDataSize=NATOMS*OneLineSize + MetaDataSize
+localDataSize=NATOMS*OneLineSize
+if(myid==0) localDataSize = localDataSize + MetaDataSize
 
 call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".xyz", &
      MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
@@ -294,10 +295,12 @@ allocate(character(OneLineSize) :: OneLine)
 allocate(character(localDataSize) :: AllLines)
 
 idx0=1 ! allline index
-write(AllLines(idx0:idx0+8),'(i9)') GNATOMS; idx0=idx0+9
-write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
-write(AllLines(idx0:idx0+59),'(a60)') a60; idx0=idx0+60
-write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+if(myid==0) then
+  write(AllLines(idx0:idx0+8),'(i9)') GNATOMS; idx0=idx0+9
+  write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+  write(AllLines(idx0:idx0+59),'(a60)') a60; idx0=idx0+60
+  write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+endif
 
 do i=1, NATOMS
   idx1 = 1 ! oneline index

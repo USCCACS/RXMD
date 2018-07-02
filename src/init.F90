@@ -25,7 +25,12 @@ real(8) :: rcsize(3), maxrcell
 wt0 = MPI_WTIME()
 
 !--- for PQEq. cutoff length
-rctap = rctap0
+if(isPQEq) then
+  rctap = rctap0_pqeq
+else
+  rctap = rctap0
+endif
+
 rctap2 = rctap**2
 
 CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
