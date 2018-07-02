@@ -36,7 +36,7 @@ end type
 
 type pack1darray
    real(8),pointer :: ptr(:)
-   logical :: shift=.false.
+   logical :: cpbk=.false.
    character(8) :: name=''
 end type 
 
@@ -137,7 +137,7 @@ select case(imode)
       pack1d(a)%ptr=>qt;    a=a+1
       pack1d(a)%ptr=>hs;    a=a+1
       pack1d(a)%ptr=>ht;    a=a+1
-      pack1d(a)%ptr=>frcindx; a=a+1
+      pack1d(a)%ptr=>frcindx; pack1d(a)%cpbk=.true.; a=a+1
 
       a=1
       norm2d(a)%ptr=>pos
@@ -392,10 +392,6 @@ if(imode==MODE_CPBK) then
    do n=copyptr(is-1)+1, copyptr(is)
       sbuffer(ns+1) = dble(frcindx(n))
       sbuffer(ns+2:ns+4) = f(n,1:3)
-#ifdef STRESS
-      sbuffer(ns+5:ns+10) = astr(1:6,n)
-#endif
-!--- chenge index to point next atom.
       ns=ns+ne
    enddo
 
@@ -431,7 +427,11 @@ else
 
         if(allocated(pack1d)) then
            do a=1,size(pack1d)
-              sbuffer(ioffset+1)=pack1d(a)%ptr(n)
+              if(pack1d(a)%cpbk) then
+                 sbuffer(ioffset+1)=n
+              else
+                 sbuffer(ioffset+1)=pack1d(a)%ptr(n)
+              endif
               ioffset=ioffset+1
            enddo
         endif
@@ -475,13 +475,10 @@ if(imode == MODE_CPBK) then
 
    do i=0, nr/ne-1
 !--- get current index <ine> in <rbuffer(1:nr)>.
-      ine=i*ne
 !--- Append the transferred forces into the original position of force array.
+      ine=i*ne
       m = nint(rbuffer(ine+1))
       f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
-#ifdef STRESS
-      astr(1:6,m) = astr(1:6,m) + rbuffer(ine+5:ine+10)
-#endif
    enddo
 
 else
