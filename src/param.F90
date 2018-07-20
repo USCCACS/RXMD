@@ -362,10 +362,10 @@ eta(:) = eta(:)*2.d0
 
 if(myid==0) then
    write(6,'(a)') repeat('-',60)
-   write(6,'(a40,a20)'), 'ReaxFF parms have been read from ', trim(adjustl(ffFileName))
-   write(6,'(a10,a70)'), 'Header : ',  trim(adjustl(ffFileHeader))
+   write(6,'(a40,a20)') 'ReaxFF parms have been read from ', trim(adjustl(ffFileName))
+   write(6,'(a10,a70)') 'Header : ',  trim(adjustl(ffFileHeader))
    do i1=1, nso
-      write(6,'(a3,a2,i2,a2, $)'), trim(adjustl(atmname(i1))), ' -', i1, ', '
+      write(6,'(a3,a2,i2,a2, $)') trim(adjustl(atmname(i1))), ' -', i1, ', '
    enddo
    write(6,*)
    write(6,'(a)') repeat('-',60)
