@@ -1,0 +1,84 @@
+# generated using pymatgen
+data_HCF
+_symmetry_space_group_name_H-M   'P 1'
+_cell_length_a   4.45868075
+_cell_length_b   8.44828822
+_cell_length_c   4.54251508
+_cell_angle_alpha   90.00000000
+_cell_angle_beta   91.48949859
+_cell_angle_gamma   90.00000000
+_symmetry_Int_Tables_number   1
+_chemical_formula_structural   HCF
+_chemical_formula_sum   'H8 C8 F8'
+_cell_volume   171.050641098
+_cell_formula_units_Z   8
+loop_
+ _symmetry_equiv_pos_site_id
+ _symmetry_equiv_pos_as_xyz
+  1  'x, y, z'
+loop_
+ _atom_site_type_symbol
+ _atom_site_label
+ _atom_site_symmetry_multiplicity
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+  C  C1  1  0.670097  0.182021  0.796648  1
+  C  C2  1  0.770807  0.181210  0.114132  1
+  C  C3  1  0.329903  0.682021  0.703352  1
+  C  C4  1  0.229193  0.681210  0.385868  1
+  C  C5  1  0.329903  0.817979  0.203352  1
+  C  C6  1  0.229193  0.818790  0.885868  1
+  C  C7  1  0.670097  0.317979  0.296648  1
+  C  C8  1  0.770807  0.318790  0.614132  1
+  F  F9  1  0.352124  0.169112  0.776691  1
+  F  F10  1  0.771493  0.036797  0.677346  1
+  F  F11  1  0.647876  0.669112  0.723309  1
+  F  F12  1  0.228507  0.536797  0.822654  1
+  F  F13  1  0.647876  0.830888  0.223309  1
+  F  F14  1  0.228507  0.963203  0.322654  1
+  F  F15  1  0.352124  0.330888  0.276691  1
+  F  F16  1  0.771493  0.463203  0.177346  1
+  H  H17  1  0.013497  0.177500  0.124095  1
+  H  H18  1  0.689883  0.073665  0.212901  1
+  H  H19  1  0.986503  0.677500  0.375905  1
+  H  H20  1  0.310117  0.573665  0.287099  1
+  H  H21  1  0.986503  0.822500  0.875905  1
+  H  H22  1  0.310117  0.926335  0.787099  1
+  H  H23  1  0.013497  0.322500  0.624095  1
+  H  H24  1  0.689883  0.426335  0.712901  1
+#Polymer_Name = delta-PVDF
+#Chemical_Formula = H8 C8 F8
+#Number_of_atoms = 24
+#Number_of_atom_types = 3
+#Atom_types =    C    F    H 
+#Atom_numbers =      8     8     8
+#Material_Class = MC_pol
+#Geometry_Class = GC_cry
+#Source = T. D. Huan et al. Sci. Data, 3, 160012 (2016)
+#Class = common_polymer_crystal
+#Label = delta-PVDF
+#Polymer_Class =
+#Polymer_Repeat_Unit = CH2-CF2-CH2-CF2
+#Polymer_SMILES_notation = CC(F)(F)CC(F)(F)
+#Structure_prediction_method_used = NA
+#Dielectric_constant_electronic = 2.5410
+#Dielectric_constant_ionic = 0.7236
+#Dielectric_constant_total = 3.2646
+#Refractive_Index = 1.5941
+#GGA_bandgap = 7.3155
+#HSE_bandgap = 9.3638
+#Mol_weight = 4.25324E-22
+#Volume = 171.0506
+#Density = 2.4865
+#Atomization_Energy = -5.1226
+#Cohesive_Energy = 0.2742
+#Ionization_Energy = 9.0589
+#Electron_Affinity = 0.6810
+#Simulation_tool = VASP-5.X
+#Pseudopotential = PAW
+#Simulation_conditions = ENCUT=400eV,k-spacing_relax=0.25/Angstrom,k-spacing_bandgap=0.20/Angstrom
+#File_description = Structural information in CIF format
+#Note = NA
+#Created_by = Huan Tran (huan.tran@uconn.edu), Arun Mannodi-Kanakkithodi (mannodiarun@gmail.com)

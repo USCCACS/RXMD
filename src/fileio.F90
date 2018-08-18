@@ -265,7 +265,7 @@ MetaDataSize = 9 + 60 + 2
 write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
 
 OneLineSize = 3 + 36 + 8 + 1 ! name + pos(i,1:3) + q(i) + newline
-if(isPQEq) OneLineSize = OneLineSize + 36 ! spos(i,1:3)
+if(isPQEq) OneLineSize = OneLineSize + 60 ! spos(i,1:3)
 
 ! get local datasize
 localDataSize=NATOMS*OneLineSize
@@ -310,7 +310,7 @@ do i=1, NATOMS
   write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
   write(OneLine(idx1:idx1+7),'(3f8.3)') q(i); idx1=idx1+8
   if(isPQEq) then
-     write(OneLine(idx1:idx1+35),'(3es12.3)') spos(i,1:3); idx1=idx1+36
+     write(OneLine(idx1:idx1+60),'(3es20.12)') spos(i,1:3); idx1=idx1+60
   endif
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 
