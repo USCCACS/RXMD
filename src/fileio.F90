@@ -310,7 +310,7 @@ do i=1, NATOMS
   write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
   write(OneLine(idx1:idx1+7),'(3f8.3)') q(i); idx1=idx1+8
   if(isPQEq) then
-     write(OneLine(idx1:idx1+60),'(3es20.12)') spos(i,1:3); idx1=idx1+60
+     write(OneLine(idx1:idx1+59),'(3es20.12)') spos(i,1:3); idx1=idx1+60
   endif
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 
