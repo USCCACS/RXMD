@@ -1,4 +1,4 @@
-include ../Makefile.inc
+include ../make.inc
 
 # suffix rules
 .SUFFIXES: .o .f90 .F90
