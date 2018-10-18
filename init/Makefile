@@ -1,37 +1,25 @@
+include ../make.inc
+
 # suffix rules
 .SUFFIXES: .o .f90 .F90
 .f90.o:
-	$(FC) -c $(CPP) $(OPT) $<
+	$(FC) $(FC_FLAGS) -c $<
 
 .F90.o:
-	$(FC) -c $(CPP) $(OPT) $<
-
-# Fortran Compiler 
-FC = gfortran
-#FC = xlf
-#FC = ifort
-
-OPT =
-CPP = 
-LDFLAGS =
-RUNFLAGS = 
+	$(FC) $(FC_FLAGS) -c $<
 
 TARGETS = geninit
 all: $(TARGETS)
 
 # explicit rules
 geninit: geninit.o
-	$(FC) -o $@ $^ $(LDFLAGS)
-	./geninit $(RUNFLAGS)
+	$(FC) $(FC_FLAGS) -o $@ $^
+	./geninit input.xyz
 	cp -v rxff.bin ../DAT
 
 nocopy: geninit.o
-	$(FC) -o $@ $^ $(LDFLAGS)
-	./geninit $(RUNFLAGS)
-
-rebuild:
-	make clean
-	make
+	$(FC) $(FC_FLAGS) -o $@ $^
+	./geninit input.xyz
 
 clean:
-	rm -f all.bin rxff.bin ../DAT/rxff.bin geninit.xyz real.xyz norm.xyz *.o *.mod *.MOD $(TARGETS)
+	rm -f all.bin rxff.bin geninit.xyz *.o *.mod *.MOD $(TARGETS)
