@@ -1,36 +1,15 @@
-# suffix rules
-.SUFFIXES: .o .F90 .cpp .mod
-.F90.o: 
-	$(FC) $(OPT) $(CPP) -c $<
+# FC is the MPI wrapper for Fortran
+# FFLAG is the flag for FC
+# LINKER, optional, linker
+# LIBS, optional, extra libraries needed
 
-%.o: %.mod
+MPIF90 = mpiifort
+FC = ifort
 
-SRCS := cg.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 param.F90 main.F90 pqeq.F90 cmdline.F90
-OBJS := $(SRCS:.F90=.o)
+MPIF90_FLAGS = -qopenmp -O3 -xMIC-AVX512 -g  -heap-arrays 0
+#MPIF90_FLAGS = -qopenmp -O3 -g -qopt-report=3  -heap-arrays 0
+#MPIF90_FLAGS = -qopenmp -heap-arrays 0 -check bounds -traceback
+FC_FLAGS = -O3 -g
 
-EXE := rxmd
-
-#compiler settings
-
-# Intel Compiler
-#FC = mpif90 -O3
-#FC = mpif90 -qopenmp -O3
-#FC = mpif90 -check all -check noarg_temp_created -traceback
-
-# gfortran
-FC = mpif90 -O3 -ffast-math
-#FC = mpif90 -fopenmp -O3 -ffast-math
-#FC = mpif90 -fcheck=all -g
-
-# xl fortran
-#FC = mpif90 -O3 -qhot
-#FC = mpif90 -O3 -qhot -qsmp=omp
-#FC = mpif90 -C -g
-
-# Cray Programming Environment
-#FC = ftn
-
-#OPT = -O3 -qhot=level=0 -qimd=auto
-#LDFLAGS = -L/soft/perftools/hpctw -lmpihpm -L/soft/perftools/bgpm/lib -lbgpm 
-
-CPP :=
+# LINKER = 
+#LIBS=/opt/intel/vtune_amplifier_xe_2017.3.0.510739/lib64/libittnotify.a 
