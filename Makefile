@@ -10,13 +10,17 @@ default:
 
 .PHONY: clean all rxmd init
 # both init and rxmd
+
 all:
 	cd init && $(MAKE)
 	cd src && $(MAKE)
+
 rxmd:
 	cd src && $(MAKE)
+
 init:
 	cd init && $(MAKE)
+
 clean:
 	cd init && $(MAKE) clean
 	cd src && $(MAKE) clean
