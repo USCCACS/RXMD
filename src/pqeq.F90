@@ -247,8 +247,8 @@ do i=1, NATOMS
 
    ! check the shell displacement per MD step for stability
    if(ddr>MAX_SHELL_DISPLACEMENT) then
-      print'(a,i6,i9,f12.6)', &
-           '[WARNING] large shell displacement found : myid,i,ddr : ', myid, i, ddr 
+      !print'(a,i6,i9,f12.6)', &
+      !     '[WARNING] large shell displacement found : myid,i,ddr : ', myid, i, ddr 
       dr(1:3) = dr(1:3)/ddr*MAX_SHELL_DISPLACEMENT
    endif
 
