@@ -245,7 +245,7 @@ implicit none
 
 character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
-integer :: i, ity, idx1, idx0 , l2g
+integer :: i, ity, idx1, idx0 , l2g, igd
 
 integer (kind=MPI_OFFSET_KIND) :: offset
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -264,8 +264,13 @@ call system_clock(ti,tk)
 MetaDataSize = 9 + 60 + 2
 write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
 
-OneLineSize = 3 + 36 + 8 + 1 ! name + pos(i,1:3) + q(i) + newline
-if(isPQEq) OneLineSize = OneLineSize + 60 ! spos(i,1:3)
+if(isPQEq) then
+  ! name + pos(i,1:3) + q(i) + gid + spos(i,1:3) + newline
+  OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
+else
+  ! name + pos(i,1:3) + q(i) + gid + newline
+  OneLineSize = 3 + 36 + 8 + 9 + 1 
+endif
 
 ! get local datasize
 localDataSize=NATOMS*OneLineSize
@@ -306,9 +311,24 @@ do i=1, NATOMS
   idx1 = 1 ! oneline index
 
   ity = nint(atype(i))
+  igd = l2g(atype(i))
+
+! element name
   write(OneLine(idx1:idx1+2),'(a3)') atmname(ity); idx1=idx1+3
-  write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
-  write(OneLine(idx1:idx1+7),'(3f8.3)') q(i); idx1=idx1+8
+
+! atom positions. with high precision for dielectric calculation
+  if(isPQEq) then
+     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1:3); idx1=idx1+60
+     write(OneLine(idx1:idx1+19),'(es20.12)') q(i); idx1=idx1+20
+  else
+     write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
+     write(OneLine(idx1:idx1+7),'(3f8.3)') q(i); idx1=idx1+8
+  endif
+
+! global Id
+  write(OneLine(idx1:idx1+8),'(i9)') igd; idx1=idx1+9
+
+! shell charge positions with high precision for dielectric calculation
   if(isPQEq) then
      write(OneLine(idx1:idx1+59),'(3es20.12)') spos(i,1:3); idx1=idx1+60
   endif

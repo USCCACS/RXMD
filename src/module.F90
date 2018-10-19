@@ -362,22 +362,17 @@ real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),atype(NATOMS),Eev_kcal
 real(8) :: f(NATOMS,3), Etotal
 
 integer :: i, ity
-real(8) :: Eenergy, Eforce
+real(8) :: Eenergy, Eforce, qic
 
+! NOTE: the energy function from an eField is to be determined and not computed here. 
 do i=1, NATOMS
 
    ity = nint(atype(i))
+   qic = q(i) + Zpqeq(ity)
 
-   if(isPolarizable(ity)) then
+   Eforce = -qic*eFieldStrength*Eev_kcal
 
-       ! E = -Zpqeq(ity)*eField*|rs-rc|. Note that Zpqeq stores a positive value.
-       ! It should have negative sign to represent the shell charge.
-       Eenergy = -Zpqeq(ity)*eFieldStrength*abs(spos(i,eFieldDir))*Eev_kcal
-       Eforce  = -Zpqeq(ity)*eFieldStrength*Eev_kcal
-
-       Etotal = Etotal + Eenergy
-       f(i,eFieldDir) = f(i,eFieldDir) + Eforce
-   endif
+   f(i,eFieldDir) = f(i,eFieldDir) + Eforce
 
 enddo
 
@@ -520,6 +515,9 @@ do ity = 1, ntype_pqeq
     eta(ity)=J0pqeq(ity)
   endif
 enddo
+
+!--- 2x factor in param.F90
+eta(:)=2.d0*eta(:)
 
 allocate(inxnpqeq(ntype_pqeq,ntype_pqeq))
 

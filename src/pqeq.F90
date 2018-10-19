@@ -187,12 +187,12 @@ CONTAINS
 subroutine update_shell_positions()
 implicit none
 !-----------------------------------------------------------------------------------------------------------------------
-integer :: i,ity,j,jty,j1,inxn
-real(8) :: shelli(3),shellj(3), qjc, clmb, dclmb, dr2
-real(8) :: sforce(NATOMS,3), sf(3), Esc, Ess
-real(8) :: ff(3)
+real(8),parameter :: MAX_SHELL_DISPLACEMENT=1d-3
 
-real(8) :: dr(3)
+integer :: i,ity,j,jty,j1,inxn
+real(8) :: shelli(3),shellj(3), qjc, clmb, dclmb, ddr
+real(8) :: sforce(NATOMS,3), sf(3), Esc, Ess
+real(8) :: ff(3), dr(3)
 
 sforce(1:NATOMS,1:3)=0.d0
 do i=1, NATOMS
@@ -239,8 +239,20 @@ enddo
 
 !--- update shell positions after finishing the shell-force calculation.  Eq. (39)
 do i=1, NATOMS
+
    ity = nint(atype(i))
-   if( isPolarizable(ity) ) spos(i,1:3) = spos(i,1:3) + sforce(i,1:3)/Kspqeq(ity)
+
+   dr(1:3)=sforce(i,1:3)/Kspqeq(ity)
+   ddr = sqrt(sum(dr(1:3)*dr(1:3)))
+
+   ! check the shell displacement per MD step for stability
+   if(ddr>MAX_SHELL_DISPLACEMENT) then
+      print'(a,i6,i9,f12.6)', &
+           '[WARNING] large shell displacement found : myid,i,ddr : ', myid, i, ddr 
+      dr(1:3) = dr(1:3)/ddr*MAX_SHELL_DISPLACEMENT
+   endif
+
+   if( isPolarizable(ity) ) spos(i,1:3) = spos(i,1:3) + dr(1:3)
 enddo
 
 
