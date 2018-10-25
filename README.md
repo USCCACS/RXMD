@@ -40,45 +40,35 @@ you will see following files and directories.
 
 ```
 rxmd $ ls
-DAT/          conf/         ffield        regtests/     src/          util/
-Makefile.inc  doc/          init/         rxmd.in       unittests/
+DAT/          conf/         config/         ffield        regtests/     src/          util/
+make.inc      Makefile      doc/          init/         rxmd.in       unittests/
 ```
 
 Here, two directories, **src/** and **init/**, are especially important for you. **src/** contains all rxmd source codes and **init/** has a program and input files to generate an initial configurations for simulation. 
 
 ### 2.2 Configure Makefiles
 
-There are two Makefile files **Makefile.inc** and **init/Makefile** that you might need to modify according to your computing environment. 
+There is an important file called **make.inc** that you might need to modify according to your computing environment. 
 
-- **Makefile.inc** defines which compiler you like to use to build the **rxmd** executable. We have several predefined compiler settings in **Makefile.inc**. Please enable the macro **FC** for the Fortran compiler and compiler flags you want to use. Also do not forget disable macros you don't want to use. 
+- **make.inc** defines which compiler you like to use to build the **rxmd** and **geninit** executable. **geninit** is created inside **init/** directory and is used to generate intial configuration for simulation.
 
-- **init/Makefile** is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
+- **config/** directory contains an example **make.inc** file called **make_example.inc** and several other make.inc file containing predefined compiler settings for various machines.Copy the approprite file from config/ inside the home directory as make.inc. Each make.inc file has several compiler flags options. Enable the flags that you want use, and also do not forget disable macros you don't want to use. 
+
+- **FC** variable in **make.inc**  is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
+
+- **Makefile** contains commands to create the executable **geninit** and **rxmd**. For example, **make all** creates the executable **geninit** inside the the init folder and **rxmd** inside rxmd directory. Whereas, **make init** creates only the executable **geninit**  and  **make rxmd** creates **rxmd** executable.
+
+- Each **init** and **src** has **Makefile** containing commands to create the executable **geninit** and **rxmd**, respectively. **Makefile** in rxmd directory calls these files to create the necessary executables.
 
 Example 1) Linux Computer with Intel Compiler
 
-Many HPC centers have Intel Fortran compiler and its MPI binding installed. If this is the case, enable following lines in **Makefile.inc** and **init/Makefile**.
-- **Makefile.inc** 
+Many HPC centers have Intel Fortran compiler and its MPI binding installed. If this is the case, copy the **make_hpc.inc** from **config/** as **make.inc**. It should look as shown below
+
+- **make.inc** 
 ```
 # Intel Compiler
-FC = mpif90 -O3
-```
-- **init/Makefile**
-```
+MPIF90 = mpif90
 FC = ifort
-```
-
-Example 2) BlueGene/Q
-
-IBM provides Fortran XL Compiler and MPI library for BlueGene Series. Please enable following lines in **Makefile.inc** and **init/Makefile**.
-
-- **Makefile.inc** 
-```
-# xl fortran
-FC = mpif90 -O3 -qhot
-```
-- **init/Makefile**
-``` 
-FC = xlf
 ```
 
 ### 2.3 Prepare Initial Geometry
