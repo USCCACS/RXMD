@@ -52,7 +52,7 @@ There is an important file called **make.inc** that you might need to modify acc
 
 - **make.inc** defines which compiler you like to use to build the **rxmd** and **geninit** executable. **geninit** is created inside **init/** directory and is used to generate intial configuration for simulation.
 
-- **config/** directory contains an example **make.inc** file called **make_example.inc** and several other make.inc file containing predefined compiler settings for various machines.Copy the approprite file from config/ inside the home directory as make.inc. Each make.inc file has several compiler flags options. Enable the flags that you want use, and also do not forget disable macros you don't want to use. 
+- **config/** directory contains an example **make.inc** file called **make_example.inc**, and several other make.inc (make_hpc.inc,make_xl.inc) file containing predefined compiler settings for various machines. Copy the approprite file from **config/** inside the rxmd directory as make.inc. Each make.inc file has several compiler flags options. Enable the flags that you want use, and also do not forget disable macros you don't want to use. 
 
 - **FC** variable in **make.inc**  is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
 

@@ -1,3 +1,4 @@
+# An example make.inc file
 # MPIF90 is the MPI wrapper for Fortran and it is used to compile reaxFF code in src directory
 # FC is fortran compiler and it is used to compite geninit.F90 code in init directory so as to create input configuration for reaxFF simulation
 # MPIF90_FLAGS is flag for MPIF90
