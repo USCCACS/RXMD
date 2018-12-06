@@ -39,7 +39,7 @@ init.o : fileio.o
 main.o : init.o
 
 clean:
-	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
+	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd rxmd
 
 rebuild:
 	make clean
