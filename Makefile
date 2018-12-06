@@ -14,11 +14,9 @@ default:
 all:
 	cd init && $(MAKE)
 	cd src && $(MAKE)
-	ln -s src/rxmd rxmd
 
 rxmd:
 	cd src && $(MAKE)
-	ln -s src/rxmd rxmd
 
 init:
 	cd init && $(MAKE)
