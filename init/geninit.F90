@@ -17,6 +17,7 @@ real(8),allocatable :: itype1(:)
 
 character(256) :: inputFileName="input.xyz"
 character(256) :: ffieldFileName="../ffield"
+character(256) :: outputDirName="."
 
 character(256) :: fnote
 
@@ -125,7 +126,7 @@ character(256) :: fileName
 
 write(6,'(a)') '------------------------------------------------------------'
 
-write(6,'(2a)') 'reading atom name in ', trim(fileName)
+write(6,'(2a)') 'element name and IDs from ', trim(fileName)
 
 open(20,file=fileName)
 read(20,*)
@@ -247,6 +248,9 @@ do i=1, command_argument_count()
      case("-ffield","-f")
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
+     case("-output","-o")
+       call get_command_argument(i+1,argv)
+       outputDirName=adjustl(argv)
      case("-lg")
        isLG = .true. 
      case("-getreal","-r")
@@ -265,23 +269,26 @@ nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 allocate(lnatoms(0:nprocs-1),lnatoms1(0:nprocs-1), lnatoms2(0:nprocs-1))
 
 open(1,file=inputFileName,form="formatted")
-write(6,'(a)') '------------------------------------------------------------'
+write(6,'(a60)') repeat('-',60)
 write(6,'(a20,a)') ' input file: ', trim(inputFileName)
 write(6,'(a20,a)') ' ffield file: ', trim(ffieldFileName)
+write(6,'(a20,a)') ' output dir: ', trim(outputDirName)
 write(6,'(a20,i9,3i6)') ' nprocs,vprocs: ',nprocs, vprocs(1:3)
 write(6,'(a20,i9,3i6)') ' mctot,mc: ',mctot, mc(1:3)
-write(6,'(a)') '------------------------------------------------------------'
+write(6,'(a60)') repeat('-',60)
 
 call getAtomNames(ffieldFileName)
 
 !--- read # of atoms and file description
 read(1,*) natoms, fnote
-print'(i9,3x,a)', natoms, trim(fnote)
-
 !--- read lattice parameters
 read(1,*) L1, L2, L3, Lalpha, Lbeta, Lgamma
+print'(a60)',repeat('-',60)
+print'(a)', '** UNIT CELL PROFIEL **'
+print'(a)', trim(fnote)
 print'(a,3x,6f12.3)','1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
            L1, L2, L3, Lalpha, Lbeta, Lgamma
+print'(a60)',repeat('-',60)
 
 !--- allocate arrays for atom position and type
 allocate(ctype0(natoms),pos0(3,natoms),itype0(natoms))
@@ -343,7 +350,8 @@ do i=1, 3
    rmin(i)=minval(pos1(i,:))
    rmax(i)=maxval(pos1(i,:))
 enddo
-print'(a,3es15.5,3x,3es15.5)','rmin(1:3),rmax(1:3): ', rmin(1:3), rmax(1:3)
+print'(a,3es15.5)','rmin(1:3): ', rmax(1:3)
+print'(a,3es15.5)','rmax(1:3): ', rmin(1:3)
 
 !--- update natoms & H-matrix 
 natoms=natoms*mctot
@@ -398,7 +406,7 @@ enddo
 qq=0.d0; vv(:)=0.d0; qfsp0=0.d0; qfsv0=0.d0
 open(1,file="all.bin",form="unformatted",access="stream")
 open(20,file="geninit.xyz") 
-open(30,file="rxff.bin",form="unformatted",access="stream")
+open(30,file=trim(adjustl(outputDirName))//"/rxff.bin",form="unformatted",access="stream")
 write(30) nprocs, vprocs(1:3)
 write(30) lnatoms(0:nprocs-1)
 write(30) 0
@@ -438,9 +446,14 @@ close(1, status='delete')
 close(20)
 close(30)
 
-print*,'sum(lnatoms), lnatoms: ',sum(lnatoms),lnatoms(:)
+print'(a60)',repeat('-',60)
+print'(a)', '** SUPER CELL PROFIEL **'
+print'(a,3i6)', 'number of domains: ', vprocs(1:3)
+print'(a,i12)', 'total number of atoms: ', sum(lnatoms)
+print*,'atoms per domain: ',lnatoms(:)
 print'(a,3x,6f12.3)','L1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
            L1, L2, L3, Lalpha, Lbeta, Lgamma
+print'(a60)',repeat('-',60)
 
 end
 
