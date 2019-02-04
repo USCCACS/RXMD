@@ -73,9 +73,9 @@ call qeq_initialize()
 
 #ifdef QEQDUMP 
 do i=1, NATOMS
-   do j1=1,nbplist(i,0)
-      j = nbplist(i,j1)
-      write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(i,j1)
+   do j1=1,nbplist(0,i)
+      j = nbplist(j1,i)
+      write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(j1,i)
    enddo
 enddo
 #endif
@@ -195,7 +195,7 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 
-nbplist(:,0) = 0
+nbplist(0,:) = 0
 
 !$omp parallel do schedule(runtime), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
@@ -226,8 +226,8 @@ do c3=0, nbcc(3)-1
 
 !--- make a neighbor list with cutoff length = 10[A]
 !$omp atomic
-               nbplist(i,0) = nbplist(i,0) + 1
-               nbplist(i,nbplist(i,0)) = j
+               nbplist(0,i) = nbplist(0,i) + 1
+               nbplist(nbplist(0,i),i) = j
 
 !--- get table index and residual value
                itb = int(dr2*UDRi)
@@ -236,7 +236,7 @@ do c3=0, nbcc(3)-1
 
                inxn = inxn2(ity, jty)
 
-               hessian(i,nbplist(i,0)) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
+               hessian(nbplist(0,i),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
             endif
          endif
 
@@ -251,7 +251,7 @@ enddo; enddo; enddo
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
-  nn=maxval(nbplist(1:NATOMS,0))
+  nn=maxval(nbplist(0,1:NATOMS))
   i=nstep/pstep+1
   maxas(i,3)=nn
 endif
@@ -285,12 +285,12 @@ do i=1, NATOMS
 
    Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
-   do j1 = 1, nbplist(i,0)
-      j = nbplist(i,j1)
-      hshs(i) = hshs(i) + hessian(i,j1)*hs(j)
-      hsht(i) = hsht(i) + hessian(i,j1)*ht(j)
+   do j1 = 1, nbplist(0,i)
+      j = nbplist(j1,i)
+      hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
+      hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
 !--- get half of potential energy, then sum it up if atoms are resident.
-      Est1 = 0.5d0*hessian(i,j1)*q(i)*q(j)
+      Est1 = 0.5d0*hessian(j1,i)*q(i)*q(j)
       Est = Est + Est1
       if(j<=NATOMS) Est = Est + Est1
    enddo
@@ -323,10 +323,10 @@ do i=1,NATOMS
 
    gssum=0.d0
    gtsum=0.d0
-   do j1=1, nbplist(i,0) 
-      j = nbplist(i,j1)
-      gssum = gssum + hessian(i,j1)*qs(j)
-      gtsum = gtsum + hessian(i,j1)*qt(j)
+   do j1=1, nbplist(0,i) 
+      j = nbplist(j1,i)
+      gssum = gssum + hessian(j1,i)*qs(j)
+      gtsum = gtsum + hessian(j1,i)*qt(j)
    enddo
 
    ity = nint(atype(i))
