@@ -75,7 +75,7 @@ call qeq_initialize()
 do i=1, NATOMS
    do j1=1,nbplist(i,0)
       j = nbplist(i,j1)
-      write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(j1,i)
+      write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(i,j1)
    enddo
 enddo
 #endif
@@ -236,7 +236,7 @@ do c3=0, nbcc(3)-1
 
                inxn = inxn2(ity, jty)
 
-               hessian(nbplist(i,0),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
+               hessian(i,nbplist(i,0)) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
             endif
          endif
 
@@ -287,10 +287,10 @@ do i=1, NATOMS
 
    do j1 = 1, nbplist(i,0)
       j = nbplist(i,j1)
-      hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
-      hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
+      hshs(i) = hshs(i) + hessian(i,j1)*hs(j)
+      hsht(i) = hsht(i) + hessian(i,j1)*ht(j)
 !--- get half of potential energy, then sum it up if atoms are resident.
-      Est1 = 0.5d0*hessian(j1,i)*q(i)*q(j)
+      Est1 = 0.5d0*hessian(i,j1)*q(i)*q(j)
       Est = Est + Est1
       if(j<=NATOMS) Est = Est + Est1
    enddo
@@ -325,8 +325,8 @@ do i=1,NATOMS
    gtsum=0.d0
    do j1=1, nbplist(i,0) 
       j = nbplist(i,j1)
-      gssum = gssum + hessian(j1,i)*qs(j)
-      gtsum = gtsum + hessian(j1,i)*qt(j)
+      gssum = gssum + hessian(i,j1)*qs(j)
+      gtsum = gtsum + hessian(i,j1)*qt(j)
    enddo
 
    ity = nint(atype(i))
