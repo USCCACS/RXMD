@@ -195,7 +195,7 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 
-nbplist(0,:) = 0
+!!!nbplist(0,:) = 0
 
 !$omp parallel do schedule(runtime), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
@@ -204,6 +204,8 @@ do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
 
    i = nbheader(c1,c2,c3)
+   nbplist(0,i) = 0
+
    do m = 1, nbnacell(c1,c2,c3)
 
    ity=nint(atype(i))
@@ -245,6 +247,7 @@ do c3=0, nbcc(3)-1
    enddo !   do mn = 1, nbnmesh
 
    i=nbllist(i)
+   nbplist(0,i) = 0
    enddo
 enddo; enddo; enddo
 !$omp end parallel do
