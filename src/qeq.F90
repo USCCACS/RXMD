@@ -25,6 +25,7 @@ real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, mu
 real(8) :: qsum, gqsum
 real(8) :: QCopyDr(3)
+real(8) :: hshs_sum,hsht_sum
 
 call system_clock(i1,k1)
 
@@ -100,7 +101,7 @@ do nstep_qeq=0, nmax-1
   call MPI_ALLREDUCE(qsum, gqsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
 #endif
 
-  call get_hsh(Est)
+  call get_hsh(Est,hshs_sum,hsht_sum)
 
   call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
@@ -114,11 +115,11 @@ do nstep_qeq=0, nmax-1
 
 !--- line minimization factor of <s> vector
   g_h(1) = dot_product(gs(1:NATOMS), hs(1:NATOMS))
-  h_hsh(1) = dot_product(hs(1:NATOMS), hshs(1:NATOMS))
+  h_hsh(1) = hshs_sum
 
 !--- line minimization factor of <t> vector
   g_h(2) = dot_product(gt(1:NATOMS), ht(1:NATOMS))
-  h_hsh(2) = dot_product(ht(1:NATOMS), hsht(1:NATOMS))
+  h_hsh(2) = hsht_sum
 
   buf(1)=g_h(1);   buf(2)=g_h(2)
   buf(3)=h_hsh(1); buf(4)=h_hsh(2)
@@ -204,11 +205,10 @@ do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
 
    i = nbheader(c1,c2,c3)
-   nbplist(0,i) = 0
-
    do m = 1, nbnacell(c1,c2,c3)
 
    ity=nint(atype(i))
+   nbplist(0,i) = 0
 
    do mn = 1, nbnmesh
       c4 = c1 + nbmesh(1,mn)
@@ -247,7 +247,6 @@ do c3=0, nbcc(3)-1
    enddo !   do mn = 1, nbnmesh
 
    i=nbllist(i)
-   nbplist(0,i) = 0
    enddo
 enddo; enddo; enddo
 !$omp end parallel do
@@ -265,7 +264,7 @@ it_timer(16)=it_timer(16)+(tj-ti)
 end subroutine 
 
 !-----------------------------------------------------------------------------------------------------------------------
-subroutine get_hsh(Est)
+subroutine get_hsh(Est,hshs_sum,hsht_sum)
 use atoms; use parameters
 ! This subroutine updates hessian*cg array <hsh> and the electrostatic energy <Est>.  
 !-----------------------------------------------------------------------------------------------------------------------
@@ -273,30 +272,38 @@ implicit none
 real(8),intent(OUT) :: Est
 integer :: i,j,j1, ity
 real(8) :: eta_ity, Est1
+real(8) :: t_hshs,t_hsht
+real(8) :: hshs_sum,hsht_sum
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-!$omp parallel do default(shared), schedule(runtime), private(i,j,j1,ity,eta_ity,Est1),reduction(+:Est)
+hshs_sum = 0.d0
+hsht_sum = 0.d0
+
+!$omp parallel do default(shared), schedule(runtime), private(i,j,j1,ity,eta_ity,Est1,t_hshs,t_hsht),reduction(+:Est,hshs_sum,hsht_sum)
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
 
-   hshs(i) = eta_ity*hs(i)
-   hsht(i) = eta_ity*ht(i)
+   t_hshs = eta_ity*hs(i)
+   t_hsht = eta_ity*ht(i)
 
    Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
    do j1 = 1, nbplist(0,i)
       j = nbplist(j1,i)
-      hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
-      hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
+      t_hshs = t_hshs + hessian(j1,i)*hs(j)
+      t_hsht = t_hsht + hessian(j1,i)*ht(j)
 !--- get half of potential energy, then sum it up if atoms are resident.
       Est1 = 0.5d0*hessian(j1,i)*q(i)*q(j)
       Est = Est + Est1
       if(j<=NATOMS) Est = Est + Est1
    enddo
+
+   hshs_sum = hshs_sum + t_hshs*hs(i)
+   hsht_sum = hsht_sum + t_hsht*ht(i)
 
 enddo
 !$omp end parallel do
