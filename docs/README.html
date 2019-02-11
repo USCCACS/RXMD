@@ -1,0 +1,403 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>RXMD : Linear Scalable Parallel ReaxFF Molecular Dynamics Simulator &mdash; RXMD  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="RXMD : Linear-Scaling Parallel Reactive Molecular Dynamics Simulation Engine" href="index.html" /> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> RXMD
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">RXMD : Linear Scalable Parallel ReaxFF Molecular Dynamics Simulator</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">0. Prerequisites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#fortan-compiler">- Fortan Compiler:</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#mpi-library">- MPI library:</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started">1. Getting Started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-to-build-rxmd">2. How to build RXMD</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#working-directory">2.1 Working Directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configure-makefiles">2.2 Configure Makefiles</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#prepare-initial-geometry">2.3 Prepare Initial Geometry</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build-rxmd">2.4 Build RXMD</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#how-to-run">3. How to run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#license">4. License</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#publications">5. Publications</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">RXMD</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>RXMD : Linear Scalable Parallel ReaxFF Molecular Dynamics Simulator</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/README.md.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="rxmd-linear-scalable-parallel-reaxff-molecular-dynamics-simulator">
+<h1>RXMD : Linear Scalable Parallel ReaxFF Molecular Dynamics Simulator<a class="headerlink" href="#rxmd-linear-scalable-parallel-reaxff-molecular-dynamics-simulator" title="Permalink to this headline">¶</a></h1>
+<p><strong>rxmd</strong> has been developed to simulate large-scale Reactive Force Field molecular dynamics (MD) simulations on from commodity laptops to high-end supercomputing platforms. <strong>rxmd</strong> has been used in a various class of material studies, such as shock-induced chemical reactions, stress corrosion cracking, underwater bubble collapse, fracture of self-healing ceramics and oxidation of nanoparticles.</p>
+<div class="section" id="prerequisites">
+<h2>0. Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this headline">¶</a></h2>
+<p><strong>rxmd</strong> is designed to be simple, portable and minimally dependent on 3rd party library. You will need 1) a Fortran compiler that supports OpenMP, and 2) MPI (Message Passing Interface) library for parallel and distributed simulation. Modern Fortran compilers natively support OpenMP, and you can find many freely available MPI libraries online. Please refer to MPI library developer website about how to install their library.</p>
+<p><strong>rxmd</strong> has been tested on following environments.</p>
+<div class="section" id="fortan-compiler">
+<h3>- Fortan Compiler:<a class="headerlink" href="#fortan-compiler" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">GNU</span> <span class="n">Fortran</span> <span class="p">(</span><span class="n">GCC</span><span class="p">)</span> <span class="mf">6.1</span><span class="o">.</span><span class="mi">0</span>
+<span class="n">Intel</span> <span class="n">Fortran</span> <span class="p">(</span><span class="n">IFORT</span><span class="p">)</span> <span class="mf">17.0</span><span class="o">.</span><span class="mi">4</span>
+<span class="n">IBM</span> <span class="n">XL</span> <span class="n">Fortran</span> <span class="n">V14</span><span class="o">.</span><span class="mi">1</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="mpi-library">
+<h3>- MPI library:<a class="headerlink" href="#mpi-library" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">OpenMPI</span> <span class="mf">1.8</span><span class="o">.</span><span class="mi">8</span>
+<span class="n">MPICH2</span>
+<span class="n">MVAPICH2</span> 
+<span class="n">Cray</span> <span class="n">Mpich</span> <span class="mf">7.6</span><span class="o">.</span><span class="mi">0</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="getting-started">
+<h2>1. Getting Started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h2>
+<p>To get started,  clone this repository to your computer.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>~$ git clone https://github.com/USCCACS/rxmd.git
+</pre></div>
+</div>
+</div>
+<div class="section" id="how-to-build-rxmd">
+<h2>2. How to build RXMD<a class="headerlink" href="#how-to-build-rxmd" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="working-directory">
+<h3>2.1 Working Directory<a class="headerlink" href="#working-directory" title="Permalink to this headline">¶</a></h3>
+<p>Frist, change working directory to <strong>rxmd/</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>~$ cd rxmd-master
+</pre></div>
+</div>
+<p>you will see following files and directories.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ ls
+DAT/          conf/         config/         ffield        regtests/     src/          util/
+make.inc      Makefile      doc/          init/         rxmd.in       unittests/
+</pre></div>
+</div>
+<p>Here, two directories, <strong>src/</strong> and <strong>init/</strong>, are especially important for you. <strong>src/</strong> contains all rxmd source codes and <strong>init/</strong> has a program and input files to generate an initial configurations for simulation.</p>
+</div>
+<div class="section" id="configure-makefiles">
+<h3>2.2 Configure Makefiles<a class="headerlink" href="#configure-makefiles" title="Permalink to this headline">¶</a></h3>
+<p>There is an important file called <strong>make.inc</strong> that you might need to modify according to your computing environment.</p>
+<ul class="simple">
+<li><strong>make.inc</strong> defines which compiler you like to use to build the <strong>rxmd</strong> and <strong>geninit</strong> executable. <strong>geninit</strong> is created inside <strong>init/</strong> directory and is used to generate intial configuration for simulation.</li>
+<li><strong>config/</strong> directory contains an example <strong>make.inc</strong> file called <strong>make_example.inc</strong>, and several other make.inc (make_hpc.inc,make_xl.inc) file containing predefined compiler settings for various machines. Copy the approprite file from <strong>config/</strong> inside the rxmd directory as make.inc. Each make.inc file has several compiler flags options. Enable the flags that you want use, and also do not forget disable macros you don’t want to use.</li>
+<li><strong>FC</strong> variable in <strong>make.inc</strong>  is used to build software to generate intial configuration, called <strong>geninit</strong>. Any Fortran or MPI compiler that supports <a class="reference external" href="https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html">the stream I/O</a> can be used here.</li>
+<li><strong>Makefile</strong> contains commands to create the executable <strong>geninit</strong> and <strong>rxmd</strong>. For example, <strong>make all</strong> creates the executable <strong>geninit</strong> inside the the init folder and <strong>rxmd</strong> inside rxmd directory. Whereas, <strong>make init</strong> creates only the executable <strong>geninit</strong>  and  <strong>make rxmd</strong> creates <strong>rxmd</strong> executable.</li>
+<li>Each <strong>init</strong> and <strong>src</strong> has <strong>Makefile</strong> containing commands to create the executable <strong>geninit</strong> and <strong>rxmd</strong>, respectively. <strong>Makefile</strong> in rxmd directory calls these files to create the necessary executables.</li>
+</ul>
+<p>Example 1) Linux Computer with Intel Compiler</p>
+<p>Many HPC centers have Intel Fortran compiler and its MPI binding installed. If this is the case, copy the <strong>make_hpc.inc</strong> from <strong>config/</strong> as <strong>make.inc</strong>. It should look as shown below</p>
+<ul class="simple">
+<li><strong>make.inc</strong></li>
+</ul>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Intel Compiler</span>
+<span class="n">MPIF90</span> <span class="o">=</span> <span class="n">mpif90</span>
+<span class="n">FC</span> <span class="o">=</span> <span class="n">ifort</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="prepare-initial-geometry">
+<h3>2.3 Prepare Initial Geometry<a class="headerlink" href="#prepare-initial-geometry" title="Permalink to this headline">¶</a></h3>
+<p>Next step is to generate initial MD geometry. Type the make command shown below.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ make -C init/
+</pre></div>
+</div>
+<p>This compiles the standalone application <strong>geninit</strong>, read a geometry file (init.xyz by default) in <strong>init/</strong> directory, replicate the geometry and save the entire initial MD geometry into <strong>rxff.bin</strong> file, and then place <strong>rxff.bin</strong> file in <strong>DAT/</strong> directory.</p>
+</div>
+<div class="section" id="build-rxmd">
+<h3>2.4 Build RXMD<a class="headerlink" href="#build-rxmd" title="Permalink to this headline">¶</a></h3>
+<p>Type the command below to build the <strong>rxmd</strong> executable.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ make -C src/
+</pre></div>
+</div>
+<p>Check to see if you the <strong>rxmd</strong> executable and the initial geomerty input <strong>DAT/rxff.bin</strong> in place, then you are ready to start a simulation.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ ls
+DAT/          conf/         ffield        regtests/     rxmd.in       unittests/
+Makefile.inc  doc/          init/         rxmd*         src/          util/
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ ls DAT/
+rxff.bin
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="how-to-run">
+<h2>3. How to run<a class="headerlink" href="#how-to-run" title="Permalink to this headline">¶</a></h2>
+<p>Default input parameters are set to run a single process job. In <strong>rxmd.in</strong>, the parameter <strong>vprocs</strong> defines how many MPI ranks in x, y, and z directions. Make sure you have <strong>1 1 1</strong> here.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ grep vprocs rxmd.in 
+1 1 1                &lt;vprocs&gt;
+</pre></div>
+</div>
+<p>To run single MPI rank job on a typical Linux computer, you can simply type</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ ./rxmd
+</pre></div>
+</div>
+<p>How to run a multi process job depends on which MPI library you use, but most likely <strong>mpirun</strong> just works for you.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ mpirun -np nprocessors ./rxmd
+</pre></div>
+</div>
+<p>If you see following outputs, congratulations! You have everything working.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>rxmd $ ./rxmd 
+              rxmd has started
+----------------------------------------------------------------
+         req/alloc # of procs:        1  /        1
+         req proc arrengement:        1        1        1
+                parameter set:Reactive MD-force field: nitramines (RDX/HMX/TATB/PETN)               
+                time step[fs]:    2.50E-01
+ MDMODE CURRENTSTEP NTIMESTPE:  1         0       100
+  isQEq,QEq_tol,NMAXQEq,qstep:     1   1.0E-07   500     1
+                Lex_fqs,Lex_k:   1.000   2.000
+            treq,vsfact,sstep:     300.000   1.000      100
+                  fstep,pstep:   100    10
+               NATOMS GNATOMS:                     168                     168
+                         LBOX:       1.000       1.000       1.000
+                  Hmatrix [A]:         13.180          0.000          0.000
+                  Hmatrix [A]:          0.000         11.570          0.000
+                  Hmatrix [A]:          0.000          0.000         10.710
+               lata,latb,latc:      13.180      11.570      10.710
+          lalpha,lbeta,lgamma:      90.000      90.000      90.000
+               density [g/cc]:    1.8061
+         # of linkedlist cell:     4     3     3
+            maxrc, lcsize [A]:     3.160        3.29      3.86      3.57
+    # of linkedlist cell (NB):     4     3     3
+              lcsize [A] (NB):      3.29      3.86      3.57
+     MAXNEIGHBS, MAXNEIGHBS10:    30   700
+            NMINCELL, NBUFFER:     3    30000
+    FFPath, DataDir, ParmPath:      ffield          DAT      rxmd.in
+          # of atoms per type:          24 - 1          48 - 2          48 - 3          48 - 4
+----------------------------------------------------------------
+nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)
+        0 -9.82464E+01 -9.82464E+01  0.00000E+00 -1.369E+02  1.287E+00 -1.362E+00  5.208E-01 -1.398E-03  3.821E+01     0.00    0.00    0.00  41    0.36    0.23
+       10 -9.82465E+01 -9.82467E+01  2.32025E-04 -1.369E+02  1.290E+00 -1.364E+00  5.214E-01 -1.397E-03  3.821E+01     0.08    0.00   -0.00  32    0.36    0.27
+       20 -9.82466E+01 -9.82471E+01  4.80178E-04 -1.369E+02  1.287E+00 -1.366E+00  5.202E-01 -1.408E-03  3.821E+01     0.16    0.00   -0.00   4    0.36    0.25
+
+...
+
+
+       total (sec):       2.9980         2.9980
+----------------------------------------------
+    rxmd successfully finished
+</pre></div>
+</div>
+<p>To learn more about <strong>rxmd</strong>, please refer to <a class="reference external" href="https://github.com/USCCACS/rxmd/blob/master/doc/ReaxFF/RXMDManual">RXMD Manual</a>.</p>
+</div>
+<div class="section" id="license">
+<h2>4. License<a class="headerlink" href="#license" title="Permalink to this headline">¶</a></h2>
+<p>This project is licensed under the GPU 3.0 license - see the <a class="reference external" href="https://github.com/USCCACS/rxmd/blob/master/LICENSE">LICENSE.md</a> file for details</p>
+</div>
+<div class="section" id="publications">
+<h2>5. Publications<a class="headerlink" href="#publications" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li>Mechanochemistry of shock-induced nanobubble collapse near silica in water
+K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
+<a class="reference external" href="http://aip.scitation.org/doi/10.1063/1.4746270">Applied Physics Letters 101, 073108: 1-4  (2012)</a></li>
+<li>Structure and dynamics of shock-induced nanobubble collapse in water
+M. Vedadi, A. Choubey, K. Nomura, R. K. Kalia, A. Nakano, P. Vashishta, and A. C. T. van Duin,
+<a class="reference external" href="https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.105.014503">Physical Review Letters 105, 014503: 1-4  (2010)</a></li>
+<li>Embrittlement of metal by solute segregation-induced amorphization
+H. Chen,R. K. Kalia, E. Kaxiras, G. Lu, A. Nakano, K. Nomura, A. C. T. van Duin, P. Vashishta, and Z. Yuan,
+<a class="reference external" href="https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.104.155502">Physical Review Letters 104, 155502: 1-4  (2010)</a></li>
+<li>Metascalable molecular dynamics simulation of nano-mechano-chemistry
+F. Shimojo, R. K. Kalia, A. Nakano, K. Nomura, and P. Vashishta,
+<a class="reference external" href="http://iopscience.iop.org/article/10.1088/0953-8984/20/29/294204">Journal of Physics: Condensed Matter 20, 294204: 1-9  (2008)</a></li>
+<li>A scalable parallel algorithm for large-scale reactive force-field molecular dynamics simulations
+K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
+<a class="reference external" href="http://www.sciencedirect.com/science/article/pii/S0010465507003748">Computer Physics Communications 178, 73-87  (2008)</a></li>
+</ul>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="index.html" class="btn btn-neutral" title="RXMD : Linear-Scaling Parallel Reactive Molecular Dynamics Simulation Engine" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Collaboratory for Advanced Computing and Simulations
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+    
+
+  
+
+  <script type="text/javascript" src="_static/js/theme.js"></script>
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
