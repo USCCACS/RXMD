@@ -247,7 +247,7 @@ do c3=0, nbcc(3)-1
    enddo !   do mn = 1, nbnmesh
 
    if (nbplist(0,i) > MAXNEIGHBS10) then
-      if (myid == 0) write(6,*) "ERROR: in qeq.F90 line 250 nbplist greater then MAXNEIGHBS10"
+      if (myid == 0) write(6,*) "ERROR: nbplist greater then MAXNEIGHBS10 on",myid
       call MPI_FINALIZE(ierr)
    end if
    i=nbllist(i)
