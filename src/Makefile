@@ -15,7 +15,7 @@ EXE := rxmd
 
 $(EXE): $(OBJS)
 	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) module.o $(LIBS)
-	if [ ! -h ../$(EXE) ] ; then ln -s src/$(EXE) ../$(EXE) ; fi
+	mv $(EXE) ../$(EXE)
 
 $(OBJS) : base.mod
 
