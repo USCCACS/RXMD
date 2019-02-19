@@ -196,8 +196,6 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 
-!!!nbplist(0,:) = 0
-
 !$omp parallel do schedule(runtime), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
 do c1=0, nbcc(1)-1
