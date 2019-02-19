@@ -13,9 +13,8 @@ OBJS := $(SRCS:.F90=.o)
 EXE := rxmd
 
 
-$(EXE): $(OBJS)
-	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) module.o $(LIBS)
-	mv $(EXE) ../$(EXE)
+../$(EXE): $(OBJS)
+	$(MPIF90) $(MPIF90_FLAGS) -o ../$(EXE) $(OBJS) module.o $(LIBS)
 
 $(OBJS) : base.mod
 
