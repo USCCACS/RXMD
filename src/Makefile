@@ -3,7 +3,7 @@ include ../make.inc
 # suffix rules
 .SUFFIXES: .o .F90 .cpp
 .F90.o:
-	$(MPIF90) $(MPIF90_FLAGS) $(LIBS) -c $<
+	$(MPIF90) $(MPIF90_FLAGS) -c $<
 
 %.o: %.mod
 
@@ -13,14 +13,13 @@ OBJS := $(SRCS:.F90=.o)
 EXE := rxmd
 
 
-$(EXE): $(OBJS)
-	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE)  $(OBJS) module.o $(LIBS)
-	mv $(EXE) ../$(EXE)
+../$(EXE): $(OBJS)
+	$(MPIF90) $(MPIF90_FLAGS) -o ../$(EXE) $(OBJS) module.o $(LIBS)
 
 $(OBJS) : base.mod
 
 base.mod: module.F90
-	$(MPIF90) $(MPIF90_FLAGS) -c  module.F90
+	$(MPIF90) $(MPIF90_FLAGS) -c module.F90
 
 main.F90 : cg.mod
 
@@ -39,7 +38,7 @@ init.o : fileio.o
 main.o : init.o
 
 clean:
-	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
+	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd rxmd
 
 rebuild:
 	make clean
