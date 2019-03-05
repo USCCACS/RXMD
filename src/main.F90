@@ -684,13 +684,35 @@ implicit none
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
 
 integer :: i,ity
-real(8) :: Ekinetic, ctmp
+integer,parameter :: MAX_ELEMENT=20
+real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
+
+Ekinetic(:,:)=0.d0
 
 do i=1, NATOMS
    ity=nint(atype(i))
-   Ekinetic=0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
-   ctmp = (treq*UTEMP0)/( Ekinetic*UTEMP )
-   v(i,1:3)=sqrt(ctmp)*v(i,1:3)
+   Ekinetic(1,ity)=Ekinetic(1,ity)+1.d0 
+   Ekinetic(2,ity)=Ekinetic(2,ity)+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, size(Ekinetic), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+
+do ity=1, MAX_ELEMENT
+   if(Ekinetic(1,ity)>1.d0) then
+      ctmp(ity) = Ekinetic(2,ity)/Ekinetic(1,ity)
+      ctmp(ity) = sqrt( (treq*UTEMP0)/(ctmp(ity)*UTEMP) )
+      if(myid==0) print'(a,i4,f8.3,i9,es15.5)', &
+          'atom_type, scaling_factor, num_samples, previous_Ekin: ', &
+          ity, ctmp(ity), nint(Ekinetic(1,ity)), Ekinetic(2,ity)
+   else
+      ctmp(ity) = 0.d0
+   endif
+enddo
+
+
+do i=1, NATOMS
+   ity=nint(atype(i))
+   v(i,1:3)=ctmp(ity)*v(i,1:3)
 enddo
 
 call LinearMomentum(atype, v)
