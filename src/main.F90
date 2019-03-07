@@ -54,9 +54,12 @@ do nstep=0, ntime_step-1
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
 
-!--- correct the c.o.m motion
+!--- element-wise velocity scaling
    if(mod(nstep,sstep)==0.and.mdmode==7) &
       call ScaleTemperature(atype, v)
+
+   if(mod(nstep,sstep)==0.and.mdmode==8) &
+      call AdjustTemperature(atype, v)
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
@@ -674,6 +677,43 @@ do i=1,nmax
 enddo
 
 end subroutine
+
+!-----------------------------------------------------------------------
+subroutine AdjustTemperature(atype, v)
+use atoms; use parameters
+!-----------------------------------------------------------------------
+implicit none
+real(8) :: atype(NBUFFER), v(NBUFFER,3)
+
+integer :: i,ity
+real(8) :: Ekinetic, ctmp
+
+Ekinetic=0.d0
+
+do i=1, NATOMS
+   ity=nint(atype(i))
+   Ekinetic=Ekinetic+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Ekinetic=Ekinetic/GNATOMS
+
+! adjust if current temperature deviates from treq by 5%
+ctmp = sqrt( (treq*UTEMP0)/(Ekinetic*UTEMP) )
+if( abs(ctmp-1.d0) > 0.05d0) then
+
+   do i=1, NATOMS
+      ity=nint(atype(i))
+      v(i,1:3)=ctmp*v(i,1:3)
+   enddo
+
+   call LinearMomentum(atype, v)
+
+endif
+
+
+return
+end
 
 
 !-----------------------------------------------------------------------
