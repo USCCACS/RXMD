@@ -12,10 +12,13 @@ OBJS := $(SRCS:.F90=.o)
 
 EXE := rxmd
 
-
 $(EXE): $(OBJS)
 	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE)  $(OBJS) module.o $(LIBS)
 	mv $(EXE) ../$(EXE)
+
+nompi: nompi.f90
+	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 module.F90
+	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
 
 $(OBJS) : base.mod
 
