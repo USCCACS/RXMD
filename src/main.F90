@@ -7,8 +7,7 @@ implicit none
 integer :: i,ity,it1,it2,irt,provided
 real(8) :: ctmp, dr(3)
 
-!call MPI_INIT(ierr)
-call MPI_INIT_THREAD(MPI_THREAD_SERIALIZED,provided,ierr)
+call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 
@@ -54,9 +53,12 @@ do nstep=0, ntime_step-1
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
       call INITVELOCITY(atype, v)
 
-!--- correct the c.o.m motion
+!--- element-wise velocity scaling
    if(mod(nstep,sstep)==0.and.mdmode==7) &
       call ScaleTemperature(atype, v)
+
+   if(mod(nstep,sstep)==0.and.mdmode==8) &
+      call AdjustTemperature(atype, v)
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
@@ -128,7 +130,7 @@ ibuf(:)=0
 do i=1,nmaxas
    ibuf(i)=maxval(maxas(:,i))
 enddo
-call MPI_ALLREDUCE (ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
 
 call MPI_ALLREDUCE(it_timer, it_timer_max, Ntimer, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
 call MPI_ALLREDUCE(it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
@@ -496,10 +498,11 @@ do i=1, NATOMS
    com(1:3) = mass(ity)*pos(i,1:3)
 enddo
 
-call MPI_ALLREDUCE(mm, Gmm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE(com, Gcom, 3, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+Gmm = mm
+call MPI_ALLREDUCE(MPI_IN_PLACE, com, 3, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+Gcom = com
 Gcom(1:3) = Gcom(1:3)/Gmm
-
 
 !--- get the angular momentum and inertia tensor from the com
 angm(:)=0.d0;    Gangm(:)=0.d0
@@ -525,8 +528,10 @@ do i=1, NATOMS
    intsr(3,2) = intsr(2,3)
 enddo
 
-call MPI_ALLREDUCE(angm, Gangm, 3, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE(intsr, Gintsr, 9, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, angm, 3, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+Gangm = angm
+call MPI_ALLREDUCE(MPI_IN_PLACE, intsr, 9, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+Gintsr = intsr
 
 !--- get angular velocity
 call matinv(Gintsr, intsr_i)
@@ -675,6 +680,43 @@ enddo
 
 end subroutine
 
+!-----------------------------------------------------------------------
+subroutine AdjustTemperature(atype, v)
+use atoms; use parameters
+!-----------------------------------------------------------------------
+implicit none
+real(8) :: atype(NBUFFER), v(NBUFFER,3)
+
+integer :: i,ity
+real(8) :: Ekinetic, ctmp
+
+Ekinetic=0.d0
+
+do i=1, NATOMS
+   ity=nint(atype(i))
+   Ekinetic=Ekinetic+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Ekinetic=Ekinetic/GNATOMS
+
+! adjust if current temperature deviates from treq by 5%
+ctmp = sqrt( (treq*UTEMP0)/(Ekinetic*UTEMP) )
+if( abs(ctmp-1.d0) > 0.05d0) then
+
+   do i=1, NATOMS
+      ity=nint(atype(i))
+      v(i,1:3)=ctmp*v(i,1:3)
+   enddo
+
+   call LinearMomentum(atype, v)
+
+endif
+
+
+return
+end
+
 
 !-----------------------------------------------------------------------
 subroutine ScaleTemperature(atype, v)
@@ -684,13 +726,35 @@ implicit none
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
 
 integer :: i,ity
-real(8) :: Ekinetic, ctmp
+integer,parameter :: MAX_ELEMENT=20
+real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
+
+Ekinetic(:,:)=0.d0
 
 do i=1, NATOMS
    ity=nint(atype(i))
-   Ekinetic=0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
-   ctmp = (treq*UTEMP0)/( Ekinetic*UTEMP )
-   v(i,1:3)=sqrt(ctmp)*v(i,1:3)
+   Ekinetic(1,ity)=Ekinetic(1,ity)+1.d0 
+   Ekinetic(2,ity)=Ekinetic(2,ity)+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, size(Ekinetic), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+
+do ity=1, MAX_ELEMENT
+   if(Ekinetic(1,ity)>1.d0) then
+      ctmp(ity) = Ekinetic(2,ity)/Ekinetic(1,ity)
+      ctmp(ity) = sqrt( (treq*UTEMP0)/(ctmp(ity)*UTEMP) )
+      if(myid==0) print'(a,i4,f8.3,i9,es15.5)', &
+          'atom_type, scaling_factor, num_samples, previous_Ekin: ', &
+          ity, ctmp(ity), nint(Ekinetic(1,ity)), Ekinetic(2,ity)
+   else
+      ctmp(ity) = 0.d0
+   endif
+enddo
+
+
+do i=1, NATOMS
+   ity=nint(atype(i))
+   v(i,1:3)=ctmp(ity)*v(i,1:3)
 enddo
 
 call LinearMomentum(atype, v)
@@ -707,7 +771,7 @@ implicit none
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
 
 integer :: i,ity
-real(8) :: mm,vCM(3),sbuf(4),rbuf(4)
+real(8) :: mm,vCM(3),sbuf(4)
 
 !--- get the local momentum and mass.
 vCM(:)=0.d0;  mm = 0.d0
@@ -718,8 +782,8 @@ do i=1, NATOMS
 enddo
 
 sbuf(1)=mm; sbuf(2:4)=vCM(1:3)
-call MPI_ALLREDUCE (sbuf, rbuf, size(sbuf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-mm=rbuf(1); vCM(1:3)=rbuf(2:4)
+call MPI_ALLREDUCE (MPI_IN_PLACE, sbuf, size(sbuf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+mm=sbuf(1); vCM(1:3)=sbuf(2:4)
 
 !--- get the global momentum
 vCM(:)=vCM(:)/mm
