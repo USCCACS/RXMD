@@ -77,8 +77,8 @@ call qeq_initialize()
 
 #ifdef QEQDUMP 
 do i=1, NATOMS
-   do j1=1,nbplist(i,0)
-      j = nbplist(i,j1)
+   do j1=1,nbplist(0,i)
+      j = nbplist(j1,i)
       write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(j1,i)
    enddo
 enddo
@@ -207,9 +207,9 @@ do i=1, NATOMS
    sforce(i,1:3) = sforce(i,1:3) - Kspqeq(ity)*spos(i,1:3) ! Eq. (37)
    shelli(1:3) = pos(i,1:3) + spos(i,1:3)
 
-   do j1 = 1, nbplist(i,0)
+   do j1 = 1, nbplist(0,i)
 
-      j = nbplist(i,j1)
+      j = nbplist(j1,i)
       jty = nint(atype(j))
 
       qjc = q(j) + Zpqeq(jty)
@@ -276,7 +276,7 @@ integer :: ti,tj,tk
 
 call system_clock(ti,tk)
 
-nbplist(:,0) = 0
+nbplist(0,:) = 0
 
 !$omp parallel do schedule(runtime), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn,pqeqc,pqeqs,ff)
@@ -309,8 +309,8 @@ do c3=0, nbcc(3)-1
 
 !--- make neighbor-list upto the taper function cutoff
 !$omp atomic
-               nbplist(i,0) = nbplist(i,0) + 1
-               nbplist(i,nbplist(i,0)) = j
+               nbplist(0,i) = nbplist(0,i) + 1
+               nbplist(nbplist(0,i),i) = j
 
 !--- get table index and residual value
                itb = int(dr2*UDRi)
@@ -321,7 +321,7 @@ do c3=0, nbcc(3)-1
                ! contribution from core(i)-core(j)
                call get_coulomb_and_dcoulomb_pqeq(dr,alphacc(ity,jty),pqeqc,inxnpqeq(ity, jty),TBL_Eclmb_pcc,ff)
 
-               hessian(nbplist(i,0),i) = Cclmb0_qeq * pqeqc
+               hessian(nbplist(0,i),i) = Cclmb0_qeq * pqeqc
 
                fpqeq(i) = fpqeq(i) + Cclmb0_qeq * pqeqc * Zpqeq(jty) ! Eq. 30
 
@@ -347,7 +347,7 @@ enddo; enddo; enddo
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
-  nn=maxval(nbplist(1:NATOMS,0))
+  nn=maxval(nbplist(0,1:NATOMS))
   i=nstep/pstep+1
   maxas(i,3)=nn
 endif
@@ -391,8 +391,8 @@ do i=1, NATOMS
 
    Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
-   do j1 = 1, nbplist(i,0)
-      j = nbplist(i,j1)
+   do j1 = 1, nbplist(0,i)
+      j = nbplist(j1,i)
       jty = nint(atype(j))
 
 !--- for PQEq
@@ -454,8 +454,8 @@ do i=1,NATOMS
 
    gssum=0.d0
    gtsum=0.d0
-   do j1=1, nbplist(i,0) 
-      j = nbplist(i,j1)
+   do j1=1, nbplist(0,i) 
+      j = nbplist(j1,i)
       gssum = gssum + hessian(j1,i)*qs(j)
       gtsum = gtsum + hessian(j1,i)*qt(j)
    enddo

@@ -12,18 +12,13 @@ OBJS := $(SRCS:.F90=.o)
 
 EXE := rxmd
 
-$(EXE): $(OBJS)
-	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE)  $(OBJS) module.o $(LIBS)
-	mv $(EXE) ../$(EXE)
-
-nompi: nompi.f90
-	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 module.F90
-	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
+../$(EXE): $(OBJS)
+	$(MPIF90) $(MPIF90_FLAGS) -o ../$(EXE) $(OBJS) module.o $(LIBS)
 
 $(OBJS) : base.mod
 
 base.mod: module.F90
-	$(MPIF90) $(MPIF90_FLAGS) -c  module.F90
+	$(MPIF90) $(MPIF90_FLAGS) -c module.F90
 
 main.F90 : cg.mod
 
@@ -40,6 +35,10 @@ param.o : cmdline.o
 init.o : fileio.o
 
 main.o : init.o
+
+nompi: nompi.f90
+	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 module.F90
+	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
 
 clean:
 	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd

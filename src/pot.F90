@@ -594,9 +594,9 @@ do i=1, NATOMS
 
       if( (jty==2) .and. (BO(0,i,j1)>MINBO0) ) then
 
-          do kk=1, nbplist(i,0)
+          do kk=1, nbplist(0,i)
 
-            k = nbplist(i,kk)
+            k = nbplist(kk,i)
 
             kty = itype(k)
 
@@ -658,7 +658,7 @@ do i=1, NATOMS
                endif ! if(rik2<rchb2)
             endif
 
-        enddo !do kk=1, nbplist(i,0)
+        enddo !do kk=1, nbplist(0,i)
 
       endif ! if(BO(0,j,i1)>MINBO0)
    enddo 
@@ -707,8 +707,8 @@ do i=1, NATOMS
    
    PE(13) = PE(13) + CEchrge*(chi(ity)*q(i) + 0.5d0*eta(ity)*q(i)**2)
 
-    do j1 = 1, nbplist(i,0) 
-         j = nbplist(i,j1)
+    do j1 = 1, nbplist(0,i) 
+         j = nbplist(j1,i)
 
          jid = gtype(j)
 
@@ -769,7 +769,7 @@ do i=1, NATOMS
             endif
          endif
 
-    enddo  !do j1 = 1, nbplist(i,0) 
+    enddo  !do j1 = 1, nbplist(0,i) 
 enddo
 !$omp end do
 
@@ -826,8 +826,8 @@ do i=1, NATOMS
 
    qic = q(i) + Zpqeq(ity)
 
-   do j1 = 1, nbplist(i,0) 
-         j = nbplist(i,j1)
+   do j1 = 1, nbplist(0,i) 
+         j = nbplist(j1,i)
 
          jid = gtype(j)
 
@@ -911,7 +911,7 @@ do i=1, NATOMS
 
          endif
 
-    enddo  !do j1 = 1, nbplist(i,0) 
+    enddo  !do j1 = 1, nbplist(0,i) 
 enddo
 !$omp end do
 

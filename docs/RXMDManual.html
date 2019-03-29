@@ -1,0 +1,197 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>1. Initial System Preparation &#8212; RXMD  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Indices and tables" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="initial-system-preparation">
+<h1>1. Initial System Preparation<a class="headerlink" href="#initial-system-preparation" title="Permalink to this headline">¶</a></h1>
+<ol class="simple">
+<li>Obtain the unit cell or the prepared system coordinates in xyz file format.For example: If properties of a system such as RDX, FOX-7, TATB, CaDPA etc. is to be determined, obtain the unit cell for the desired system from literature. Or, if the simulation is to be performed for some other systems containing voids, vacuums etc. prepare the system accordingly and verify the coordinates in xyz format using some visualization software like VMD, Ovito, VESTA etc. to check if the system looks right or not.</li>
+<li>After verification of the system by visualizing the coordinates in xyz file format with some molecular visualization software as mentioned above, the system is read by geninit.f90 code. This code will prepare initial binary files which will be read by rxff code to perform the simulation.</li>
+</ol>
+<p><strong>Parameters and format required by geninit.f90 file:</strong></p>
+<p><strong>2.1.Specific format read by the code</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>As mentioned above the coordinates of the system under consideration should be in xyz file format and they should be unscaled units. The format of xyz file read by geninit.f90 file requires some extra specifications as compared to a regular xyz file.  
+The format is as follows:  
+Line 1: Natoms (number of atoms)	 tag (some string to describe your system)  
+Line 2: System size (lata	latb	latc	alpha	beta	gamma)  
+Line 3 – Line Natoms + 2: Atomic coordinates (atype	x	y	z)  
+where atype is a string for describing the atom type such as C, H, O, N, S, Mo, Ni, Al and x, y, z specifies the Cartesian coordinates.  
+</pre></div>
+</div>
+<p><strong>2.2.Parameters to be specified for geninit.f90 file</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mf">1.</span><span class="n">Number</span> <span class="n">of</span> <span class="n">Processors</span><span class="p">:</span> <span class="n">The</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processors</span> <span class="n">required</span> <span class="ow">in</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">and</span> <span class="n">z</span> <span class="nb">format</span> <span class="n">should</span> <span class="n">be</span> <span class="n">specified</span> <span class="k">as</span> <span class="n">arguments</span> <span class="n">to</span> <span class="n">vprocs</span> <span class="n">array</span> <span class="k">as</span><span class="p">:</span>
+
+<span class="n">vprocs</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="o">/</span><span class="p">)</span> <span class="k">if</span> <span class="n">the</span> <span class="n">simulation</span> <span class="n">requires</span> <span class="n">a</span> <span class="n">total</span> <span class="n">of</span> <span class="mi">8</span> <span class="n">processors</span> <span class="n">such</span> <span class="n">that</span> <span class="mi">2</span> <span class="n">processors</span> <span class="n">are</span> <span class="n">required</span> <span class="ow">in</span> <span class="n">each</span> <span class="n">of</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">and</span> <span class="n">z</span> <span class="n">directions</span><span class="o">.</span>
+
+<span class="n">Important</span><span class="p">:</span> <span class="n">To</span> <span class="n">estimate</span> <span class="n">the</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processor</span> <span class="k">for</span> <span class="n">correct</span> <span class="n">computation</span> <span class="n">please</span> <span class="n">ensure</span> <span class="n">that</span> <span class="n">you</span> <span class="n">divide</span> <span class="n">the</span> <span class="n">system</span> <span class="n">length</span> <span class="ow">in</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">and</span> <span class="n">z</span> <span class="p">(</span><span class="ow">in</span> <span class="n">angstrom</span> <span class="p">(</span><span class="n">A</span><span class="p">))</span> <span class="n">direction</span> <span class="n">by</span> <span class="mi">12</span> <span class="n">A</span> <span class="ow">and</span> <span class="n">use</span> <span class="n">the</span> <span class="n">quotient</span> <span class="k">as</span> <span class="n">the</span> <span class="n">arguments</span> <span class="n">to</span> <span class="n">vprocs</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span>
+
+<span class="n">Note</span><span class="p">:</span> <span class="n">If</span> <span class="n">the</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processor</span>  <span class="ow">in</span> <span class="n">direction</span>  <span class="n">comes</span> <span class="n">out</span> <span class="n">to</span> <span class="n">be</span> <span class="n">odd</span> <span class="n">then</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processors</span> <span class="ow">in</span> <span class="n">direction</span>  <span class="n">should</span> <span class="n">be</span> <span class="n">equal</span> <span class="n">to</span> <span class="o">.</span> <span class="n">This</span> <span class="ow">is</span> <span class="n">important</span> <span class="k">for</span> <span class="n">MPI</span> <span class="n">communications</span> <span class="n">performed</span> <span class="n">by</span> <span class="n">the</span> <span class="n">code</span><span class="o">.</span>
+
+<span class="n">For</span> <span class="n">Example</span><span class="p">:</span> 
+<span class="mf">1.</span><span class="n">If</span> <span class="n">your</span> <span class="n">system</span> <span class="ow">is</span>  <span class="n">then</span> <span class="n">the</span> <span class="n">total</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processors</span> <span class="ow">in</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">and</span> <span class="n">z</span> <span class="n">direction</span> <span class="n">should</span> <span class="n">be</span> <span class="o">.</span>
+
+<span class="mf">2.</span><span class="n">If</span> <span class="n">your</span> <span class="n">system</span> <span class="ow">is</span>  <span class="n">then</span> <span class="n">the</span> <span class="n">total</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processors</span> <span class="ow">in</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">and</span> <span class="n">z</span> <span class="n">direction</span> <span class="n">should</span> <span class="n">be</span> <span class="o">.</span> <span class="n">Since</span> <span class="mi">3</span> <span class="ow">and</span> <span class="mi">5</span> <span class="n">processors</span> <span class="n">cannot</span> <span class="n">be</span> <span class="n">used</span> <span class="ow">in</span> <span class="n">x</span> <span class="ow">and</span> <span class="n">y</span> <span class="n">direction</span> <span class="k">as</span> <span class="n">they</span> <span class="n">will</span> <span class="n">violate</span> <span class="n">the</span> <span class="n">MPI</span> <span class="n">communications</span> <span class="n">performed</span> <span class="ow">in</span> <span class="n">the</span> <span class="n">code</span> <span class="ow">and</span> <span class="n">the</span> <span class="n">computation</span> <span class="n">will</span> <span class="n">experience</span> <span class="n">a</span> <span class="n">deadlock</span> <span class="n">due</span> <span class="n">to</span> <span class="n">communication</span> <span class="n">error</span><span class="o">.</span>
+</pre></div>
+</div>
+<p><strong>2.3.Multiplicity in x, y and z directions</strong></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">If</span> <span class="n">the</span> <span class="n">simulation</span> <span class="n">needs</span> <span class="n">to</span> <span class="n">be</span> <span class="n">performed</span> <span class="n">on</span> <span class="n">a</span> <span class="n">scaled</span> <span class="n">system</span> <span class="n">then</span> <span class="n">the</span> <span class="n">integral</span> <span class="n">multiples</span> <span class="ow">in</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">and</span> <span class="n">z</span> <span class="n">directions</span> <span class="n">should</span> <span class="n">be</span> <span class="n">specified</span> <span class="k">as</span> <span class="n">arguments</span> <span class="n">to</span> <span class="n">array</span> <span class="n">mc</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span>  
+
+<span class="n">For</span> <span class="n">example</span><span class="p">:</span>
+<span class="mf">1.</span><span class="n">If</span> <span class="n">the</span> <span class="n">system</span> <span class="ow">is</span>  <span class="mi">13</span><span class="n">x13x17</span> <span class="n">Aand</span> <span class="n">you</span> <span class="n">specify</span> <span class="n">mc</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">2</span><span class="o">/</span><span class="p">)</span> <span class="n">then</span> <span class="n">the</span> <span class="n">final</span> <span class="n">system</span> <span class="n">size</span> <span class="n">will</span> <span class="n">be</span>  <span class="ow">and</span> <span class="n">hence</span> <span class="n">the</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processors</span>  	<span class="n">should</span> <span class="n">be</span> <span class="n">specified</span> <span class="n">accordingly</span> <span class="k">as</span> <span class="n">mentioned</span> <span class="n">above</span> <span class="ow">in</span> <span class="mf">2.2</span><span class="o">.</span>  
+</pre></div>
+</div>
+<p><strong>These steps will ensure that the binaries created are correct and hence will ensure appropriate simulation results, if the simulation is performed properly</strong></p>
+</div>
+<div class="section" id="input-file-description-rxmd-in">
+<h1>2. Input file description (rxmd.in)<a class="headerlink" href="#input-file-description-rxmd-in" title="Permalink to this headline">¶</a></h1>
+<p><strong>The input file rxmd.in has following format:</strong></p>
+  <mode>
+  <dt>	<time_step>
+  <treq>  <vsfact>  <sstep>
+  <fstep> <pstep>
+  <vprocs>
+  <isQEq> <NMAXQEq> <QEq_tol> <qstep>
+  <isBinary> <isBondFile> <isPDB>
+  <ftol><p><em><strong>Here the keywords mean:</strong></em></p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>  <span class="n">dt</span>  <span class="p">:</span><span class="n">Increment</span> <span class="ow">in</span> <span class="n">time</span> <span class="n">during</span> <span class="n">a</span> <span class="n">single</span> <span class="n">molecular</span> <span class="n">dynamics</span> <span class="n">step</span> <span class="p">(</span><span class="n">usually</span> <span class="ow">in</span> <span class="n">fs</span><span class="p">)</span><span class="o">.</span>  
+  
+  <span class="n">time_step</span><span class="p">:</span> <span class="n">Total</span> <span class="n">number</span> <span class="n">of</span> <span class="n">time</span> <span class="n">step</span> <span class="n">the</span> <span class="n">simulation</span> <span class="n">needs</span> <span class="n">to</span> <span class="n">be</span> <span class="n">run</span><span class="o">.</span> <span class="n">So</span> <span class="n">the</span> <span class="n">total</span> <span class="n">time</span> <span class="n">of</span> <span class="n">simulation</span> <span class="n">will</span> <span class="n">be</span> <span class="p">(</span><span class="n">time_step</span><span class="o">*</span><span class="n">dt</span><span class="p">)</span> <span class="n">fs</span><span class="o">.</span>  
+  
+  <span class="n">treq</span><span class="p">:</span> <span class="n">The</span> <span class="n">temperature</span> <span class="n">at</span> <span class="n">which</span> <span class="n">simulation</span> <span class="ow">is</span> <span class="n">required</span> <span class="n">to</span> <span class="n">be</span> <span class="n">done</span><span class="o">.</span>  
+  
+  <span class="n">vsfact</span><span class="p">:</span> <span class="n">The</span> <span class="n">factor</span> <span class="n">by</span> <span class="n">which</span> <span class="n">velocity</span> <span class="ow">is</span> <span class="n">to</span> <span class="n">be</span> <span class="n">scaled</span><span class="o">.</span> <span class="n">This</span> <span class="n">factor</span> <span class="n">will</span> <span class="n">ensure</span> <span class="n">quenching</span> <span class="ow">or</span> <span class="n">heating</span> <span class="n">of</span> <span class="n">the</span> <span class="n">system</span><span class="p">,</span> <span class="k">as</span> <span class="n">a</span> <span class="n">value</span> <span class="n">above</span> <span class="mi">1</span> <span class="n">will</span> <span class="n">ensure</span> <span class="n">heating</span> <span class="k">while</span> <span class="n">a</span> <span class="n">value</span> <span class="n">below</span> <span class="mi">1</span> <span class="n">will</span> <span class="n">ensure</span> <span class="n">cooling</span> <span class="n">of</span> <span class="n">the</span> <span class="n">system</span><span class="o">.</span>   
+  
+  <span class="n">sstep</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="n">dictates</span> <span class="n">the</span> <span class="n">rate</span> <span class="n">of</span> <span class="n">heating</span> <span class="ow">or</span> <span class="n">cooling</span> <span class="n">of</span> <span class="n">the</span> <span class="n">system</span><span class="o">.</span> <span class="n">A</span> <span class="n">higher</span> 
+         <span class="n">value</span> <span class="n">will</span> <span class="n">mean</span> <span class="n">gradual</span> <span class="n">heating</span> <span class="ow">or</span> <span class="n">cooling</span> <span class="k">while</span> <span class="n">a</span> <span class="n">lower</span> <span class="n">value</span> <span class="n">will</span> <span class="n">mean</span> <span class="n">rapid</span> <span class="n">heating</span> <span class="ow">or</span> <span class="n">cooling</span><span class="o">.</span>  
+         
+  <span class="n">fstep</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="n">controls</span> <span class="n">when</span> <span class="n">the</span> <span class="n">trajectory</span> <span class="ow">in</span> <span class="n">various</span> <span class="n">output</span> <span class="n">file</span> <span class="n">formats</span> <span class="n">will</span> <span class="n">be</span> <span class="n">saved</span> <span class="n">to</span> <span class="n">a</span> <span class="n">file</span><span class="o">.</span>   
+  
+  <span class="n">pstep</span><span class="p">:</span>  <span class="n">This</span> <span class="n">parameter</span> <span class="n">controls</span> <span class="n">the</span> <span class="nb">print</span> <span class="n">out</span> <span class="n">information</span> <span class="n">to</span> <span class="n">the</span> <span class="n">standard</span> <span class="n">output</span> <span class="ow">or</span> <span class="n">to</span> <span class="n">a</span> <span class="n">file</span> <span class="n">related</span> <span class="n">to</span> <span class="n">various</span> <span class="n">properties</span> <span class="n">such</span> <span class="k">as</span> <span class="n">energy</span><span class="p">,</span> <span class="n">temperature</span> <span class="n">pressure</span> <span class="n">etc</span><span class="o">.</span>  
+  
+  <span class="n">vprocs</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="n">should</span> <span class="n">be</span> <span class="n">same</span> <span class="k">as</span> <span class="n">specified</span> <span class="k">for</span> <span class="n">geninit</span><span class="o">.</span><span class="n">f90</span> <span class="n">file</span> <span class="n">so</span> <span class="n">that</span> <span class="n">the</span> <span class="n">number</span> <span class="n">of</span> <span class="n">processors</span> <span class="n">remain</span> <span class="n">consistent</span><span class="o">.</span>  
+  
+  <span class="n">Mode</span> <span class="p">:</span> <span class="n">mode</span> <span class="k">for</span> <span class="n">doing</span> <span class="n">the</span> <span class="n">simulation</span><span class="o">.</span> <span class="n">The</span> <span class="n">Rxff</span> <span class="n">code</span> <span class="n">provides</span> <span class="n">following</span> <span class="n">mode</span> <span class="n">the</span> <span class="n">perform</span> <span class="n">simulations</span><span class="o">.</span>
+       <span class="mf">1.</span> <span class="n">Mode</span> <span class="mi">0</span><span class="p">:</span> <span class="n">This</span> <span class="n">mode</span> <span class="n">provide</span> <span class="n">velocity</span> <span class="n">to</span> <span class="n">the</span> <span class="n">atoms</span> <span class="n">distributed</span> <span class="n">according</span> <span class="n">to</span> <span class="n">a</span> <span class="n">Gaussian</span> <span class="n">distribution</span> <span class="n">samples</span> <span class="n">using</span> <span class="n">box</span><span class="o">-</span><span class="n">muller</span> <span class="n">algorithm</span> <span class="ow">and</span> <span class="n">scaled</span> <span class="n">to</span> <span class="n">be</span> <span class="n">at</span> <span class="n">temperature</span> <span class="o">=</span> <span class="n">treq</span><span class="o">.</span> <span class="n">Also</span><span class="p">,</span> <span class="n">it</span> <span class="n">initializes</span> <span class="n">the</span> <span class="n">charges</span> <span class="n">on</span> <span class="n">each</span> <span class="n">atom</span> <span class="n">to</span> <span class="n">estimate</span> <span class="n">electro</span> <span class="n">static</span> <span class="n">forces</span> <span class="n">experienced</span> <span class="n">on</span> <span class="n">each</span> <span class="n">atom</span><span class="o">.</span>
+       <span class="mf">2.</span> <span class="n">Mode</span> <span class="mi">4</span><span class="p">:</span> <span class="n">Scale</span> <span class="n">velocities</span> <span class="n">of</span> <span class="n">the</span> <span class="n">atoms</span> <span class="n">every</span> <span class="n">sstep</span> <span class="n">by</span> <span class="n">a</span> <span class="n">factor</span> <span class="n">of</span> <span class="n">vsfact</span><span class="o">.</span> 
+       <span class="mf">3.</span> <span class="n">Mode</span> <span class="mi">5</span><span class="p">:</span> <span class="n">Scale</span> <span class="n">velocities</span> <span class="n">of</span> <span class="n">the</span> <span class="n">atoms</span> <span class="n">according</span> <span class="n">to</span> <span class="n">the</span> <span class="n">total</span> <span class="n">kinetic</span> <span class="n">energy</span> <span class="n">of</span> <span class="n">the</span> <span class="n">system</span><span class="o">.</span>
+       <span class="mf">4.</span> <span class="n">Mode</span> <span class="mi">6</span><span class="p">:</span> <span class="n">This</span> <span class="n">mode</span> <span class="n">provide</span> <span class="n">velocity</span> <span class="n">to</span> <span class="n">the</span> <span class="n">atoms</span> <span class="n">distributed</span> <span class="n">according</span> <span class="n">to</span> <span class="n">a</span> <span class="n">Gaussian</span> <span class="n">distribution</span> <span class="n">samples</span> <span class="n">using</span> <span class="n">box</span> <span class="n">muller</span> <span class="n">algorithm</span> <span class="ow">and</span> <span class="n">scaled</span> <span class="n">to</span> <span class="n">be</span> <span class="n">at</span> <span class="n">temperature</span> <span class="o">=</span> <span class="n">treq</span> <span class="n">every</span> <span class="n">sstep</span><span class="o">.</span>
+       <span class="mf">5.</span> <span class="n">Mode</span> <span class="mi">7</span><span class="p">:</span> <span class="n">This</span> <span class="n">mode</span> <span class="n">scales</span> <span class="n">the</span> <span class="n">velocities</span> <span class="n">of</span> <span class="n">the</span> <span class="n">atoms</span> <span class="n">based</span> <span class="n">on</span> <span class="n">their</span> <span class="n">individual</span> <span class="n">kinetic</span> <span class="n">energies</span> <span class="n">every</span> <span class="n">sstep</span> <span class="n">to</span> <span class="n">obtain</span> <span class="n">an</span> <span class="n">NVE</span> <span class="n">ensemble</span><span class="o">.</span>  
+    
+  <span class="n">isQEq</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="ow">is</span> <span class="n">true</span> <span class="ow">or</span> <span class="n">false</span> <span class="n">specifying</span> <span class="n">whether</span> <span class="n">the</span> <span class="n">charge</span> <span class="n">equilibration</span> <span class="n">scheme</span> <span class="ow">is</span> <span class="n">required</span> <span class="ow">or</span> <span class="ow">not</span><span class="o">.</span>  
+  
+  <span class="n">QEq_tol</span><span class="p">:</span> <span class="n">The</span> <span class="n">required</span> <span class="n">tolerance</span> <span class="k">for</span> <span class="n">electro</span><span class="o">-</span><span class="n">static</span> <span class="n">term</span> <span class="n">relative</span> <span class="n">to</span> <span class="n">its</span> <span class="n">previous</span> <span class="n">value</span>  
+  
+  <span class="n">NMAXQEq</span><span class="p">:</span> <span class="n">The</span> <span class="n">maximum</span> <span class="n">number</span> <span class="n">of</span> <span class="n">iterations</span> <span class="n">to</span> <span class="n">perform</span> <span class="k">for</span> <span class="n">charge</span> <span class="n">equilibration</span> <span class="n">step</span> <span class="k">if</span> <span class="n">electro</span><span class="o">-</span><span class="n">static</span> <span class="n">terms</span> <span class="n">do</span> <span class="ow">not</span> <span class="n">approach</span> <span class="n">to</span> <span class="n">a</span> <span class="n">value</span> <span class="n">less</span> <span class="n">than</span> <span class="n">QEq_tol</span> <span class="n">between</span> <span class="nb">any</span> 	<span class="n">two</span> <span class="n">consecutive</span> <span class="n">iterations</span><span class="o">.</span>  
+  
+  <span class="n">qstep</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="n">defines</span> <span class="n">the</span> <span class="n">frequency</span> <span class="n">at</span> <span class="n">which</span> <span class="n">charge</span> <span class="n">equilibration</span> <span class="ow">is</span> <span class="n">to</span> <span class="n">be</span> <span class="n">done</span> <span class="n">during</span> <span class="n">the</span> <span class="n">simulation</span><span class="o">.</span>  
+  
+  <span class="n">isBinary</span><span class="p">:</span> <span class="n">The</span> <span class="n">parameter</span> <span class="n">can</span> <span class="n">be</span> <span class="n">given</span> <span class="n">a</span> <span class="n">true</span> <span class="n">value</span> <span class="ow">or</span> <span class="n">a</span> <span class="n">false</span> <span class="n">value</span> <span class="ow">and</span> <span class="n">defines</span>
+              <span class="n">whether</span> <span class="n">a</span> <span class="n">binary</span> <span class="n">file</span> <span class="n">will</span> <span class="n">be</span> <span class="n">saved</span> <span class="ow">or</span> <span class="ow">not</span><span class="o">.</span>
+            
+  <span class="n">isBondfile</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="n">can</span> <span class="n">be</span> <span class="n">given</span> <span class="n">a</span> <span class="n">true</span> <span class="ow">or</span> <span class="n">a</span> <span class="n">false</span> <span class="n">value</span> <span class="ow">and</span> <span class="n">defines</span> <span class="n">whether</span>	<span class="n">information</span> <span class="n">related</span> <span class="n">to</span> <span class="n">the</span> <span class="n">bond</span> <span class="nb">list</span> <span class="n">of</span> <span class="n">every</span> <span class="n">atom</span> <span class="n">will</span> <span class="n">be</span> <span class="n">saved</span> <span class="n">to</span> <span class="n">a</span> <span class="n">file</span> <span class="ow">or</span> <span class="ow">not</span><span class="o">.</span>  
+  
+  <span class="n">isPDB</span><span class="p">:</span> <span class="n">This</span> <span class="n">parameter</span> <span class="n">can</span> <span class="n">be</span> <span class="n">given</span> <span class="n">a</span> <span class="n">true</span> <span class="ow">or</span> <span class="n">a</span> <span class="n">false</span> <span class="n">value</span> <span class="ow">and</span> <span class="n">defines</span> <span class="n">whether</span> <span class="n">information</span> <span class="n">related</span> <span class="n">to</span> <span class="n">atomic</span> <span class="n">trajectories</span> <span class="ow">is</span> <span class="n">saved</span> <span class="n">to</span> <span class="n">the</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">PDB</span> <span class="nb">format</span> <span class="ow">or</span> <span class="ow">not</span><span class="o">.</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="running-a-parallel-job">
+<h1>3.Running a parallel job:<a class="headerlink" href="#running-a-parallel-job" title="Permalink to this headline">¶</a></h1>
+<p>1.The first step is to create binaries corresponding to your system which can be done 	by following the steps in 1 in init folder.2.After creating binaries ensure that you are at the root directory such that init 	directory is one level below you. Then create a folder called DAT and copy all the
+binaries of the form of rxff* from init to DAT by doing
+<code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">init/rxff*</span> <span class="pre">DAT/.</span></code>3.Then run mkdir.sh in the unit folder as sh mkdir.sh from the root directory as 	mentioned in step 2. This will create as many folders as binary files for every 	processor to read and write data.4. Then prepare your input file by specifying reasonable values for various parameters 	as mentioned in 2.5. Then in the src folder compile the code using make command and prepare an 	executable. This executable rxmd will be used for doing the computation.6. From your root directory type this command for generating an output log file.</p>
+<p><code class="docutils literal notranslate"><span class="pre">mpirun</span> <span class="pre">–np</span> <span class="pre">${nprocs}</span> <span class="pre">./rxmd</span> <span class="pre">&gt;</span> <span class="pre">log</span></code>mpirun is the compiler which was used for compiling the code and preparing the 	executable in step 5. You can use other compilers as well which are compatible to the 	requirements of our code.${nprocs} is the total number of processors required for performing the simuation.log is the name of output file where the output results will be saved.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">RXMD</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">1. Initial System Preparation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#input-file-description-rxmd-in">2. Input file description (rxmd.in)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="#running-a-parallel-job">3.Running a parallel job:</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Indices and tables</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Collaboratory for Advanced Computing and Simulations.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/RXMDManual.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

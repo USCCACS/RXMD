@@ -25,6 +25,7 @@ real(8) :: buf(4), Gbuf(4)
 real(8) :: ssum, tsum, mu
 real(8) :: qsum, gqsum
 real(8) :: QCopyDr(3)
+real(8) :: hshs_sum,hsht_sum
 
 call system_clock(i1,k1)
 
@@ -73,8 +74,8 @@ call qeq_initialize()
 
 #ifdef QEQDUMP 
 do i=1, NATOMS
-   do j1=1,nbplist(i,0)
-      j = nbplist(i,j1)
+   do j1=1,nbplist(0,i)
+      j = nbplist(j1,i)
       write(91,'(4i6,4es25.15)') -1, l2g(atype(i)),nint(atype(i)),l2g(atype(j)),hessian(j1,i)
    enddo
 enddo
@@ -101,7 +102,7 @@ do nstep_qeq=0, nmax-1
   gqsum = qsum
 #endif
 
-  call get_hsh(Est)
+  call get_hsh(Est,hshs_sum,hsht_sum)
 
   call MPI_ALLREDUCE(MPI_IN_PLACE, Est, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
   GEst1 = Est
@@ -116,11 +117,11 @@ do nstep_qeq=0, nmax-1
 
 !--- line minimization factor of <s> vector
   g_h(1) = dot_product(gs(1:NATOMS), hs(1:NATOMS))
-  h_hsh(1) = dot_product(hs(1:NATOMS), hshs(1:NATOMS))
+  h_hsh(1) = hshs_sum
 
 !--- line minimization factor of <t> vector
   g_h(2) = dot_product(gt(1:NATOMS), ht(1:NATOMS))
-  h_hsh(2) = dot_product(ht(1:NATOMS), hsht(1:NATOMS))
+  h_hsh(2) = hsht_sum
 
   buf(1)=g_h(1);   buf(2)=g_h(2)
   buf(3)=h_hsh(1); buf(4)=h_hsh(2)
@@ -196,8 +197,6 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 
-nbplist(:,0) = 0
-
 !$omp parallel do schedule(runtime), default(shared), &
 !$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn)
 do c1=0, nbcc(1)-1
@@ -208,6 +207,7 @@ do c3=0, nbcc(3)-1
    do m = 1, nbnacell(c1,c2,c3)
 
    ity=nint(atype(i))
+   nbplist(0,i) = 0
 
    do mn = 1, nbnmesh
       c4 = c1 + nbmesh(1,mn)
@@ -227,8 +227,8 @@ do c3=0, nbcc(3)-1
 
 !--- make a neighbor list with cutoff length = 10[A]
 !$omp atomic
-               nbplist(i,0) = nbplist(i,0) + 1
-               nbplist(i,nbplist(i,0)) = j
+               nbplist(0,i) = nbplist(0,i) + 1
+               nbplist(nbplist(0,i),i) = j
 
 !--- get table index and residual value
                itb = int(dr2*UDRi)
@@ -237,7 +237,7 @@ do c3=0, nbcc(3)-1
 
                inxn = inxn2(ity, jty)
 
-               hessian(nbplist(i,0),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
+               hessian(nbplist(0,i),i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
             endif
          endif
 
@@ -245,6 +245,11 @@ do c3=0, nbcc(3)-1
       enddo
    enddo !   do mn = 1, nbnmesh
 
+   if (nbplist(0,i) > MAXNEIGHBS10) then
+      write(6,*) "ERROR: In qeq.F90 inside qeq_initialize, nbplist greater then MAXNEIGHBS10 on mpirank",myid, &
+                 "with value",nbplist(0,i)
+      call MPI_FINALIZE(ierr)
+   end if
    i=nbllist(i)
    enddo
 enddo; enddo; enddo
@@ -252,7 +257,7 @@ enddo; enddo; enddo
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
-  nn=maxval(nbplist(1:NATOMS,0))
+  nn=maxval(nbplist(0,1:NATOMS))
   i=nstep/pstep+1
   maxas(i,3)=nn
 endif
@@ -263,7 +268,7 @@ it_timer(16)=it_timer(16)+(tj-ti)
 end subroutine 
 
 !-----------------------------------------------------------------------------------------------------------------------
-subroutine get_hsh(Est)
+subroutine get_hsh(Est,hshs_sum,hsht_sum)
 use atoms; use parameters
 ! This subroutine updates hessian*cg array <hsh> and the electrostatic energy <Est>.  
 !-----------------------------------------------------------------------------------------------------------------------
@@ -271,30 +276,38 @@ implicit none
 real(8),intent(OUT) :: Est
 integer :: i,j,j1, ity
 real(8) :: eta_ity, Est1
+real(8) :: t_hshs,t_hsht
+real(8) :: hshs_sum,hsht_sum
 
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-!$omp parallel do default(shared), schedule(runtime), private(i,j,j1,ity,eta_ity,Est1),reduction(+:Est)
+hshs_sum = 0.d0
+hsht_sum = 0.d0
+
+!$omp parallel do default(shared), schedule(runtime), private(i,j,j1,ity,eta_ity,Est1,t_hshs,t_hsht),reduction(+:Est,hshs_sum,hsht_sum)
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
 
-   hshs(i) = eta_ity*hs(i)
-   hsht(i) = eta_ity*ht(i)
+   t_hshs = eta_ity*hs(i)
+   t_hsht = eta_ity*ht(i)
 
    Est = Est + chi(ity)*q(i) + 0.5d0*eta_ity*q(i)*q(i)
 
-   do j1 = 1, nbplist(i,0)
-      j = nbplist(i,j1)
-      hshs(i) = hshs(i) + hessian(j1,i)*hs(j)
-      hsht(i) = hsht(i) + hessian(j1,i)*ht(j)
+   do j1 = 1, nbplist(0,i)
+      j = nbplist(j1,i)
+      t_hshs = t_hshs + hessian(j1,i)*hs(j)
+      t_hsht = t_hsht + hessian(j1,i)*ht(j)
 !--- get half of potential energy, then sum it up if atoms are resident.
       Est1 = 0.5d0*hessian(j1,i)*q(i)*q(j)
       Est = Est + Est1
       if(j<=NATOMS) Est = Est + Est1
    enddo
+
+   hshs_sum = hshs_sum + t_hshs*hs(i)
+   hsht_sum = hsht_sum + t_hsht*ht(i)
 
 enddo
 !$omp end parallel do
@@ -324,8 +337,8 @@ do i=1,NATOMS
 
    gssum=0.d0
    gtsum=0.d0
-   do j1=1, nbplist(i,0) 
-      j = nbplist(i,j1)
+   do j1=1, nbplist(0,i) 
+      j = nbplist(j1,i)
       gssum = gssum + hessian(j1,i)*qs(j)
       gtsum = gtsum + hessian(j1,i)*qt(j)
    enddo
