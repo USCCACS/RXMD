@@ -629,7 +629,8 @@ offset = scanbuf + metaDataSize
 allocate(ldata(nmeta),gdata(nmeta))
 ldata(:)=0
 ldata(4+myid+1)=NATOMS
-call MPI_ALLREDUCE(ldata,gdata,nmeta,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE,ldata,nmeta,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+gdata = ldata
 gdata(1)=nprocs
 gdata(2:4)=vprocs
 gdata(nmeta)=nstep+current_step

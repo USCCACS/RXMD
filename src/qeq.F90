@@ -98,12 +98,14 @@ do nstep_qeq=0, nmax-1
 
 #ifdef QEQDUMP 
   qsum = sum(q(1:NATOMS))
-  call MPI_ALLREDUCE(qsum, gqsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+  call MPI_ALLREDUCE(MPI_IN_PLACE, qsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+  gqsum = qsum
 #endif
 
   call get_hsh(Est,hshs_sum,hsht_sum)
 
-  call MPI_ALLREDUCE(Est, GEst1, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+  call MPI_ALLREDUCE(MPI_IN_PLACE, Est, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+  GEst1 = Est
 
 #ifdef QEQDUMP 
   if(myid==0) print'(i5,5es25.15)', nstep_qeq, 0.5d0*log(Gnew(1:2)/GNATOMS), GEst1, GEst2, gqsum
@@ -124,9 +126,9 @@ do nstep_qeq=0, nmax-1
   buf(1)=g_h(1);   buf(2)=g_h(2)
   buf(3)=h_hsh(1); buf(4)=h_hsh(2)
   Gbuf(:)=0.d0
-  call MPI_ALLREDUCE(buf, Gbuf, 4,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD, ierr)
-  g_h(1) = Gbuf(1);   g_h(2) = Gbuf(2)
-  h_hsh(1) = Gbuf(3); h_hsh(2) = Gbuf(4)
+  call MPI_ALLREDUCE(MPI_IN_PLACE, buf, 4,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD, ierr)
+  g_h(1) = buf(1);   g_h(2) = buf(2)
+  h_hsh(1) = buf(3); h_hsh(2) = buf(4)
 
   lmin(1:2) = g_h(1:2)/h_hsh(1:2)
 
@@ -137,11 +139,10 @@ do nstep_qeq=0, nmax-1
 !--- get a current electronegativity <mu>
   ssum = sum(qs(1:NATOMS))
   tsum = sum(qt(1:NATOMS))
-  buf(1) = ssum; buf(2) = tsum
 
-  Gbuf(:)=0.d0
-  call MPI_ALLREDUCE(buf, Gbuf, 2, MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD, ierr)
-  ssum=Gbuf(1); tsum=Gbuf(2)
+  buf(1) = ssum; buf(2) = tsum
+  call MPI_ALLREDUCE(MPI_IN_PLACE, buf, 2, MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD, ierr)
+  ssum=buf(1); tsum=buf(2)
 
   mu = ssum/tsum
 
@@ -245,8 +246,8 @@ do c3=0, nbcc(3)-1
    enddo !   do mn = 1, nbnmesh
 
    if (nbplist(0,i) > MAXNEIGHBS10) then
-      write(6,*) "ERROR: In qeq.F90 inside qeq_initialize, nbplist greater then MAXNEIGHBS10 on mpirank",&
-                 myid,"with value",nbplist(0,i)
+      write(6,*) "ERROR: In qeq.F90 inside qeq_initialize, nbplist greater then MAXNEIGHBS10 on mpirank",myid, &
+                 "with value",nbplist(0,i)
       call MPI_FINALIZE(ierr)
    end if
    i=nbllist(i)
@@ -353,7 +354,8 @@ enddo
 
 ggnew(1) = dot_product(gs(1:NATOMS), gs(1:NATOMS))
 ggnew(2) = dot_product(gt(1:NATOMS), gt(1:NATOMS))
-call MPI_ALLREDUCE(ggnew, Gnew, size(ggnew), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, ggnew, size(ggnew), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Gnew = ggnew
 
 call system_clock(tj,tk)
 it_timer(19)=it_timer(19)+(tj-ti)

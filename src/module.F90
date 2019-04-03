@@ -4,13 +4,16 @@ module base
 ! position, atom type, velocity, force & charge
 real(8),allocatable,dimension(:),target :: atype, q
 real(8),allocatable,dimension(:,:),target :: pos, v, f
-
 end module
 
 !-------------------------------------------------------------------------------------------
 module atoms
 !-------------------------------------------------------------------------------------------
-include 'mpif.h'
+#ifdef NOMPI
+  use nompi
+#else
+  include 'mpif.h'
+#endif
 
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
@@ -890,3 +893,4 @@ end function
 
 end module MemoryAllocator
 !-------------------------------------------------------------------------------------------
+

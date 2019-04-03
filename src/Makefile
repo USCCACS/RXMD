@@ -3,7 +3,7 @@ include ../make.inc
 # suffix rules
 .SUFFIXES: .o .F90 .cpp
 .F90.o:
-	$(MPIF90) $(MPIF90_FLAGS) -c $<
+	$(MPIF90) $(MPIF90_FLAGS) $(LIBS) -c $<
 
 %.o: %.mod
 
@@ -11,7 +11,6 @@ SRCS := cg.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 param.F90 mai
 OBJS := $(SRCS:.F90=.o)
 
 EXE := rxmd
-
 
 ../$(EXE): $(OBJS)
 	$(MPIF90) $(MPIF90_FLAGS) -o ../$(EXE) $(OBJS) module.o $(LIBS)
@@ -37,8 +36,12 @@ init.o : fileio.o
 
 main.o : init.o
 
+nompi: nompi.f90
+	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 module.F90
+	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
+
 clean:
-	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd rxmd
+	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
 
 rebuild:
 	make clean

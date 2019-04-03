@@ -136,16 +136,14 @@ qtfp(:)=0.d0; qtfv(:)=0.d0
 
 !--- get total number of atoms per type. This will be used to determine
 !--- subroutine cutofflength() 
-allocate(natoms_per_type(nso),ibuf8(nso)) ! NOTE 8byte int is not supported in MemoryAllocator
+allocate(natoms_per_type(nso)) ! NOTE 8byte int is not supported in MemoryAllocator
 natoms_per_type(:)=0
 do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
 enddo
 
-call MPI_ALLREDUCE(natoms_per_type, ibuf8, nso, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
-natoms_per_type(1:nso)=ibuf8(1:nso)
-deallocate(ibuf8)
+call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, nso, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 !--- determine cutoff distances only for exsiting atom pairs
 call CUTOFFLENGTH()
@@ -154,8 +152,8 @@ call CUTOFFLENGTH()
 call UpdateBoxParams()
 
 !--- get global number of atoms
-i8=NATOMS ! Convert 4 byte to 8 byte
-call MPI_ALLREDUCE(i8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+GNATOMS=NATOMS ! Convert 4 byte to 8 byte
+call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 !--- Linked List & Near Neighb Parameters
 call allocatori2d(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
@@ -216,7 +214,8 @@ do i=1, NATOMS
    ity = nint(atype(i))
    mm = mm + mass(ity)
 enddo
-call MPI_ALLREDUCE (mm, gmm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+gmm = mm
 dns=gmm/MDBOX*UDENS
 
 !--- allocate & initialize Array size Stat variables
@@ -330,8 +329,10 @@ do i=1, NATOMS
    mm = mm + mass(ity)
 enddo
  
-call MPI_ALLREDUCE (vCM, GvCM, size(vCM), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE (mm, Gmm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, vCM, size(vCM), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, mm,1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+GvCM = vCM
+Gmm = mm
 
 !--- get the global momentum
 GvCM(:)=GvCM(:)/Gmm
@@ -345,8 +346,8 @@ do i=1, NATOMS
    KE = KE + hmas(ity)*sum( v(i,1:3)*v(i,1:3) )
 enddo
 
-call MPI_ALLREDUCE (KE, GKE, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-GKE = GKE/GNATOMS
+call MPI_ALLREDUCE(MPI_IN_PLACE, KE, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+GKE = KE/GNATOMS
 
 !--- scale the obtained velocity to get the initial temperature.
 vfactor = sqrt(1.5d0*treq/GKE)

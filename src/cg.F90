@@ -49,7 +49,8 @@ call FORCE(atype, pos, gnew, q)
 p(1:NATOMS,1:3)=gnew(1:NATOMS,1:3)
 
 PE(0)=sum(PE(1:13))
-call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, PE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+GPE=PE
 GPEnew=GPE(0)
 
 !--- if no bracket range was found here, you are at the energy minimum already. 
@@ -67,7 +68,8 @@ do cgLoop = 0, CG_MaxMinLoop-1
 
    GPEold=GPEnew
    PE(0)=sum(PE(1:13))
-   call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+   call MPI_ALLREDUCE(MPI_IN_PLACE, PE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+   GPE=PE
    GPEnew=GPE(0)
 
    if(abs(GPEnew-GPEold)<=CG_tol*GNATOMS) then
@@ -162,7 +164,8 @@ call QEq(atype, pos, qTmp)
 call FORCE(atype, pos, fbefore, qTmp)
 
 PE(0)=sum(PE(1:13))
-call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, PE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+GPE=PE
 GPEbefore=GPE(0)
 
 ! Evaluate df(x+alpha*p) and f(x+alpha*p)
@@ -178,7 +181,8 @@ call QEq(atypeTmp, posTmp, qTmp)
 call FORCE(atypeTmp, posTmp, fafter, qTmp)
 
 PE(0)=sum(PE(1:13))
-call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, PE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+GPE=PE
 GPEafter=GPE(0)
 
 isLowerEnergy = GPEafter < GPEbefore
@@ -311,20 +315,20 @@ end function MigrateVec3D
 
 
 !---------------------------------------------------------------------------------
-function DotProductVec3D(v1, v2, Nelems) result (ret)
+function DotProductVec3D(v1, v2, Nelems) result (vsum)
 !---------------------------------------------------------------------------------
 implicit none
 integer,intent(in) :: Nelems
 real(8),intent(in) :: v1(Nelems,3), v2(Nelems,3) 
 integer :: i
-real(8) :: vsum, ret
+real(8) :: vsum
 
 vsum = 0.d0
 do i=1, Nelems
    vsum = vsum + sum(v1(i,1:3)*v2(i,1:3))
 enddo
 
-call MPI_ALLREDUCE(vsum, ret, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, vsum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 return
 end function DotProductVec3D
@@ -376,7 +380,8 @@ call FORCE(atypeTmp, posTmp, fTmp, qTmp)
 NATOMS = NATOMSTmp 
 
 PE(0)=sum(PE(1:13))
-call MPI_ALLREDUCE(PE, GPE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, PE, size(PE), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+GPE=PE
 potentialEnergy=GPE(0)
 
 end function EvaluateEnergyWithStep
