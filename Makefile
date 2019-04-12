@@ -18,6 +18,9 @@ all:
 rxmd:
 	cd src && $(MAKE)
 
+nompi:
+	cd src && make nompi
+
 init:
 	cd init && $(MAKE)
 

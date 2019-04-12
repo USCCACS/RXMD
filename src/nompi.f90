@@ -88,167 +88,167 @@ contains
      integer, optional, intent(out) :: ierror
    end subroutine
 
-   subroutine mpi_send_scalar_i4(buf, count, datatype, dest, tag, comm, ierror)
+   subroutine mpi_send_scalar_i4(buf, icount, datatype, dest, tag, comm, ierror)
      integer, intent(in) :: buf
-     integer, intent(in) :: count, dest, tag, comm, datatype
+     integer, intent(in) :: icount, dest, tag, comm, datatype
      integer, optional, intent(out) :: ierror
 
      nompi_sbuf_scalar_i4 = buf
    end subroutine
 
-   subroutine mpi_send_scalar_r8(buf, count, datatype, dest, tag, comm, ierror)
+   subroutine mpi_send_scalar_r8(buf, icount, datatype, dest, tag, comm, ierror)
      real(8), intent(in) :: buf
-     integer, intent(in) :: count, dest, tag, comm, datatype
+     integer, intent(in) :: icount, dest, tag, comm, datatype
      integer, optional, intent(out) :: ierror
 
      nompi_sbuf_scalar_r8 = buf
    end subroutine
 
-   subroutine mpi_send_vector_i4(buf, count, datatype, dest, tag, comm, ierror)
+   subroutine mpi_send_vector_i4(buf, icount, datatype, dest, tag, comm, ierror)
      integer, dimension(:), intent(in) :: buf
-     integer, intent(in) :: count, dest, tag, comm, datatype
+     integer, intent(in) :: icount, dest, tag, comm, datatype
      integer, optional, intent(out) :: ierror
      
      nompi_sbuf_vector_i4 = buf
    end subroutine
 
-   subroutine mpi_send_vector_r8(buf, count, datatype, dest, tag, comm, ierror)
+   subroutine mpi_send_vector_r8(buf, icount, datatype, dest, tag, comm, ierror)
      real(8), dimension(:), intent(in) :: buf
-     integer, intent(in) :: count, dest, tag, comm, datatype
+     integer, intent(in) :: icount, dest, tag, comm, datatype
      integer, optional, intent(out) :: ierror
      
      nompi_sbuf_vector_r8 = buf
    end subroutine
 
-   subroutine mpi_recv_vector_i4(buf, count, datatype, source, tag, comm, status, ierror)
+   subroutine mpi_recv_vector_i4(buf, icount, datatype, source, tag, comm, status, ierror)
      integer, dimension(:) :: buf
-     integer, intent(in) :: count, source, tag, comm, datatype
+     integer, intent(in) :: icount, source, tag, comm, datatype
      integer :: status(mpi_status_size)
      integer, optional, intent(out) :: ierror
 
      buf = nompi_sbuf_vector_i4
    end subroutine
 
-   subroutine mpi_recv_vector_r8(buf, count, datatype, source, tag, comm, status, ierror)
+   subroutine mpi_recv_vector_r8(buf, icount, datatype, source, tag, comm, status, ierror)
      real(8), dimension(:) :: buf
-     integer, intent(in) :: count, source, tag, comm, datatype
+     integer, intent(in) :: icount, source, tag, comm, datatype
      integer :: status(mpi_status_size)
      integer, optional, intent(out) :: ierror
 
      buf = nompi_sbuf_vector_r8
    end subroutine
 
-   subroutine mpi_recv_scalar_i4(buf, count, datatype, source, tag, comm, status, ierror)
+   subroutine mpi_recv_scalar_i4(buf, icount, datatype, source, tag, comm, status, ierror)
      integer :: buf
-     integer, intent(in) :: count, source, tag, comm, datatype
+     integer, intent(in) :: icount, source, tag, comm, datatype
      integer :: status(mpi_status_size)
      integer, optional, intent(out) :: ierror
 
      buf = nompi_sbuf_scalar_i4
    end subroutine
 
-   subroutine mpi_recv_scalar_r8(buf, count, datatype, source, tag, comm, status, ierror)
+   subroutine mpi_recv_scalar_r8(buf, icount, datatype, source, tag, comm, status, ierror)
      real(8) :: buf
-     integer, intent(in) :: count, source, tag, comm, datatype
+     integer, intent(in) :: icount, source, tag, comm, datatype
      integer :: status(mpi_status_size)
      integer, optional, intent(out) :: ierror
 
      buf = nompi_sbuf_scalar_r8
    end subroutine
 
-   subroutine mpi_allreduce_scalar_i8(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_scalar_i8(inplace, buf, icount, datatype, mpiop, comm, ierror)
      integer :: inplace
      integer(8) :: buf
-     integer, intent(in) :: count, mpiop, comm, datatype
+     integer, intent(in) :: icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
-   subroutine mpi_allreduce_1d_i8(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_1d_i8(inplace, buf, icount, datatype, mpiop, comm, ierror)
      integer(8), dimension(:) :: buf
-     integer, intent(in) :: inplace, count, mpiop, comm, datatype
+     integer, intent(in) :: inplace, icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
 
-   subroutine mpi_allreduce_scalar_i4(sbuf, rbuf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_scalar_i4(sbuf, rbuf, icount, datatype, mpiop, comm, ierror)
      integer :: sbuf, rbuf
-     integer, intent(in) :: count, mpiop, comm, datatype
+     integer, intent(in) :: icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      if (sbuf == mpi_in_place) return
      rbuf = sbuf
    end subroutine
 
-   subroutine mpi_allreduce_1d_i4(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_1d_i4(inplace, buf, icount, datatype, mpiop, comm, ierror)
      integer, dimension(:) :: buf
-     integer, intent(in) :: inplace, count, mpiop, comm, datatype
+     integer, intent(in) :: inplace, icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
-   subroutine mpi_allreduce_1d_i4_minmax(sbuf, rbuf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_1d_i4_minmax(sbuf, rbuf, icount, datatype, mpiop, comm, ierror)
      integer, dimension(:) :: rbuf, sbuf
-     integer, intent(in) :: count, mpiop, comm, datatype
+     integer, intent(in) :: icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      rbuf = sbuf
    end subroutine
 
-   subroutine mpi_allreduce_2d_i4(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_2d_i4(inplace, buf, icount, datatype, mpiop, comm, ierror)
      integer, dimension(:,:) :: buf
-     integer, intent(in) :: inplace, count, mpiop, comm, datatype
+     integer, intent(in) :: inplace, icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
 
-   subroutine mpi_allreduce_1d_r8(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_1d_r8(inplace, buf, icount, datatype, mpiop, comm, ierror)
      real(8), dimension(:) :: buf
-     integer, intent(in) :: inplace, count, mpiop, comm, datatype
+     integer, intent(in) :: inplace, icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
-   subroutine mpi_allreduce_2d_r8(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_2d_r8(inplace, buf, icount, datatype, mpiop, comm, ierror)
      real(8), dimension(:,:) :: buf
-     integer, intent(in) :: inplace, count, mpiop, comm, datatype
+     integer, intent(in) :: inplace, icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
-   subroutine mpi_allreduce_scalar_r8(inplace, buf, count, datatype, mpiop, comm, ierror)
+   subroutine mpi_allreduce_scalar_r8(inplace, buf, icount, datatype, mpiop, comm, ierror)
      real(8) :: buf
-     integer, intent(in) :: inplace, count, mpiop, comm, datatype
+     integer, intent(in) :: inplace, icount, mpiop, comm, datatype
      integer, optional, intent(out) :: ierror
 
      return
    end subroutine
 
 
-   subroutine mpi_scan(sendbuf, recvbuf, count, datatype, op, comm, ierror)
+   subroutine mpi_scan(sendbuf, recvbuf, icount, datatype, op, comm, ierror)
      integer :: sendbuf, recvbuf
-     integer :: count, datatype, op, comm, ierror
+     integer :: icount, datatype, op, comm, ierror
    end subroutine
 
    subroutine mpi_probe(source, tag, comm, status, ierror)
      integer :: source, tag, comm, status(mpi_status_size), ierror
    end subroutine
 
-   subroutine mpi_get_count(status, datatype, count, ierror)
-     integer :: status(mpi_status_size), datatype, count, ierror
+   subroutine mpi_get_count(status, datatype, icount, ierror)
+     integer :: status(mpi_status_size), datatype, icount, ierror
    end subroutine
 
-   subroutine mpi_bcast(buffer, count, datatype, root, comm, ierror)
+   subroutine mpi_bcast(buffer, icount, datatype, root, comm, ierror)
      type(*), dimension(..) :: buffer
-     integer, intent(in) :: count, root
+     integer, intent(in) :: icount, root
      integer, intent(in) :: comm, datatype
      integer, optional, intent(out) :: ierror
    end subroutine
@@ -269,41 +269,41 @@ contains
      open(newunit=nompi_file_handler, file=trim(filename), form='unformatted', access='stream')
    end subroutine
 
-   subroutine mpi_file_write_r8(fh, buf, count, datatype, status, ierror)
-     real(8), intent(in) :: buf(count)
-     integer, intent(in) :: fh, count, datatype, status
+   subroutine mpi_file_write_r8(fh, buf, icount, datatype, status, ierror)
+     real(8), intent(in) :: buf(icount)
+     integer, intent(in) :: fh, icount, datatype, status
      integer, optional, intent(out) :: ierror
 
      write(nompi_file_handler) buf
    end subroutine
 
-   subroutine mpi_file_write_i4(fh, buf, count, datatype, status, ierror)
-     integer, intent(in) :: buf(count)
-     integer, intent(in) :: fh, count, datatype, status
+   subroutine mpi_file_write_i4(fh, buf, icount, datatype, status, ierror)
+     integer, intent(in) :: buf(icount)
+     integer, intent(in) :: fh, icount, datatype, status
      integer, optional, intent(out) :: ierror
 
      write(nompi_file_handler) buf
    end subroutine
 
-   subroutine mpi_file_write_c(fh, buf, count, datatype, status, ierror)
-     integer, intent(in) :: fh, count, datatype, status
-     character(len=count), intent(in) :: buf
+   subroutine mpi_file_write_c(fh, buf, icount, datatype, status, ierror)
+     integer, intent(in) :: fh, icount, datatype, status
+     character(len=icount), intent(in) :: buf
      integer, optional, intent(out) :: ierror
 
      write(nompi_file_handler) buf
    end subroutine
 
-   subroutine mpi_file_read_i4(fh, buf, count, datatype, status, ierror)
-     integer, dimension(count) :: buf
-     integer, intent(in) :: fh, count, datatype, status 
+   subroutine mpi_file_read_i4(fh, buf, icount, datatype, status, ierror)
+     integer, dimension(icount) :: buf
+     integer, intent(in) :: fh, icount, datatype, status 
      integer, optional, intent(out) :: ierror
 
      read(nompi_file_handler) buf(:)
    end subroutine
 
-   subroutine mpi_file_read_r8(fh, buf, count, datatype, status, ierror)
-     real(8), dimension(count) :: buf
-     integer, intent(in) :: fh, count, datatype, status 
+   subroutine mpi_file_read_r8(fh, buf, icount, datatype, status, ierror)
+     real(8), dimension(icount) :: buf
+     integer, intent(in) :: fh, icount, datatype, status 
      integer, optional, intent(out) :: ierror
 
      read(nompi_file_handler) buf
@@ -322,7 +322,7 @@ contains
    end subroutine
 
    real(8) function mpi_wtime() result(t)
-     !t = cpu_time() 
+     call cpu_time(t) 
    end function
 
 end module
