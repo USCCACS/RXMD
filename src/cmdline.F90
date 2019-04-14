@@ -267,6 +267,7 @@ if(find_cmdline_argc('--isPDB',idx)) isPDB=.true.
 if(find_cmdline_argc('--isXYZ',idx)) isXYZ=.true. 
 
 end subroutine
+
 !-------------------------------------------------------------------------------------------
 integer function getstr(linein,lineout)
 implicit none
@@ -320,6 +321,3 @@ return
 end function
 
 end module
-
-
-

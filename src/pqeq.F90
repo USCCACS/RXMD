@@ -1,6 +1,5 @@
 module pqeq_mod
 
-  use pqeq_vars
   use atoms
   use reaxff_param_mod
   use memory_allocator_mod
@@ -483,5 +482,282 @@ it_timer(19)=it_timer(19)+(tj-ti)
 end subroutine
 
 end subroutine PQEq
+
+
+!-------------------------------------------------------------------------------------------
+subroutine initialize_eField(myid)
+implicit none
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: myid
+
+if(myid==0) then
+   print'(a)','-----------------------------------------------------------'
+   print'(a,f12.6,i6)','eField [V/A], eFiled direction : ', eFieldStrength, eFieldDir
+   print'(a)','-----------------------------------------------------------'
+endif
+
+return
+end subroutine
+
+
+!-------------------------------------------------------------------------------------------
+subroutine EEfield(Etotal,NATOMS,pos,q,f,atype,Eev_kcal)
+implicit none 
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: NATOMS
+real(8),intent(in) :: pos(NATOMS,3),q(NATOMS),atype(NATOMS),Eev_kcal
+
+real(8) :: f(NATOMS,3), Etotal
+
+integer :: i, ity
+real(8) :: Eenergy, Eforce, qic
+
+! NOTE: the energy function from an eField is to be determined and not computed here. 
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   qic = q(i) + Zpqeq(ity)
+
+   Eforce = -qic*eFieldStrength*Eev_kcal
+
+   f(i,eFieldDir) = f(i,eFieldDir) + Eforce
+
+enddo
+
+return
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine get_coulomb_and_dcoulomb_pqeq(rr,alpha,Eclmb,inxn,TBL_Eclmb_PQEq,ff)
+implicit none
+!-------------------------------------------------------------------------------------------
+real(8),intent(in) :: rr(3),alpha,TBL_Eclmb_PQEq(ntype_pqeq2,NTABLE,0:1)
+integer,intent(in) :: inxn
+real(8) :: Ecc,Esc,Ess,dEcc,dEsc,dEss,Eclmb,dEclmb,ff(3)
+
+integer :: i,itb, itb1
+real(8) :: drtb, drtb1, dr1, dr2, dr1i 
+real(8) :: Tap, dTap, clmb, dclmb, screen, dscreen 
+
+real(8) :: dr3,dr4,dr5,dr6,dr7
+
+dr2 = sum(rr(1:3)*rr(1:3))
+
+! note that shell-shell distance could be greater than cutoff though core-core is within the cutoff.
+if(dr2>rctap2) return 
+
+dr1 = sqrt(dr2)
+
+itb = int(dr2*UDRi)
+itb1 = itb+1
+drtb = dr2 - itb*UDR
+drtb = drtb*UDRi
+drtb1= 1.d0-drtb
+
+Eclmb = drtb1*TBL_Eclmb_PQEq(inxn,itb,0)  + drtb*TBL_Eclmb_PQEq(inxn,itb1,0)
+dEclmb = drtb1*TBL_Eclmb_PQEq(inxn,itb,1)  + drtb*TBL_Eclmb_PQEq(inxn,itb1,1)
+
+ff(1:3)=dEclmb*rr(1:3)
+
+return
+
+dr1i = 1.d0/dr1
+clmb = dr1i
+!TODO 1. Tabulate the coulomb term, 2. change the derivatives to our convention, i.e. u(r)'/r^2*dr(1:3)
+!dclmb = -dr1i*dr1i*dr1i 
+dclmb = -dr1i*dr1i
+
+screen = erf(alpha*dr1)
+!dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)*dr1i
+dscreen = 2.d0*alpha*sqrtpi_inv*exp(-alpha*alpha*dr2)
+
+!--- core-core distance is withing the taper cutoff, but core-shell & shell-shell distance can be beyond the cutoff.
+!--- Directly computing the taper function for now. 
+dr3 = dr1*dr2
+dr4 = dr2*dr2
+dr5 = dr1*dr2*dr2
+dr6 = dr2*dr2*dr2
+dr7 = dr1*dr2*dr2*dr2
+Tap = CTap(7)*dr7 + CTap(6)*dr6 + CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+dTap = 7d0*CTap(7)*dr6 + 6d0*CTap(6)*dr5 + 5d0*CTap(5)*dr4 + 4d0*CTap(4)*dr3
+
+Eclmb = clmb*screen*Tap
+dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+ff(1:3)=dEclmb*rr(1:3)/dr1
+
+return
+end subroutine
+
+
+!-------------------------------------------------------------------------------------------
+subroutine set_alphaij_pqeq()
+implicit none
+!-------------------------------------------------------------------------------------------
+integer :: ity,jty
+
+real(8) :: alpha_ci,alpha_cj,alpha_si,alpha_sj 
+
+alphacc(:,:)=0.d0
+alphasc(:,:)=0.d0
+alphass(:,:)=0.d0
+
+do ity=1,ntype_pqeq
+
+   alpha_ci=0.5d0*lambda_pqeq/Rcpqeq(ity)**2
+   alpha_si=0.5d0*lambda_pqeq/Rspqeq(ity)**2
+
+   do jty=1,ntype_pqeq
+
+      alpha_cj=0.5d0*lambda_pqeq/Rcpqeq(jty)**2
+      alpha_sj=0.5d0*lambda_pqeq/Rspqeq(jty)**2
+
+      ! core(i)-core(j) term.
+      alphacc(ity,jty)=sqrt( (alpha_ci*alpha_cj)/(alpha_ci + alpha_cj) )
+
+      ! shell(i)-shell(j) term.
+      if( isPolarizable(ity) .and. isPolarizable(jty) ) &
+          alphass(ity,jty)=sqrt( (alpha_si*alpha_sj)/(alpha_si + alpha_sj) )
+
+      ! shell(i)-core(j) term. the first index must be polarizable atom type. 
+      ! C(r_si_cj) is fine but use alphasc(jty,ity) when refer to alphasc for C(r_ci_sj).
+      if( isPolarizable(ity) ) &
+          alphasc(ity,jty)=sqrt( (alpha_si*alpha_cj)/(alpha_si + alpha_cj) )
+
+   enddo
+
+enddo
+
+end subroutine
+
+
+!-------------------------------------------------------------------------------------------
+subroutine initialize_pqeq(chi,eta)
+implicit none
+!-------------------------------------------------------------------------------------------
+integer :: ity,jty,icounter
+real(8) :: chi(ntype_pqeq),eta(ntype_pqeq)
+
+integer :: i,inxn
+real(8) :: Acc,Asc,Ass
+real(8) :: dr1,dr2,dr3,dr4,dr5,dr6,dr7,dr1i,UDR,UDRi
+real(8) :: clmb,dclmb,screen,dscreen,Tap,dTap,Eclmb,dEclmb
+
+call set_alphaij_pqeq()
+
+!--- for PQEq
+do ity = 1, ntype_pqeq
+  if( .not. isPolarizable(ity) ) then
+    if(myid==0) &
+       print'(a,i3,a)','atom type ', ity, ' is not polarizable. Setting Z & K to zero.'
+    Zpqeq(ity)=0.d0
+    Kspqeq(ity)=0.d0
+  else
+    if(myid==0) then
+       print'(a $)','updating chi and eta '
+
+       print'(a,i3,1x,a2,1x,4f12.6)', &
+         'name,chi,X0pqeq,eta,J0pqeq :', &
+          ity,Elempqeq(ity), chi(ity),X0pqeq(ity), eta(ity),J0pqeq(ity)
+    endif
+
+    chi(ity)=X0pqeq(ity)
+    eta(ity)=J0pqeq(ity)
+  endif
+enddo
+
+!--- 2x factor in param.F90
+eta(:)=2.d0*eta(:)
+
+allocate(inxnpqeq(ntype_pqeq,ntype_pqeq))
+
+icounter=0
+do ity=1, ntype_pqeq
+do jty=ity, ntype_pqeq
+
+   icounter = icounter + 1
+
+   inxnpqeq(ity,jty)=icounter
+   inxnpqeq(jty,ity)=inxnpqeq(ity,jty)
+enddo; enddo
+
+allocate(TBL_Eclmb_pcc(ntype_pqeq2,NTABLE,0:1))
+allocate(TBL_Eclmb_psc(ntype_pqeq2,NTABLE,0:1))
+allocate(TBL_Eclmb_pss(ntype_pqeq2,NTABLE,0:1))
+
+!--- unit distance in r^2 scale
+UDR = rctap2/NTABLE
+UDRi = 1.d0/UDR
+
+do ity=1, ntype_pqeq
+do jty=ity, ntype_pqeq
+
+   Acc = alphacc(ity,jty)
+   Asc = alphasc(ity,jty)
+   Ass = alphass(ity,jty)
+
+   inxn = inxnpqeq(ity,jty)
+
+   do i=1,NTABLE
+
+         dr2 = UDR*i
+         dr1 = sqrt(dr2)
+
+!--- Interaction Parameters:
+         dr3 = dr1*dr2
+         dr4 = dr2*dr2
+         dr5 = dr1*dr2*dr2
+         dr6 = dr2*dr2*dr2
+         dr7 = dr1*dr2*dr2*dr2 
+
+         Tap = CTap(7)*dr7 + CTap(6)*dr6 + &
+               CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+
+!--- Force Calculation:
+         dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
+                5d0*CTap(5)*dr3 + 4d0*CTap(4)*dr2
+
+         dr1i = 1.d0/dr1
+
+         clmb = dr1i
+         dclmb = -dr1i*dr1i*dr1i 
+
+         !--- core-core interaction
+         screen = erf(Acc*dr1)
+         dscreen = 2.d0*Acc*sqrtpi_inv*exp(-Acc*Acc*dr2)*dr1i
+
+         Eclmb = clmb*screen*Tap
+         dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+         TBL_Eclmb_pcc(inxn,i,0) = Eclmb
+         TBL_Eclmb_pcc(inxn,i,1) = dEclmb
+
+         !--- core-shell interaction
+         screen = erf(Asc*dr1)
+         dscreen = 2.d0*Asc*sqrtpi_inv*exp(-Asc*Asc*dr2)*dr1i
+
+         Eclmb = clmb*screen*Tap
+         dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+         TBL_Eclmb_psc(inxn,i,0) = Eclmb
+         TBL_Eclmb_psc(inxn,i,1) = dEclmb
+
+         !--- shell-shell interaction
+         screen = erf(Ass*dr1)
+         dscreen = 2.d0*Ass*sqrtpi_inv*exp(-Ass*Ass*dr2)*dr1i
+
+         Eclmb = clmb*screen*Tap
+         dEclmb = dclmb*screen*Tap + clmb*dscreen*Tap + clmb*screen*dTap
+
+         TBL_Eclmb_pss(inxn,i,0) = Eclmb
+         TBL_Eclmb_pss(inxn,i,1) = dEclmb
+
+   enddo
+
+enddo
+enddo
+
+end subroutine
+
 
 end module

@@ -4,7 +4,6 @@ program rxmd
 use base
 use init
 use reaxff_param_mod
-use pqeq_vars
 use cmdline_args
 use velocity_modifiers_mod
 use communication_mod

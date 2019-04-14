@@ -13,7 +13,6 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 !------------------------------------------------------------------------------------------
 use qeq_mod
 use pqeq_mod
-use pqeq_vars
 use force_mod
 use reaxff_param_mod
 use velocity_modifiers_mod
