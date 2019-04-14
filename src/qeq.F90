@@ -1,6 +1,8 @@
 module qeq_mod
+
   use atoms
   use reaxff_param_mod
+  use memory_allocator_mod
 
 contains
 !------------------------------------------------------------------------------
@@ -186,7 +188,6 @@ CONTAINS
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
-use MemoryAllocator
 ! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <hessian>.  
 ! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------

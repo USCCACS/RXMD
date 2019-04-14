@@ -1,6 +1,7 @@
 !------------------------------------------------------------------------------------------
 module init
 !------------------------------------------------------------------------------------------
+
   use fileio
 
 contains
@@ -15,7 +16,7 @@ use pqeq_vars
 use force_mod
 use reaxff_param_mod
 use velocity_modifiers_mod
-use MemoryAllocator 
+use memory_allocator_mod
 
 implicit none
 
@@ -113,18 +114,18 @@ do i=1,3
 enddo    
 
 !--- dt/2*mass, mass/2
-call allocatord1d(dthm, 1, nso)
-call allocatord1d(hmas, 1, nso)
+call allocator(dthm, 1, nso)
+call allocator(hmas, 1, nso)
 do ity=1, nso
    dthm(ity) = dt*0.5d0/mass(ity)
    hmas(ity) = 0.5d0*mass(ity)
 enddo
 
-call allocatord1d(atype,1,NBUFFER)
-call allocatord1d(q,1,NBUFFER)
-call allocatord2d(pos,1,NBUFFER,1,3)
-call allocatord2d(v,1,NBUFFER,1,3)
-call allocatord2d(f,1,NBUFFER,1,3)
+call allocator(atype,1,NBUFFER)
+call allocator(q,1,NBUFFER)
+call allocator(pos,1,NBUFFER,1,3)
+call allocator(v,1,NBUFFER,1,3)
+call allocator(f,1,NBUFFER,1,3)
 
 !--- For PQEq
 if(isPQEq) then
@@ -137,8 +138,8 @@ call allocatord1d(deltalp,1,NBUFFER)
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- Varaiable for extended Lagrangian method
-call allocatord1d(qtfp,1,NBUFFER)
-call allocatord1d(qtfv,1,NBUFFER)
+call allocator(qtfp,1,NBUFFER)
+call allocator(qtfv,1,NBUFFER)
 qtfp(:)=0.d0; qtfv(:)=0.d0
 
 !call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
@@ -149,7 +150,7 @@ qtfp(:)=0.d0; qtfv(:)=0.d0
 
 !--- get total number of atoms per type. This will be used to determine
 !--- subroutine cutofflength() 
-allocate(natoms_per_type(nso)) ! NOTE 8byte int is not supported in MemoryAllocator
+allocate(natoms_per_type(nso)) ! NOTE 8byte int is not supported in memory_allocator_mod
 natoms_per_type(:)=0
 do i=1, NATOMS
    ity=nint(atype(i))
@@ -169,41 +170,41 @@ GNATOMS=NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 !--- Linked List & Near Neighb Parameters
-call allocatori2d(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
-call allocatori2d(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
-call allocatori2d(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
-call allocatori1d(llist,1,NBUFFER)
-call allocatori3d(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
-call allocatori3d(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
+call allocator(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
+call allocator(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
+call allocator(llist,1,NBUFFER)
+call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
+call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 
 !--- Bond Order Prime and deriv terms:
-call allocatord3d(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord2d(dBOp,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord2d(deltap,1,NBUFFER,1,3)
+call allocator(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(dBOp,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(deltap,1,NBUFFER,1,3)
 
 !--- Bond Order terms
-call allocatord3d(BO,0,3,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord1d(delta,1,NBUFFER)
-call allocatord2d(A0,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord2d(A1,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord2d(A2,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord2d(A3,1,NBUFFER,1,MAXNEIGHBS)
-call allocatord1d(nlp,1,NBUFFER)
-call allocatord1d(dDlp,1,NBUFFER)
-call allocatord1d(ccbnd,1,NBUFFER)
-call allocatord1d(cdbnd,1,NBUFFER)
+call allocator(BO,0,3,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(delta,1,NBUFFER)
+call allocator(A0,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(A1,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(A2,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(A3,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(nlp,1,NBUFFER)
+call allocator(dDlp,1,NBUFFER)
+call allocator(ccbnd,1,NBUFFER)
+call allocator(cdbnd,1,NBUFFER)
 ccbnd(:)=0.d0; cdbnd(:)=0.d0
 
 !--- 2 vector QEq varialbes
-call allocatord1d(qs,1,NBUFFER)
-call allocatord1d(gs,1,NBUFFER)
-call allocatord1d(qt,1,NBUFFER)
-call allocatord1d(gt,1,NBUFFER)
-call allocatord1d(hs,1,NBUFFER)
-call allocatord1d(hshs,1,NBUFFER)
-call allocatord1d(ht,1,NBUFFER)
-call allocatord1d(hsht,1,NBUFFER)
-call allocatord2d(hessian,1,MAXNEIGHBS10,1,NBUFFER)
+call allocator(qs,1,NBUFFER)
+call allocator(gs,1,NBUFFER)
+call allocator(qt,1,NBUFFER)
+call allocator(gt,1,NBUFFER)
+call allocator(hs,1,NBUFFER)
+call allocator(hshs,1,NBUFFER)
+call allocator(ht,1,NBUFFER)
+call allocator(hsht,1,NBUFFER)
+call allocator(hessian,1,MAXNEIGHBS10,1,NBUFFER)
 qs(:)=0.d0; qt(:)=0.d0; gs(:)=0.d0; gt(:)=0.d0; hs(:)=0.d0; ht(:)=0.d0; hshs(:)=0.d0; hsht(:)=0.d0
 
 !--- returning force index array 
@@ -237,7 +238,7 @@ allocate(maxas(i,nmaxas))
 maxas(:,:)=0
 
 !--- for spring force
-call allocatord2d(ipos,1,NBUFFER,1,3)
+call allocator(ipos,1,NBUFFER,1,3)
 ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
 !--- print out parameters and open data file
@@ -245,7 +246,6 @@ if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
-   write(6,'(a30,a70)')      "parameter set:", FFDescript
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
                                   mdmode, current_step, ntime_step
@@ -359,7 +359,7 @@ end subroutine
 subroutine POTENTIALTABLE()
 use atoms 
 use reaxff_param_mod
-use MemoryAllocator
+use memory_allocator_mod
 !------------------------------------------------------------------------------------------
 implicit none
 integer :: i, ity,jty,inxn
@@ -377,9 +377,9 @@ real(8) :: alpha_i, alpha_j
 
 !--- first element in table 0: potential
 !---                        1: derivative of potential
-call allocatord3d(TBL_EClmb,0,1,1,NTABLE,1,nboty)
-call allocatord3d(TBL_Evdw,0,1,1,NTABLE,1,nboty)
-call allocatord2d(TBL_EClmb_QEq,1,NTABLE,1,nboty)
+call allocator(TBL_EClmb,0,1,1,NTABLE,1,nboty)
+call allocator(TBL_Evdw,0,1,1,NTABLE,1,nboty)
+call allocator(TBL_EClmb_QEq,1,NTABLE,1,nboty)
 
 !--- unit distance in r^2 scale
 UDR = rctap2/NTABLE
@@ -465,7 +465,7 @@ end subroutine
 subroutine GetNonbondingMesh()
 use atoms
 use reaxff_param_mod
-use MemoryAllocator
+use memory_allocator_mod
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
 implicit none
@@ -510,7 +510,7 @@ do k=-imesh(3), imesh(3)
    if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
 enddo; enddo; enddo
 
-call allocatori2d(nbmesh,1,3,1,nbnmesh)
+call allocator(nbmesh,1,3,1,nbnmesh)
 
 nbmesh(:,:)=0
 nbnmesh=0
@@ -533,12 +533,12 @@ do k=-imesh(3), imesh(3)
    endif
 enddo; enddo; enddo
 
-call allocatori1d(nbllist,1,NBUFFER)
-call allocatori3d(nbheader, &
+call allocator(nbllist,1,NBUFFER)
+call allocator(nbheader, &
                 -MAXLAYERS_NB,nbcc(1)-1+MAXLAYERS_NB, &
                 -MAXLAYERS_NB,nbcc(2)-1+MAXLAYERS_NB, &
                 -MAXLAYERS_NB,nbcc(3)-1+MAXLAYERS_NB)
-call allocatori3d(nbnacell, &
+call allocator(nbnacell, &
                 -MAXLAYERS_NB,nbcc(1)-1+MAXLAYERS_NB, &
                 -MAXLAYERS_NB,nbcc(2)-1+MAXLAYERS_NB, &
                 -MAXLAYERS_NB,nbcc(3)-1+MAXLAYERS_NB)

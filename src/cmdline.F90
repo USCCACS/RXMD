@@ -1,8 +1,8 @@
 !-------------------------------------------------------------------------------------------
 module cmdline_args
-use atoms
-implicit none
 !-------------------------------------------------------------------------------------------
+
+use atoms
 
 contains
 
@@ -105,7 +105,7 @@ end subroutine
 
 !-------------------------------------------------------------------------------------------
 subroutine get_pqeq_parms(PQEqParmPath)
-use MemoryAllocator
+use memory_allocator_mod
 implicit none
 !-------------------------------------------------------------------------------------------
 character(MAXSTRLENGTH),intent(in) :: PQEqParmPath

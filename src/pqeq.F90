@@ -1,8 +1,9 @@
 module pqeq_mod
+
   use pqeq_vars
   use atoms
   use reaxff_param_mod
-  use MemoryAllocator
+  use memory_allocator_mod
 
 contains
 !------------------------------------------------------------------------------

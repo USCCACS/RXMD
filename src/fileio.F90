@@ -1,10 +1,13 @@
 module fileio
+
+  use atoms
   use reaxff_param_mod
+  use memory_allocator_mod
 
 contains
+
 !----------------------------------------------------------------------------------------
 subroutine OUTPUT(atype, pos, v, q, fileNameBase)
-use atoms 
 !----------------------------------------------------------------------------------------
 implicit none
 
@@ -357,7 +360,6 @@ end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
 subroutine ReadMoS2(atype, rreal, v, q, f, fileName)
-use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
 implicit none
 
@@ -394,13 +396,13 @@ integer :: atype0(nMoS2)
 call system_clock(ti,tk)
 
 !--- allocate arrays
-if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
-if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
-if(.not.allocated(rreal)) call allocatord2d(rreal,1,NBUFFER,1,3)
-if(.not.allocated(v)) call allocatord2d(v,1,NBUFFER,1,3)
-if(.not.allocated(f)) call allocatord2d(f,1,NBUFFER,1,3)
-if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
-if(.not.allocated(qsfv)) call allocatord1d(qsfv,1,NBUFFER)
+if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocator(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocator(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocator(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocator(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocator(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
 f(:,:)=0.0
 
 pos0=(/ &
@@ -464,7 +466,6 @@ end
 
 !--------------------------------------------------------------------------
 subroutine ReadBIN(atype, rreal, v, q, f, fileName)
-use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
 implicit none
 
@@ -538,13 +539,13 @@ call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 allocate(dbuf(10*NATOMS))
 call MPI_File_Read(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
-if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
-if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
-if(.not.allocated(rreal)) call allocatord2d(rreal,1,NBUFFER,1,3)
-if(.not.allocated(v)) call allocatord2d(v,1,NBUFFER,1,3)
-if(.not.allocated(f)) call allocatord2d(f,1,NBUFFER,1,3)
-if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
-if(.not.allocated(qsfv)) call allocatord1d(qsfv,1,NBUFFER)
+if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocator(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocator(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocator(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocator(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocator(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
 f(:,:)=0.0
 
 do i=1, NATOMS
@@ -578,7 +579,6 @@ end
 
 !--------------------------------------------------------------------------
 subroutine WriteBIN(atype, rreal, v, q, fileNameBase)
-use atoms
 !--------------------------------------------------------------------------
 implicit none
 

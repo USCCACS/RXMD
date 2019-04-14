@@ -7,7 +7,7 @@ include ../make.inc
 
 %.o: %.mod
 
-SRCS := velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 param.F90 main.F90 pqeq.F90 cmdline.F90
+SRCS := memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 param.F90 main.F90 pqeq.F90 cmdline.F90
 OBJS := $(SRCS:.F90=.o)
 
 EXE := ../rxmd
@@ -25,7 +25,7 @@ init.o : fileio.o param.o pot.o
 cg.o : fileio.o
 main.F90 : cg.o
 
-cmdline.o : base.o
+cmdline.o : base.o memory.o
 param.o : cmdline.o
 
 fileio.o : param.o

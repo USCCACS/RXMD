@@ -111,7 +111,8 @@ end PROGRAM
 
 !------------------------------------------------------------------------------
 subroutine FinalizeMD(irt)
-use atoms; use MemoryAllocator
+use atoms
+use memory_allocator_mod
 !------------------------------------------------------------------------------
 implicit none
 integer :: i
@@ -188,7 +189,7 @@ end subroutine
 subroutine PRINTE(atype, v, q)
 use atoms
 use reaxff_param_mod
-use MemoryAllocator
+use memory_allocator_mod
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
 !----------------------------------------------------------------------------------------
 implicit none
