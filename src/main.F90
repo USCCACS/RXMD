@@ -6,6 +6,7 @@ use init
 use reaxff_param_mod
 use pqeq_vars
 use cmdline_args
+use velocity_modifiers_mod
 !use CG
 !------------------------------------------------------------------------------
 implicit none
@@ -51,14 +52,14 @@ do nstep=0, ntime_step-1
    endif
 
    if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
-      call INITVELOCITY(atype, v)
+      call gaussian_dist_velocity(atype, v)
 
 !--- element-wise velocity scaling
    if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call ScaleTemperature(atype, v)
+      call scale_temperature(atype, v)
 
    if(mod(nstep,sstep)==0.and.mdmode==8) &
-      call AdjustTemperature(atype, v)
+      call adjust_temperature(atype, v)
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
@@ -179,24 +180,6 @@ if(myid==0) then
 endif
 
 deallocate(ibuf,ibuf1)
-
-end subroutine
-
-!------------------------------------------------------------------------------
-subroutine vkick(dtf, atype, v, f)
-use atoms
-!------------------------------------------------------------------------------
-implicit none
-
-real(8) :: atype(NBUFFER),v(NBUFFER,3),f(NBUFFER,3)
-
-integer :: i, ity
-real(8) :: dtf
-
-do i=1,NATOMS
-   ity = nint(atype(i))
-   v(i,1:3) = v(i,1:3) + dtf*dthm(ity)*f(i,1:3)
-enddo
 
 end subroutine
 
@@ -474,84 +457,6 @@ it_timer(15)=it_timer(15)+(tj-ti)
 
 end subroutine
 
-!----------------------------------------------------------------------
-subroutine angular_momentum(atype, pos, v)
-use atoms
-use reaxff_param_mod
-!----------------------------------------------------------------------
-implicit none
-
-real(8) :: atype(NBUFFER), pos(NBUFFER,3),v(NBUFFER,3)
-
-integer :: i,ity
-real(8) :: com(3), Gcom(3), intsr(3,3), Gintsr(3,3), intsr_i(3,3), angm(3), Gangm(3), angv(3), mm, Gmm
-real(8) :: dr(3), dv(3)
-
-!--- get center of mass
-com(:)=0.d0;     Gcom(:)=0.d0
-mm=0.d0; Gmm=0.d0
-
-do i=1, NATOMS
-   ity = nint(atype(i))
-   mm = mm + mass(ity)
-   com(1:3) = mass(ity)*pos(i,1:3)
-enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-Gmm = mm
-call MPI_ALLREDUCE(MPI_IN_PLACE, com, 3, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-Gcom = com
-Gcom(1:3) = Gcom(1:3)/Gmm
-
-!--- get the angular momentum and inertia tensor from the com
-angm(:)=0.d0;    Gangm(:)=0.d0
-intsr(:,:)=0.d0; Gintsr(:,:)=0.d0
-
-do i=1, NATOMS
-   dr(1:3) = pos(i,1:3) - Gcom(1:3)
-   
-   angm(1) = mass(ity)*( dr(2)*v(i,3)-dr(3)*v(i,2) )
-   angm(2) = mass(ity)*( dr(3)*v(i,1)-dr(1)*v(i,3) )
-   angm(3) = mass(ity)*( dr(1)*v(i,2)-dr(2)*v(i,1) )
-
-   intsr(1,1) = mass(ity)*( dr(2)**2+dr(3)**2 )
-   intsr(2,2) = mass(ity)*( dr(3)**2+dr(1)**2 )
-   intsr(3,3) = mass(ity)*( dr(1)**2+dr(2)**2 )
-
-   intsr(1,2) =-mass(ity)*( dr(1)*dr(2) )
-   intsr(1,3) =-mass(ity)*( dr(1)*dr(3) )
-   intsr(2,3) =-mass(ity)*( dr(2)*dr(3) )
-
-   intsr(2,1) = intsr(1,2)
-   intsr(3,1) = intsr(1,3)
-   intsr(3,2) = intsr(2,3)
-enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, angm, 3, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-Gangm = angm
-call MPI_ALLREDUCE(MPI_IN_PLACE, intsr, 9, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-Gintsr = intsr
-
-!--- get angular velocity
-call matinv(Gintsr, intsr_i)
-
-angv(1) = sum(intsr_i(1,1:3)*angm(1:3))
-angv(2) = sum(intsr_i(2,1:3)*angm(1:3))
-angv(3) = sum(intsr_i(3,1:3)*angm(1:3))
-
-
-!--- correct rotational motion wrt CoM.
-do i=1,NATOMS
-   dr(1:3) = pos(i,1:3) - Gcom(1:3)
-   dv(1) = angv(2)*dr(3) - angv(3)*dr(2)
-   dv(2) = angv(3)*dr(1) - angv(1)*dr(3)
-   dv(3) = angv(1)*dr(2) - angv(2)*dr(1)
-
-   v(i,1:3) = v(i,1:3) - dv(1:3)
-enddo
-
-end subroutine
-
 !--------------------------------------------------------------------------------------------------------------
 subroutine matinv(m1,m2)
 ! get inverse of m1 and save to m2
@@ -678,118 +583,3 @@ do i=1,nmax
 enddo
 
 end subroutine
-
-!-----------------------------------------------------------------------
-subroutine AdjustTemperature(atype, v)
-use atoms
-use reaxff_param_mod
-!-----------------------------------------------------------------------
-implicit none
-real(8) :: atype(NBUFFER), v(NBUFFER,3)
-
-integer :: i,ity
-real(8) :: Ekinetic, ctmp
-
-Ekinetic=0.d0
-
-do i=1, NATOMS
-   ity=nint(atype(i))
-   Ekinetic=Ekinetic+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
-enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-Ekinetic=Ekinetic/GNATOMS
-
-! adjust if current temperature deviates from treq by 5%
-ctmp = sqrt( (treq*UTEMP0)/(Ekinetic*UTEMP) )
-if( abs(ctmp-1.d0) > 0.05d0) then
-
-   do i=1, NATOMS
-      ity=nint(atype(i))
-      v(i,1:3)=ctmp*v(i,1:3)
-   enddo
-
-   call linear_momentum(atype, v)
-
-endif
-
-return
-end
-
-!-----------------------------------------------------------------------
-subroutine ScaleTemperature(atype, v)
-use atoms
-use reaxff_param_mod
-!-----------------------------------------------------------------------
-implicit none
-real(8) :: atype(NBUFFER), v(NBUFFER,3)
-
-integer :: i,ity
-integer,parameter :: MAX_ELEMENT=20
-real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
-
-Ekinetic(:,:)=0.d0
-
-do i=1, NATOMS
-   ity=nint(atype(i))
-   Ekinetic(1,ity)=Ekinetic(1,ity)+1.d0 
-   Ekinetic(2,ity)=Ekinetic(2,ity)+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
-enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, size(Ekinetic), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-
-do ity=1, MAX_ELEMENT
-   if(Ekinetic(1,ity)>1.d0) then
-      ctmp(ity) = Ekinetic(2,ity)/Ekinetic(1,ity)
-      ctmp(ity) = sqrt( (treq*UTEMP0)/(ctmp(ity)*UTEMP) )
-      if(myid==0) print'(a,i4,f8.3,i9,es15.5)', &
-          'atom_type, scaling_factor, num_samples, previous_Ekin: ', &
-          ity, ctmp(ity), nint(Ekinetic(1,ity)), Ekinetic(2,ity)
-   else
-      ctmp(ity) = 0.d0
-   endif
-enddo
-
-do i=1, NATOMS
-   ity=nint(atype(i))
-   v(i,1:3)=ctmp(ity)*v(i,1:3)
-enddo
-
-call linear_momentum(atype, v)
-
-return
-end
-
-!-----------------------------------------------------------------------
-subroutine linear_momentum(atype, v)
-use atoms
-use reaxff_param_mod
-!-----------------------------------------------------------------------
-implicit none
-
-real(8),intent(in) :: atype(NBUFFER)
-real(8),intent(in out) :: v(NBUFFER,3)
-
-integer :: i,ity
-real(8) :: vcm(0:3)
-
-!--- get the local momentum and mass.
-vcm(:)=0.d0
-do i=1, NATOMS
-   ity = nint(atype(i))
-   vcm(1:3)=vcm(1:3) + mass(ity)*v(i,1:3)
-   vcm(0)= vcm(0) + mass(ity)
-enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, vcm, size(vcm), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-
-!--- get the global momentum
-vcm(1:3)=vcm(1:3)/vcm(0)
-
-!--- set the total momentum to be zero 
-do i=1, NATOMS
-   v(i,1:3) = v(i,1:3) - vcm(1:3)
-enddo
-
-return
-end

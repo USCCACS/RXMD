@@ -14,6 +14,7 @@ use pqeq_mod
 use pqeq_vars
 use force_mod
 use reaxff_param_mod
+use velocity_modifiers_mod
 use MemoryAllocator 
 
 implicit none
@@ -239,7 +240,6 @@ maxas(:,:)=0
 call allocatord2d(ipos,1,NBUFFER,1,3)
 ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
-
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') "----------------------------------------------------------------"
@@ -295,77 +295,6 @@ endif
 
 END SUBROUTINE
 end module
-
-!------------------------------------------------------------------------------------------
-SUBROUTINE INITVELOCITY(atype, v)
-use reaxff_param_mod; use atoms
-! Generate gaussian distributed velocity as an initial value  using Box-Muller algorithm
-!------------------------------------------------------------------------------------------
-implicit none
-
-real(8) :: atype(NBUFFER)
-real(8) :: v(NBUFFER,3)
-
-integer :: i, k, ity
-real(8) :: vv(2), vsqr, vsl, rndm(2)
-real(8) :: vCM(3), GvCM(3), mm, Gmm
-real(8) :: vfactor
-
-!--- assign velocity to two atoms together with BM algoritm. 
-!--- If <NATOMS> is odd, the <NATOMS> + 1 element will be the ignored in later calculations.
-
-do i=1, NATOMS, 2
-
-  do k=1,3 ! three directions
-     !--- generate gaussian distributed velocity
-     vsqr=0.d0
-     do while ( (vsqr >= 1.d0) .or. (vsqr==0.d0) ) 
-        call random_number(rndm)
-        vv(1) = 2.d0 * rndm(1) - 1.d0
-        vv(2) = 2.d0 * rndm(2) - 1.d0
-        vsqr = vv(1)**2 + vv(2)**2
-     enddo
-
-     vsl = sqrt(-2.d0 * log(vsqr)/vsqr)
-     v(i,k)   = vv(1)*vsl
-     v(i+1,k) = vv(2)*vsl
-  enddo
-  
-enddo
-
-!--- get the local momentum and mass.
-vCM(:)=0.d0;  mm = 0.d0
-do i=1, NATOMS
-   ity = nint(atype(i))
-   vCM(1:3)=vCM(1:3) + mass(ity)*v(i,1:3)
-   mm = mm + mass(ity)
-enddo
- 
-call MPI_ALLREDUCE(MPI_IN_PLACE, vCM, size(vCM), MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE(MPI_IN_PLACE, mm,1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-GvCM = vCM
-Gmm = mm
-
-!--- get the global momentum
-GvCM(:)=GvCM(:)/Gmm
-
-!--- set the total momentum to be zero and get the current kinetic energy. 
-KE = 0.d0
-do i=1, NATOMS
-   v(i,1:3) = v(i,1:3) - GvCM(1:3)
-
-   ity = nint(atype(i))
-   KE = KE + hmas(ity)*sum( v(i,1:3)*v(i,1:3) )
-enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, KE, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-GKE = KE/GNATOMS
-
-!--- scale the obtained velocity to get the initial temperature.
-vfactor = sqrt(1.5d0*treq/GKE)
-v(:,:) = vfactor * v(:,:)
-
-end subroutine
 
 !------------------------------------------------------------------------------------------
 subroutine CUTOFFLENGTH()

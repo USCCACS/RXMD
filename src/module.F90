@@ -1,4 +1,43 @@
 !-------------------------------------------------------------------------------------------
+module constants
+!-------------------------------------------------------------------------------------------
+
+  integer,parameter :: MAXSTRLENGTH=256
+
+  real(8),parameter :: pi=3.14159265358979d0
+  real(8),parameter :: sqrtpi_inv=1.d0/sqrt(pi)
+
+!--- Unit convetors. In original ReaxFF program, the units of length is [A]
+!--- energy is [kcal/mol] and mass is [amu] respectively.
+!--- Most of numbers written here are obtained below site.
+!--- http://physics.nist.gov/cuu/Constants/Table/allascii.txt
+!--- Bohr length
+  real(8),parameter :: Lbohr_a  = 0.5291772108d0   ! [A]
+  real(8),parameter :: Lbohr_m  = 0.5291772108d-10 ! [m]
+
+!--- Electron rest mass
+  real(8),parameter :: Merest_amu = 5.48580152d-4  ! [amu]
+  real(8),parameter :: Merest_kg  = 9.10938d-31    ! [kg]
+!--- Energy in Hartree
+  real(8),parameter :: Ehrtre_km = 6.2751d2        ! [kcal/mol]
+  real(8),parameter :: Ehrtre_ev  = 27.2113845d0   ! [eV]
+  real(8),parameter :: Ehrtre_j = 4.35974417d-18   ! [J] 
+  real(8),parameter :: Eev_kcal = 23.060538d0      ! [kcal/mol]
+
+  real(8),parameter :: Ekcal_j = 6.95016611d-21  ! [J]
+
+!--- Boltzmann Constant
+  real(8),parameter :: BLTZMN = 1.3806503d-23  ! [m^2 kg s^-2 K^-1 ] 
+
+  real(8),parameter :: UTEMP0 = 503.398008d0    ! Ekcal_j/BLZMN [K]
+  real(8),parameter :: UTEMP = UTEMP0*2.d0/3.d0 ! [K]
+  real(8),parameter :: USTRS = 6.94728103d0     ! [GPa]
+  real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]
+  real(8),parameter :: UTIME = 1.d3/20.455d0    ! 1 = 1/20.445[ps] = 48.88780[fs]
+
+end module
+
+!-------------------------------------------------------------------------------------------
 module base
 !-------------------------------------------------------------------------------------------
 ! position, atom type, velocity, force & charge
@@ -780,42 +819,3 @@ end function
 
 end module MemoryAllocator
 !-------------------------------------------------------------------------------------------
-
-!-------------------------------------------------------------------------------------------
-module constants
-!-------------------------------------------------------------------------------------------
-
-  integer,parameter :: MAXSTRLENGTH=256
-
-  real(8),parameter :: pi=3.14159265358979d0
-  real(8),parameter :: sqrtpi_inv=1.d0/sqrt(pi)
-
-!--- Unit convetors. In original ReaxFF program, the units of length is [A]
-!--- energy is [kcal/mol] and mass is [amu] respectively.
-!--- Most of numbers written here are obtained below site.
-!--- http://physics.nist.gov/cuu/Constants/Table/allascii.txt
-!--- Bohr length
-  real(8),parameter :: Lbohr_a  = 0.5291772108d0   ! [A]
-  real(8),parameter :: Lbohr_m  = 0.5291772108d-10 ! [m]
-
-!--- Electron rest mass
-  real(8),parameter :: Merest_amu = 5.48580152d-4  ! [amu]
-  real(8),parameter :: Merest_kg  = 9.10938d-31    ! [kg]
-!--- Energy in Hartree
-  real(8),parameter :: Ehrtre_km = 6.2751d2        ! [kcal/mol]
-  real(8),parameter :: Ehrtre_ev  = 27.2113845d0   ! [eV]
-  real(8),parameter :: Ehrtre_j = 4.35974417d-18   ! [J] 
-  real(8),parameter :: Eev_kcal = 23.060538d0      ! [kcal/mol]
-
-  real(8),parameter :: Ekcal_j = 6.95016611d-21  ! [J]
-
-!--- Boltzmann Constant
-  real(8),parameter :: BLTZMN = 1.3806503d-23  ! [m^2 kg s^-2 K^-1 ] 
-
-  real(8),parameter :: UTEMP0 = 503.398008d0    ! Ekcal_j/BLZMN [K]
-  real(8),parameter :: UTEMP = UTEMP0*2.d0/3.d0 ! [K]
-  real(8),parameter :: USTRS = 6.94728103d0     ! [GPa]
-  real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]
-  real(8),parameter :: UTIME = 1.d3/20.455d0    ! 1 = 1/20.445[ps] = 48.88780[fs]
-
-end module
