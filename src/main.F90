@@ -1,5 +1,6 @@
 !------------------------------------------------------------------------------
 program rxmd
+!------------------------------------------------------------------------------
 use base
 use init
 use parameters
@@ -29,7 +30,7 @@ CALL INITSYSTEM(atype, pos, v, f, q)
 !if(mdmode==10) call ConjugateGradient(atype,pos)
 
 call charge_model_func(atype, pos, q)
-call FORCE(atype, pos, f, q)
+call force_model_func(atype, pos, f, q)
 
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
@@ -74,7 +75,7 @@ do nstep=0, ntime_step-1
    call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
    
    if(mod(nstep,qstep)==0) call charge_model_func(atype, pos, q)
-   call FORCE(atype, pos, f, q)
+   call force_model_func(atype, pos, f, q)
 
    do i=1, NATOMS
       ity = nint(atype(i))

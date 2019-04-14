@@ -22,7 +22,15 @@ interface charge_model_interface
   end subroutine
 end interface
 
+interface force_model_interface
+  subroutine force_model(atype, pos, f, q)
+    real(8),intent(in),allocatable :: atype(:), pos(:,:), q(:)
+    real(8),intent(in out),allocatable :: f(:,:)
+  end subroutine
+end interface
+
 procedure(charge_model),pointer :: charge_model_func => null()
+procedure(force_model),pointer :: force_model_func => null()
 
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy

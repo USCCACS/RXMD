@@ -12,6 +12,7 @@ use parameters
 use qeq_mod
 use pqeq_mod
 use pqeq_vars
+use force_mod
 use MemoryAllocator 
 
 implicit none
@@ -26,7 +27,10 @@ real(8) :: rcsize(3), maxrcell
 
 wt0 = MPI_WTIME()
 
-!--- for PQEq. cutoff length
+!--- set force model
+force_model_func => force_reaxff
+
+!--- set charge model
 if(isPQEq) then
   charge_model_func => PQEq
   rctap = rctap0_pqeq

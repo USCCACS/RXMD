@@ -1,14 +1,17 @@
+module force_mod
+
+contains
+
 !----------------------------------------------------------------------------------------------------------------------
-subroutine FORCE(atype, pos, f, q)
+subroutine force_reaxff(atype, pos, f, q)
 use parameters
-!use atoms 
 use pqeq_vars
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: pos(NBUFFER,3)
-real(8),intent(inout) :: f(NBUFFER,3)
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: pos(:,:)
+real(8),allocatable,intent(inout) :: f(:,:)
 
 real(8) :: vdummy(1,1) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
@@ -1542,4 +1545,6 @@ use atoms
    
 end subroutine 
 
-END subroutine FORCE
+END subroutine force_reaxff
+
+end module
