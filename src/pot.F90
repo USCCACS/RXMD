@@ -1,11 +1,12 @@
 module force_mod
   use atoms
   use reaxff_param_mod
-
+  use bo_mod
 contains
 
 !----------------------------------------------------------------------------------------------------------------------
 subroutine force_reaxff(atype, pos, f, q)
+use communication_mod
 use reaxff_param_mod
 use pqeq_vars
 !----------------------------------------------------------------------------------------------------------------------

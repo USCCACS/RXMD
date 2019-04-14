@@ -1,3 +1,6 @@
+module communication_mod
+
+contains
 !--------------------------------------------------------------------------------------------------------------
 subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
 use atoms
@@ -595,3 +598,5 @@ endif
 end subroutine
 
 end subroutine COPYATOMS
+
+end module

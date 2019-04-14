@@ -21,7 +21,7 @@ base.o: module.F90
 	$(MPIF90) $(MPIF90_FLAGS) -c module.F90
 
 
-init.o : fileio.o param.o
+init.o : fileio.o param.o pot.o
 cg.o : fileio.o
 main.F90 : cg.o
 
@@ -30,7 +30,7 @@ param.o : cmdline.o
 
 fileio.o : param.o
 bo.o : param.o
-pot.o : param.o
+pot.o : param.o bo.o
 qeq.o : param.o
 pqeq.o : param.o
 velocity.o : param.o

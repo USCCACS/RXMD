@@ -5,6 +5,7 @@ module qeq_mod
 contains
 !------------------------------------------------------------------------------
 subroutine QEq(atype, pos, q)
+  use communication_mod
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 

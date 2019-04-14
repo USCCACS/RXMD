@@ -7,6 +7,7 @@ module pqeq_mod
 contains
 !------------------------------------------------------------------------------
 subroutine PQEq(atype, pos, q)
+  use communication_mod
 !use atoms
 ! Two vector electronegativity equilization routine
 !

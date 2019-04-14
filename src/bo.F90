@@ -1,3 +1,6 @@
+module bo_mod
+
+contains
 !--------------------------------------------------------------------------------------------
 SUBROUTINE BOCALC(nlayer, atype, pos)
 use atoms
@@ -301,3 +304,5 @@ enddo
 END SUBROUTINE
 
 END SUBROUTINE BOCALC
+
+end module
