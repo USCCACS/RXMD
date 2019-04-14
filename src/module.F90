@@ -120,23 +120,6 @@ integer :: vprocs(3)
 integer :: mc(3)
 
 real(8),allocatable:: rc(:), rc2(:)   !<RCUT>: cutoff length for sigma-bonding.
-real(8),allocatable:: rcpi(:), rcpp(:)!      : cutoff length for other bonding.
-
-real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
-real(8),parameter :: MINBO0 = 1d-4       !<minBO0>: cutoff bond order 
-real(8),parameter :: cutof2_esub = 1d-4
-!real(8),parameter :: cutof2_bo = 1.d-2
-real(8),parameter :: cutof2_bo = 1.d-3
-integer,parameter :: is_idEh = 1
-
-!real(8),parameter :: MINBOSIG = 1d-4      !<minBOsig>: criterion to decide <rc> 
-!real(8),parameter :: MINBO0 = 0.d0       !<minBO0>: cutoff bond order 
-!real(8),parameter :: cutof2_esub = 0.d0
-!real(8),parameter :: cutof2_bo = 1d-4
-!integer,parameter :: is_idEh = 0
-
-! cutoff_vpar30 = cutof2_bo*vpar30, used in BOPRIM()
-real(8) :: cutoff_vpar30
 
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
@@ -153,7 +136,7 @@ real(8),parameter :: NSMALL = 1.d-10
 real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
 
 ! stress tensor
-real(8) :: astr(6) 
+real(8) :: astr(6) = 0.d0
 
 !--- coefficient of bonding energy derivative 
 real(8),allocatable :: ccbnd(:)

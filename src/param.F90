@@ -2,6 +2,35 @@
 module reaxff_param_mod
 
 use constants
+
+real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
+real(8),parameter :: MINBO0 = 1d-4       !<minBO0>: cutoff bond order 
+real(8),parameter :: cutof2_esub = 1d-4
+!real(8),parameter :: cutof2_bo = 1.d-2
+real(8),parameter :: cutof2_bo = 1.d-3
+integer,parameter :: is_idEh = 1
+
+!real(8),parameter :: MINBOSIG = 1d-4      !<minBOsig>: criterion to decide <rc> 
+!real(8),parameter :: MINBO0 = 0.d0       !<minBO0>: cutoff bond order 
+!real(8),parameter :: cutof2_esub = 0.d0
+!real(8),parameter :: cutof2_bo = 1d-4
+!integer,parameter :: is_idEh = 0
+
+!--- hydrogen bonding interaction cutoff
+real(8),parameter :: rchb = 10.d0 ![A]
+real(8),parameter :: rchb2 = rchb*rchb
+
+!Coulomb Energy (eq. 22)  
+real(8),parameter:: Cclmb0 = 332.0638d0 ! [kcal/mol/A] line 2481 in poten.f
+real(8),parameter:: Cclmb0_qeq = 14.4d0 ! [ev]
+real(8),parameter:: CEchrge = 23.02d0   ! [ev]
+real(8) :: Cclmb = Cclmb0
+
+! cutoff_vpar30 = cutof2_bo*vpar30, used in BOPRIM()
+real(8) :: cutoff_vpar30
+
+character(MAXSTRLENGTH) :: ffFileHeader
+
 !-------------------------------------------------------------------------------------------
 !  This module stores the parameters input from the rxmda.in file.  This file is 
 !    intentionally very similar to the input setup used by Adri van Duin at Caltech (to aid
@@ -56,15 +85,6 @@ real(8),allocatable :: phb1(:), phb2(:), phb3(:), r0hb(:)   !Hydrogren Bond Ener
 real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waals Energy (eq. 21ab)
 real(8) :: pvdW1, pvdW1h, pvdW1inv
 
-! hydrogen bonding interaction cutoff
-real(8),parameter :: rchb = 10.d0 ![A]
-real(8),parameter :: rchb2 = rchb*rchb
-
-!Coulomb Energy (eq. 22)  
-real(8),parameter:: Cclmb0 = 332.0638d0 ! [kcal/mol/A] line 2481 in poten.f
-real(8),parameter:: Cclmb0_qeq = 14.4d0 ! [ev]
-real(8),parameter:: CEchrge = 23.02d0   ! [ev]
-real(8) :: Cclmb = Cclmb0
 
 real(8),allocatable :: gam(:), gamij(:,:)  
 
@@ -103,9 +123,175 @@ real(8), allocatable :: C_lg(:,:), Re_lg(:)
 real(8), allocatable :: rcore2(:),ecore2(:),acore2(:)
 real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
 
-character(MAXSTRLENGTH) :: ffFileHeader
-
 contains
+
+!------------------------------------------------------------------------------------------
+subroutine get_bondorder_cutoff(rcut, rcut2, maxrcut, natoms_per_type)
+use memory_allocator_mod
+!------------------------------------------------------------------------------------------
+implicit none
+real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
+integer(8),allocatable,intent(in out) :: natoms_per_type(:)
+real(8),intent(in out) :: maxrcut
+
+integer :: ity,jty,inxn
+real(8) :: dr, BOsig
+
+!--- cutoff_vpar30 = cutof2_bo*vpar30, used in BOPRIM()
+cutoff_vpar30 = cutof2_bo*vpar30
+
+!--- get the cutoff length based on sigma bonding interaction.
+
+! --- Remark --- 
+! sigma bond before correction is the longest, namely longer than than pi and double-pi bonds
+! thus check only sigma bond convergence.
+call allocator(rcut, 1, nboty)
+call allocator(rcut2, 1, nboty)
+
+do ity=1, nso
+do jty=ity, nso
+
+   inxn=inxn2(ity,jty)
+   if(inxn==0) cycle
+
+   dr = 1.0d0
+   BOsig = 1.d0
+   do while (BOsig > MINBOSIG) 
+      dr = dr + 0.01d0
+      BOsig = exp( pbo1(inxn)*(dr/r0s(ity,jty))**pbo2(inxn) ) !<- sigma bond prime
+   enddo
+
+   rcut(inxn)  = dr
+   rcut2(inxn) = dr*dr
+enddo
+enddo
+
+!----------------------------------------------------------------------------
+! In some cases, an atom that do not exist in simulation gives
+! the longest bond-order cutoff length. the check below is to ignore
+! such atoms to keep the linkedlist cell dimensions as small as possible.
+!----------------------------------------------------------------------------
+do ity=1, nso
+   if(natoms_per_type(ity)==0) then
+      do jty=1, nso
+         inxn=inxn2(ity,jty)
+         if(inxn/=0) rcut(inxn)=0.d0
+         inxn=inxn2(jty,ity)
+         if(inxn/=0) rcut(inxn)=0.d0
+      enddo
+   endif
+enddo
+
+!--- get the max cutoff length 
+maxrcut = maxval(rcut(:))
+
+end subroutine
+
+!------------------------------------------------------------------------------------------
+subroutine POTENTIALTABLE()
+use atoms 
+use memory_allocator_mod
+!------------------------------------------------------------------------------------------
+implicit none
+integer :: i, ity,jty,inxn
+real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
+
+real(8) :: exp1, exp2
+real(8) :: dr3gamij, gamwinvp, gamWij, alphaij, Dij0, rvdW0
+real(8) :: Tap, dTap, fn13, dfn13, rij_vd1
+
+real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
+
+real(8) :: clmb,dclmb,erf_alphaijr,derf_alphaijr
+real(8) :: alpha_i, alpha_j
+
+
+!--- first element in table 0: potential
+!---                        1: derivative of potential
+call allocator(TBL_EClmb,0,1,1,NTABLE,1,nboty)
+call allocator(TBL_Evdw,0,1,1,NTABLE,1,nboty)
+call allocator(TBL_EClmb_QEq,1,NTABLE,1,nboty)
+
+!--- unit distance in r^2 scale
+UDR = rctap2/NTABLE
+UDRi = 1.d0/UDR
+
+do ity=1, nso
+do jty=ity, nso
+
+   inxn = inxn2(ity,jty)
+   if(inxn/=0) then
+      do i=1, NTABLE
+
+         dr2 = UDR*i
+         dr1 = sqrt(dr2)
+
+!--- Interaction Parameters:
+         gamWij = gamW(ity,jty)
+         alphaij = alpij(ity,jty)
+         Dij0 = Dij(ity,jty)
+         rvdW0 = rvdW(ity,jty) 
+         gamwinvp = (1.d0/gamWij)**pvdW1
+
+         dr3 = dr1*dr2
+         dr4 = dr2*dr2
+         dr5 = dr1*dr2*dr2
+         dr6 = dr2*dr2*dr2
+         dr7 = dr1*dr2*dr2*dr2 
+
+         rij_vd1 = dr2**pvdW1h
+         Tap = CTap(7)*dr7 + CTap(6)*dr6 + &
+               CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
+
+         fn13 = (rij_vd1 + gamwinvp)**pvdW1inv
+         exp1 = exp( alphaij*(1.d0 - fn13 / rvdW0) )
+         exp2 = sqrt(exp1)
+
+         dr3gamij = ( dr3 + gamij(ity,jty) )**( -1.d0/3.d0 )
+
+         TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)
+         TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
+         TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*dr3gamij
+
+!--- Force Calculation:
+         dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
+                5d0*CTap(5)*dr3 + 4d0*CTap(4)*dr2
+
+         dfn13 = ((rij_vd1 + gamwinvp)**(pvdW1inv-1.d0)) * (dr2**(pvdW1h-1.d0)) 
+
+
+         TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
+                            - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
+         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 )
+
+         if(isLG) then
+
+!FIXME LG extension supports only C,H,O,N at this moment. We should use element name instead of fixed numbers.  
+            if (ity > 4 .or. jty > 4) cycle   
+
+            dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
+            dr6_lg = dr_lg**6
+
+
+            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
+            E_core = ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
+
+            dElg = C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
+            dE_core = -acore(ity,jty)*E_core/rcore(ity,jty)/dr1
+
+            TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
+            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg + dTap*E_core+Tap*dE_core
+
+         endif
+
+      enddo
+   endif
+
+enddo
+enddo
+
+end subroutine
+
 
 !-------------------------------------------------------------------------------------------
 subroutine get_reaxff_param(ffFileName)

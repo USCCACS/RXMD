@@ -7,7 +7,8 @@ implicit none
 
    interface allocator
       module procedure :: AllocatorD1D, DeallocatorD1D, AllocatorD2D, DeallocatorD2D, AllocatorD3D, DeallocatorD3D, &
-                          AllocatorI1D, DeallocatorI1D, AllocatorI2D, DeallocatorI2D, AllocatorI3D, DeallocatorI3D
+                          AllocatorI1D, DeallocatorI1D, AllocatorI2D, DeallocatorI2D, AllocatorI3D, DeallocatorI3D, &
+                          AllocatorI81D, DeallocatorI81D
    end interface
 
 contains 
@@ -20,6 +21,8 @@ subroutine AllocatorD1D(array, imin, imax)
   
   allocate(array(imin:imax), stat=status)
   totalMemory = totalMemory + size(array)*8
+
+  array = 0
 
   if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorD1D: totalMemory = ', totalMemory, status
 
@@ -47,6 +50,8 @@ subroutine AllocatorD2D(array, imin1, imax1, imin2, imax2)
   allocate(array(imin1:imax1,imin2:imax2), stat=status)
   totalMemory = totalMemory + size(array)*8
 
+  array = 0
+
   if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorD2D: totalMemory = ', totalMemory, status
 
   return 
@@ -59,6 +64,7 @@ subroutine DeallocatorD2D(array)
   
   totalMemory = totalMemory - size(array)*8
   deallocate(array, stat=status)
+
   if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorD2D: totalMemory = ', totalMemory, status
 
   return
@@ -72,6 +78,8 @@ subroutine AllocatorD3D(array, imin1, imax1, imin2, imax2, imin3, imax3)
   
   allocate(array(imin1:imax1,imin2:imax2,imin3:imax3), stat=status)
   totalMemory = totalMemory + size(array)*8
+
+  array = 0
 
   if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorD3D: totalMemory = ', totalMemory, status
 
@@ -90,6 +98,34 @@ subroutine DeallocatorD3D(array)
   return
 end subroutine 
 
+subroutine AllocatorI81D(array, imin, imax) 
+  implicit none
+  integer,intent(in) :: imin, imax
+  integer(8),allocatable,dimension(:) :: array
+  integer :: status
+  
+  allocate(array(imin:imax), stat=status)
+  totalMemory = totalMemory + size(array)*4
+
+  array = 0
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI1D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine 
+
+subroutine DeallocatorI81D(array) 
+  implicit none
+  integer(8),allocatable,dimension(:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*4
+  deallocate(array, stat=status)
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorI1D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
 subroutine AllocatorI1D(array, imin, imax) 
   implicit none
   integer,intent(in) :: imin, imax
@@ -98,6 +134,8 @@ subroutine AllocatorI1D(array, imin, imax)
   
   allocate(array(imin:imax), stat=status)
   totalMemory = totalMemory + size(array)*4
+
+  array = 0
 
   if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI1D: totalMemory = ', totalMemory, status
 
@@ -125,6 +163,8 @@ subroutine AllocatorI2D(array, imin1, imax1, imin2, imax2)
   allocate(array(imin1:imax1,imin2:imax2), stat=status)
   totalMemory = totalMemory + size(array)*4
 
+  array = 0
+
   if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI2D: totalMemory = ', totalMemory, status
 
   return 
@@ -150,6 +190,8 @@ subroutine AllocatorI3D(array, imin1, imax1, imin2, imax2, imin3, imax3)
   
   allocate(array(imin1:imax1,imin2:imax2,imin3:imax3), stat=status)
   totalMemory = totalMemory + size(array)*4
+
+  array = 0
 
   if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorI3D: totalMemory = ', totalMemory, status
 

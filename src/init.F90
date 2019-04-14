@@ -5,6 +5,7 @@ module init
   use fileio
 
 contains
+
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
@@ -30,34 +31,6 @@ real(8) :: rcsize(3), maxrcell
 
 wt0 = MPI_WTIME()
 
-!--- set force field parameters
-get_forcefield_param => get_reaxff_param
-
-!--- set force model
-force_model_func => force_reaxff
-
-!--- set charge model
-if(isPQEq) then
-  charge_model_func => PQEq
-  rctap = rctap0_pqeq
-else
-  charge_model_func => QEq
-  rctap = rctap0
-endif
-
-rctap2 = rctap**2
-
-CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
-          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
-          20.d0/(rctap)**7 /)
-
-if(isPQEq) then
-   call initialize_pqeq(chi,eta)
-   if(isEfield) call initialize_eField(myid)
-endif
-
-astr(:)=0.d0
-
 !--- an error trap
 if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
   if(myid==0) write(6,'(a60,3i3,i5)')  &
@@ -65,25 +38,6 @@ if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
   call MPI_FINALIZE(ierr)
   stop
 endif
-
-!--- initialize charge with QEq
-if(mdmode==0) then
-  if(myid==0) then
-    print'(a,f12.3,a,i6,a)', &
-         'INFO: mdmode==0, setting isQEQ is 1. Atomic velocities are scaled to ', &
-          treq, ' [K] every ', sstep, ' steps.'
-  endif
-  isQEq=1
-endif
-
-!--- time unit conversion from [fs] -> time unit
-dt = dt/UTIME
-
-!--- square the spring const in the extended Lagrangian method 
-Lex_w2=2.d0*Lex_k/dt/dt
-
-!--- get reduced temperature from [K]
-treq=treq/UTEMP0
 
 !--- setup the vector ID and parity for processes, in x, y and z order.
 vID(1)=mod(myid,vprocs(1))
@@ -113,6 +67,60 @@ do i=1,3
                    
 enddo    
 
+!--- read atom and MD box data
+call allocator(atype,1,NBUFFER)
+call allocator(q,1,NBUFFER)
+call allocator(pos,1,NBUFFER,1,3)
+call allocator(v,1,NBUFFER,1,3)
+call allocator(f,1,NBUFFER,1,3)
+!--- index array for returning reaction force
+call allocator(frcindx,1,NBUFFER)
+
+
+call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+
+!--- get global number of atoms
+GNATOMS = NATOMS ! Convert 4 byte to 8 byte
+call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+
+
+
+!--- set force field parameters
+get_forcefield_param => get_reaxff_param
+
+!--- set force model
+force_model_func => force_reaxff
+
+!--- set charge model
+if(isPQEq) then
+  charge_model_func => PQEq
+  rctap = rctap0_pqeq
+
+  call allocator(spos,1,NBUFFER,1,3)
+
+  call initialize_pqeq(chi,eta)
+  if(isEfield) call initialize_eField(myid)
+else
+  charge_model_func => QEq
+  rctap = rctap0
+endif
+
+rctap2 = rctap**2
+
+CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
+          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
+          20.d0/(rctap)**7 /)
+
+
+!--- time unit conversion from [fs] -> time unit
+dt = dt/UTIME
+
+!--- square the spring const in the extended Lagrangian method 
+Lex_w2=2.d0*Lex_k/dt/dt
+
+!--- get reduced temperature from [K]
+treq=treq/UTEMP0
+
 !--- dt/2*mass, mass/2
 call allocator(dthm, 1, nso)
 call allocator(hmas, 1, nso)
@@ -121,61 +129,42 @@ do ity=1, nso
    hmas(ity) = 0.5d0*mass(ity)
 enddo
 
-call allocator(atype,1,NBUFFER)
-call allocator(q,1,NBUFFER)
-call allocator(pos,1,NBUFFER,1,3)
-call allocator(v,1,NBUFFER,1,3)
-call allocator(f,1,NBUFFER,1,3)
-
-!--- For PQEq
-if(isPQEq) then
-   call allocatord2d(spos,1,NBUFFER,1,3)
-   spos(:,:)=0.d0
-endif
-
 call allocatord1d(deltalp,1,NBUFFER)
-
-call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- Varaiable for extended Lagrangian method
 call allocator(qtfp,1,NBUFFER)
 call allocator(qtfv,1,NBUFFER)
-qtfp(:)=0.d0; qtfv(:)=0.d0
-
-!call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
-!do i=1, 3
-!do j=1, 3
-!   HH(i,j,0)=mat(i,j)
-!enddo; enddo
 
 !--- get total number of atoms per type. This will be used to determine
 !--- subroutine cutofflength() 
-allocate(natoms_per_type(nso)) ! NOTE 8byte int is not supported in memory_allocator_mod
-natoms_per_type(:)=0
+call allocator(natoms_per_type, 1, nso)
 do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
 enddo
+call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
-call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, nso, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
-!--- determine cutoff distances only for exsiting atom pairs
-call CUTOFFLENGTH()
+!--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
+call get_bondorder_cutoff(rc, rc2, maxrc, natoms_per_type)
+
+!--- setup potential table
+call POTENTIALTABLE()
 
 !--- update box-related variables
 call UpdateBoxParams()
 
-!--- get global number of atoms
-GNATOMS=NATOMS ! Convert 4 byte to 8 byte
-call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
 !--- Linked List & Near Neighb Parameters
 call allocator(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
-call allocator(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
 call allocator(llist,1,NBUFFER)
 call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
+
+
+
+!--- extra lists for ReaxFF 
+call allocator(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
 
 !--- Bond Order Prime and deriv terms:
 call allocator(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
@@ -193,7 +182,6 @@ call allocator(nlp,1,NBUFFER)
 call allocator(dDlp,1,NBUFFER)
 call allocator(ccbnd,1,NBUFFER)
 call allocator(cdbnd,1,NBUFFER)
-ccbnd(:)=0.d0; cdbnd(:)=0.d0
 
 !--- 2 vector QEq varialbes
 call allocator(qs,1,NBUFFER)
@@ -205,13 +193,7 @@ call allocator(hshs,1,NBUFFER)
 call allocator(ht,1,NBUFFER)
 call allocator(hsht,1,NBUFFER)
 call allocator(hessian,1,MAXNEIGHBS10,1,NBUFFER)
-qs(:)=0.d0; qt(:)=0.d0; gs(:)=0.d0; gt(:)=0.d0; hs(:)=0.d0; ht(:)=0.d0; hshs(:)=0.d0; hsht(:)=0.d0
 
-!--- returning force index array 
-call allocatord1d(frcindx,1,NBUFFER)
-
-!--- setup potential table
-call POTENTIALTABLE()
 
 !--- get real size of linked list cell
 rcsize(1) = lata/vprocs(1)/cc(1)
@@ -233,9 +215,7 @@ gmm = mm
 dns=gmm/MDBOX*UDENS
 
 !--- allocate & initialize Array size Stat variables
-i=ntime_step/pstep+1
-allocate(maxas(i,nmaxas))
-maxas(:,:)=0
+call allocator(maxas, 1, ntime_step/pstep+1, 1, nmaxas)
 
 !--- for spring force
 call allocator(ipos,1,NBUFFER,1,3)
@@ -295,171 +275,6 @@ endif
 
 END SUBROUTINE
 end module
-
-!------------------------------------------------------------------------------------------
-subroutine CUTOFFLENGTH()
-use atoms
-use reaxff_param_mod
-!------------------------------------------------------------------------------------------
-implicit none
-integer :: ity,jty,inxn
-real(8) :: dr,BOsig
-
-!--- cutoff_vpar30 = cutof2_bo*vpar30, used in BOPRIM()
-cutoff_vpar30 = cutof2_bo*vpar30
-
-!--- get the cutoff length based on sigma bonding interaction.
-
-! --- Remark --- 
-! sigma bond before correction is the longest, namely longer than than pi and double-pi bonds
-! thus check only sigma bond convergence.
-allocate(rc(nboty), rc2(nboty), stat=ast)
-
-rc(:)=0.d0; rc2(:)=0.d0
-do ity=1,nso
-do jty=ity, nso
-
-   inxn=inxn2(ity,jty)
-   if(inxn==0) cycle
-
-   dr = 1.0d0
-   BOsig=1.d0
-   do while (BOsig > MINBOSIG) 
-      dr = dr + 0.01d0
-      BOsig = exp( pbo1(inxn)*(dr/r0s(ity,jty))**pbo2(inxn) ) !<- sigma bond prime
-   enddo
-
-   rc(inxn)  = dr
-   rc2(inxn) = dr*dr
-enddo
-enddo
-
-!----------------------------------------------------------------------------
-! In some cases, an atom that do not exist in simulation gives
-! the longest bond-order cutoff length. the check below is to ignore
-! such atoms to keep the linkedlist cell dimensions as small as possible.
-!----------------------------------------------------------------------------
-do ity=1, nso
-   if(natoms_per_type(ity)==0) then
-      do jty=1, nso
-         inxn=inxn2(ity,jty)
-         if(inxn/=0) rc(inxn)=0.d0
-         inxn=inxn2(jty,ity)
-         if(inxn/=0) rc(inxn)=0.d0
-      enddo
-   endif
-enddo
-
-!--- get the max cutoff length 
-maxrc=maxval(rc(:))
-
-end subroutine
-
-!------------------------------------------------------------------------------------------
-subroutine POTENTIALTABLE()
-use atoms 
-use reaxff_param_mod
-use memory_allocator_mod
-!------------------------------------------------------------------------------------------
-implicit none
-integer :: i, ity,jty,inxn
-real(8) :: dr1, dr2, dr3, dr4, dr5, dr6, dr7
-
-real(8) :: exp1, exp2
-real(8) :: dr3gamij, gamwinvp, gamWij, alphaij, Dij0, rvdW0
-real(8) :: Tap, dTap, fn13, dfn13, rij_vd1
-
-real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
-
-real(8) :: clmb,dclmb,erf_alphaijr,derf_alphaijr
-real(8) :: alpha_i, alpha_j
-
-
-!--- first element in table 0: potential
-!---                        1: derivative of potential
-call allocator(TBL_EClmb,0,1,1,NTABLE,1,nboty)
-call allocator(TBL_Evdw,0,1,1,NTABLE,1,nboty)
-call allocator(TBL_EClmb_QEq,1,NTABLE,1,nboty)
-
-!--- unit distance in r^2 scale
-UDR = rctap2/NTABLE
-UDRi = 1.d0/UDR
-
-do ity=1, nso
-do jty=ity, nso
-
-   inxn = inxn2(ity,jty)
-   if(inxn/=0) then
-      do i=1, NTABLE
-
-         dr2 = UDR*i
-         dr1 = sqrt(dr2)
-
-!--- Interaction Parameters:
-         gamWij = gamW(ity,jty)
-         alphaij = alpij(ity,jty)
-         Dij0 = Dij(ity,jty)
-         rvdW0 = rvdW(ity,jty) 
-         gamwinvp = (1.d0/gamWij)**pvdW1
-
-         dr3 = dr1*dr2
-         dr4 = dr2*dr2
-         dr5 = dr1*dr2*dr2
-         dr6 = dr2*dr2*dr2
-         dr7 = dr1*dr2*dr2*dr2 
-
-         rij_vd1 = dr2**pvdW1h
-         Tap = CTap(7)*dr7 + CTap(6)*dr6 + &
-               CTap(5)*dr5 + CTap(4)*dr4 + CTap(0)
-
-         fn13 = (rij_vd1 + gamwinvp)**pvdW1inv
-         exp1 = exp( alphaij*(1.d0 - fn13 / rvdW0) )
-         exp2 = sqrt(exp1)
-
-         dr3gamij = ( dr3 + gamij(ity,jty) )**( -1.d0/3.d0 )
-
-         TBL_Evdw(0,i,inxn) = Tap*Dij0*(exp1 - 2d0*exp2)
-         TBL_Eclmb(0,i,inxn) = Tap*Cclmb*dr3gamij
-         TBL_Eclmb_QEq(i,inxn) = Tap*Cclmb0_qeq*dr3gamij
-
-!--- Force Calculation:
-         dTap = 7d0*CTap(7)*dr5 + 6d0*CTap(6)*dr4 + &
-                5d0*CTap(5)*dr3 + 4d0*CTap(4)*dr2
-
-         dfn13 = ((rij_vd1 + gamwinvp)**(pvdW1inv-1.d0)) * (dr2**(pvdW1h-1.d0)) 
-
-
-         TBL_Evdw(1,i,inxn) = Dij0*( dTap*(exp1 - 2.d0*exp2)  &
-                            - Tap*(alphaij/rvdW0)*(exp1 - exp2)*dfn13 )
-         TBL_Eclmb(1,i,inxn) = Cclmb*dr3gamij*( dTap - (dr3gamij**3)*Tap*dr1 )
-
-         if(isLG) then
-
-!FIXME LG extension supports only C,H,O,N at this moment. We should use element name instead of fixed numbers.  
-            if (ity > 4 .or. jty > 4) cycle   
-
-            dr_lg = 2*sqrt(Re_lg(ity)*Re_lg(jty))
-            dr6_lg = dr_lg**6
-
-
-            Elg = -C_lg(ity,jty)/(dr6 + dr6_lg)
-            E_core = ecore(ity,jty)*exp(acore(ity,jty)*(1.d0-(dr1/rcore(ity,jty))))
-
-            dElg = C_lg(ity,jty)*(6.d0*dr5)/(dr6 + dr6_lg)**2/dr1
-            dE_core = -acore(ity,jty)*E_core/rcore(ity,jty)/dr1
-
-            TBL_Evdw(0,i,inxn) = TBL_Evdw(0,i,inxn) + Tap*(Elg+E_core)
-            TBL_Evdw(1,i,inxn) = TBL_Evdw(1,i,inxn) + dTap*Elg+Tap*dElg + dTap*E_core+Tap*dE_core
-
-         endif
-
-      enddo
-   endif
-
-enddo
-enddo
-
-end subroutine
 
 !----------------------------------------------------------------
 subroutine GetNonbondingMesh()
