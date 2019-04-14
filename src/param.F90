@@ -1,6 +1,115 @@
 !-------------------------------------------------------------------------------------------
-SUBROUTINE GETPARAMS(ffFileName, ffFileHeader)
-use parameters; use cmdline_args
+module reaxff_param_mod
+
+use constants
+!-------------------------------------------------------------------------------------------
+!  This module stores the parameters input from the rxmda.in file.  This file is 
+!    intentionally very similar to the input setup used by Adri van Duin at Caltech (to aid
+!    in cross-checking and updates).  However, please note that there are a few changes made
+!    aside from the obvious f77 -> f90 switch.  I have tried to clearly note these. 
+!-------------------------------------------------------------------------------------------
+
+!Independant Parameters
+
+integer :: nso    !Number of different types of atoms
+integer :: nboty  !Number of different bonds given
+
+! Atom Dependant (ie where they appear in input file - not implementation in code)
+character(2),allocatable :: atmname(:)      !holds the Chemical Abbrev for each atomtype
+real(8),allocatable :: Val(:),Valboc(:)  !Valency of atomtype (norm, boc) 
+real(8),allocatable :: mass(:)           !mass of atomtype
+
+real(8),allocatable :: pbo1(:), pbo2(:), pbo3(:)   !Bond Order terms
+real(8),allocatable :: pbo4(:), pbo5(:), pbo6(:)   !Bond Order terms
+real(8),allocatable :: pboc1(:), pboc2(:), pboc3(:)  !Bond Order correction terms (f1-5)
+real(8),allocatable :: pboc4(:), pboc5(:)            !Bond Order correction terms (f1-5)  
+real(8),allocatable :: v13cor(:) !<kn>
+
+real(8),allocatable :: rat(:),rapt(:),vnq(:)   !r0s/r0p/r0pp for like bonds 
+real(8),allocatable :: ovc(:)  !a flag to apply fn4 and fn5 !<kn>
+
+real(8),allocatable :: Desig(:),Depi(:),Depipi(:)  !Bond Energy parameters (eq. 6)
+real(8),allocatable :: pbe1(:),pbe2(:)             !Bond Energy parameters (eq. 6) 
+
+real(8),allocatable :: Vale(:)                      !Lone Pair Energy parameters (eq. 7)
+real(8),allocatable :: plp1(:), nlpopt(:), plp2(:)  !Lone Pair Energy parameters (eq.8-10)  
+
+real(8),allocatable :: povun1(:), povun2(:), povun3(:), povun4(:)   !Overcoordination Energy (eq. 11)
+real(8),allocatable :: povun5(:), povun6(:), povun7(:), povun8(:)   !Undercoordination Energy (eq. 12)
+
+real(8),allocatable :: pval1(:), pval2(:), pval3(:), pval4(:), pval5(:)   !Valency Angle Energy (eq. 13a-g)
+real(8),allocatable :: pval6(:), pval7(:), pval8(:), pval9(:), pval10(:)   
+real(8),allocatable :: Valangle(:), theta00(:)
+
+real(8),allocatable :: ppen1(:), ppen2(:), ppen3(:), ppen4(:)   !Penalty Energy (eq. 14ab)
+
+real(8),allocatable :: pcoa1(:), pcoa2(:), pcoa3(:), pcoa4(:)   !Conjugation (3 body) Energy (eq.15)
+real(8),allocatable :: Valval(:)
+
+real(8),allocatable :: ptor1(:), ptor2(:), ptor3(:), ptor4(:)   !Torsional Energy Terms (eq.16abc)
+real(8),allocatable :: V1(:), V2(:), V3(:)
+
+real(8),allocatable :: pcot1(:), pcot2(:)  !Conjugation (4body) Energy (eq. 17ab)
+
+real(8),allocatable :: phb1(:), phb2(:), phb3(:), r0hb(:)   !Hydrogren Bond Energy (eq. 18)
+
+real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waals Energy (eq. 21ab)
+real(8) :: pvdW1, pvdW1h, pvdW1inv
+
+! hydrogen bonding interaction cutoff
+real(8),parameter :: rchb = 10.d0 ![A]
+real(8),parameter :: rchb2 = rchb*rchb
+
+!Coulomb Energy (eq. 22)  
+real(8),parameter:: Cclmb0 = 332.0638d0 ! [kcal/mol/A] line 2481 in poten.f
+real(8),parameter:: Cclmb0_qeq = 14.4d0 ! [ev]
+real(8),parameter:: CEchrge = 23.02d0   ! [ev]
+real(8) :: Cclmb = Cclmb0
+
+real(8),allocatable :: gam(:), gamij(:,:)  
+
+!Charge Equilibration part, <chi>  electronegativity   <eta> stiffness
+real(8),allocatable :: chi(:), eta(:)
+
+!End Lost Parameters Listing
+
+!Not Understood Parameters: 
+real(8),allocatable :: bom(:)
+
+! 2-atom combo dependant: 
+real(8),allocatable :: r0s(:,:)       !Bond Order terms
+real(8),allocatable :: r0p(:,:)       !  "" 
+real(8),allocatable :: r0pp(:,:)      !Bond Order terms 
+
+! <inxn2> is type of 2-body interaction 1=C-C, 2=H-C, 3=H-H
+integer,allocatable :: inxn2(:,:)
+
+integer,allocatable :: inxn3(:,:,:)
+integer,allocatable :: inxn3hb(:,:,:)
+integer,allocatable :: inxn4(:,:,:,:)
+
+!Saved calculations to prevent having to recalc lots of times.
+real(8),allocatable :: cBOp1(:), cBOp3(:), cBOp5(:)
+real(8),allocatable :: pbo2h(:), pbo4h(:), pbo6h(:)  
+
+!NOTE: for debugging purpose variables
+real(8)  :: vpar30,vpar1,vpar2
+
+!--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
+real(8),allocatable :: switch(:,:) 
+
+!--- LG params 
+real(8), allocatable :: C_lg(:,:), Re_lg(:)
+real(8), allocatable :: rcore2(:),ecore2(:),acore2(:)
+real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
+
+character(MAXSTRLENGTH) :: ffFileHeader
+
+contains
+
+!-------------------------------------------------------------------------------------------
+subroutine get_reaxff_param(ffFileName)
+use cmdline_args
 !-------------------------------------------------------------------------------------------
 !  This subroutine is designed solely to obtain the parameters used in the Ecalc.f90 
 !    program from the rxmda.in input file.  It is similar to the input routine used
@@ -8,8 +117,7 @@ use parameters; use cmdline_args
 !-------------------------------------------------------------------------------------------
 implicit none
 
-character(*),intent(in) :: ffFileName  ! force field parm file
-character(*),intent(inout) :: ffFileHeader ! 1st line of the FF file
+character(MAXSTRLENGTH),intent(in) :: ffFileName  ! force field parm file
 
 integer :: i,j,inxn   !counters for initialization
 integer :: i0,i1,i2,i3,i4,ih  !Counters: # corresp to #-atom depend 
@@ -372,4 +480,6 @@ if(myid==0) then
   
 endif
 
-END SUBROUTINE
+end subroutine
+
+end module reaxff_param_mod

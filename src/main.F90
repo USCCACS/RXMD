@@ -3,7 +3,7 @@ program rxmd
 !------------------------------------------------------------------------------
 use base
 use init
-use parameters
+use reaxff_param_mod
 use pqeq_vars
 use cmdline_args
 !use CG
@@ -22,7 +22,7 @@ if(myid==0)  print'(a30)', 'rxmd has started'
 call get_cmdline_args(myid, eFieldDir, eFieldStrength)
 
 !--- read ffield file
-CALL GETPARAMS(FFPath,FFDescript)
+call get_reaxff_param(ffpath)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
@@ -202,7 +202,9 @@ end subroutine
 
 !----------------------------------------------------------------------------------------
 subroutine PRINTE(atype, v, q)
-use atoms; use parameters; use MemoryAllocator
+use atoms
+use reaxff_param_mod
+use MemoryAllocator
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
 !----------------------------------------------------------------------------------------
 implicit none
@@ -313,7 +315,8 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine NEIGHBORLIST(nlayer, atype, pos)
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 !----------------------------------------------------------------------
 implicit none
@@ -412,7 +415,8 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine GetNonbondingPairList(pos)
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !----------------------------------------------------------------------
 implicit none
 
@@ -472,7 +476,8 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine angular_momentum(atype, pos, v)
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !----------------------------------------------------------------------
 implicit none
 
@@ -676,7 +681,8 @@ end subroutine
 
 !-----------------------------------------------------------------------
 subroutine AdjustTemperature(atype, v)
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !-----------------------------------------------------------------------
 implicit none
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
@@ -712,7 +718,8 @@ end
 
 !-----------------------------------------------------------------------
 subroutine ScaleTemperature(atype, v)
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !-----------------------------------------------------------------------
 implicit none
 real(8) :: atype(NBUFFER), v(NBUFFER,3)
@@ -755,7 +762,8 @@ end
 
 !-----------------------------------------------------------------------
 subroutine linear_momentum(atype, v)
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !-----------------------------------------------------------------------
 implicit none
 

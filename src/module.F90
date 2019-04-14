@@ -9,11 +9,19 @@ end module
 !-------------------------------------------------------------------------------------------
 module atoms
 !-------------------------------------------------------------------------------------------
+use constants
+
 #ifdef NOMPI
   use nompi
 #else
   include 'mpif.h'
 #endif
+
+interface forcefield_param_interface
+  subroutine forcefield_param(path)
+    character(*),intent(in) :: path
+  end subroutine
+end interface
 
 interface charge_model_interface
   subroutine charge_model(atype, pos, q)
@@ -31,6 +39,7 @@ end interface
 
 procedure(charge_model),pointer :: charge_model_func => null()
 procedure(force_model),pointer :: force_model_func => null()
+procedure(forcefield_param),pointer :: get_forcefield_param => null()
 
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
@@ -103,9 +112,6 @@ real(8),parameter :: MAXANGLE= 0.999999999999d0
 real(8),parameter :: MINANGLE=-0.999999999999d0
 real(8),parameter :: NSMALL = 1.d-10
 real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
-
-real(8),parameter :: pi=3.14159265358979d0
-real(8),parameter :: sqrtpi_inv=1.d0/sqrt(pi)
 
 ! stress tensor
 real(8) :: astr(6) 
@@ -190,34 +196,6 @@ integer :: nmesh, nbnmesh
 integer,allocatable :: mesh(:,:), nbmesh(:,:)
 
 
-!--- Unit convetors. In original ReaxFF program, the units of length is [A]
-!--- energy is [kcal/mol] and mass is [amu] respectively.
-!--- Most of numbers written here are obtained below site.
-!--- http://physics.nist.gov/cuu/Constants/Table/allascii.txt
-!--- Bohr length
-real(8),parameter :: Lbohr_a  = 0.5291772108d0   ! [A]
-real(8),parameter :: Lbohr_m  = 0.5291772108d-10 ! [m]
-
-!--- Electron rest mass
-real(8),parameter :: Merest_amu = 5.48580152d-4  ! [amu]
-real(8),parameter :: Merest_kg  = 9.10938d-31    ! [kg]
-!--- Energy in Hartree
-real(8),parameter :: Ehrtre_km = 6.2751d2        ! [kcal/mol]
-real(8),parameter :: Ehrtre_ev  = 27.2113845d0   ! [eV]
-real(8),parameter :: Ehrtre_j = 4.35974417d-18   ! [J] 
-real(8),parameter :: Eev_kcal = 23.060538d0      ! [kcal/mol]
-
-real(8),parameter :: Ekcal_j = 6.95016611d-21  ! [J]
-
-!--- Boltzmann Constant
-real(8),parameter :: BLTZMN = 1.3806503d-23  ! [m^2 kg s^-2 K^-1 ] 
-
-real(8),parameter :: UTEMP0 = 503.398008d0    ! Ekcal_j/BLZMN [K]
-real(8),parameter :: UTEMP = UTEMP0*2.d0/3.d0 ! [K]
-real(8),parameter :: USTRS = 6.94728103d0     ! [GPa]
-real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]
-real(8),parameter :: UTIME = 1.d3/20.455d0    ! 1 = 1/20.445[ps] = 48.88780[fs]
-
 !--- QEq variables. 
 !<isQEq> flag to run QEq routine: 0-No QEq, 1-CG, 2-Extended Lagrangian
 integer :: isQEq
@@ -271,7 +249,6 @@ real(8) :: UDR, UDRi
 
 integer(8),allocatable :: ibuf8(:)
 
-integer,parameter :: MAXSTRLENGTH=256
 
 !--- FF parameter description
 character(MAXSTRLENGTH) :: FFDescript
@@ -632,113 +609,6 @@ end subroutine
 end module
 !-------------------------------------------------------------------------------------------
 
-
-!-------------------------------------------------------------------------------------------
-module parameters
-!-------------------------------------------------------------------------------------------
-!  This module stores the parameters input from the rxmda.in file.  This file is 
-!    intentionally very similar to the input setup used by Adri van Duin at Caltech (to aid
-!    in cross-checking and updates).  However, please note that there are a few changes made
-!    aside from the obvious f77 -> f90 switch.  I have tried to clearly note these. 
-!-------------------------------------------------------------------------------------------
-!use cmdline_args
-
-!Independant Parameters
-
-integer :: nso    !Number of different types of atoms
-integer :: nboty  !Number of different bonds given
-
-! Atom Dependant (ie where they appear in input file - not implementation in code)
-character(2),allocatable :: atmname(:)      !holds the Chemical Abbrev for each atomtype
-real(8),allocatable :: Val(:),Valboc(:)  !Valency of atomtype (norm, boc) 
-real(8),allocatable :: mass(:)           !mass of atomtype
-
-real(8),allocatable :: pbo1(:), pbo2(:), pbo3(:)   !Bond Order terms
-real(8),allocatable :: pbo4(:), pbo5(:), pbo6(:)   !Bond Order terms
-real(8),allocatable :: pboc1(:), pboc2(:), pboc3(:)  !Bond Order correction terms (f1-5)
-real(8),allocatable :: pboc4(:), pboc5(:)            !Bond Order correction terms (f1-5)  
-real(8),allocatable :: v13cor(:) !<kn>
-
-real(8),allocatable :: rat(:),rapt(:),vnq(:)   !r0s/r0p/r0pp for like bonds 
-real(8),allocatable :: ovc(:)  !a flag to apply fn4 and fn5 !<kn>
-
-real(8),allocatable :: Desig(:),Depi(:),Depipi(:)  !Bond Energy parameters (eq. 6)
-real(8),allocatable :: pbe1(:),pbe2(:)             !Bond Energy parameters (eq. 6) 
-
-real(8),allocatable :: Vale(:)                      !Lone Pair Energy parameters (eq. 7)
-real(8),allocatable :: plp1(:), nlpopt(:), plp2(:)  !Lone Pair Energy parameters (eq.8-10)  
-
-real(8),allocatable :: povun1(:), povun2(:), povun3(:), povun4(:)   !Overcoordination Energy (eq. 11)
-real(8),allocatable :: povun5(:), povun6(:), povun7(:), povun8(:)   !Undercoordination Energy (eq. 12)
-
-real(8),allocatable :: pval1(:), pval2(:), pval3(:), pval4(:), pval5(:)   !Valency Angle Energy (eq. 13a-g)
-real(8),allocatable :: pval6(:), pval7(:), pval8(:), pval9(:), pval10(:)   
-real(8),allocatable :: Valangle(:), theta00(:)
-
-real(8),allocatable :: ppen1(:), ppen2(:), ppen3(:), ppen4(:)   !Penalty Energy (eq. 14ab)
-
-real(8),allocatable :: pcoa1(:), pcoa2(:), pcoa3(:), pcoa4(:)   !Conjugation (3 body) Energy (eq.15)
-real(8),allocatable :: Valval(:)
-
-real(8),allocatable :: ptor1(:), ptor2(:), ptor3(:), ptor4(:)   !Torsional Energy Terms (eq.16abc)
-real(8),allocatable :: V1(:), V2(:), V3(:)
-
-real(8),allocatable :: pcot1(:), pcot2(:)  !Conjugation (4body) Energy (eq. 17ab)
-
-real(8),allocatable :: phb1(:), phb2(:), phb3(:), r0hb(:)   !Hydrogren Bond Energy (eq. 18)
-
-real(8),allocatable :: Dij(:,:), alpij(:,:), rvdW(:,:), gamW(:,:)  !Van der Waals Energy (eq. 21ab)
-real(8) :: pvdW1, pvdW1h, pvdW1inv
-
-! hydrogen bonding interaction cutoff
-real(8),parameter :: rchb = 10.d0 ![A]
-real(8),parameter :: rchb2 = rchb*rchb
-
-!Coulomb Energy (eq. 22)  
-real(8),parameter:: Cclmb0 = 332.0638d0 ! [kcal/mol/A] line 2481 in poten.f
-real(8),parameter:: Cclmb0_qeq = 14.4d0 ! [ev]
-real(8),parameter:: CEchrge = 23.02d0   ! [ev]
-real(8) :: Cclmb = Cclmb0
-
-real(8),allocatable :: gam(:), gamij(:,:)  
-
-!Charge Equilibration part, <chi>  electronegativity   <eta> stiffness
-real(8),allocatable :: chi(:), eta(:)
-
-!End Lost Parameters Listing
-
-!Not Understood Parameters: 
-real(8),allocatable :: bom(:)
-
-! 2-atom combo dependant: 
-real(8),allocatable :: r0s(:,:)       !Bond Order terms
-real(8),allocatable :: r0p(:,:)       !  "" 
-real(8),allocatable :: r0pp(:,:)      !Bond Order terms 
-
-! <inxn2> is type of 2-body interaction 1=C-C, 2=H-C, 3=H-H
-integer,allocatable :: inxn2(:,:)
-
-integer,allocatable :: inxn3(:,:,:)
-integer,allocatable :: inxn3hb(:,:,:)
-integer,allocatable :: inxn4(:,:,:,:)
-
-!Saved calculations to prevent having to recalc lots of times.
-real(8),allocatable :: cBOp1(:), cBOp3(:), cBOp5(:)
-real(8),allocatable :: pbo2h(:), pbo4h(:), pbo6h(:)  
-
-!NOTE: for debugging purpose variables
-real(8)  :: vpar30,vpar1,vpar2
-
-!--- <switch> flag to omit pi and double pi bond in bond-order prime calculation.
-real(8),allocatable :: switch(:,:) 
-
-!--- LG params 
-real(8), allocatable :: C_lg(:,:), Re_lg(:)
-real(8), allocatable :: rcore2(:),ecore2(:),acore2(:)
-real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
-
-end module parameters 
-
 !-------------------------------------------------------------------------------------------
 module MemoryAllocator
 !-------------------------------------------------------------------------------------------
@@ -911,3 +781,41 @@ end function
 end module MemoryAllocator
 !-------------------------------------------------------------------------------------------
 
+!-------------------------------------------------------------------------------------------
+module constants
+!-------------------------------------------------------------------------------------------
+
+  integer,parameter :: MAXSTRLENGTH=256
+
+  real(8),parameter :: pi=3.14159265358979d0
+  real(8),parameter :: sqrtpi_inv=1.d0/sqrt(pi)
+
+!--- Unit convetors. In original ReaxFF program, the units of length is [A]
+!--- energy is [kcal/mol] and mass is [amu] respectively.
+!--- Most of numbers written here are obtained below site.
+!--- http://physics.nist.gov/cuu/Constants/Table/allascii.txt
+!--- Bohr length
+  real(8),parameter :: Lbohr_a  = 0.5291772108d0   ! [A]
+  real(8),parameter :: Lbohr_m  = 0.5291772108d-10 ! [m]
+
+!--- Electron rest mass
+  real(8),parameter :: Merest_amu = 5.48580152d-4  ! [amu]
+  real(8),parameter :: Merest_kg  = 9.10938d-31    ! [kg]
+!--- Energy in Hartree
+  real(8),parameter :: Ehrtre_km = 6.2751d2        ! [kcal/mol]
+  real(8),parameter :: Ehrtre_ev  = 27.2113845d0   ! [eV]
+  real(8),parameter :: Ehrtre_j = 4.35974417d-18   ! [J] 
+  real(8),parameter :: Eev_kcal = 23.060538d0      ! [kcal/mol]
+
+  real(8),parameter :: Ekcal_j = 6.95016611d-21  ! [J]
+
+!--- Boltzmann Constant
+  real(8),parameter :: BLTZMN = 1.3806503d-23  ! [m^2 kg s^-2 K^-1 ] 
+
+  real(8),parameter :: UTEMP0 = 503.398008d0    ! Ekcal_j/BLZMN [K]
+  real(8),parameter :: UTEMP = UTEMP0*2.d0/3.d0 ! [K]
+  real(8),parameter :: USTRS = 6.94728103d0     ! [GPa]
+  real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]
+  real(8),parameter :: UTIME = 1.d3/20.455d0    ! 1 = 1/20.445[ps] = 48.88780[fs]
+
+end module

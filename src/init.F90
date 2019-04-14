@@ -1,18 +1,19 @@
 !------------------------------------------------------------------------------------------
 module init
-use fileio
 !------------------------------------------------------------------------------------------
+  use fileio
+
 contains
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use parameters
 use qeq_mod
 use pqeq_mod
 use pqeq_vars
 use force_mod
+use reaxff_param_mod
 use MemoryAllocator 
 
 implicit none
@@ -26,6 +27,9 @@ integer(8) :: i8
 real(8) :: rcsize(3), maxrcell
 
 wt0 = MPI_WTIME()
+
+!--- set force field parameters
+get_forcefield_param => get_reaxff_param
 
 !--- set force model
 force_model_func => force_reaxff
@@ -294,7 +298,7 @@ end module
 
 !------------------------------------------------------------------------------------------
 SUBROUTINE INITVELOCITY(atype, v)
-use parameters; use atoms
+use reaxff_param_mod; use atoms
 ! Generate gaussian distributed velocity as an initial value  using Box-Muller algorithm
 !------------------------------------------------------------------------------------------
 implicit none
@@ -365,7 +369,8 @@ end subroutine
 
 !------------------------------------------------------------------------------------------
 subroutine CUTOFFLENGTH()
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !------------------------------------------------------------------------------------------
 implicit none
 integer :: ity,jty,inxn
@@ -423,7 +428,9 @@ end subroutine
 
 !------------------------------------------------------------------------------------------
 subroutine POTENTIALTABLE()
-use atoms; use parameters; use MemoryAllocator
+use atoms 
+use reaxff_param_mod
+use MemoryAllocator
 !------------------------------------------------------------------------------------------
 implicit none
 integer :: i, ity,jty,inxn
@@ -527,7 +534,9 @@ end subroutine
 
 !----------------------------------------------------------------
 subroutine GetNonbondingMesh()
-use atoms; use parameters; use MemoryAllocator
+use atoms
+use reaxff_param_mod
+use MemoryAllocator
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
 implicit none
@@ -638,7 +647,8 @@ end subroutine
 
 !----------------------------------------------------------------
 subroutine UpdateBoxParams()
-use atoms; use parameters
+use atoms
+use reaxff_param_mod
 !----------------------------------------------------------------
 implicit none
 

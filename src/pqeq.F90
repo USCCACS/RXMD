@@ -1,11 +1,13 @@
 module pqeq_mod
+  use pqeq_vars
+  use atoms
+  use reaxff_param_mod
+  use MemoryAllocator
 
 contains
 !------------------------------------------------------------------------------
 subroutine PQEq(atype, pos, q)
 !use atoms
-use pqeq_vars
-use parameters
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -263,7 +265,6 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
-use atoms; use parameters; use MemoryAllocator
 ! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <hessian>.  
 ! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
@@ -362,7 +363,6 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_hsh(Est)
-use atoms; use parameters
 ! This subroutine updates hessian*cg array <hsh> and the electrostatic energy <Est>.  
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
@@ -439,7 +439,6 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_gradient(Gnew)
-use atoms; use parameters
 ! Update gradient vector <g> and new residue <Gnew>
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none

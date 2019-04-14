@@ -1,9 +1,10 @@
 module qeq_mod
+  use atoms
+  use reaxff_param_mod
 
 contains
 !------------------------------------------------------------------------------
 subroutine QEq(atype, pos, q)
-use atoms; use parameters
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -184,7 +185,7 @@ CONTAINS
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
-use atoms; use parameters; use MemoryAllocator
+use MemoryAllocator
 ! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <hessian>.  
 ! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
@@ -272,7 +273,6 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_hsh(Est,hshs_sum,hsht_sum)
-use atoms; use parameters
 ! This subroutine updates hessian*cg array <hsh> and the electrostatic energy <Est>.  
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
@@ -324,7 +324,6 @@ end subroutine
 subroutine get_gradient(Gnew)
 ! Update gradient vector <g> and new residue <Gnew>
 !-----------------------------------------------------------------------------------------------------------------------
-use atoms; use parameters
 implicit none
 real(8),intent(OUT) :: Gnew(2)
 real(8) :: eta_ity, ggnew(2)
