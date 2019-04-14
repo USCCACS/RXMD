@@ -24,7 +24,7 @@ real(8),allocatable,dimension(:) :: atype, q
 real(8),allocatable,dimension(:,:) :: pos,v,f
 
 integer :: i,j,k, ity, l(3), ist=0
-real(8) :: mm, gmm, dns, mat(3,3)
+real(8) :: mm, dns, mat(3,3)
 integer(8) :: i8
 real(8) :: rcsize(3), maxrcell
 
@@ -90,7 +90,13 @@ get_forcefield_param => get_reaxff_param
 !--- set force model
 force_model_func => force_reaxff
 
+!--- set potentialtable constructor
+set_potentialtable => set_reaxff_potentialtables
+
 !--- set charge model
+charge_model_func => QEq
+rctap = rctap0
+
 if(isPQEq) then
   charge_model_func => PQEq
   rctap = rctap0_pqeq
@@ -99,11 +105,10 @@ if(isPQEq) then
 
   call initialize_pqeq(chi,eta)
   if(isEfield) call initialize_eField(myid)
-else
-  charge_model_func => QEq
-  rctap = rctap0
+
 endif
 
+!--- set taper function for the vdw and coulomb terms
 rctap2 = rctap**2
 
 CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
@@ -111,24 +116,15 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
           20.d0/(rctap)**7 /)
 
 
-!--- time unit conversion from [fs] -> time unit
-dt = dt/UTIME
-
-!--- square the spring const in the extended Lagrangian method 
-Lex_w2=2.d0*Lex_k/dt/dt
-
-!--- get reduced temperature from [K]
-treq=treq/UTEMP0
-
 !--- dt/2*mass, mass/2
-call allocator(dthm, 1, nso)
-call allocator(hmas, 1, nso)
-do ity=1, nso
-   dthm(ity) = dt*0.5d0/mass(ity)
-   hmas(ity) = 0.5d0*mass(ity)
+call allocator(dthm, 1, size(mass))
+call allocator(hmas, 1, size(mass))
+do ity=1, size(mass)
+   if(mass(ity) > 0.d0) then
+      dthm(ity) = dt*0.5d0/mass(ity)
+      hmas(ity) = 0.5d0*mass(ity)
+   endif
 enddo
-
-call allocatord1d(deltalp,1,NBUFFER)
 
 !--- Varaiable for extended Lagrangian method
 call allocator(qtfp,1,NBUFFER)
@@ -141,14 +137,16 @@ do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
 enddo
-call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
+                   MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 
 !--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
 call get_bondorder_cutoff(rc, rc2, maxrc, natoms_per_type)
 
 !--- setup potential table
-call POTENTIALTABLE()
+call set_potentialtable()
 
 !--- update box-related variables
 call UpdateBoxParams()
@@ -169,6 +167,7 @@ call allocator(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
 call allocator(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
 call allocator(dBOp,1,NBUFFER,1,MAXNEIGHBS)
 call allocator(deltap,1,NBUFFER,1,3)
+call allocator(deltalp,1,NBUFFER)
 
 !--- Bond Order terms
 call allocator(BO,0,3,1,NBUFFER,1,MAXNEIGHBS)
@@ -193,13 +192,6 @@ call allocator(ht,1,NBUFFER)
 call allocator(hsht,1,NBUFFER)
 call allocator(hessian,1,MAXNEIGHBS10,1,NBUFFER)
 
-
-!--- get real size of linked list cell
-rcsize(1) = lata/vprocs(1)/cc(1)
-rcsize(2) = latb/vprocs(2)/cc(2)
-rcsize(3) = latc/vprocs(3)/cc(3)
-maxrcell = maxval(rcsize(1:3))
-
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()
 
@@ -210,15 +202,16 @@ do i=1, NATOMS
    mm = mm + mass(ity)
 enddo
 call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-gmm = mm
-dns=gmm/MDBOX*UDENS
+dns=mm/MDBOX*UDENS
 
 !--- allocate & initialize Array size Stat variables
 call allocator(maxas, 1, ntime_step/pstep+1, 1, nmaxas)
 
 !--- for spring force
-call allocator(ipos,1,NBUFFER,1,3)
-ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
+if (isSpring) then
+  call allocator(ipos,1,NBUFFER,1,3)
+  ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
+endif
 
 !--- print out parameters and open data file
 if(myid==0) then
@@ -391,7 +384,6 @@ end subroutine
 !----------------------------------------------------------------
 subroutine UpdateBoxParams()
 use atoms
-use reaxff_param_mod
 !----------------------------------------------------------------
 implicit none
 

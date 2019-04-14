@@ -56,6 +56,11 @@ use constants
   include 'mpif.h'
 #endif
 
+interface potentialtable_interface
+  subroutine potentialtable_ctor()
+  end subroutine
+end interface
+
 interface forcefield_param_interface
   subroutine forcefield_param(path)
     character(*),intent(in) :: path
@@ -79,6 +84,7 @@ end interface
 procedure(charge_model),pointer :: charge_model_func => null()
 procedure(force_model),pointer :: force_model_func => null()
 procedure(forcefield_param),pointer :: get_forcefield_param => null()
+procedure(potentialtable_ctor),pointer :: set_potentialtable => null()
 
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy

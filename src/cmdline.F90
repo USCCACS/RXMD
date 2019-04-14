@@ -266,6 +266,16 @@ if(find_cmdline_argc('--isBondFile',idx)) isBondFile=.true.
 if(find_cmdline_argc('--isPDB',idx)) isPDB=.true. 
 if(find_cmdline_argc('--isXYZ',idx)) isXYZ=.true. 
 
+
+!--- time unit conversion from [fs] -> time unit
+dt = dt/UTIME
+
+!--- temperature unit conversion from [K]
+treq = treq/UTEMP0
+
+!--- square the spring const in the extended Lagrangian method 
+Lex_w2=2.d0*Lex_k/dt/dt
+
 end subroutine
 
 !-------------------------------------------------------------------------------------------

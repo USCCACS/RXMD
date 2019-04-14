@@ -188,7 +188,7 @@ maxrcut = maxval(rcut(:))
 end subroutine
 
 !------------------------------------------------------------------------------------------
-subroutine POTENTIALTABLE()
+subroutine set_reaxff_potentialtables()
 use atoms 
 use memory_allocator_mod
 !------------------------------------------------------------------------------------------
