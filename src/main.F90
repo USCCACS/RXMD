@@ -1,10 +1,14 @@
 !------------------------------------------------------------------------------
 program rxmd
-use base; use init; use pqeq_vars; use parameters
-use CG; use cmdline_args
+use base
+use init
+use parameters
+use pqeq_vars
+use cmdline_args
+!use CG
 !------------------------------------------------------------------------------
 implicit none
-integer :: i,ity,it1,it2,irt,provided
+integer :: i,ity,it1,it2,irt
 real(8) :: ctmp, dr(3)
 
 call MPI_INIT(ierr)
@@ -22,13 +26,9 @@ CALL GETPARAMS(FFPath,FFDescript)
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
 
-if(mdmode==10) call ConjugateGradient(atype,pos)
+!if(mdmode==10) call ConjugateGradient(atype,pos)
 
-if(isPQEq) then
-   call PQEq(atype, pos, q)
-else
-   call QEq(atype, pos, q)
-endif
+call charge_model_func(atype, pos, q)
 call FORCE(atype, pos, f, q)
 
 !--- Enter Main MD loop 
@@ -36,9 +36,8 @@ call system_clock(it1,irt)
 
 do nstep=0, ntime_step-1
 
-   if(mod(nstep,pstep)==0) then
-       call PRINTE(atype, v, q)
-   endif
+   if(mod(nstep,pstep)==0) call PRINTE(atype, v, q)
+
    if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
@@ -68,19 +67,13 @@ do nstep=0, ntime_step-1
    qsfp(1:NATOMS)=qsfp(1:NATOMS)+dt*qsfv(1:NATOMS)
 
 !--- always correct the linear momentum when electric field is applied. 
-   if(isEfield) call LinearMomentum(atype, v)
+   if(isEfield) call linear_momentum(atype, v)
    pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+dt*v(1:NATOMS,1:3)
 
 !--- migrate atoms after positions are updated
    call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
    
-   if(mod(nstep,qstep)==0) then
-      if(isPQEq) then
-         call PQEq(atype, pos, q)
-      else
-         call QEq(atype, pos, q)
-      endif
-   endif
+   if(mod(nstep,qstep)==0) call charge_model_func(atype, pos, q)
    call FORCE(atype, pos, f, q)
 
    do i=1, NATOMS
@@ -709,14 +702,12 @@ if( abs(ctmp-1.d0) > 0.05d0) then
       v(i,1:3)=ctmp*v(i,1:3)
    enddo
 
-   call LinearMomentum(atype, v)
+   call linear_momentum(atype, v)
 
 endif
 
-
 return
 end
-
 
 !-----------------------------------------------------------------------
 subroutine ScaleTemperature(atype, v)
@@ -751,46 +742,44 @@ do ity=1, MAX_ELEMENT
    endif
 enddo
 
-
 do i=1, NATOMS
    ity=nint(atype(i))
    v(i,1:3)=ctmp(ity)*v(i,1:3)
 enddo
 
-call LinearMomentum(atype, v)
+call linear_momentum(atype, v)
 
 return
 end
 
 !-----------------------------------------------------------------------
-subroutine LinearMomentum(atype, v)
+subroutine linear_momentum(atype, v)
 use atoms; use parameters
 !-----------------------------------------------------------------------
 implicit none
 
-real(8) :: atype(NBUFFER), v(NBUFFER,3)
+real(8),intent(in) :: atype(NBUFFER)
+real(8),intent(in out) :: v(NBUFFER,3)
 
 integer :: i,ity
-real(8) :: mm,vCM(3),sbuf(4)
+real(8) :: vcm(0:3)
 
 !--- get the local momentum and mass.
-vCM(:)=0.d0;  mm = 0.d0
+vcm(:)=0.d0
 do i=1, NATOMS
    ity = nint(atype(i))
-   vCM(1:3)=vCM(1:3) + mass(ity)*v(i,1:3)
-   mm = mm + mass(ity)
+   vcm(1:3)=vcm(1:3) + mass(ity)*v(i,1:3)
+   vcm(0)= vcm(0) + mass(ity)
 enddo
 
-sbuf(1)=mm; sbuf(2:4)=vCM(1:3)
-call MPI_ALLREDUCE (MPI_IN_PLACE, sbuf, size(sbuf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-mm=sbuf(1); vCM(1:3)=sbuf(2:4)
+call MPI_ALLREDUCE(MPI_IN_PLACE, vcm, size(vcm), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 !--- get the global momentum
-vCM(:)=vCM(:)/mm
+vcm(1:3)=vcm(1:3)/vcm(0)
 
 !--- set the total momentum to be zero 
 do i=1, NATOMS
-   v(i,1:3) = v(i,1:3) - vCM(1:3)
+   v(i,1:3) = v(i,1:3) - vcm(1:3)
 enddo
 
 return

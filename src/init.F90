@@ -9,6 +9,8 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
 use parameters
+use qeq_mod
+use pqeq_mod
 use pqeq_vars
 use MemoryAllocator 
 
@@ -26,8 +28,10 @@ wt0 = MPI_WTIME()
 
 !--- for PQEq. cutoff length
 if(isPQEq) then
+  charge_model_func => PQEq
   rctap = rctap0_pqeq
 else
+  charge_model_func => QEq
   rctap = rctap0
 endif
 

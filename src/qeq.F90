@@ -1,3 +1,6 @@
+module qeq_mod
+
+contains
 !------------------------------------------------------------------------------
 subroutine QEq(atype, pos, q)
 use atoms; use parameters
@@ -12,8 +15,8 @@ use atoms; use parameters
 !-------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3)
-real(8),intent(out) :: q(NBUFFER)
+real(8),intent(in),allocatable :: atype(:), pos(:,:)
+real(8),intent(in out),allocatable :: q(:)
 real(8) :: vdummy(1,1), fdummy(1,1)
 
 integer :: i,j,l2g
@@ -363,3 +366,5 @@ it_timer(19)=it_timer(19)+(tj-ti)
 end subroutine
 
 end subroutine QEq
+
+end module

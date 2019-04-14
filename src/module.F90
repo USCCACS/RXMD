@@ -15,6 +15,15 @@ module atoms
   include 'mpif.h'
 #endif
 
+interface charge_model_interface
+  subroutine charge_model(atype, pos, q)
+    real(8),intent(in),allocatable :: atype(:), pos(:,:)
+    real(8),intent(in out),allocatable :: q(:)
+  end subroutine
+end interface
+
+procedure(charge_model),pointer :: charge_model_func => null()
+
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
 !  6-NBUFFER for qeq
