@@ -31,6 +31,7 @@ qeq.o : param.o comm.o
 pqeq.o : param.o comm.o
 velocity.o : param.o
 comm.o : param.o
+fnn.o : module.o
 
 main.o : init.o
 

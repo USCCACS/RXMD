@@ -42,17 +42,22 @@ endif
 if(find_cmdline_argc('--rxmdin',idx).or.find_cmdline_argc('-in',idx)) then
     call get_command_argument(idx+1,argv)
     ParmPath=trim(adjustl(argv))
+else
+    ParmPath=trim(adjustl(ParmPath0))
 endif
-call get_rxmd_parms(ParmPath)
 
 if(find_cmdline_argc('--ffield',idx).or.find_cmdline_argc('-ff',idx)) then
     call get_command_argument(idx+1,argv)
     FFPath=trim(adjustl(argv))
+else
+    FFPath=trim(adjustl(FFPath0))
 endif
 
 if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
     call get_command_argument(idx+1,argv)
     DataDir=trim(adjustl(argv))
+else
+    DataDir=trim(adjustl(DataDir0))
 endif
 
 if(find_cmdline_argc('--pqeq',idx).or.find_cmdline_argc('-pqeq',idx)) then
@@ -190,7 +195,7 @@ end
 subroutine get_rxmd_parms(rxmdParmPath)
 implicit none
 !-------------------------------------------------------------------------------------------
-character(MAXSTRLENGTH),intent(in) :: rxmdParmPath
+character(len=:),allocatable,intent(in) :: rxmdParmPath
 character(MAXSTRLENGTH) :: argv
 integer :: idx
 

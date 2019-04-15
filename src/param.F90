@@ -304,7 +304,7 @@ use cmdline_args
 !-------------------------------------------------------------------------------------------
 implicit none
 
-character(MAXSTRLENGTH),intent(in) :: ffFileName  ! force field parm file
+character(len=:),allocatable,intent(in) ::  ffFileName  ! force field parm file
 
 integer :: i,j,inxn   !counters for initialization
 integer :: i0,i1,i2,i3,i4,ih  !Counters: # corresp to #-atom depend 

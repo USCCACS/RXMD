@@ -24,7 +24,7 @@ end interface
 
 interface forcefield_param_interface
   subroutine forcefield_param(path)
-    character(*),intent(in) :: path
+    character(len=:),allocatable,intent(in) :: path
   end subroutine
 end interface
 
@@ -195,7 +195,8 @@ logical :: hasSpringForce(16)
 real(8),allocatable :: ipos(:,:)
 
 logical :: isFF=.false., isData=.false., isMDparm=.false.
-character(MAXSTRLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
+character(MAXSTRLENGTH) :: FFPath0='ffield', DataDir0='DAT', ParmPath0='rxmd.in'
+character(len=:),allocatable :: FFPath, DataDir, ParmPath
 
 logical :: isLG=.false.
 

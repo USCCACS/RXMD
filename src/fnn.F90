@@ -120,11 +120,12 @@ end function
 !------------------------------------------------------------------------------
 subroutine get_feedforward_network(path) 
 !------------------------------------------------------------------------------
-   character(*),intent(in) :: path
+   character(len=:),allocatable,intent(in) :: path
 
    character(1),parameter :: cxyz(3) = ['x','y','z']
    type(network) :: netx,nety,netz
 
+   print*,'path: ', path
    netx = network_ctor(num_dims,path//'/'//cxyz(1))
    nety = network_ctor(num_dims,path//'/'//cxyz(2))
    netz = network_ctor(num_dims,path//'/'//cxyz(3))
@@ -137,7 +138,7 @@ type(network) function network_ctor(dims, netdata_prefix) result(net)
    implicit none
 
    integer(ik),intent(in) :: dims(:)
-   character(*),intent(in) :: netdata_prefix
+   character(len=*),intent(in) :: netdata_prefix
    character(3) :: arow, acol, alayer
 
    integer(ik) :: i, nrow, ncol, fileunit

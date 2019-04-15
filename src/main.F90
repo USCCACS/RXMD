@@ -22,14 +22,17 @@ if(myid==0)  print'(a30)', 'rxmd has started'
 !--- process command line arguments
 call get_cmdline_args(myid, eFieldDir, eFieldStrength)
 
-!--- read ffield file
-!call get_reaxff_param(ffpath)
-call get_feedforward_network('NET')
-
-stop 'foo'
+call get_rxmd_parms(ParmPath)
+call get_reaxff_param(FFPath)
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
+
+!--- read ffield file
+ffpath='DAT'
+call get_forcefield_param(ffpath)
+
+stop 'foo'
 
 !if(mdmode==10) call ConjugateGradient(atype,pos)
 
