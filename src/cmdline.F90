@@ -3,6 +3,7 @@ module cmdline_args
 !-------------------------------------------------------------------------------------------
 
 use atoms
+use fnn
 
 contains
 
@@ -14,7 +15,7 @@ integer,intent(in) :: myrank
 integer :: eFieldDir
 real(8) :: eFieldStrength 
 
-integer :: ity,idx
+integer :: ity,idx, ii, ia, ib
 character(MAXSTRLENGTH) :: argv
 
 if(command_argument_count()>0) then
@@ -99,6 +100,20 @@ if(find_cmdline_argc('--spring',idx).or.find_cmdline_argc('-s',idx)) then
        print'(f10.5)', springConst 
        print'(a60)',repeat('-',60)
     endif
+endif
+
+
+if(find_cmdline_argc('--network_dimensions',idx).or.find_cmdline_argc('-ndims',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv, fmt=*) ii
+
+    num_dims = [num_features]
+    do ia=1, ii
+       call get_command_argument(idx+1+ia,argv)
+       read(argv, fmt=*) ib
+       num_dims = [num_dims, ib]
+    enddo
+    num_dims = [num_dims, num_forcecomps]
 endif
 
 end subroutine
