@@ -81,10 +81,22 @@ interface force_model_interface
   end subroutine
 end interface
 
+interface velocity_scaling_interface
+  subroutine velocity_scaling(atype, v, factor)
+    real(8),intent(in),allocatable :: atype(:)
+    real(8),intent(in out),allocatable :: v(:,:)
+    real(8),intent(in),optional :: factor
+  end subroutine
+end interface
+
 procedure(charge_model),pointer :: charge_model_func => null()
 procedure(force_model),pointer :: force_model_func => null()
 procedure(forcefield_param),pointer :: get_forcefield_param => null()
 procedure(potentialtable_ctor),pointer :: set_potentialtable => null()
+procedure(velocity_scaling),pointer :: velocity_scaling_func => null()
+
+!--- supported force types : 'reaxff', 'nff'
+character(MAXSTRLENGTH) :: force_type='reaxff'
 
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
@@ -122,9 +134,6 @@ integer :: target_node(6)
 ! For benchmarking, <vprocs> and <mc> will be read from vprocs.in
 integer :: vprocs(3)
 
-!<mc(3)> # of unit cells in each directions
-integer :: mc(3)
-
 real(8),allocatable:: rc(:), rc2(:)   !<RCUT>: cutoff length for sigma-bonding.
 
 !integer :: NBUFFER=5000
@@ -144,52 +153,9 @@ real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to d
 ! stress tensor
 real(8) :: astr(6) = 0.d0
 
-!--- coefficient of bonding energy derivative 
-real(8),allocatable :: ccbnd(:)
-real(8),allocatable :: cdbnd(:)
-
 real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
-integer :: ALLATOMS
-
-!<llist> Linked List
-!<header> header atom of linkedlist cell.
-!<nacell> Nr of atoms in a likedlist cell.
-integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
-
-!<nbllist> Linked List for non-bonding interaction
-!<nbheader> header atom of linkedlist cell for non-bonding interaction
-!<nbnacell> Nr of atoms in a likedlist cell for non-bonding interaction
-integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
-
-!<nbrlist> neighbor list, <nbrindx> neighbor index
-integer,allocatable :: nbrlist(:,:), nbrindx(:,:)
-
-!<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
-integer,allocatable :: nbplist(:,:)
-
-!<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
-real(8),allocatable :: BO(:,:,:) 
-
-real(8),allocatable :: delta(:)
-
-!--- Output variables from the BOp_CALC() subroutine:
-real(8),allocatable :: deltap(:,:)
-
-real(8),allocatable :: dln_BOp(:,:,:)
-
-real(8),allocatable :: dBOp(:,:)
-
-!--- For NEW DBO calc:
-real(8),allocatable :: exp_delt1(:,:), exp_delt2(:,:)  ! exp( -pboc#(inxn) * deltap(i,1) ) - {inxn, i}   
-
-!--- A[0123] coefficients for force calculation 
-real(8),allocatable :: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
-
-!--- Passed between Elnpr and E3body
-real(8),allocatable :: nlp(:), dDlp(:) !Number of Lone Pairs, its derivatives.
-real(8),allocatable :: deltalp(:)
 
 ! TE: Total Energy,  KE: Kinetic Energy,  PE :: Potential Energies
 !  0-Esystem, 1-Ebond, 2-Elp, 3-Eover, 4-Eunder, 5-Eval, 6-Epen
@@ -200,22 +166,12 @@ real(8) :: GTE, GKE, GPE(0:13)
 !--- output file format 
 logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.
 
-!--- one vector charge equlibration
-! g: gradient,  h: conjugate direction, hsh: hessian * h
-!real(8),allocatable :: g(:), h(:), hsh(:)
+!<llist> Linked List
+!<header> header atom of linkedlist cell.
+!<nacell> Nr of atoms in a likedlist cell.
+integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
 
-! Two vectors electrostatic energy minimization 
-real(8),allocatable,target :: qs(:),qt(:),gs(:), gt(:), hs(:), ht(:), hshs(:), hsht(:)
-
-!--- variables for extended Lagrangian method ---
-!<Lex_fqs> fraction between two QEq vectors
-!<Lex_w> spring constant
-real(8),allocatable,target :: qsfp(:),qsfv(:),qtfp(:),qtfv(:) 
-real(8),allocatable :: hessian(:,:)
-real(8) :: Lex_fqs=1.0, Lex_w=1.d0, Lex_w2=1.d0, Lex_k=2.d0
  
-integer :: ast ! Allocation STatus of allocatable variables.
-
 ! <lcsize> Linked list Cell SIZE. <cc> Nr of likedlist cell in local node.
 real(8) :: lcsize(3), nblcsize(3)
 integer :: cc(3), nbcc(3)
@@ -252,17 +208,13 @@ integer :: sstep
 !--- output format flags, explained in 'rxmdopt.in'
 integer :: fstep, pstep
 
+!--- conjugate_gradient tolerance of energy convergence 
+REAL(8) :: ftol   
+
 !--- <frcindx> FoRCe INDeX. Index to return calculated force to original atoms.
 real(8),allocatable,target :: frcindx(:)
 integer :: copyptr(0:6)
 
-!--- stress components
-real(8) :: xx,yy,zz,yz,zx,xy
-!--- atomic stress index
-integer :: ia,ja
-
-!--- conjugate_gradient
-REAL(8) :: ftol   ! tolerance of energy convergence 
 
 !--- cutoff range calculation. 
 integer(8),allocatable :: natoms_per_type(:)
@@ -275,8 +227,6 @@ integer,parameter :: NTABLE=5000
 real(8),allocatable :: TBL_Eclmb(:,:,:), TBL_Evdw(:,:,:), TBL_Eclmb_QEq(:,:)
 real(8) :: UDR, UDRi
 
-integer(8),allocatable :: ibuf8(:)
-
 !--- from cmdline_args
 logical :: isSpring=.false.
 real(8) :: springConst=0.d0
@@ -286,13 +236,50 @@ real(8),allocatable :: ipos(:,:)
 logical :: isFF=.false., isData=.false., isMDparm=.false.
 character(MAXSTRLENGTH) :: FFPath="ffield", DataDir="DAT", ParmPath="rxmd.in"
 
-logical :: saveRunProfile=.false.
-character(MAXSTRLENGTH) :: RunProfilePath="profile.dat"
-integer,parameter :: RunProfileFD=30 ! file descriptor for summary file
-
 logical :: isLG=.false.
 
 logical :: isEfield=.false.
+
+
+!<nbllist> Linked List for non-bonding interaction
+!<nbheader> header atom of linkedlist cell for non-bonding interaction
+!<nbnacell> Nr of atoms in a likedlist cell for non-bonding interaction
+integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
+
+!<nbrlist> neighbor list, <nbrindx> neighbor index
+integer,allocatable :: nbrlist(:,:), nbrindx(:,:)
+
+!<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
+integer,allocatable :: nbplist(:,:)
+
+!--- coefficient of bonding energy derivative 
+real(8),allocatable :: ccbnd(:), cdbnd(:)
+
+!<BO> Bond Order of atoms i-j (nearest neighb only) - (Eq 3a-3d)
+real(8),allocatable :: BO(:,:,:) 
+real(8),allocatable :: delta(:)
+
+!--- Output variables from the BOp_CALC() subroutine:
+real(8),allocatable :: deltap(:,:)
+real(8),allocatable :: dln_BOp(:,:,:)
+real(8),allocatable :: dBOp(:,:)
+
+!--- A[0123] coefficients for force calculation 
+real(8),allocatable :: A0(:,:),A1(:,:), A2(:,:), A3(:,:) 
+
+!--- Passed between Elnpr and E3body
+real(8),allocatable :: nlp(:), dDlp(:) !Number of Lone Pairs, its derivatives.
+real(8),allocatable :: deltalp(:)
+
+! Two vectors electrostatic energy minimization 
+real(8),allocatable,target :: qs(:),qt(:),gs(:), gt(:), hs(:), ht(:), hshs(:), hsht(:)
+
+!--- variables for extended Lagrangian method ---
+!<Lex_fqs> fraction between two QEq vectors
+!<Lex_w> spring constant
+real(8),allocatable,target :: qsfp(:),qsfv(:),qtfp(:),qtfv(:) 
+real(8),allocatable :: hessian(:,:)
+real(8) :: Lex_fqs=1.0, Lex_w=1.d0, Lex_w2=1.d0, Lex_k=2.d0
 
 
 !--- Taper function 
@@ -322,6 +309,53 @@ logical :: isPQEq = .false.
 character(MAXSTRLENGTH) :: PQEqParmPath
 
 contains
+
+!------------------------------------------------------------------------------------------
+subroutine reaxff_mdvariables_allocator()
+use memory_allocator_mod
+!------------------------------------------------------------------------------------------
+implicit none
+
+!--- extra lists for ReaxFF 
+call allocator(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
+
+!--- Bond Order Prime and deriv terms:
+call allocator(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(dBOp,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(deltap,1,NBUFFER,1,3)
+call allocator(deltalp,1,NBUFFER)
+
+!--- Bond Order terms
+call allocator(BO,0,3,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(delta,1,NBUFFER)
+call allocator(A0,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(A1,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(A2,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(A3,1,NBUFFER,1,MAXNEIGHBS)
+call allocator(nlp,1,NBUFFER)
+call allocator(dDlp,1,NBUFFER)
+call allocator(ccbnd,1,NBUFFER)
+call allocator(cdbnd,1,NBUFFER)
+
+!--- 2 vector QEq varialbes
+call allocator(qs,1,NBUFFER)
+call allocator(gs,1,NBUFFER)
+call allocator(qt,1,NBUFFER)
+call allocator(gt,1,NBUFFER)
+call allocator(hs,1,NBUFFER)
+call allocator(hshs,1,NBUFFER)
+call allocator(ht,1,NBUFFER)
+call allocator(hsht,1,NBUFFER)
+call allocator(hessian,1,MAXNEIGHBS10,1,NBUFFER)
+
+!--- Varaiable for extended Lagrangian method
+call allocator(qtfp,1,NBUFFER)
+call allocator(qtfv,1,NBUFFER)
+
+return
+end subroutine
+
 
 !-----------------------------------------------------------------------------------------------------------------------
 character(len=256) function rankToString(irank)

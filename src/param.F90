@@ -1,6 +1,9 @@
 !-------------------------------------------------------------------------------------------
 module reaxff_param_mod
 
+  use atoms, only : NBUFFER, MAXNEIGHBS
+  use memory_allocator_mod
+
 use constants
 
 real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
@@ -127,7 +130,6 @@ contains
 
 !------------------------------------------------------------------------------------------
 subroutine get_bondorder_cutoff(rcut, rcut2, maxrcut, natoms_per_type)
-use memory_allocator_mod
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)

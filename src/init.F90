@@ -2,7 +2,14 @@
 module init
 !------------------------------------------------------------------------------------------
 
+  use qeq_mod
+  use pqeq_mod
+  use force_mod
+  use reaxff_param_mod
+  use velocity_modifiers_mod
+  use memory_allocator_mod
   use fileio
+  use fnn
 
 contains
 
@@ -11,12 +18,6 @@ SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
-use qeq_mod
-use pqeq_mod
-use force_mod
-use reaxff_param_mod
-use velocity_modifiers_mod
-use memory_allocator_mod
 
 implicit none
 
@@ -25,8 +26,6 @@ real(8),allocatable,dimension(:,:) :: pos,v,f
 
 integer :: i,j,k, ity, l(3), ist=0
 real(8) :: mm, dns, mat(3,3)
-integer(8) :: i8
-real(8) :: rcsize(3), maxrcell
 
 wt0 = MPI_WTIME()
 
@@ -75,13 +74,11 @@ call allocator(f,1,NBUFFER,1,3)
 !--- index array for returning reaction force
 call allocator(frcindx,1,NBUFFER)
 
-
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- get global number of atoms
 GNATOMS = NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
 
 
 !--- set force field parameters
@@ -94,8 +91,6 @@ force_model_func => force_reaxff
 set_potentialtable => set_reaxff_potentialtables
 
 !--- set charge model
-charge_model_func => QEq
-rctap = rctap0
 
 if(isPQEq) then
   charge_model_func => PQEq
@@ -106,6 +101,11 @@ if(isPQEq) then
   call initialize_pqeq(chi,eta)
   if(isEfield) call initialize_eField(myid)
 
+else
+
+  charge_model_func => QEq
+  rctap = rctap0
+
 endif
 
 !--- set taper function for the vdw and coulomb terms
@@ -115,6 +115,14 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
           84.d0/(rctap)**5, -70.d0/(rctap)**6, &
           20.d0/(rctap)**7 /)
 
+!--- get number of atoms per each type. 
+call allocator(natoms_per_type, 1, size(mass))
+do i=1, NATOMS
+   ity=nint(atype(i))
+   natoms_per_type(ity)=natoms_per_type(ity)+1
+enddo
+call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
+                   MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 !--- dt/2*mass, mass/2
 call allocator(dthm, 1, size(mass))
@@ -126,20 +134,14 @@ do ity=1, size(mass)
    endif
 enddo
 
-!--- Varaiable for extended Lagrangian method
-call allocator(qtfp,1,NBUFFER)
-call allocator(qtfv,1,NBUFFER)
-
-!--- get total number of atoms per type. This will be used to determine
-!--- subroutine cutofflength() 
-call allocator(natoms_per_type, 1, nso)
+!--- get density 
+mm = 0.d0
 do i=1, NATOMS
-   ity=nint(atype(i))
-   natoms_per_type(ity)=natoms_per_type(ity)+1
+   ity = nint(atype(i))
+   mm = mm + mass(ity)
 enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
-                   MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+dns=mm/MDBOX*UDENS
 
 
 !--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
@@ -157,52 +159,11 @@ call allocator(llist,1,NBUFFER)
 call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 
-
-
-!--- extra lists for ReaxFF 
-call allocator(nbrindx,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(nbplist,0,MAXNEIGHBS10,1,NBUFFER)
-
-!--- Bond Order Prime and deriv terms:
-call allocator(dln_BOp,1,3,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(dBOp,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(deltap,1,NBUFFER,1,3)
-call allocator(deltalp,1,NBUFFER)
-
-!--- Bond Order terms
-call allocator(BO,0,3,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(delta,1,NBUFFER)
-call allocator(A0,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(A1,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(A2,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(A3,1,NBUFFER,1,MAXNEIGHBS)
-call allocator(nlp,1,NBUFFER)
-call allocator(dDlp,1,NBUFFER)
-call allocator(ccbnd,1,NBUFFER)
-call allocator(cdbnd,1,NBUFFER)
-
-!--- 2 vector QEq varialbes
-call allocator(qs,1,NBUFFER)
-call allocator(gs,1,NBUFFER)
-call allocator(qt,1,NBUFFER)
-call allocator(gt,1,NBUFFER)
-call allocator(hs,1,NBUFFER)
-call allocator(hshs,1,NBUFFER)
-call allocator(ht,1,NBUFFER)
-call allocator(hsht,1,NBUFFER)
-call allocator(hessian,1,MAXNEIGHBS10,1,NBUFFER)
+call reaxff_mdvariables_allocator()
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()
 
-!--- get density 
-mm = 0.d0
-do i=1, NATOMS
-   ity = nint(atype(i))
-   mm = mm + mass(ity)
-enddo
-call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-dns=mm/MDBOX*UDENS
 
 !--- allocate & initialize Array size Stat variables
 call allocator(maxas, 1, ntime_step/pstep+1, 1, nmaxas)
@@ -215,15 +176,12 @@ endif
 
 !--- print out parameters and open data file
 if(myid==0) then
-   write(6,'(a)') "----------------------------------------------------------------"
+   write(6,'(a)') repeat('-',60)
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
    write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
                                   mdmode, current_step, ntime_step
-   write(6,'(a30,i6,es10.1,i6,i6)') "isQEq,QEq_tol,NMAXQEq,qstep:", &
-                                     isQEq,QEq_tol,NMAXQEq,qstep
-   write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
    write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
    write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
    write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
@@ -236,14 +194,13 @@ if(myid==0) then
    write(6,'(a30,3f10.4)') "density [g/cc]:",dns
    write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
-   maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
+        maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
    write(6,'(a30,3i6)')  '# of linkedlist cell (NB):', nbcc(1:3)
    write(6,'(a30,3f10.2)') "lcsize [A] (NB):", &
-   lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
+        lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
    write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
    write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
-   write(6,'(a30,3(a12,1x))') "FFPath, DataDir, ParmPath:", &
-                          trim(FFPath), trim(DataDir), trim(ParmPath)
+   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
 
    print'(a30 $)','# of atoms per type:'
    do ity=1, nso
@@ -251,8 +208,17 @@ if(myid==0) then
    enddo
    print*
 
+   write(6,'(a)') repeat('-',60)
+   write(6,'(a30,2(a12,1x))') &
+         "FFPath, ParmPath:", trim(FFPath),trim(ParmPath)
+   write(6,'(a30,i6,es10.1,i6,i6)') "isQEq,QEq_tol,NMAXQEq,qstep:", &
+                                     isQEq,QEq_tol,NMAXQEq,qstep
+   write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
+
+
    if(isSpring) then
-     print'(a,f8.2 $)','springConst [kcal/mol] ', springConst 
+     write(6,'(a)') repeat('-',60)
+     write(6,'(a,f8.2 $)') 'springConst [kcal/mol] ', springConst 
      do ity=1, size(hasSpringForce) 
         if(hasSpringForce(ity)) print'(i3 $)',ity
      enddo
