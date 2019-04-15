@@ -23,7 +23,10 @@ if(myid==0)  print'(a30)', 'rxmd has started'
 call get_cmdline_args(myid, eFieldDir, eFieldStrength)
 
 !--- read ffield file
-call get_reaxff_param(ffpath)
+!call get_reaxff_param(ffpath)
+call get_feedforward_network('NET')
+
+stop 'foo'
 
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
@@ -117,9 +120,6 @@ implicit none
 integer :: i
 integer,intent(in) :: irt ! time resolution
 integer,allocatable :: ibuf(:),ibuf1(:)
-
-!--- close summary file
-if(saveRunProfile) close(RunProfileFd)
 
 allocate(ibuf(nmaxas),ibuf1(nmaxas))
 ibuf(:)=0
