@@ -1,10 +1,9 @@
 !-------------------------------------------------------------------------------------------
 module reaxff_param_mod
 
-  use atoms, only : NBUFFER, MAXNEIGHBS
-  use memory_allocator_mod
-
-use constants
+use atoms, only : NBUFFER, MAXNEIGHBS
+use memory_allocator_mod
+use utils
 
 real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
 real(8),parameter :: MINBO0 = 1d-4       !<minBO0>: cutoff bond order 

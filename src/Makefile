@@ -7,7 +7,7 @@ include ../make.inc
 
 %.o: %.mod
 
-SRCS := memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 param.F90 main.F90 pqeq.F90 cmdline.F90 fnn.F90
+SRCS := utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 param.F90 main.F90 pqeq.F90 cmdline.F90 fnn.F90
 OBJS := $(SRCS:.F90=.o)
 
 EXE := ../rxmd
@@ -19,10 +19,10 @@ init.o : fileio.o param.o pot.o fnn.o
 cg.o : fileio.o
 main.F90 : cg.o
 
-module.o : memory.o
+module.o : utils.o memory.o
 
 cmdline.o : module.o memory.o fnn.o
-param.o : cmdline.o
+param.o : cmdline.o utils.o
 
 fileio.o : param.o
 bo.o : param.o
@@ -36,7 +36,7 @@ main.o : init.o
 
 
 nompi: nompi.f90
-	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 module.F90
+	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90
 	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
 
 clean:

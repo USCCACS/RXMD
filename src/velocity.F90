@@ -1,6 +1,6 @@
 module velocity_modifiers_mod
 
-  use constants
+  use utils
 
 contains
 

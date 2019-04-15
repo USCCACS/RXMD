@@ -44,6 +44,80 @@ module fnn
 contains
 
 !------------------------------------------------------------------------------
+subroutine get_fnn_force(atype, pos, f, q)
+!------------------------------------------------------------------------------
+implicit none
+real(8),intent(in),allocatable :: atype(:), pos(:,:), q(:)
+real(8),intent(in out),allocatable :: f(:,:)
+
+end subroutine
+
+!------------------------------------------------------------------------------
+function get_features(num_atoms, atype, pos) result(features)
+use atoms, only: pi
+!------------------------------------------------------------------------------
+implicit none
+integer(ik),intent(in) :: num_atoms
+real(8),intent(in),allocatable :: atype(:), pos(:,:)
+
+real(rk),allocatable :: features(:,:)
+
+real(rk) :: rr(3), rr2, rij, dr_norm, dsum, eta, fr, rij_mu
+integer(ik) :: i, j, j1, l1, l2, ii, idx, ia
+
+do i=1, num_atoms
+
+   do j=1, num_atoms
+
+      if (i==j) cycle
+
+      rr(1:3) = pos(i,1:3) - pos(j,1:3)
+
+      !do ia=1,3
+      !   if(rr(ia)>=sfd%lattice(ia)*0.5d0) rr(ia)=rr(ia)-sfd%lattice(ia)
+      !   if(rr(ia)<-sfd%lattice(ia)*0.5d0) rr(ia)=rr(ia)+sfd%lattice(ia)
+      !enddo
+
+      rr2 = sum(rr(1:3)*rr(1:3))
+      rij = sqrt(rr2)
+
+      if(rij < ml_Rc) then
+
+         rr(1:3) = rr(1:3)/rij
+
+         dr_norm = rij/ml_Rc
+         fr = 0.5*( 1.0 + cos(pi*dr_norm) ) 
+
+         do l1 = 1, num_Mu
+
+            rij_mu = rij - ml_Mu(l1)
+
+            do l2 = 1, num_Eta
+
+               eta = exp( -ml_Eta(l2) * rij_mu * rij_mu )
+
+               idx = (l1-1)*num_Eta*num_forcecomps + (l2-1)*num_forcecomps
+
+               !features(i,idx+1:idx+3) = features(i,idx+1:idx+3) + rr(1:3)*eta*fr
+               features(i,idx+1) = features(i,idx+1) + rr(1)*eta*fr
+            enddo
+         enddo
+
+      endif
+
+   enddo
+
+enddo
+
+!do i=1, sfd%num_atoms
+!   print'(i6,30es13.5)',i,features(i,:)
+!enddo
+!stop 'foo'
+
+return
+end function
+
+!------------------------------------------------------------------------------
 subroutine get_feedforward_network(path) 
 !------------------------------------------------------------------------------
    character(*),intent(in) :: path
@@ -82,15 +156,15 @@ type(network) function network_ctor(dims, netdata_prefix) result(net)
      write(alayer,'(i3)') i; alayer = adjustl(alayer)
      write(arow,'(i3)') nrow; arow = adjustl(arow)
      write(acol,'(i3)') ncol; acol = adjustl(acol)
-     print*,'b: ', trim(netdata_prefix)//'_b_'//trim(alayer)//'_'//trim(acol)//'.bin', size(net%layers(i)%b)
+     print*,'b: ', trim(netdata_prefix)//'_b_'//trim(alayer)//'_'//trim(acol)//'.net', size(net%layers(i)%b)
      open(newunit=fileunit, access='stream', form='unformatted', status='old', &
-          file=trim(netdata_prefix)//'_b_'//trim(alayer)//'_'//trim(acol)//'.bin')
+          file=trim(netdata_prefix)//'_b_'//trim(alayer)//'_'//trim(acol)//'.net')
      read(fileunit) net%layers(i)%b
      close(fileunit)
 
-     print*,'w: ', trim(netdata_prefix)//'_w_'//trim(alayer)//'_'//trim(arow)//'_'//trim(acol)//'.bin'
+     print*,'w: ', trim(netdata_prefix)//'_w_'//trim(alayer)//'_'//trim(arow)//'_'//trim(acol)//'.net'
      open(newunit=fileunit, access='stream', form='unformatted', status='old', &
-          file=trim(netdata_prefix)//'_w_'//trim(alayer)//'_'//trim(arow)//'_'//trim(acol)//'.bin')
+          file=trim(netdata_prefix)//'_w_'//trim(alayer)//'_'//trim(arow)//'_'//trim(acol)//'.net')
      read(fileunit) net%layers(i)%w
      close(fileunit)
    enddo
