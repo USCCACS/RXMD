@@ -6,9 +6,13 @@ implicit none
    integer(8) :: totalMemory=0
 
    interface allocator
-      module procedure :: AllocatorD1D, DeallocatorD1D, AllocatorD2D, DeallocatorD2D, AllocatorD3D, DeallocatorD3D, &
-                          AllocatorI1D, DeallocatorI1D, AllocatorI2D, DeallocatorI2D, AllocatorI3D, DeallocatorI3D, &
-                          AllocatorI81D, DeallocatorI81D
+      module procedure :: AllocatorD1D, AllocatorD2D, AllocatorD3D, AllocatorI1D, &
+                          AllocatorI2D, AllocatorI3D, AllocatorI81D 
+   end interface
+
+   interface deallocator
+      module procedure :: DeallocatorD1D, DeallocatorD2D, DeallocatorD3D, DeallocatorI1D, &
+                          DeallocatorI2D, DeallocatorI3D, DeallocatorI81D
    end interface
 
 contains 

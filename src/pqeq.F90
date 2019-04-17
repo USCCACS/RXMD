@@ -20,11 +20,11 @@ subroutine PQEq(atype, pos, q)
 !-------------------------------------------------------------------------------
 implicit none
 
-real(8),allocatable,intent(in) :: atype(:), pos(:,:)
+real(8),allocatable,intent(in out) :: atype(:), pos(:,:)
 real(8),allocatable,intent(in out) :: q(:)
 
 real(8) :: fpqeq(NBUFFER)
-real(8) :: vdummy(1,1), fdummy(1,1)
+real(8),allocatable :: vdummy(:,:), fdummy(:,:) 
 
 integer :: i,j,l2g
 integer :: i1,j1,k1, nmax

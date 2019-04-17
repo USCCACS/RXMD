@@ -62,4 +62,106 @@ m2(:,:) = m2(:,:)/detm
 
 end subroutine
 
+!--------------------------------------------------------------------------------------------------------------
+integer function l2g(atype) result(global_id)
+implicit none
+!convert Local ID to Global ID 
+!--------------------------------------------------------------------------------------------------------------
+real(8),intent(IN) :: atype
+integer :: ity
+
+ity = nint(atype)
+global_id = nint((atype-ity)*1d13)
+
+return
+end function
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine xu2xs(hhinv,box_origin,nmax,rreal,rnorm)
+! update normalized coordinate from real coordinate. Subtract obox to make them local. 
+!--------------------------------------------------------------------------------------------------------------
+implicit none
+real(8),intent(in) :: hhinv(3,3), box_origin(3)
+integer,intent(in) :: nmax
+real(8),intent(in) :: rreal(:,:)
+real(8),intent(out) :: rnorm(:,:)
+
+real(8) :: rr(3)
+integer :: i
+
+do i=1,nmax
+   rr(1:3) = rreal(i,1:3)
+   rnorm(i,1)=sum(hhinv(1,1:3)*rr(1:3))
+   rnorm(i,2)=sum(hhinv(2,1:3)*rr(1:3))
+   rnorm(i,3)=sum(hhinv(3,1:3)*rr(1:3))
+   rnorm(i,1:3) = rnorm(i,1:3) - box_origin(1:3)
+enddo
+
+end subroutine
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine xu2xs_inplace(hhinv,box_origin,nmax,rreal)
+! update normalized coordinate from real coordinate. Subtract obox to make them local. 
+!--------------------------------------------------------------------------------------------------------------
+implicit none
+real(8),intent(in) :: hhinv(3,3), box_origin(3)
+integer,intent(in) :: nmax
+real(8),intent(inout) :: rreal(:,:)
+real(8) :: rr(3)
+integer :: i
+
+do i=1,nmax
+   rr(1:3) = rreal(i,1:3)
+   rreal(i,1)=sum(hhinv(1,1:3)*rr(1:3))
+   rreal(i,2)=sum(hhinv(2,1:3)*rr(1:3))
+   rreal(i,3)=sum(hhinv(3,1:3)*rr(1:3))
+   rreal(i,1:3) = rreal(i,1:3) - box_origin(1:3)
+enddo
+
+end subroutine
+
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine xs2xu(hh,box_origin,nmax,rnorm,rreal)
+! update real coordinate from normalized coordinate
+!--------------------------------------------------------------------------------------------------------------
+implicit none
+real(8),intent(in) :: hh(3,3,0:1),box_origin(3)
+integer,intent(in) :: nmax
+real(8),intent(in) :: rnorm(:,:)
+real(8),intent(out) :: rreal(:,:)
+
+real(8) :: rr(3)
+integer :: i
+
+do i=1,nmax 
+   rr(1:3) = rnorm(i,1:3) + box_origin(1:3)
+   rreal(i,1)=sum(hh(1,1:3,0)*rr(1:3))
+   rreal(i,2)=sum(hh(2,1:3,0)*rr(1:3))
+   rreal(i,3)=sum(hh(3,1:3,0)*rr(1:3))
+enddo
+
+end subroutine
+
+!--------------------------------------------------------------------------------------------------------------
+subroutine xs2xu_inplace(hh,box_origin,nmax,rnorm)
+! update real coordinate from normalized coordinate
+!--------------------------------------------------------------------------------------------------------------
+implicit none
+real(8),intent(in) :: hh(3,3,0:1),box_origin(3)
+integer,intent(in) :: nmax
+real(8),intent(in out) :: rnorm(:,:)
+
+real(8) :: rr(3)
+integer :: i
+
+do i=1,nmax 
+   rr(1:3) = rnorm(i,1:3) + box_origin(1:3)
+   rnorm(i,1)=sum(hh(1,1:3,0)*rr(1:3))
+   rnorm(i,2)=sum(hh(2,1:3,0)*rr(1:3))
+   rnorm(i,3)=sum(hh(3,1:3,0)*rr(1:3))
+enddo
+
+end subroutine
+
 end module

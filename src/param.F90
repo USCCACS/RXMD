@@ -1,6 +1,7 @@
 !-------------------------------------------------------------------------------------------
 module reaxff_param_mod
 
+use base, only : atmname, mass
 use atoms, only : NBUFFER, MAXNEIGHBS
 use memory_allocator_mod
 use utils
@@ -46,9 +47,9 @@ integer :: nso    !Number of different types of atoms
 integer :: nboty  !Number of different bonds given
 
 ! Atom Dependant (ie where they appear in input file - not implementation in code)
-character(2),allocatable :: atmname(:)      !holds the Chemical Abbrev for each atomtype
+!character(2),allocatable :: atmname(:)      !holds the Chemical Abbrev for each atomtype
 real(8),allocatable :: Val(:),Valboc(:)  !Valency of atomtype (norm, boc) 
-real(8),allocatable :: mass(:)           !mass of atomtype
+!real(8),allocatable :: mass(:)           !mass of atomtype
 
 real(8),allocatable :: pbo1(:), pbo2(:), pbo3(:)   !Bond Order terms
 real(8),allocatable :: pbo4(:), pbo5(:), pbo6(:)   !Bond Order terms
@@ -206,7 +207,6 @@ real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
 real(8) :: clmb,dclmb,erf_alphaijr,derf_alphaijr
 real(8) :: alpha_i, alpha_j
 
-
 !--- first element in table 0: potential
 !---                        1: derivative of potential
 call allocator(TBL_EClmb,0,1,1,NTABLE,1,nboty)
@@ -292,7 +292,6 @@ enddo
 enddo
 
 end subroutine
-
 
 !-------------------------------------------------------------------------------------------
 subroutine get_reaxff_param(ffFileName)
@@ -666,6 +665,91 @@ if(myid==0) then
    write(6,'(a)') repeat('-',60)
   
 endif
+
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine mddriver_reaxff(num_mdsteps)
+use base
+use atoms
+use velocity_modifiers_mod
+use communication_mod
+use fileio
+!-------------------------------------------------------------------------------------------
+implicit none
+integer,intent(in) :: num_mdsteps
+integer :: i,ity
+real(8) :: ctmp
+
+!if(mdmode==10) call ConjugateGradient(atype,pos)
+
+call charge_model_func(atype, pos, q)
+call force_model_func(atype, pos, f, q)
+
+!--- Enter Main MD loop 
+do nstep=0, num_mdsteps-1
+
+   if(mod(nstep,pstep)==0) call PRINTE(atype, v, q)
+
+   if(mod(nstep,fstep)==0) &
+        call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
+
+   if(mod(nstep,sstep)==0.and.mdmode==4) &
+      v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
+
+   if(mod(nstep,sstep)==0.and.mdmode==5) then
+      ctmp = (treq*UTEMP0)/( GKE*UTEMP )
+      v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
+   endif
+
+   if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
+      call gaussian_dist_velocity(atype, v)
+
+!--- element-wise velocity scaling
+   if(mod(nstep,sstep)==0.and.mdmode==7) &
+      call scale_temperature(atype, v)
+
+   if(mod(nstep,sstep)==0.and.mdmode==8) &
+      call adjust_temperature(atype, v)
+
+!--- update velocity
+   call vkick(1.d0, atype, v, f) 
+
+!--- update coordinates
+   qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
+   qsfp(1:NATOMS)=qsfp(1:NATOMS)+dt*qsfv(1:NATOMS)
+
+!--- always correct the linear momentum when electric field is applied. 
+   if(isEfield) call linear_momentum(atype, v)
+   pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+dt*v(1:NATOMS,1:3)
+
+!--- migrate atoms after positions are updated
+   call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
+   
+   if(mod(nstep,qstep)==0) call charge_model_func(atype, pos, q)
+   call force_model_func(atype, pos, f, q)
+
+   do i=1, NATOMS
+      ity = nint(atype(i))
+      astr(1)=astr(1)+v(i,1)*v(i,1)*mass(ity)
+      astr(2)=astr(2)+v(i,2)*v(i,2)*mass(ity)
+      astr(3)=astr(3)+v(i,3)*v(i,3)*mass(ity)
+      astr(4)=astr(4)+v(i,2)*v(i,3)*mass(ity)
+      astr(5)=astr(5)+v(i,3)*v(i,1)*mass(ity)
+      astr(6)=astr(6)+v(i,1)*v(i,2)*mass(ity)
+   end do
+
+!--- update velocity
+   call vkick(1.d0, atype, v, f) 
+   qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
+
+enddo
+
+!--- save the final configurations
+call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
+
+!--- update rxff.bin in working directory for continuation run
+call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
 
 end subroutine
 

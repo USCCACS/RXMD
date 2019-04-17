@@ -13,14 +13,12 @@ use pqeq_mod
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
-real(8),allocatable,intent(in) :: atype(:), q(:)
-real(8),allocatable,intent(in) :: pos(:,:)
-real(8),allocatable,intent(inout) :: f(:,:)
+real(8),allocatable,intent(in out) :: atype(:), q(:)
+real(8),allocatable,intent(in out) :: pos(:,:), f(:,:)
 
-real(8) :: vdummy(1,1) !-- dummy v for COPYATOM. it works as long as the array dimension matches
+real(8),allocatable :: vdummy(:,:) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
 integer :: i, j, k
-integer :: l2g
 real(8) :: dr(3)
 
 integer :: itype(NBUFFER) !-- integer part of atype

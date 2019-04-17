@@ -1,5 +1,6 @@
 module velocity_modifiers_mod
 
+  use base, only : mass
   use utils
 
 contains
@@ -7,7 +8,6 @@ contains
 !------------------------------------------------------------------------------------------
 subroutine simple_scaling(atype, v, scaling_factor)
 use atoms
-use reaxff_param_mod
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -21,7 +21,6 @@ end subroutine
 !------------------------------------------------------------------------------------------
 subroutine scale_to_target_temperature(atype, v, t_target)
 use atoms
-use reaxff_param_mod
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -37,7 +36,6 @@ end subroutine
 !------------------------------------------------------------------------------------------
 subroutine gaussian_dist_velocity(atype, v)
 use atoms
-use reaxff_param_mod
 ! Generate gaussian distributed velocity as an initial value using Box-Muller algorithm
 !------------------------------------------------------------------------------------------
 implicit none
@@ -109,7 +107,6 @@ end subroutine
 !-----------------------------------------------------------------------
 subroutine adjust_temperature(atype, v)
 use atoms
-use reaxff_param_mod
 !-----------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -147,7 +144,6 @@ end
 !-----------------------------------------------------------------------
 subroutine scale_temperature(atype, v)
 use atoms
-use reaxff_param_mod
 !-----------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -192,7 +188,6 @@ end
 !-----------------------------------------------------------------------
 subroutine linear_momentum(atype, v)
 use atoms
-use reaxff_param_mod
 !-----------------------------------------------------------------------
 implicit none
 
@@ -226,7 +221,6 @@ end
 !----------------------------------------------------------------------
 subroutine angular_momentum(atype, pos, v)
 use atoms
-use reaxff_param_mod
 !----------------------------------------------------------------------
 implicit none
 

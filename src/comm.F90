@@ -1,5 +1,7 @@
 module communication_mod
 
+  use memory_allocator_mod
+
 contains
 !--------------------------------------------------------------------------------------------------------------
 subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
@@ -45,10 +47,10 @@ end type
 
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
-real(8),target :: atype(NBUFFER), q(NBUFFER)
-real(8),target :: pos(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
+real(8),allocatable,target,intent(in out) :: atype(:),pos(:,:)
+real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:)
 
-real(8),target :: nipos(NBUFFER,3)  
+real(8),allocatable,target :: nipos(:,:)  
 
 logical :: commflag(NBUFFER)
 type(pack1darray),allocatable :: pack1d(:)
@@ -65,6 +67,8 @@ integer,parameter :: cptridx(6)=(/0,0,2,2,4,4/)
 integer,parameter :: is_xyz(6)=(/1,1,2,2,3,3/)  !<- [xxyyzz]
 
 call system_clock(tti,tk)
+
+call allocator(nipos,1,NBUFFER,1,3)
 
 call initialize(imode)
 
@@ -87,6 +91,8 @@ do dflag=1, 6
    call append_atoms(dflag, imode)
 
 enddo
+
+call deallocator(nipos)
 
 call finalize(imode)
 
@@ -225,7 +231,7 @@ end select
 !--- Get the normalized local coordinate will be used through this function. 
 if(allocated(norm2d)) then
    do a=1,size(norm2d)
-      call xu2xs_inplace(max(copyptr(6),NATOMS),norm2d(a)%ptr)
+      call xu2xs_inplace(hhi,obox,max(copyptr(6),NATOMS),norm2d(a)%ptr)
    enddo
 endif
 
@@ -262,7 +268,7 @@ endif
 !--- by here, we got new atom positions in the normalized coordinate, need to update real coordinates.
 if(allocated(norm2d)) then
    do a=1,size(norm2d)
-      call xs2xu_inplace(copyptr(6),norm2d(a)%ptr)
+      call xs2xu_inplace(hh,obox,copyptr(6),norm2d(a)%ptr)
    enddo
 endif
 

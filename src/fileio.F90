@@ -1,7 +1,8 @@
 module fileio
 
+  use utils, only : l2g
+  use base, only : atmname
   use atoms
-  use reaxff_param_mod
   use memory_allocator_mod
 
 contains
@@ -11,9 +12,9 @@ subroutine OUTPUT(atype, pos, v, q, fileNameBase)
 !----------------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: pos(NBUFFER,3),v(NBUFFER,3)
-character(*),intent(in) :: fileNameBase
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
+character(len=:),allocatable,intent(in) :: fileNameBase
 
 if(isBinary) then
   call WriteBIN(atype,pos,v,q,fileNameBase)
@@ -35,7 +36,6 @@ implicit none
 character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
 integer :: i, ity, j, j1, jty, m
-integer :: l2g
 real(8) :: bndordr(MAXNEIGHBS)
 integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
 
@@ -158,7 +158,7 @@ implicit none
 
 character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
-integer :: i, ity, igd, l2g
+integer :: i, ity, igd 
 real(8) :: tt=0.d0, ss=0.d0
 
 integer (kind=MPI_OFFSET_KIND) :: offset
@@ -247,7 +247,7 @@ implicit none
 
 character(MAXSTRLENGTH),intent(in) :: fileNameBase
 
-integer :: i, ity, idx1, idx0 , l2g, igd
+integer :: i, ity, idx1, idx0 , igd
 
 integer (kind=MPI_OFFSET_KIND) :: offset
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -569,7 +569,7 @@ do j=1, 3
 enddo; enddo
 call UpdateBoxParams()
 
-call xs2xu(NATOMS,rnorm,rreal)
+call xs2xu(hh,obox,NATOMS,rnorm,rreal)
 
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
@@ -582,9 +582,9 @@ subroutine WriteBIN(atype, rreal, v, q, fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: rreal(NBUFFER,3),v(NBUFFER,3)
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: rreal(:,:),v(:,:)
+character(len=:),allocatable,intent(in) :: fileNameBase
 
 integer :: i,j
 
@@ -602,7 +602,7 @@ real(8) :: rnorm(NBUFFER,3)
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-call xu2xs(NATOMS,rreal,rnorm)
+call xu2xs(hhi,obox,NATOMS,rreal,rnorm)
 
 if(.not. isBinary) return
 

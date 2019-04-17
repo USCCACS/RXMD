@@ -1,0 +1,3868 @@
+%!PS-Adobe-3.0
+%%BoundingBox: 24 24 571 818
+%%Title: Enscript Output
+%%For: Ken-ichi Nomura
+%%Creator: GNU Enscript 1.6.6
+%%CreationDate: Mon Apr 15 12:37:49 2019
+%%Orientation: Landscape
+%%Pages: (atend)
+%%DocumentMedia: A4 595 842 0 () ()
+%%DocumentNeededResources: (atend)
+%%EndComments
+%%BeginProlog
+%%BeginResource: procset Enscript-Prolog 1.6 6
+%
+% Procedures.
+%
+
+/_S {	% save current state
+  /_s save def
+} def
+/_R {	% restore from saved state
+  _s restore
+} def
+
+/S {	% showpage protecting gstate
+  gsave
+  showpage
+  grestore
+} bind def
+
+/MF {	% fontname newfontname -> -	make a new encoded font
+  /newfontname exch def
+  /fontname exch def
+
+  /fontdict fontname findfont def
+  /newfont fontdict maxlength dict def
+
+  fontdict {
+    exch
+    dup /FID eq {
+      % skip FID pair
+      pop pop
+    } {
+      % copy to the new font dictionary
+      exch newfont 3 1 roll put
+    } ifelse
+  } forall
+
+  newfont /FontName newfontname put
+
+  % insert only valid encoding vectors
+  encoding_vector length 256 eq {
+    newfont /Encoding encoding_vector put
+  } if
+
+  newfontname newfont definefont pop
+} def
+
+/MF_PS { % fontname newfontname -> -	make a new font preserving its enc
+  /newfontname exch def
+  /fontname exch def
+
+  /fontdict fontname findfont def
+  /newfont fontdict maxlength dict def
+
+  fontdict {
+    exch
+    dup /FID eq {
+      % skip FID pair
+      pop pop
+    } {
+      % copy to the new font dictionary
+      exch newfont 3 1 roll put
+    } ifelse
+  } forall
+
+  newfont /FontName newfontname put
+
+  newfontname newfont definefont pop
+} def
+
+/SF { % fontname width height -> -	set a new font
+  /height exch def
+  /width exch def
+
+  findfont
+  [width 0 0 height 0 0] makefont setfont
+} def
+
+/SUF { % fontname width height -> -	set a new user font
+  /height exch def
+  /width exch def
+
+  /F-gs-user-font MF
+  /F-gs-user-font width height SF
+} def
+
+/SUF_PS { % fontname width height -> -	set a new user font preserving its enc
+  /height exch def
+  /width exch def
+
+  /F-gs-user-font MF_PS
+  /F-gs-user-font width height SF
+} def
+
+/M {moveto} bind def
+/s {show} bind def
+
+/Box {	% x y w h -> -			define box path
+  /d_h exch def /d_w exch def /d_y exch def /d_x exch def
+  d_x d_y  moveto
+  d_w 0 rlineto
+  0 d_h rlineto
+  d_w neg 0 rlineto
+  closepath
+} def
+
+/bgs {	% x y height blskip gray str -> -	show string with bg color
+  /str exch def
+  /gray exch def
+  /blskip exch def
+  /height exch def
+  /y exch def
+  /x exch def
+
+  gsave
+    x y blskip sub str stringwidth pop height Box
+    gray setgray
+    fill
+  grestore
+  x y M str s
+} def
+
+/bgcs { % x y height blskip red green blue str -> -  show string with bg color
+  /str exch def
+  /blue exch def
+  /green exch def
+  /red exch def
+  /blskip exch def
+  /height exch def
+  /y exch def
+  /x exch def
+
+  gsave
+    x y blskip sub str stringwidth pop height Box
+    red green blue setrgbcolor
+    fill
+  grestore
+  x y M str s
+} def
+
+% Highlight bars.
+/highlight_bars {	% nlines lineheight output_y_margin gray -> -
+  gsave
+    setgray
+    /ymarg exch def
+    /lineheight exch def
+    /nlines exch def
+
+    % This 2 is just a magic number to sync highlight lines to text.
+    0 d_header_y ymarg sub 2 sub translate
+
+    /cw d_output_w cols div def
+    /nrows d_output_h ymarg 2 mul sub lineheight div cvi def
+
+    % for each column
+    0 1 cols 1 sub {
+      cw mul /xp exch def
+
+      % for each rows
+      0 1 nrows 1 sub {
+        /rn exch def
+        rn lineheight mul neg /yp exch def
+        rn nlines idiv 2 mod 0 eq {
+	  % Draw highlight bar.  4 is just a magic indentation.
+	  xp 4 add yp cw 8 sub lineheight neg Box fill
+	} if
+      } for
+    } for
+
+  grestore
+} def
+
+% Line highlight bar.
+/line_highlight {	% x y width height gray -> -
+  gsave
+    /gray exch def
+    Box gray setgray fill
+  grestore
+} def
+
+% Column separator lines.
+/column_lines {
+  gsave
+    .1 setlinewidth
+    0 d_footer_h translate
+    /cw d_output_w cols div def
+    1 1 cols 1 sub {
+      cw mul 0 moveto
+      0 d_output_h rlineto stroke
+    } for
+  grestore
+} def
+
+% Column borders.
+/column_borders {
+  gsave
+    .1 setlinewidth
+    0 d_footer_h moveto
+    0 d_output_h rlineto
+    d_output_w 0 rlineto
+    0 d_output_h neg rlineto
+    closepath stroke
+  grestore
+} def
+
+% Do the actual underlay drawing
+/draw_underlay {
+  ul_style 0 eq {
+    ul_str true charpath stroke
+  } {
+    ul_str show
+  } ifelse
+} def
+
+% Underlay
+/underlay {	% - -> -
+  gsave
+    0 d_page_h translate
+    d_page_h neg d_page_w atan rotate
+
+    ul_gray setgray
+    ul_font setfont
+    /dw d_page_h dup mul d_page_w dup mul add sqrt def
+    ul_str stringwidth pop dw exch sub 2 div ul_h_ptsize -2 div moveto
+    draw_underlay
+  grestore
+} def
+
+/user_underlay {	% - -> -
+  gsave
+    ul_x ul_y translate
+    ul_angle rotate
+    ul_gray setgray
+    ul_font setfont
+    0 0 ul_h_ptsize 2 div sub moveto
+    draw_underlay
+  grestore
+} def
+
+% Page prefeed
+/page_prefeed {		% bool -> -
+  statusdict /prefeed known {
+    statusdict exch /prefeed exch put
+  } {
+    pop
+  } ifelse
+} def
+
+% Wrapped line markers
+/wrapped_line_mark {	% x y charwith charheight type -> -
+  /type exch def
+  /h exch def
+  /w exch def
+  /y exch def
+  /x exch def
+
+  type 2 eq {
+    % Black boxes (like TeX does)
+    gsave
+      0 setlinewidth
+      x w 4 div add y M
+      0 h rlineto w 2 div 0 rlineto 0 h neg rlineto
+      closepath fill
+    grestore
+  } {
+    type 3 eq {
+      % Small arrows
+      gsave
+        .2 setlinewidth
+        x w 2 div add y h 2 div add M
+        w 4 div 0 rlineto
+        x w 4 div add y lineto stroke
+
+        x w 4 div add w 8 div add y h 4 div add M
+        x w 4 div add y lineto
+	w 4 div h 8 div rlineto stroke
+      grestore
+    } {
+      % do nothing
+    } ifelse
+  } ifelse
+} def
+
+% EPSF import.
+
+/BeginEPSF {
+  /b4_Inc_state save def    		% Save state for cleanup
+  /dict_count countdictstack def	% Count objects on dict stack
+  /op_count count 1 sub def		% Count objects on operand stack
+  userdict begin
+  /showpage { } def
+  0 setgray 0 setlinecap
+  1 setlinewidth 0 setlinejoin
+  10 setmiterlimit [ ] 0 setdash newpath
+  /languagelevel where {
+    pop languagelevel
+    1 ne {
+      false setstrokeadjust false setoverprint
+    } if
+  } if
+} bind def
+
+/EndEPSF {
+  count op_count sub { pos } repeat	% Clean up stacks
+  countdictstack dict_count sub { end } repeat
+  b4_Inc_state restore
+} bind def
+
+% Check PostScript language level.
+/languagelevel where {
+  pop /gs_languagelevel languagelevel def
+} {
+  /gs_languagelevel 1 def
+} ifelse
+%%EndResource
+%%BeginResource: procset Enscript-Encoding-88591 1.6 6
+/encoding_vector [
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/space        	/exclam       	/quotedbl     	/numbersign   	
+/dollar       	/percent      	/ampersand    	/quoteright   	
+/parenleft    	/parenright   	/asterisk     	/plus         	
+/comma        	/hyphen       	/period       	/slash        	
+/zero         	/one          	/two          	/three        	
+/four         	/five         	/six          	/seven        	
+/eight        	/nine         	/colon        	/semicolon    	
+/less         	/equal        	/greater      	/question     	
+/at           	/A            	/B            	/C            	
+/D            	/E            	/F            	/G            	
+/H            	/I            	/J            	/K            	
+/L            	/M            	/N            	/O            	
+/P            	/Q            	/R            	/S            	
+/T            	/U            	/V            	/W            	
+/X            	/Y            	/Z            	/bracketleft  	
+/backslash    	/bracketright 	/asciicircum  	/underscore   	
+/quoteleft    	/a            	/b            	/c            	
+/d            	/e            	/f            	/g            	
+/h            	/i            	/j            	/k            	
+/l            	/m            	/n            	/o            	
+/p            	/q            	/r            	/s            	
+/t            	/u            	/v            	/w            	
+/x            	/y            	/z            	/braceleft    	
+/bar          	/braceright   	/tilde        	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/.notdef      	/.notdef      	/.notdef      	/.notdef      	
+/space        	/exclamdown   	/cent         	/sterling     	
+/currency     	/yen          	/brokenbar    	/section      	
+/dieresis     	/copyright    	/ordfeminine  	/guillemotleft	
+/logicalnot   	/hyphen       	/registered   	/macron       	
+/degree       	/plusminus    	/twosuperior  	/threesuperior	
+/acute        	/mu           	/paragraph    	/bullet       	
+/cedilla      	/onesuperior  	/ordmasculine 	/guillemotright	
+/onequarter   	/onehalf      	/threequarters	/questiondown 	
+/Agrave       	/Aacute       	/Acircumflex  	/Atilde       	
+/Adieresis    	/Aring        	/AE           	/Ccedilla     	
+/Egrave       	/Eacute       	/Ecircumflex  	/Edieresis    	
+/Igrave       	/Iacute       	/Icircumflex  	/Idieresis    	
+/Eth          	/Ntilde       	/Ograve       	/Oacute       	
+/Ocircumflex  	/Otilde       	/Odieresis    	/multiply     	
+/Oslash       	/Ugrave       	/Uacute       	/Ucircumflex  	
+/Udieresis    	/Yacute       	/Thorn        	/germandbls   	
+/agrave       	/aacute       	/acircumflex  	/atilde       	
+/adieresis    	/aring        	/ae           	/ccedilla     	
+/egrave       	/eacute       	/ecircumflex  	/edieresis    	
+/igrave       	/iacute       	/icircumflex  	/idieresis    	
+/eth          	/ntilde       	/ograve       	/oacute       	
+/ocircumflex  	/otilde       	/odieresis    	/divide       	
+/oslash       	/ugrave       	/uacute       	/ucircumflex  	
+/udieresis    	/yacute       	/thorn        	/ydieresis    	
+] def
+%%EndResource
+%%EndProlog
+%%BeginSetup
+%%IncludeResource: font Courier-Bold
+%%IncludeResource: font Courier
+/HFpt_w 10 def
+/HFpt_h 10 def
+/Courier-Bold /HF-gs-font MF
+/HF /HF-gs-font findfont [HFpt_w 0 0 HFpt_h 0 0] makefont def
+/Courier /F-gs-font MF
+/F-gs-font 7 7 SF
+/#copies 1 def
+% Pagedevice definitions:
+gs_languagelevel 1 gt {
+  <<
+    /PageSize [595 842] 
+  >> setpagedevice
+} if
+%%BeginResource: procset Enscript-Header-enscript 1.6 6
+%%IncludeResource: font Times-Bold
+%%IncludeResource: font Times-Roman
+
+% Fonts.
+/Times-Bold /HeaderFont-Bold MF
+/HeaderDateF /HeaderFont-Bold findfont 12 scalefont def
+
+/Times-Roman /HeaderFont-Times MF
+/HeaderHDRF /HeaderFont-Times findfont 14 scalefont def
+
+/HeaderPageNumF /Helvetica-Bold findfont 28.8 scalefont def
+
+/do_header {	% print enscript header
+  gsave
+    d_header_x d_header_y translate
+
+    % light bar
+    0 0 d_header_w d_header_h 2 div Box
+    .95 setgray fill
+
+    % dark gray boxes
+    /dbw d_header_h 2 mul def	% dark box width
+    /dbc .7 def			% dark box color
+
+    % left dark box.
+    0 0 dbw d_header_h Box
+    dbc setgray fill
+
+    0 setgray 
+    HeaderDateF setfont
+    moddatestr dup stringwidth pop dbw exch sub 2 div 
+    d_header_h 2 div 2 add moveto show
+    modtimestr dup stringwidth pop dbw exch sub 2 div 
+    d_header_h 5 div moveto show
+
+    % right dark box
+    d_header_w dbw sub 0 dbw d_header_h Box
+    dbc setgray fill
+
+    HeaderPageNumF setfont
+    1 setgray
+    pagenumstr dup
+    stringwidth pop dbw exch sub 2 div d_header_w dbw sub add
+    d_header_h .2 mul moveto show
+
+    % filename
+    0 setgray 
+    HeaderHDRF setfont
+    d_header_w fname stringwidth pop sub 2 div d_header_h 8 div moveto
+    fname show
+
+    % user supplied header string.
+    user_header_p {
+      /h d_header_h 8 div 5 mul def
+
+      % Implement strict enscript compatibility.
+      user_header_center_str () eq user_header_right_str () eq and {
+        d_header_w user_header_left_str stringwidth pop sub 2 div 
+        h moveto user_header_left_str show
+      } {
+        dbw 5 add h moveto user_header_left_str show
+
+        d_header_w user_header_center_str stringwidth pop sub 2 div 
+        h moveto user_header_center_str show
+
+	d_header_w dbw sub 5 sub user_header_right_str stringwidth pop
+	sub h moveto user_header_right_str show
+      } ifelse
+    } if
+
+  grestore
+} def
+%%EndResource
+/d_page_w 794 def
+/d_page_h 547 def
+/d_header_x 0 def
+/d_header_y 511 def
+/d_header_w 794 def
+/d_header_h 36 def
+/d_footer_x 0 def
+/d_footer_y 0 def
+/d_footer_w 794 def
+/d_footer_h 0 def
+/d_output_w 794 def
+/d_output_h 511 def
+/cols 2 def
+%%EndSetup
+%%Page: (1) 1
+%%BeginPageSetup
+_S
+90 rotate
+24 -571 translate
+/pagenum 1 def
+/fname (init.F90) def
+/fdir (.) def
+/ftail (init.F90) def
+% User defined strings:
+/pagenumstr (1) def
+/moddatestr (04/15/19) def
+/modtimestr (11:47:33) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+column_lines
+do_header
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 501 M
+(!------------------------------------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 493 M
+(module ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+34.4 493 M
+(init) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 485 M
+(!------------------------------------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 469 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 469 M
+(qeq_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 461 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 461 M
+(pqeq_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 453 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 453 M
+(force_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 445 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 445 M
+(reaxff_param_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 437 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 437 M
+(velocity_modifiers_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 429 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 429 M
+(memory_allocator_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 421 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 421 M
+(fileio) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 413 M
+(  use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+30.2 413 M
+(fnn) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 397 M
+(contains) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 381 M
+(!------------------------------------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 373 M
+(SUBROUTINE ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+51.2 373 M
+(INITSYSTEM) s
+/F-gs-font 7 7 SF
+0 setgray
+93.2 373 M
+(\(atype, pos, v, f, q\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 365 M
+(! This subroutine takes care of setting up initial system configuration.) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 357 M
+(! Unit conversion of parameters \(energy, length & mass\) are also done here.) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 349 M
+(!------------------------------------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 333 M
+(implicit) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 333 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+42.8 333 M
+(none) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+5 317 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+21.8 317 M
+(\(8\),) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+38.6 317 M
+(allocatable) s
+/F-gs-font 7 7 SF
+0 setgray
+84.8 317 M
+(,) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+89 317 M
+(dimension) s
+/F-gs-font 7 7 SF
+0 setgray
+126.8 317 M
+(\(:\) :: atype, q) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+5 309 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+21.8 309 M
+(\(8\),) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+38.6 309 M
+(allocatable) s
+/F-gs-font 7 7 SF
+0 setgray
+84.8 309 M
+(,) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+89 309 M
+(dimension) s
+/F-gs-font 7 7 SF
+0 setgray
+126.8 309 M
+(\(:,:\) :: pos,v,f) s
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+5 293 M
+(integer) s
+/F-gs-font 7 7 SF
+0 setgray
+34.4 293 M
+( :: ) s
+/Courier 7 7 SUF
+0.721569 0.52549 0.043137 setrgbcolor
+51.2 293 M
+(i,j,k, ity, l\(3\), ist) s
+/F-gs-font 7 7 SF
+0 setgray
+139.4 293 M
+(=0) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+5 285 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+21.8 285 M
+(\(8\) :: mm, dns, mat\(3,3\)) s
+5 269 M
+(wt0 = MPI_WTIME\(\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 253 M
+(!--- an error trap) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 245 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 245 M
+(\(vprocs\(1\)*vprocs\(2\)*vprocs\(3\) /= nprocs \) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+194 245 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 237 M
+(  ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+13.4 237 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+21.8 237 M
+(\(myid==0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+63.8 237 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+84.8 237 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+97.4 237 M
+('\(a60,3i3,i5\)') s
+/F-gs-font 7 7 SF
+0 setgray
+156.2 237 M
+(\)  &) s
+5 229 M
+(  ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+13.4 229 M
+("ERROR: requested/allocated # of procs are not consistent: ") s
+/F-gs-font 7 7 SF
+0 setgray
+265.4 229 M
+(, vprocs\(1:3\), nprocs) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 221 M
+(  call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+34.4 221 M
+(MPI_FINALIZE) s
+/F-gs-font 7 7 SF
+0 setgray
+84.8 221 M
+(\(ierr\)) s
+5 213 M
+(  ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+13.4 213 M
+(stop) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 205 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 189 M
+(!--- setup the vector ID and parity for processes, in x, y and z order.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 181 M
+(vID\(1\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+34.4 181 M
+(mod) s
+/F-gs-font 7 7 SF
+0 setgray
+47 181 M
+(\(myid,vprocs\(1\)\)) s
+5 173 M
+(vID\(2\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+34.4 173 M
+(mod) s
+/F-gs-font 7 7 SF
+0 setgray
+47 173 M
+(\(myid/vprocs\(1\),vprocs\(2\)\)) s
+5 165 M
+(vID\(3\)=myid/\(vprocs\(1\)*vprocs\(2\)\)) s
+5 157 M
+(myparity\(1\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+55.4 157 M
+(mod) s
+/F-gs-font 7 7 SF
+0 setgray
+68 157 M
+(\(vID\(1\),2\)) s
+5 149 M
+(myparity\(2\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+55.4 149 M
+(mod) s
+/F-gs-font 7 7 SF
+0 setgray
+68 149 M
+(\(vID\(2\),2\)) s
+5 141 M
+(myparity\(3\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+55.4 141 M
+(mod) s
+/F-gs-font 7 7 SF
+0 setgray
+68 141 M
+(\(vID\(3\),2\)) s
+5 125 M
+(k=0) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 117 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 117 M
+( i=1,3) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 109 M
+(!--- Add \(1,0,0\), \(-1,0,0\), \(0,1,0\), \(0,-1,0\), \(0,0,1\), \(0,0,-1\) to vector ID applying PBC. ) s
+/F-gs-font 7 7 SF
+0 setgray
+5 101 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 101 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+26 101 M
+( j=1,-1,-2) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 85 M
+(!--- save vector ID.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 77 M
+(      l\(1:3\) = vID\(1:3\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 61 M
+(!--- apply PBC.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 53 M
+(      l\(i\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+51.2 53 M
+(mod) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 53 M
+(\( \(vID\(i\) + j + vprocs\(i\)\), vprocs\(i\) \)) s
+5 45 M
+(     ) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 37 M
+(!--- get direction index.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 29 M
+(      k=k+1 ) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+55.4 29 M
+(![123456] ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 13 M
+(!--- convert vector ID to sequential ID.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 5 M
+(      target_node\(k\) = l\(1\)+l\(2\)*vprocs\(1\)+l\(3\)*vprocs\(1\)*vprocs\(2\) ) s
+402 501 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 501 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 501 M
+(         ) s
+402 493 M
+(                   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 485 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+423 485 M
+(    ) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 469 M
+(!--- read atom and MD box data) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 461 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 461 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 461 M
+(\(atype,1,NBUFFER\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 453 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 453 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 453 M
+(\(q,1,NBUFFER\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 445 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 445 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 445 M
+(\(pos,1,NBUFFER,1,3\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 437 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 437 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 437 M
+(\(v,1,NBUFFER,1,3\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 429 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 429 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 429 M
+(\(f,1,NBUFFER,1,3\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 421 M
+(!--- index array for returning reaction force) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 413 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 413 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 413 M
+(\(frcindx,1,NBUFFER\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 397 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 397 M
+(ReadBIN) s
+/F-gs-font 7 7 SF
+0 setgray
+452.4 397 M
+(\(atype, pos, v, q, f, trim\(DataDir\)//"/rxff.bin"\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 381 M
+(!--- get global number of atoms) s
+/F-gs-font 7 7 SF
+0 setgray
+402 373 M
+(GNATOMS = NATOMS ) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+473.4 373 M
+(! Convert 4 byte to 8 byte) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 365 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 365 M
+(MPI_ALLREDUCE) s
+/F-gs-font 7 7 SF
+0 setgray
+477.6 365 M
+(\(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 341 M
+(!--- set force field parameters) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 333 M
+(!get_forcefield_param => get_reaxff_param) s
+/F-gs-font 7 7 SF
+0 setgray
+402 325 M
+(get_forcefield_param => get_feedforward_network) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 309 M
+(!--- set force model) s
+/F-gs-font 7 7 SF
+0 setgray
+402 301 M
+(force_model_func => force_reaxff) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 285 M
+(!--- set potentialtable constructor) s
+/F-gs-font 7 7 SF
+0 setgray
+402 277 M
+(set_potentialtable => set_reaxff_potentialtables) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 261 M
+(!--- set charge model) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 245 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+410.4 245 M
+(\(isPQEq\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+448.2 245 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+402 237 M
+(  charge_model_func => PQEq) s
+402 229 M
+(  rctap = rctap0_pqeq) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 213 M
+(  call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+431.4 213 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+469.2 213 M
+(\(spos,1,NBUFFER,1,3\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 197 M
+(  call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+431.4 197 M
+(initialize_pqeq) s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 197 M
+(\(chi,eta\)) s
+402 189 M
+(  ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+410.4 189 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+418.8 189 M
+(\(isEfield\) call initialize_eField\(myid\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 173 M
+(else) s
+/F-gs-font 7 7 SF
+0 setgray
+402 157 M
+(  charge_model_func => QEq) s
+402 149 M
+(  rctap = rctap0) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 133 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 117 M
+(!--- set taper function for the vdw and coulomb terms) s
+/F-gs-font 7 7 SF
+0 setgray
+402 109 M
+(rctap2 = rctap**2) s
+402 93 M
+(CTap\(0:7\)=\(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/\(rctap\)**4, &) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 85 M
+(          84) s
+/F-gs-font 7 7 SF
+0 setgray
+452.4 85 M
+(.d0/\(rctap\)**5, -70.d0/\(rctap\)**6, &) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 77 M
+(          20) s
+/F-gs-font 7 7 SF
+0 setgray
+452.4 77 M
+(.d0/\(rctap\)**7 /\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 61 M
+(!--- get number of atoms per each type. ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 53 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+423 53 M
+(*,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+431.4 53 M
+('mass: ') s
+/F-gs-font 7 7 SF
+0 setgray
+465 53 M
+(, mass) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 45 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 45 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 45 M
+(\(natoms_per_type, 1, size\(mass\)\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 37 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+410.4 37 M
+( i=1, NATOMS) s
+402 29 M
+(   ity=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+431.4 29 M
+(nint) s
+/F-gs-font 7 7 SF
+0 setgray
+448.2 29 M
+(\(atype\(i\)\)) s
+402 21 M
+(   natoms_per_type\(ity\)=natoms_per_type\(ity\)+1) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 13 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 5 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 5 M
+(MPI_ALLREDUCE) s
+/F-gs-font 7 7 SF
+0 setgray
+477.6 5 M
+(\(MPI_IN_PLACE, natoms_per_type, size\(natoms_per_type\), &) s
+_R
+S
+%%Page: (2) 2
+%%BeginPageSetup
+_S
+90 rotate
+24 -571 translate
+/pagenum 2 def
+/fname (init.F90) def
+/fdir (.) def
+/ftail (init.F90) def
+% User defined strings:
+/pagenumstr (2) def
+/moddatestr (04/15/19) def
+/modtimestr (11:47:33) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+column_lines
+do_header
+5 501 M
+(                   MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 485 M
+(!--- dt/2*mass, mass/2) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 477 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 477 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 477 M
+(\(dthm, 1, size\(mass\)\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 469 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 469 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 469 M
+(\(hmas, 1, size\(mass\)\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 461 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 461 M
+( ity=1, ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+47 461 M
+(size) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 461 M
+(\(mass\)) s
+5 453 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 453 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+26 453 M
+(\(mass\(ity\) > 0.d0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+105.8 453 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 445 M
+(      dthm\(ity\) = dt*0.5d0/mass\(ity\)) s
+5 437 M
+(      hmas\(ity\) = 0.5d0*mass\(ity\)) s
+5 429 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 429 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 421 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 405 M
+(!--- get density ) s
+/F-gs-font 7 7 SF
+0 setgray
+5 397 M
+(mm = 0.d0) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 389 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 389 M
+( i=1, NATOMS) s
+5 381 M
+(   ity = ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+42.8 381 M
+(nint) s
+/F-gs-font 7 7 SF
+0 setgray
+59.6 381 M
+(\(atype\(i\)\)) s
+5 373 M
+(   mm = mm + mass\(ity\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 365 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 357 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 357 M
+(MPI_ALLREDUCE) s
+/F-gs-font 7 7 SF
+0 setgray
+80.6 357 M
+(\(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr) s
+5 349 M
+(\)) s
+5 341 M
+(dns=mm/MDBOX*UDENS) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 317 M
+(!--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_pe) s
+5 309 M
+(r_type\(\)) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 301 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 301 M
+(get_bondorder_cutoff) s
+/F-gs-font 7 7 SF
+0 setgray
+110 301 M
+(\(rc, rc2, maxrc, natoms_per_type\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 285 M
+(!--- setup potential table) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 277 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 277 M
+(set_potentialtable) s
+/F-gs-font 7 7 SF
+0 setgray
+101.6 277 M
+(\(\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 261 M
+(!--- update box-related variables) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 253 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 253 M
+(UpdateBoxParams) s
+/F-gs-font 7 7 SF
+0 setgray
+89 253 M
+(\(\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 237 M
+(!--- Linked List & Near Neighb Parameters) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 229 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 229 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 229 M
+(\(nbrlist,1,NBUFFER,0,MAXNEIGHBS\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 221 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 221 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 221 M
+(\(llist,1,NBUFFER\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 213 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 213 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 213 M
+(\(header,-MAXLAYERS,cc\(1\)-1+MAXLAYERS,-MAXLAYERS,cc\(2\)-1+MAXLAYERS,-MAXLAYERS,c) s
+5 205 M
+(c\(3\)-1+MAXLAYERS\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 197 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 197 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 197 M
+(\(nacell,-MAXLAYERS,cc\(1\)-1+MAXLAYERS,-MAXLAYERS,cc\(2\)-1+MAXLAYERS,-MAXLAYERS,c) s
+5 189 M
+(c\(3\)-1+MAXLAYERS\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 173 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 173 M
+(reaxff_mdvariables_allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+143.6 173 M
+(\(\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 157 M
+(!--- setup 10[A] radius mesh to avoid visiting unecessary cells ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 149 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 149 M
+(GetNonbondingMesh) s
+/F-gs-font 7 7 SF
+0 setgray
+97.4 149 M
+(\(\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 125 M
+(!--- allocate & initialize Array size Stat variables) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 117 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 117 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 117 M
+(\(maxas, 1, ntime_step/pstep+1, 1, nmaxas\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 101 M
+(!--- for spring force) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 93 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 93 M
+( \(isSpring\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+63.8 93 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 85 M
+(  call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+34.4 85 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+72.2 85 M
+(\(ipos,1,NBUFFER,1,3\)) s
+5 77 M
+(  ipos\(1:NATOMS,1:3\)=pos\(1:NATOMS,1:3\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 69 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 53 M
+(!--- print out parameters and open data file) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 45 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 45 M
+(\(myid==0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+55.4 45 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 37 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 37 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 37 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+51.2 37 M
+('\(a\)') s
+/F-gs-font 7 7 SF
+0 setgray
+72.2 37 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+80.6 37 M
+(repeat) s
+/F-gs-font 7 7 SF
+0 setgray
+105.8 37 M
+(\() s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+110 37 M
+('-') s
+/F-gs-font 7 7 SF
+0 setgray
+122.6 37 M
+(,60\)) s
+5 29 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 29 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 29 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+51.2 29 M
+('\(a30,i9,a3,i9\)') s
+/F-gs-font 7 7 SF
+0 setgray
+118.4 29 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+126.8 29 M
+("req/alloc # of procs:") s
+/F-gs-font 7 7 SF
+0 setgray
+223.4 29 M
+(, vprocs\(1\)*vprocs\(2\)*vprocs\(3\), ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+362 29 M
+("  /") s
+/F-gs-font 7 7 SF
+0 setgray
+383 29 M
+(,n) s
+5 21 M
+(procs) s
+5 13 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 13 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 13 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+51.2 13 M
+('\(a30,3i9\)') s
+/F-gs-font 7 7 SF
+0 setgray
+97.4 13 M
+(\)      ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+126.8 13 M
+("req proc arrengement:") s
+/F-gs-font 7 7 SF
+0 setgray
+223.4 13 M
+(, vprocs\(1\),vprocs\(2\),vprocs\(3\)) s
+5 5 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 5 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 5 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+51.2 5 M
+('\(a30,es12.2\)') s
+/F-gs-font 7 7 SF
+0 setgray
+110 5 M
+(\)   ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+126.8 5 M
+("time step[fs]:") s
+/F-gs-font 7 7 SF
+0 setgray
+194 5 M
+(,dt*UTIME) s
+402 501 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 501 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 501 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 501 M
+('\(a30,i3, i10, i10\)') s
+/F-gs-font 7 7 SF
+0 setgray
+532.2 501 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+540.6 501 M
+("MDMODE CURRENTSTEP NTIMESTPE:") s
+/F-gs-font 7 7 SF
+0 setgray
+670.8 501 M
+(, &) s
+402 493 M
+(                                  mdmode, current_step, ntime_step) s
+402 485 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 485 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 485 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 485 M
+('\(a30,f12.3,f8.3,i9\)') s
+/F-gs-font 7 7 SF
+0 setgray
+536.4 485 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+544.8 485 M
+('treq,vsfact,sstep:') s
+/F-gs-font 7 7 SF
+0 setgray
+628.8 485 M
+(,treq*UTEMP0, vsfact, sstep) s
+402 477 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 477 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 477 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 477 M
+('\(a30,2i6\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 477 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+502.8 477 M
+('fstep,pstep:') s
+/F-gs-font 7 7 SF
+0 setgray
+561.6 477 M
+(, fstep,pstep) s
+402 469 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 469 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 469 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 469 M
+('\(a30,i24,i24\)') s
+/F-gs-font 7 7 SF
+0 setgray
+511.2 469 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+519.6 469 M
+("NATOMS GNATOMS:") s
+/F-gs-font 7 7 SF
+0 setgray
+591 469 M
+(, NATOMS, GNATOMS) s
+402 461 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 461 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 461 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 461 M
+('\(a30,3f12.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 461 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 461 M
+("LBOX:") s
+/F-gs-font 7 7 SF
+0 setgray
+544.8 461 M
+(,LBOX\(1:3\)) s
+402 453 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 453 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 453 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 453 M
+('\(a30,3f15.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 453 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 453 M
+("Hmatrix [A]:") s
+/F-gs-font 7 7 SF
+0 setgray
+574.2 453 M
+(,HH\(1:3,1,0\)) s
+402 445 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 445 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 445 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 445 M
+('\(a30,3f15.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 445 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 445 M
+("Hmatrix [A]:") s
+/F-gs-font 7 7 SF
+0 setgray
+574.2 445 M
+(,HH\(1:3,2,0\)) s
+402 437 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 437 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 437 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 437 M
+('\(a30,3f15.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 437 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 437 M
+("Hmatrix [A]:") s
+/F-gs-font 7 7 SF
+0 setgray
+574.2 437 M
+(,HH\(1:3,3,0\)) s
+402 429 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 429 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+435.6 429 M
+('\(a30,3f12.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 429 M
+(, ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+502.8 429 M
+('lata,latb,latc:') s
+/F-gs-font 7 7 SF
+0 setgray
+574.2 429 M
+(, lata,latb,latc) s
+402 421 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 421 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+435.6 421 M
+('\(a30,3f12.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 421 M
+(, ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+502.8 421 M
+('lalpha,lbeta,lgamma:') s
+/F-gs-font 7 7 SF
+0 setgray
+595.2 421 M
+(, lalpha,lbeta,lgamma) s
+402 413 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 413 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 413 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 413 M
+('\(a30,3f10.4\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 413 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 413 M
+("density [g/cc]:") s
+/F-gs-font 7 7 SF
+0 setgray
+586.8 413 M
+(,dns) s
+402 405 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 405 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 405 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 405 M
+('\(a30,3i6\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 405 M
+(\)  ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+507 405 M
+('# of linkedlist cell:') s
+/F-gs-font 7 7 SF
+0 setgray
+603.6 405 M
+(, cc\(1:3\)) s
+402 397 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 397 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 397 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 397 M
+('\(a30,f10.3,2x,3f10.2\)') s
+/F-gs-font 7 7 SF
+0 setgray
+544.8 397 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+553.2 397 M
+("maxrc, lcsize [A]:") s
+/F-gs-font 7 7 SF
+0 setgray
+637.2 397 M
+(, &) s
+402 389 M
+(        maxrc,lata/cc\(1\)/vprocs\(1\),latb/cc\(2\)/vprocs\(2\),latc/cc\(3\)/vprocs\(3\)) s
+402 381 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 381 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 381 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 381 M
+('\(a30,3i6\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 381 M
+(\)  ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+507 381 M
+('# of linkedlist cell \(NB\):') s
+/F-gs-font 7 7 SF
+0 setgray
+624.6 381 M
+(, nbcc\(1:3\)) s
+402 373 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 373 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 373 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 373 M
+('\(a30,3f10.2\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 373 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 373 M
+("lcsize [A] \(NB\):") s
+/F-gs-font 7 7 SF
+0 setgray
+591 373 M
+(, &) s
+402 365 M
+(        lata/nbcc\(1\)/vprocs\(1\),latb/nbcc\(2\)/vprocs\(2\),latc/nbcc\(3\)/vprocs\(3\)) s
+402 357 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 357 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 357 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 357 M
+('\(a30,2i6\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 357 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+502.8 357 M
+("MAXNEIGHBS, MAXNEIGHBS10:") s
+/F-gs-font 7 7 SF
+0 setgray
+616.2 357 M
+(, MAXNEIGHBS,MAXNEIGHBS10) s
+402 349 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 349 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 349 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 349 M
+('\(a30,i6,i9\)') s
+/F-gs-font 7 7 SF
+0 setgray
+502.8 349 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+511.2 349 M
+("NMINCELL, NBUFFER:") s
+/F-gs-font 7 7 SF
+0 setgray
+595.2 349 M
+(, NMINCELL, NBUFFER) s
+402 341 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 341 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 341 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 341 M
+('\(a30,a12\)') s
+/F-gs-font 7 7 SF
+0 setgray
+494.4 341 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+502.8 341 M
+("DataDir :") s
+/F-gs-font 7 7 SF
+0 setgray
+549 341 M
+(, ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+557.4 341 M
+(trim) s
+/F-gs-font 7 7 SF
+0 setgray
+574.2 341 M
+(\(DataDir\)) s
+402 325 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 325 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+435.6 325 M
+('\(a30 $\)') s
+/F-gs-font 7 7 SF
+0 setgray
+473.4 325 M
+(,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+477.6 325 M
+('# of atoms per type:') s
+/F-gs-font 7 7 SF
+0 setgray
+402 317 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 317 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+423 317 M
+( ity=1, nso) s
+402 309 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+427.2 309 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 309 M
+(\(natoms_per_type\(ity\)>0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+540.6 309 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+561.6 309 M
+('\(i12,a2,i2 $\)') s
+/F-gs-font 7 7 SF
+0 setgray
+624.6 309 M
+(,natoms_per_type\(ity\),) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+717 309 M
+(' -') s
+/F-gs-font 7 7 SF
+0 setgray
+733.8 309 M
+(,ity) s
+402 301 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 301 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+402 293 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 293 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 293 M
+(*) s
+402 277 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 277 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 277 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 277 M
+('\(a\)') s
+/F-gs-font 7 7 SF
+0 setgray
+469.2 277 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+477.6 277 M
+(repeat) s
+/F-gs-font 7 7 SF
+0 setgray
+502.8 277 M
+(\() s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+507 277 M
+('-') s
+/F-gs-font 7 7 SF
+0 setgray
+519.6 277 M
+(,60\)) s
+402 269 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 269 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 269 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 269 M
+('\(a30,2\(a12,1x\)\)') s
+/F-gs-font 7 7 SF
+0 setgray
+519.6 269 M
+(\) &) s
+402 261 M
+(         ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+439.8 261 M
+("FFPath, ParmPath:") s
+/F-gs-font 7 7 SF
+0 setgray
+519.6 261 M
+(, ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+528 261 M
+(trim) s
+/F-gs-font 7 7 SF
+0 setgray
+544.8 261 M
+(\(FFPath\),) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+582.6 261 M
+(trim) s
+/F-gs-font 7 7 SF
+0 setgray
+599.4 261 M
+(\(ParmPath\)) s
+402 253 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 253 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 253 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 253 M
+('\(a30,i6,es10.1,i6,i6\)') s
+/F-gs-font 7 7 SF
+0 setgray
+544.8 253 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+553.2 253 M
+("isQEq,QEq_tol,NMAXQEq,qstep:") s
+/F-gs-font 7 7 SF
+0 setgray
+679.2 253 M
+(, &) s
+402 245 M
+(                                     isQEq,QEq_tol,NMAXQEq,qstep) s
+402 237 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 237 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 237 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 237 M
+('\(a30,f8.3,f8.3\)') s
+/F-gs-font 7 7 SF
+0 setgray
+519.6 237 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+528 237 M
+('Lex_fqs,Lex_k:') s
+/F-gs-font 7 7 SF
+0 setgray
+595.2 237 M
+(,Lex_fqs,Lex_k) s
+402 213 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 213 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+423 213 M
+(\(isSpring\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+469.2 213 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+402 205 M
+(     ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+423 205 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+444 205 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+456.6 205 M
+('\(a\)') s
+/F-gs-font 7 7 SF
+0 setgray
+477.6 205 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+486 205 M
+(repeat) s
+/F-gs-font 7 7 SF
+0 setgray
+511.2 205 M
+(\() s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 205 M
+('-') s
+/F-gs-font 7 7 SF
+0 setgray
+528 205 M
+(,60\)) s
+402 197 M
+(     ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+423 197 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+444 197 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+456.6 197 M
+('\(a,f8.2 $\)') s
+/F-gs-font 7 7 SF
+0 setgray
+507 197 M
+(\) ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+515.4 197 M
+('springConst [kcal/mol] ') s
+/F-gs-font 7 7 SF
+0 setgray
+620.4 197 M
+(, springConst ) s
+402 189 M
+(     ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+423 189 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+431.4 189 M
+( ity=1, ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+465 189 M
+(size) s
+/F-gs-font 7 7 SF
+0 setgray
+481.8 189 M
+(\(hasSpringForce\) ) s
+402 181 M
+(        ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+435.6 181 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+444 181 M
+(\(hasSpringForce\(ity\)\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+536.4 181 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+557.4 181 M
+('\(i3 $\)') s
+/F-gs-font 7 7 SF
+0 setgray
+591 181 M
+(,ity) s
+402 173 M
+(     ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+423 173 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+402 165 M
+(     ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+423 165 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+444 165 M
+(*) s
+402 157 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 157 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+402 141 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 141 M
+(print) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+435.6 141 M
+('\(a\)') s
+/F-gs-font 7 7 SF
+0 setgray
+456.6 141 M
+(, ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+465 141 M
+("----------------------------------------------------------------") s
+/F-gs-font 7 7 SF
+0 setgray
+402 133 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+414.6 133 M
+(write) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 133 M
+(\(6,) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+448.2 133 M
+('\(a\)') s
+/F-gs-font 7 7 SF
+0 setgray
+469.2 133 M
+(\)  &) s
+402 125 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.737255 0.560784 0.560784 setrgbcolor
+414.6 125 M
+("nstep  TE  PE  KE: 1-Ebond 2-\(Elnpr,Eover,Eunder\) 3-\(Eval,Epen,Ecoa\) 4-\(Etors,Econj\) 5-E) s
+402 117 M
+(hbond 6-\(Evdw,EClmb,Echarge\)") s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 101 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 85 M
+(END) s
+/F-gs-font 7 7 SF
+0 setgray
+414.6 85 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+418.8 85 M
+(SUBROUTINE) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 77 M
+(end) s
+/F-gs-font 7 7 SF
+0 setgray
+414.6 77 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+418.8 77 M
+(module) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 61 M
+(!----------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 53 M
+(subroutine ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+448.2 53 M
+(GetNonbondingMesh) s
+/F-gs-font 7 7 SF
+0 setgray
+519.6 53 M
+(\(\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 45 M
+(use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+418.8 45 M
+(atoms) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 37 M
+(use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+418.8 37 M
+(reaxff_param_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 29 M
+(use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+418.8 29 M
+(memory_allocator_mod) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 21 M
+(! setup 10[A] radius mesh to avoid visiting unecessary cells ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 13 M
+(!----------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 5 M
+(implicit) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 5 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+439.8 5 M
+(none) s
+/F-gs-font 7 7 SF
+0 setgray
+_R
+S
+%%Page: (3) 3
+%%BeginPageSetup
+_S
+90 rotate
+24 -571 translate
+/pagenum 3 def
+/fname (init.F90) def
+/fdir (.) def
+/ftail (init.F90) def
+% User defined strings:
+/pagenumstr (3) def
+/moddatestr (04/15/19) def
+/modtimestr (11:47:33) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+column_lines
+do_header
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+5 493 M
+(integer) s
+/F-gs-font 7 7 SF
+0 setgray
+34.4 493 M
+( :: ) s
+/Courier 7 7 SUF
+0.721569 0.52549 0.043137 setrgbcolor
+51.2 493 M
+(i,j,k) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+5 477 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+21.8 477 M
+(\(8\) :: latticePerNode\(3\), rr\(3\), dr2) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+5 469 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+21.8 469 M
+(\(8\) :: maxrcell) s
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+5 461 M
+(integer) s
+/F-gs-font 7 7 SF
+0 setgray
+34.4 461 M
+( :: ) s
+/Courier 7 7 SUF
+0.721569 0.52549 0.043137 setrgbcolor
+51.2 461 M
+(imesh\(3\), maximesh, ii\(3\), i1) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 445 M
+(!--- initial estimate of LL cell dims) s
+/F-gs-font 7 7 SF
+0 setgray
+5 437 M
+(nblcsize\(1:3\)=3d0) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 421 M
+(!--- get mesh resolution which is close to the initial value of rlc.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 413 M
+(latticePerNode\(1\)=lata/vprocs\(1\)) s
+5 405 M
+(latticePerNode\(2\)=latb/vprocs\(2\)) s
+5 397 M
+(latticePerNode\(3\)=latc/vprocs\(3\)) s
+5 389 M
+(nbcc\(1:3\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+47 389 M
+(int) s
+/F-gs-font 7 7 SF
+0 setgray
+59.6 389 M
+(\(latticePerNode\(1:3\)/nblcsize\(1:3\)\)) s
+5 381 M
+(nblcsize\(1:3\)=latticePerNode\(1:3\)/nbcc\(1:3\)) s
+5 373 M
+(maxrcell = ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+51.2 373 M
+(maxval) s
+/F-gs-font 7 7 SF
+0 setgray
+76.4 373 M
+(\(nblcsize\(1:3\)\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 357 M
+(!--- get # of linked list cell to cover up the non-bonding cutoff length) s
+/F-gs-font 7 7 SF
+0 setgray
+5 349 M
+(imesh\(1:3\)  = ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+63.8 349 M
+(int) s
+/F-gs-font 7 7 SF
+0 setgray
+76.4 349 M
+(\(rctap/nblcsize\(1:3\)\) + 1) s
+5 341 M
+(maximesh = ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+51.2 341 M
+(maxval) s
+/F-gs-font 7 7 SF
+0 setgray
+76.4 341 M
+(\(imesh\(1:3\)\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 325 M
+(!--- List up only cell indices within the cutoff range.) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 317 M
+(!--- pre-compute nmesh to get exact array size.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 309 M
+(nbnmesh=0) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 301 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 301 M
+( i=-imesh\(1\), imesh\(1\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 293 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 293 M
+( j=-imesh\(2\), imesh\(2\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 285 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 285 M
+( k=-imesh\(3\), imesh\(3\)) s
+5 277 M
+(   ii\(1:3\) = [i,j,k]) s
+5 269 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 269 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+26 269 M
+( i1 = 1, 3) s
+5 261 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+30.2 261 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 261 M
+(\(ii\(i1\)>0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+84.8 261 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 253 M
+(         ii\(i1\)=ii\(i1\)-1) s
+5 245 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+30.2 245 M
+(else) s
+/F-gs-font 7 7 SF
+0 setgray
+47 245 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+51.2 245 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+59.6 245 M
+(\(ii\(i1\)<0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+105.8 245 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 237 M
+(         ii\(i1\)=ii\(i1\)+1) s
+5 229 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+30.2 229 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+5 221 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 221 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+5 213 M
+(   rr\(1:3\) = ii\(1:3\)*nblcsize\(1:3\)) s
+5 205 M
+(   dr2 = ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+42.8 205 M
+(sum) s
+/F-gs-font 7 7 SF
+0 setgray
+55.4 205 M
+(\(rr\(1:3\)*rr\(1:3\)\)) s
+5 197 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 197 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+26 197 M
+(\(dr2 <= rctap**2\) nbnmesh = nbnmesh + 1) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 189 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+26 189 M
+(; ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+34.4 189 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+55.4 189 M
+(; ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+63.8 189 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 173 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+26 173 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+63.8 173 M
+(\(nbmesh,1,3,1,nbnmesh\)) s
+5 157 M
+(nbmesh\(:,:\)=0) s
+5 149 M
+(nbnmesh=0) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 141 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 141 M
+( i=-imesh\(1\), imesh\(1\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 133 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 133 M
+( j=-imesh\(2\), imesh\(2\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 125 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+13.4 125 M
+( k=-imesh\(3\), imesh\(3\)) s
+5 117 M
+(   ii\(1:3\) = [i,j,k]) s
+5 109 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 109 M
+(do) s
+/F-gs-font 7 7 SF
+0 setgray
+26 109 M
+( i1 = 1, 3) s
+5 101 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+30.2 101 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+38.6 101 M
+(\(ii\(i1\)>0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+84.8 101 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 93 M
+(         ii\(i1\)=ii\(i1\)-1) s
+5 85 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+30.2 85 M
+(else) s
+/F-gs-font 7 7 SF
+0 setgray
+47 85 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+51.2 85 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+59.6 85 M
+(\(ii\(i1\)<0\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+105.8 85 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 77 M
+(         ii\(i1\)=ii\(i1\)+1) s
+5 69 M
+(      ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+30.2 69 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+5 61 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 61 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+5 53 M
+(   rr\(1:3\) = ii\(1:3\)*nblcsize\(1:3\)) s
+5 45 M
+(   dr2 = ) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+42.8 45 M
+(sum) s
+/F-gs-font 7 7 SF
+0 setgray
+55.4 45 M
+(\(rr\(1:3\)*rr\(1:3\)\)) s
+5 37 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 37 M
+(if) s
+/F-gs-font 7 7 SF
+0 setgray
+26 37 M
+(\(dr2 <= rctap**2\) ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+101.6 37 M
+(then) s
+/F-gs-font 7 7 SF
+0 setgray
+5 29 M
+(      nbnmesh = nbnmesh + 1) s
+5 21 M
+(      nbmesh\(1:3,nbnmesh\) = \(/i, j, k/\)) s
+5 13 M
+(   ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+17.6 13 M
+(endif) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 5 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+26 5 M
+(; ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+34.4 5 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+55.4 5 M
+(; ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+63.8 5 M
+(enddo) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 493 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 493 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 493 M
+(\(nbllist,1,NBUFFER\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 485 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 485 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 485 M
+(\(nbheader, &) s
+402 477 M
+(                -MAXLAYERS_NB,nbcc\(1\)-1+MAXLAYERS_NB, &) s
+402 469 M
+(                -MAXLAYERS_NB,nbcc\(2\)-1+MAXLAYERS_NB, &) s
+402 461 M
+(                -MAXLAYERS_NB,nbcc\(3\)-1+MAXLAYERS_NB\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 453 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 453 M
+(allocator) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 453 M
+(\(nbnacell, &) s
+402 445 M
+(                -MAXLAYERS_NB,nbcc\(1\)-1+MAXLAYERS_NB, &) s
+402 437 M
+(                -MAXLAYERS_NB,nbcc\(2\)-1+MAXLAYERS_NB, &) s
+402 429 M
+(                -MAXLAYERS_NB,nbcc\(3\)-1+MAXLAYERS_NB\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 413 M
+(!--- normalize nblcsize, like lcsize.) s
+/F-gs-font 7 7 SF
+0 setgray
+402 405 M
+(nblcsize\(1:3\)=nblcsize\(1:3\)/\(/lata,latb,latc/\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 389 M
+(end) s
+/F-gs-font 7 7 SF
+0 setgray
+414.6 389 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+418.8 389 M
+(subroutine) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 373 M
+(!----------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 365 M
+(subroutine ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+448.2 365 M
+(GetBoxParams) s
+/F-gs-font 7 7 SF
+0 setgray
+498.6 365 M
+(\(H,la,lb,lc,angle1,angle2,angle3\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 357 M
+(!----------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 349 M
+(implicit) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 349 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+439.8 349 M
+(none) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+402 341 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+418.8 341 M
+(\(8\),) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+435.6 341 M
+(intent) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 341 M
+(\(out\) :: H\(3,3\)) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+402 333 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+418.8 333 M
+(\(8\),) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+435.6 333 M
+(intent) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 333 M
+(\(in\) :: la,lb,lc, angle1,angle2,angle3) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+402 325 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+418.8 325 M
+(\(8\) :: hh1, hh2 , lal, lbe, lga) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+402 317 M
+(real) s
+/F-gs-font 7 7 SF
+0 setgray
+418.8 317 M
+(\(8\) :: pi=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+460.8 317 M
+(atan) s
+/F-gs-font 7 7 SF
+0 setgray
+477.6 317 M
+(\(1.d0\)*4.d0) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 301 M
+(!--- convet unit for angles) s
+/F-gs-font 7 7 SF
+0 setgray
+402 293 M
+(lal=angle1*pi/180.d0) s
+402 285 M
+(lbe=angle2*pi/180.d0) s
+402 277 M
+(lga=angle3*pi/180.d0) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 261 M
+(!--- construct H-matrix) s
+/F-gs-font 7 7 SF
+0 setgray
+402 253 M
+(hh1=lc*\() s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+435.6 253 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+448.2 253 M
+(\(lal\)-) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+473.4 253 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+486 253 M
+(\(lbe\)*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+511.2 253 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+523.8 253 M
+(\(lga\)\)/) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+553.2 253 M
+(sin) s
+/F-gs-font 7 7 SF
+0 setgray
+565.8 253 M
+(\(lga\)) s
+402 245 M
+(hh2=lc*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+431.4 245 M
+(sqrt) s
+/F-gs-font 7 7 SF
+0 setgray
+448.2 245 M
+(\( 1.d0-) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+477.6 245 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+490.2 245 M
+(\(lal\)**2-) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+528 245 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+540.6 245 M
+(\(lbe\)**2-) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+578.4 245 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+591 245 M
+(\(lga\)**2 + &) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 237 M
+(             2) s
+/F-gs-font 7 7 SF
+0 setgray
+460.8 237 M
+(*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+465 237 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+477.6 237 M
+(\(lal\)*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+502.8 237 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+515.4 237 M
+(\(lbe\)*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+540.6 237 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+553.2 237 M
+(\(lga\) \)/) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+586.8 237 M
+(sin) s
+/F-gs-font 7 7 SF
+0 setgray
+599.4 237 M
+(\(lga\)) s
+402 221 M
+(H\(1,1\)=la;          H\(2,1\)=0.d0;        H\(3,1\)=0.d0) s
+402 213 M
+(H\(1,2\)=lb*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+444 213 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+456.6 213 M
+(\(lga\); H\(2,2\)=lb*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+528 213 M
+(sin) s
+/F-gs-font 7 7 SF
+0 setgray
+540.6 213 M
+(\(lga\); H\(3,2\)=0.d0) s
+402 205 M
+(H\(1,3\)=lc*) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+444 205 M
+(cos) s
+/F-gs-font 7 7 SF
+0 setgray
+456.6 205 M
+(\(lbe\); H\(2,3\)=hh1;         H\(3,3\)=hh2) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 189 M
+(return) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 181 M
+(end) s
+/F-gs-font 7 7 SF
+0 setgray
+414.6 181 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+418.8 181 M
+(subroutine) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 165 M
+(!----------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 157 M
+(subroutine ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+448.2 157 M
+(UpdateBoxParams) s
+/F-gs-font 7 7 SF
+0 setgray
+511.2 157 M
+(\(\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 149 M
+(use ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+418.8 149 M
+(atoms) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 141 M
+(!----------------------------------------------------------------) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 133 M
+(implicit) s
+/F-gs-font 7 7 SF
+0 setgray
+435.6 133 M
+( ) s
+/Courier-Bold 7 7 SUF
+0.133333 0.545098 0.133333 setrgbcolor
+439.8 133 M
+(none) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 117 M
+(!--- get volume ) s
+/F-gs-font 7 7 SF
+0 setgray
+402 109 M
+(MDBOX = &) s
+402 101 M
+(HH\(1,1,0\)*\(HH\(2,2,0\)*HH\(3,3,0\) - HH\(3,2,0\)*HH\(2,3,0\)\) + &) s
+402 93 M
+(HH\(2,1,0\)*\(HH\(3,2,0\)*HH\(1,3,0\) - HH\(1,2,0\)*HH\(3,3,0\)\) + &) s
+402 85 M
+(HH\(3,1,0\)*\(HH\(1,2,0\)*HH\(2,3,0\) - HH\(2,2,0\)*HH\(1,3,0\)\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 69 M
+(!--- get inverse of H-matrix) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+402 61 M
+(call ) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0 0 1 setrgbcolor
+423 61 M
+(matinv) s
+/F-gs-font 7 7 SF
+0 setgray
+448.2 61 M
+(\(HH,HHi\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 45 M
+(!--- local box dimensions \(a temporary use of lbox\)) s
+/F-gs-font 7 7 SF
+0 setgray
+402 37 M
+(LBOX\(1\)=lata/vprocs\(1\)) s
+402 29 M
+(LBOX\(2\)=latb/vprocs\(2\)) s
+402 21 M
+(LBOX\(3\)=latc/vprocs\(3\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+402 5 M
+(!--- get the number of linkedlist cell per domain) s
+_R
+S
+%%Page: (4) 4
+%%BeginPageSetup
+_S
+90 rotate
+24 -571 translate
+/pagenum 4 def
+/fname (init.F90) def
+/fdir (.) def
+/ftail (init.F90) def
+/Courier-Oblique 7 7 SUF
+% User defined strings:
+/pagenumstr (4) def
+/moddatestr (04/15/19) def
+/modtimestr (11:47:33) def
+/user_header_p false def
+/user_footer_p false def
+%%EndPageSetup
+column_lines
+do_header
+0.698039 0.133333 0.133333 setrgbcolor
+/F-gs-font 7 7 SF
+0 setgray
+5 501 M
+(cc\(1:3\)=) s
+/Courier-Bold 7 7 SUF
+0.854902 0.439216 0.839216 setrgbcolor
+38.6 501 M
+(int) s
+/F-gs-font 7 7 SF
+0 setgray
+51.2 501 M
+(\(LBOX\(1:3\)/maxrc\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 485 M
+(!--- local system size in the unscaled coordinate.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 477 M
+(LBOX\(1:3\) = 1.d0/vprocs\(1:3\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 461 M
+(!--- get the linkedlist cell dimensions \(normalized\)) s
+/F-gs-font 7 7 SF
+0 setgray
+5 453 M
+(lcsize\(1:3\) = LBOX\(1:3\)/cc\(1:3\)) s
+/Courier-Oblique 7 7 SUF
+0.698039 0.133333 0.133333 setrgbcolor
+5 437 M
+(!--- get origin of local MD box in the scaled coordiate.) s
+/F-gs-font 7 7 SF
+0 setgray
+5 429 M
+(OBOX\(1:3\) = LBOX\(1:3\)*vID\(1:3\)) s
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 413 M
+(return) s
+/F-gs-font 7 7 SF
+0 setgray
+/Courier-Bold 7 7 SUF
+0.627451 0.12549 0.941176 setrgbcolor
+5 405 M
+(end) s
+/F-gs-font 7 7 SF
+0 setgray
+_R
+S
+%%Trailer
+%%Pages: 4
+%%DocumentNeededResources: font Times-Roman Courier-Oblique Courier-Bold 
+%%+ font Courier Times-Bold 
+%%EOF

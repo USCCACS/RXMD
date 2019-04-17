@@ -4,6 +4,10 @@ module base
 ! position, atom type, velocity, force & charge
 real(8),allocatable,dimension(:),target :: atype, q
 real(8),allocatable,dimension(:,:),target :: pos, v, f
+
+character(2),allocatable :: atmname(:)  
+real(8),allocatable :: mass(:)          
+
 end module
 
 !-------------------------------------------------------------------------------------------
@@ -30,15 +34,13 @@ end interface
 
 interface charge_model_interface
   subroutine charge_model(atype, pos, q)
-    real(8),intent(in),allocatable :: atype(:), pos(:,:)
-    real(8),intent(in out),allocatable :: q(:)
+    real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:)
   end subroutine
 end interface
 
 interface force_model_interface
   subroutine force_model(atype, pos, f, q)
-    real(8),intent(in),allocatable :: atype(:), pos(:,:), q(:)
-    real(8),intent(in out),allocatable :: f(:,:)
+    real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
   end subroutine
 end interface
 
@@ -332,7 +334,7 @@ end function rankToString
 function GetFileNameBase(DataDir,nstep) result(fileNameBase)
 !-------------------------------------------------------------------------------------------
 integer,intent(in) :: nstep
-character(MAXSTRLENGTH) :: DataDir,fileNameBase
+character(len=:),allocatable :: DataDir,fileNameBase
 character(9) :: a9
 
 if(nstep>=0) then

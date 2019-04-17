@@ -82,8 +82,8 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WO
 
 
 !--- set force field parameters
-!get_forcefield_param => get_reaxff_param
-get_forcefield_param => get_feedforward_network
+get_forcefield_param => get_reaxff_param
+!get_forcefield_param => get_feedforward_network
 
 !--- set force model
 force_model_func => force_reaxff

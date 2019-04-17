@@ -28,83 +28,15 @@ call get_reaxff_param(FFPath)
 !--- initialize the MD system
 CALL INITSYSTEM(atype, pos, v, f, q)
 
-!--- read ffield file
-ffpath='DAT'
-call get_forcefield_param(ffpath)
+!!--- read ffield file
+!ffpath='DAT'
+!call get_forcefield_param(ffpath)
+!stop 'foo'
 
-stop 'foo'
-
-!if(mdmode==10) call ConjugateGradient(atype,pos)
-
-call charge_model_func(atype, pos, q)
-call force_model_func(atype, pos, f, q)
-
-!--- Enter Main MD loop 
 call system_clock(it1,irt)
 
-do nstep=0, ntime_step-1
-
-   if(mod(nstep,pstep)==0) call PRINTE(atype, v, q)
-
-   if(mod(nstep,fstep)==0) &
-        call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
-
-   if(mod(nstep,sstep)==0.and.mdmode==4) &
-      v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
-
-   if(mod(nstep,sstep)==0.and.mdmode==5) then
-      ctmp = (treq*UTEMP0)/( GKE*UTEMP )
-      v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
-   endif
-
-   if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
-      call gaussian_dist_velocity(atype, v)
-
-!--- element-wise velocity scaling
-   if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call scale_temperature(atype, v)
-
-   if(mod(nstep,sstep)==0.and.mdmode==8) &
-      call adjust_temperature(atype, v)
-
-!--- update velocity
-   call vkick(1.d0, atype, v, f) 
-
-!--- update coordinates
-   qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
-   qsfp(1:NATOMS)=qsfp(1:NATOMS)+dt*qsfv(1:NATOMS)
-
-!--- always correct the linear momentum when electric field is applied. 
-   if(isEfield) call linear_momentum(atype, v)
-   pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+dt*v(1:NATOMS,1:3)
-
-!--- migrate atoms after positions are updated
-   call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
-   
-   if(mod(nstep,qstep)==0) call charge_model_func(atype, pos, q)
-   call force_model_func(atype, pos, f, q)
-
-   do i=1, NATOMS
-      ity = nint(atype(i))
-      astr(1)=astr(1)+v(i,1)*v(i,1)*mass(ity)
-      astr(2)=astr(2)+v(i,2)*v(i,2)*mass(ity)
-      astr(3)=astr(3)+v(i,3)*v(i,3)*mass(ity)
-      astr(4)=astr(4)+v(i,2)*v(i,3)*mass(ity)
-      astr(5)=astr(5)+v(i,3)*v(i,1)*mass(ity)
-      astr(6)=astr(6)+v(i,1)*v(i,2)*mass(ity)
-   end do
-
-!--- update velocity
-   call vkick(1.d0, atype, v, f) 
-   qsfv(1:NATOMS)=qsfv(1:NATOMS)+0.5d0*dt*Lex_w2*(q(1:NATOMS)-qsfp(1:NATOMS))
-
-enddo
-
-!--- save the final configurations
-call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
-
-!--- update rxff.bin in working directory for continuation run
-call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+!--- Enter Main MD loop 
+call mddriver_reaxff(ntime_step)
 
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
@@ -262,7 +194,7 @@ use atoms
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
-real(8),intent(in) :: atype(NBUFFER), rreal(3,NBUFFER), cellDims(3)
+real(8),intent(in) :: atype(NBUFFER), rreal(NBUFFER,3), cellDims(3)
 
 integer,intent(in) :: Ncells(3), NLAYERS
 integer,intent(out) :: atomList(NBUFFER)
@@ -279,7 +211,7 @@ integer :: n, l(3), j
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-call xu2xs(copyptr(6),rreal,rnorm)
+call xu2xs(hhi,obox,copyptr(6),rreal,rnorm)
 
 headAtom(:,:,:) = -1; atomList(:) = 0; NatomPerCell(:,:,:)=0
 
@@ -410,7 +342,6 @@ implicit none
 real(8),intent(in) :: pos(NBUFFER,3)
 
 integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
-integer :: l2g
 real(8) :: dr(3), dr2
 
 integer :: ti,tj,tk
@@ -458,107 +389,5 @@ enddo; enddo; enddo
 
 call system_clock(tj,tk)
 it_timer(15)=it_timer(15)+(tj-ti)
-
-end subroutine
-
-!--------------------------------------------------------------------------------------------------------------
-function l2g(atype)
-implicit none
-!convert Local ID to Global ID 
-!--------------------------------------------------------------------------------------------------------------
-real(8),intent(IN) :: atype
-integer :: l2g,ity
-
-ity = nint(atype)
-l2g = nint((atype-ity)*1d13)
-
-return
-end function
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs(nmax, rreal, rnorm)
-! update normalized coordinate from real coordinate. Subtract obox to make them local. 
-use atoms
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-real(8),intent(in) :: rreal(NBUFFER,3)
-real(8),intent(out) :: rnorm(NBUFFER,3)
-integer,intent(in) :: nmax
-
-real(8) :: rr(3)
-integer :: i
-
-do i=1,nmax
-   rr(1:3) = rreal(i,1:3)
-   rnorm(i,1)=sum(HHi(1,1:3)*rr(1:3))
-   rnorm(i,2)=sum(HHi(2,1:3)*rr(1:3))
-   rnorm(i,3)=sum(HHi(3,1:3)*rr(1:3))
-   rnorm(i,1:3) = rnorm(i,1:3) - OBOX(1:3)
-enddo
-
-end subroutine
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine xu2xs_inplace(nmax, rreal)
-! update normalized coordinate from real coordinate. Subtract obox to make them local. 
-use atoms
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-real(8),intent(inout) :: rreal(NBUFFER,3)
-integer,intent(in) :: nmax
-real(8) :: rr(3)
-integer :: i
-
-do i=1,nmax
-   rr(1:3) = rreal(i,1:3)
-   rreal(i,1)=sum(HHi(1,1:3)*rr(1:3))
-   rreal(i,2)=sum(HHi(2,1:3)*rr(1:3))
-   rreal(i,3)=sum(HHi(3,1:3)*rr(1:3))
-   rreal(i,1:3) = rreal(i,1:3) - OBOX(1:3)
-enddo
-
-end subroutine
-
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu(nmax,rnorm,rreal)
-! update real coordinate from normalized coordinate
-use atoms
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-real(8),intent(in) :: rnorm(NBUFFER,3)
-real(8),intent(out) :: rreal(NBUFFER,3)
-integer,intent(in) :: nmax
-
-real(8) :: rr(3)
-integer :: i
-
-do i=1,nmax 
-   rr(1:3) = rnorm(i,1:3) + OBOX(1:3)
-   rreal(i,1)=sum(HH(1,1:3,0)*rr(1:3))
-   rreal(i,2)=sum(HH(2,1:3,0)*rr(1:3))
-   rreal(i,3)=sum(HH(3,1:3,0)*rr(1:3))
-enddo
-
-end subroutine
-
-!--------------------------------------------------------------------------------------------------------------
-subroutine xs2xu_inplace(nmax,rnorm)
-! update real coordinate from normalized coordinate
-use atoms
-!--------------------------------------------------------------------------------------------------------------
-implicit none
-real(8),intent(inout) :: rnorm(NBUFFER,3)
-integer,intent(in) :: nmax
-
-real(8) :: rr(3)
-integer :: i
-
-do i=1,nmax 
-   rr(1:3) = rnorm(i,1:3) + OBOX(1:3)
-   rnorm(i,1)=sum(HH(1,1:3,0)*rr(1:3))
-   rnorm(i,2)=sum(HH(2,1:3,0)*rr(1:3))
-   rnorm(i,3)=sum(HH(3,1:3,0)*rr(1:3))
-enddo
 
 end subroutine
