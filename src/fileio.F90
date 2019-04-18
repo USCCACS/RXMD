@@ -1,7 +1,8 @@
 module fileio
 
-  use utils, only : l2g
-  use base, only : atmname
+  use mpi_mod
+  use utils, only : l2g, get_boxparameters
+  use base
   use atoms
   use memory_allocator_mod
 
@@ -451,12 +452,13 @@ lata=lata*mx*vprocs(1)
 latb=latb*my*vprocs(2)
 latc=latc*mz*vprocs(3)
 
-call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
 do j=1, 3
    HH(i,j,0)=mat(i,j)
 enddo; enddo
-call UpdateBoxParams()
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
 
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
@@ -562,12 +564,13 @@ deallocate(dbuf)
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
-call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
 do j=1, 3
    HH(i,j,0)=mat(i,j)
 enddo; enddo
-call UpdateBoxParams()
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
 
 call xs2xu(hh,obox,NATOMS,rnorm,rreal)
 

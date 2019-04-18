@@ -2,6 +2,7 @@
 module cmdline_args
 !-------------------------------------------------------------------------------------------
 
+use base
 use atoms
 use fnn
 
@@ -37,6 +38,25 @@ if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
     if(myrank==0) print'(a)', "usage : ./rxmd --ffield ffield --outDir DAT --rxmdin rxmd.in"
     call MPI_FINALIZE(ierr)
     stop
+endif
+
+if(find_cmdline_argc('--forcefiled_type',idx).or.find_cmdline_argc('-ft',idx)) then
+    call get_command_argument(idx+1,argv)
+    forcefield_type=trim(adjustl(argv))
+
+    if(index(forcefield_type,'reaxff')>0.or.index(forcefield_type,'ReaxFF')>0) then
+         is_reaxff=.true.
+    else if(index(forcefield_type,'fnn')>0.or.index(forcefield_type,'FNN')>0) then
+         is_fnn=.true.
+    else 
+      if(myrank==0) then
+         print'(3a)', 'unsupported forcefield type : ', forcefield_type, '. set forcefield type ReaxFF.'
+         is_reaxff=.true.
+      endif
+    endif
+else
+    print'(3a)', 'no forcefield was specified. set forcefield type FNN'
+    is_fnn=.true.
 endif
 
 if(find_cmdline_argc('--rxmdin',idx).or.find_cmdline_argc('-in',idx)) then

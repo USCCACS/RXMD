@@ -1,6 +1,7 @@
 module velocity_modifiers_mod
 
-  use base, only : mass
+  use mpi_mod
+  use base
   use utils
 
 contains

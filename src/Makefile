@@ -25,7 +25,7 @@ comm.o : module.o
 fnn.o : module.o
 velocity.o : module.o
 
-cmdline.o : module.o memory.o fnn.o
+cmdline.o : module.o memory.o fnn.o module.o
 param.o : cmdline.o utils.o fileio.o comm.o velocity.o
 
 bo.o : param.o

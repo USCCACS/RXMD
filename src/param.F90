@@ -190,7 +190,7 @@ maxrcut = maxval(rcut(:))
 end subroutine
 
 !------------------------------------------------------------------------------------------
-subroutine set_reaxff_potentialtables()
+subroutine set_potentialtables_reaxff()
 use atoms 
 use memory_allocator_mod
 !------------------------------------------------------------------------------------------
@@ -294,7 +294,7 @@ enddo
 end subroutine
 
 !-------------------------------------------------------------------------------------------
-subroutine get_reaxff_param(ffFileName)
+subroutine get_forcefield_params_reaxff(ffFileName)
 use cmdline_args
 !-------------------------------------------------------------------------------------------
 !  This subroutine is designed solely to obtain the parameters used in the Ecalc.f90 

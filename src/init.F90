@@ -2,6 +2,7 @@
 module init
 !------------------------------------------------------------------------------------------
 
+  use base, only : hh,hhi,lbox,obox, mdbox
   use qeq_mod
   use pqeq_mod
   use force_mod
@@ -14,20 +15,14 @@ module init
 contains
 
 !------------------------------------------------------------------------------------------
-SUBROUTINE INITSYSTEM(atype, pos, v, f, q)
-! This subroutine takes care of setting up initial system configuration.
-! Unit conversion of parameters (energy, length & mass) are also done here.
+subroutine mdcontext_base(atype, pos, v, f, q)
 !------------------------------------------------------------------------------------------
-
 implicit none
 
-real(8),allocatable,dimension(:) :: atype, q
-real(8),allocatable,dimension(:,:) :: pos,v,f
+real(8),intent(in out),allocatable,dimension(:) :: atype, q
+real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
 
-integer :: i,j,k, ity, l(3), ist=0
-real(8) :: mm, dns, mat(3,3)
-
-wt0 = MPI_WTIME()
+integer :: i,j,k, ity, l(3)
 
 !--- an error trap
 if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
@@ -80,19 +75,53 @@ call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 GNATOMS = NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
+if(is_reaxff) then
+  call mdcontext_reaxff(atype, pos, v, f, q)
+  print*,'get_mdcontext_func : mdcontext_reaxff'
+else if(is_fnn) then
+  call mdcontext_fnn(atype, pos, v, f, q)
+  print*,'get_mdcontext_func : mdcontext_fnn'
+else
+  call mdcontext_reaxff(atype, pos, v, f, q)
+  print*,'get_mdcontext_func : mdcontext_reaxff'
+endif
 
-!--- set force field parameters
-get_forcefield_param => get_reaxff_param
-!get_forcefield_param => get_feedforward_network
+
+!--- for spring force
+if (isSpring) then
+  call allocator(ipos,1,NBUFFER,1,3)
+  ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
+
+  write(6,'(a)') repeat('-',60)
+  write(6,'(a,f8.2 $)') 'springConst [kcal/mol] ', springConst 
+  do ity=1, size(hasSpringForce) 
+     if(hasSpringForce(ity)) print'(i3 $)',ity
+  enddo
+  print*
+  write(6,'(a)') repeat('-',60)
+endif
+
+end subroutine
+
+!------------------------------------------------------------------------------------------
+subroutine mdcontext_reaxff(atype, pos, v, f, q)
+! This subroutine takes care of setting up initial system configuration.
+! Unit conversion of parameters (energy, length & mass) are also done here.
+!------------------------------------------------------------------------------------------
+implicit none
+
+real(8),intent(in out),allocatable,dimension(:) :: atype, q
+real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
+
+integer :: i,j,k, ity
+real(8) :: mm, dns, mat(3,3)
+
+wt0 = MPI_WTIME()
 
 !--- set force model
 force_model_func => force_reaxff
 
-!--- set potentialtable constructor
-set_potentialtable => set_reaxff_potentialtables
-
 !--- set charge model
-
 if(isPQEq) then
   charge_model_func => PQEq
   rctap = rctap0_pqeq
@@ -103,21 +132,19 @@ if(isPQEq) then
   if(isEfield) call initialize_eField(myid)
 
 else
-
   charge_model_func => QEq
   rctap = rctap0
-
 endif
 
-!--- set taper function for the vdw and coulomb terms
-rctap2 = rctap**2
+!--- set md dirver function 
+mddriver_func => mddriver_reaxff
 
-CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
-          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
-          20.d0/(rctap)**7 /)
+
+!--- set force field parameters
+call get_forcefield_params_reaxff(FFPath)
 
 !--- get number of atoms per each type. 
-call allocator(natoms_per_type, 1, size(mass))
+call allocator(natoms_per_type, 1, size(atmname))
 do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
@@ -126,8 +153,8 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
                    MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 !--- dt/2*mass, mass/2
-call allocator(dthm, 1, size(mass))
-call allocator(hmas, 1, size(mass))
+call allocator(dthm, 1, size(atmname))
+call allocator(hmas, 1, size(atmname))
 do ity=1, size(mass)
    if(mass(ity) > 0.d0) then
       dthm(ity) = dt*0.5d0/mass(ity)
@@ -145,14 +172,23 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM
 dns=mm/MDBOX*UDENS
 
 
+!--- set taper function for the vdw and coulomb terms
+rctap2 = rctap**2
+
+CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
+          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
+          20.d0/(rctap)**7 /)
+
+
 !--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
 call get_bondorder_cutoff(rc, rc2, maxrc, natoms_per_type)
 
 !--- setup potential table
-call set_potentialtable()
+call set_potentialtables_reaxff()
 
 !--- update box-related variables
-call UpdateBoxParams()
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
 
 !--- Linked List & Near Neighb Parameters
 call allocator(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
@@ -160,20 +196,13 @@ call allocator(llist,1,NBUFFER)
 call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 
-call reaxff_mdvariables_allocator()
+call mdvariables_allocator_reaxff()
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()
 
-
 !--- allocate & initialize Array size Stat variables
-call allocator(maxas, 1, ntime_step/pstep+1, 1, nmaxas)
-
-!--- for spring force
-if (isSpring) then
-  call allocator(ipos,1,NBUFFER,1,3)
-  ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
-endif
+call allocator(maxas, 1, (ntime_step/pstep)+1, 1, nmaxas)
 
 !--- print out parameters and open data file
 if(myid==0) then
@@ -216,23 +245,14 @@ if(myid==0) then
                                      isQEq,QEq_tol,NMAXQEq,qstep
    write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
 
-
-   if(isSpring) then
-     write(6,'(a)') repeat('-',60)
-     write(6,'(a,f8.2 $)') 'springConst [kcal/mol] ', springConst 
-     do ity=1, size(hasSpringForce) 
-        if(hasSpringForce(ity)) print'(i3 $)',ity
-     enddo
-     print*
-   endif
-
    print'(a)', "----------------------------------------------------------------"
    write(6,'(a)')  &
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 
 endif
 
-END SUBROUTINE
+end subroutine
+
 end module
 
 !----------------------------------------------------------------
@@ -321,64 +341,3 @@ call allocator(nbnacell, &
 nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)
 
 end subroutine
-
-!----------------------------------------------------------------
-subroutine GetBoxParams(H,la,lb,lc,angle1,angle2,angle3)
-!----------------------------------------------------------------
-implicit none
-real(8),intent(out) :: H(3,3)
-real(8),intent(in) :: la,lb,lc, angle1,angle2,angle3
-real(8) :: hh1, hh2 , lal, lbe, lga
-real(8) :: pi=atan(1.d0)*4.d0
-
-!--- convet unit for angles
-lal=angle1*pi/180.d0
-lbe=angle2*pi/180.d0
-lga=angle3*pi/180.d0
-
-!--- construct H-matrix
-hh1=lc*(cos(lal)-cos(lbe)*cos(lga))/sin(lga)
-hh2=lc*sqrt( 1.d0-cos(lal)**2-cos(lbe)**2-cos(lga)**2 + &
-             2*cos(lal)*cos(lbe)*cos(lga) )/sin(lga)
-
-H(1,1)=la;          H(2,1)=0.d0;        H(3,1)=0.d0
-H(1,2)=lb*cos(lga); H(2,2)=lb*sin(lga); H(3,2)=0.d0
-H(1,3)=lc*cos(lbe); H(2,3)=hh1;         H(3,3)=hh2
-
-return
-end subroutine
-
-!----------------------------------------------------------------
-subroutine UpdateBoxParams()
-use atoms
-!----------------------------------------------------------------
-implicit none
-
-!--- get volume 
-MDBOX = &
-HH(1,1,0)*(HH(2,2,0)*HH(3,3,0) - HH(3,2,0)*HH(2,3,0)) + &
-HH(2,1,0)*(HH(3,2,0)*HH(1,3,0) - HH(1,2,0)*HH(3,3,0)) + &
-HH(3,1,0)*(HH(1,2,0)*HH(2,3,0) - HH(2,2,0)*HH(1,3,0))
-
-!--- get inverse of H-matrix
-call matinv(HH,HHi)
-
-!--- local box dimensions (a temporary use of lbox)
-LBOX(1)=lata/vprocs(1)
-LBOX(2)=latb/vprocs(2)
-LBOX(3)=latc/vprocs(3)
-
-!--- get the number of linkedlist cell per domain
-cc(1:3)=int(LBOX(1:3)/maxrc)
-
-!--- local system size in the unscaled coordinate.
-LBOX(1:3) = 1.d0/vprocs(1:3)
-
-!--- get the linkedlist cell dimensions (normalized)
-lcsize(1:3) = LBOX(1:3)/cc(1:3)
-
-!--- get origin of local MD box in the scaled coordiate.
-OBOX(1:3) = LBOX(1:3)*vID(1:3)
-
-return
-end

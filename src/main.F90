@@ -3,6 +3,7 @@ program rxmd
 !------------------------------------------------------------------------------
 use base
 use init
+use mpi_mod
 use reaxff_param_mod
 use cmdline_args
 use velocity_modifiers_mod
@@ -22,22 +23,15 @@ if(myid==0)  print'(a30)', 'rxmd has started'
 !--- process command line arguments
 call get_cmdline_args(myid, eFieldDir, eFieldStrength)
 
+!--- get forcefield-independent parameters 
 call get_rxmd_parms(ParmPath)
-call get_reaxff_param(FFPath)
 
 !--- initialize the MD system
-CALL INITSYSTEM(atype, pos, v, f, q)
-
-!!--- read ffield file
-!ffpath='DAT'
-!call get_forcefield_param(ffpath)
-!stop 'foo'
-
-call system_clock(it1,irt)
+call mdcontext_base(atype, pos, v, f, q)
 
 !--- Enter Main MD loop 
-call mddriver_reaxff(ntime_step)
-
+call system_clock(it1,irt)
+call mddriver_func(ntime_step)
 call system_clock(it2,irt)
 it_timer(Ntimer)=(it2-it1)
 
@@ -48,6 +42,7 @@ end PROGRAM
 
 !------------------------------------------------------------------------------
 subroutine FinalizeMD(irt)
+use mpi_mod
 use atoms
 use memory_allocator_mod
 !------------------------------------------------------------------------------
@@ -121,6 +116,8 @@ end subroutine
 
 !----------------------------------------------------------------------------------------
 subroutine PRINTE(atype, v, q)
+use mpi_mod
+use base, only : hh, hhi, natoms, gnatoms, mdbox
 use atoms
 use reaxff_param_mod
 use memory_allocator_mod
@@ -190,7 +187,9 @@ end subroutine
 
 !----------------------------------------------------------------------------------------
 subroutine LINKEDLIST(atype, rreal, cellDims, headAtom, atomList, NatomPerCell, Ncells, NLAYERS)
-use atoms
+use base, only : hhi, obox
+use atoms, only : copyptr, NBUFFER, it_timer
+use utils, only : xu2xs
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
@@ -234,6 +233,7 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine NEIGHBORLIST(nlayer, atype, pos)
+use base, only : natoms
 use atoms
 use reaxff_param_mod
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.

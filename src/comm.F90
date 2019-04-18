@@ -1,11 +1,13 @@
 module communication_mod
 
+  use mpi_mod
+  use base, only : hh, hhi, obox, lbox, natoms
+  use atoms
   use memory_allocator_mod
 
 contains
 !--------------------------------------------------------------------------------------------------------------
 subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
-use atoms
 !
 ! TODO: update notes here
 !

@@ -1,6 +1,10 @@
 module fnn
   use iso_fortran_env, only: int32, int64, real32, real64, real128
 
+  use utils
+  use base
+  use memory_allocator_mod
+
   implicit none
 
   !integer,parameter :: rk = real64
@@ -43,12 +47,80 @@ module fnn
 
 contains
 
+!------------------------------------------------------------------------------------------
+subroutine mdcontext_fnn(atype, pos, v, f, q)
+!------------------------------------------------------------------------------------------
+implicit none
+
+real(8),intent(in out),allocatable,dimension(:) :: atype, q
+real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
+
+integer :: i,itype
+
+call fnn_set_name_and_mass(mass, atmname)
+
+!--- FIXME set all atomtype 1 for now
+do i=1, size(atype)
+   itype=nint(atype(i))
+   if(itype>0) then 
+      atype(i)=1.d0+l2g(atype(i))*1d-13
+   endif
+enddo
+
+!--- set force field parameters
+call get_feedforward_network(str_gen('DAT'))
+
+!--- set force model (for now)
+force_model_func => get_force_fnn
+
+!!--- FIXME set potentialtable constructor
+!set_potentialtable => set_reaxff_potentialtables
+
+!--- set md dirver function 
+mddriver_func => mddriver_fnn
+
+
+end subroutine
+
 !------------------------------------------------------------------------------
-subroutine get_fnn_force(atype, pos, f, q)
+subroutine mddriver_fnn(num_mdsteps) 
 !------------------------------------------------------------------------------
 implicit none
-real(8),intent(in),allocatable :: atype(:), pos(:,:), q(:)
-real(8),intent(in out),allocatable :: f(:,:)
+integer,intent(in) :: num_mdsteps
+
+integer :: i
+
+do i=1, NATOMS
+   print*,i,atype(i),pos(i,1:3)
+enddo
+
+return
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine fnn_set_name_and_mass(atom_mass, atom_name)
+!------------------------------------------------------------------------------
+implicit none
+
+real(8),allocatable,intent(in out) :: atom_mass(:)
+character(2),allocatable,intent(in out) :: atom_name(:)
+
+if(.not.allocated(atom_mass)) allocate(atom_mass(1))
+if(.not.allocated(atom_name)) allocate(atom_name(1))
+
+atom_mass(1) = 27d0
+atom_name(1) = 'Ar'
+
+print'(a,a3,f8.3,2i6)','atmname, mass: ', atom_name, atom_mass, &
+       size(atom_name), size(atom_mass)
+
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine get_force_fnn(atype, pos, f, q)
+!------------------------------------------------------------------------------
+implicit none
+real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
 end subroutine
 

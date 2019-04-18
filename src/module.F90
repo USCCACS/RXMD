@@ -1,3 +1,12 @@
+module mpi_mod
+
+#ifdef NOMPI
+  use nompi
+#else
+  include 'mpif.h'
+#endif
+end module
+
 !-------------------------------------------------------------------------------------------
 module base
 !-------------------------------------------------------------------------------------------
@@ -8,18 +17,9 @@ real(8),allocatable,dimension(:,:),target :: pos, v, f
 character(2),allocatable :: atmname(:)  
 real(8),allocatable :: mass(:)          
 
-end module
-
-!-------------------------------------------------------------------------------------------
-module atoms
-!-------------------------------------------------------------------------------------------
-use utils
-
-#ifdef NOMPI
-  use nompi
-#else
-  include 'mpif.h'
-#endif
+real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
+integer :: NATOMS         !local # of atoms
+integer(8) :: GNATOMS     !global # of atoms
 
 interface potentialtable_interface
   subroutine potentialtable_ctor()
@@ -52,11 +52,36 @@ interface velocity_scaling_interface
   end subroutine
 end interface
 
+interface mddriver_interface 
+  subroutine mddriver(num_mdsteps)
+    integer,intent(in) :: num_mdsteps
+  end subroutine
+end interface
+
+interface mdcontext_interface 
+ subroutine get_mdcontext(atype, pos, v, f, q)
+   real(8),intent(in out),allocatable,dimension(:) :: atype, q
+   real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
+  end subroutine
+end interface
+
 procedure(charge_model),pointer :: charge_model_func => null()
 procedure(force_model),pointer :: force_model_func => null()
 procedure(forcefield_param),pointer :: get_forcefield_param => null()
 procedure(potentialtable_ctor),pointer :: set_potentialtable => null()
 procedure(velocity_scaling),pointer :: velocity_scaling_func => null()
+procedure(mddriver),pointer :: mddriver_func => null()
+procedure(get_mdcontext),pointer :: get_mdcontext_func => null()
+
+end module
+
+!-------------------------------------------------------------------------------------------
+module atoms
+!-------------------------------------------------------------------------------------------
+use utils
+
+character(len=:),allocatable :: forcefield_type
+logical :: is_reaxff=.false., is_fnn=.false.
 
 !--- supported force types : 'reaxff', 'nff'
 character(MAXSTRLENGTH) :: force_type='reaxff'
@@ -98,6 +123,7 @@ integer :: target_node(6)
 integer :: vprocs(3)
 
 real(8),allocatable:: rc(:), rc2(:)   !<RCUT>: cutoff length for sigma-bonding.
+real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
 
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
@@ -111,14 +137,10 @@ integer,parameter :: NMINCELL=4  !<NMINCELL>: Nr of minimum linkedlist cell <-> 
 real(8),parameter :: MAXANGLE= 0.999999999999d0 
 real(8),parameter :: MINANGLE=-0.999999999999d0
 real(8),parameter :: NSMALL = 1.d-10
-real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
 
 ! stress tensor
 real(8) :: astr(6) = 0.d0
 
-real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
-integer :: NATOMS         !local # of atoms
-integer(8) :: GNATOMS     !global # of atoms
 
 ! TE: Total Energy,  KE: Kinetic Energy,  PE :: Potential Energies
 !  0-Esystem, 1-Ebond, 2-Elp, 3-Eover, 4-Eunder, 5-Eval, 6-Epen
@@ -136,8 +158,11 @@ integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
 
  
 ! <lcsize> Linked list Cell SIZE. <cc> Nr of likedlist cell in local node.
-real(8) :: lcsize(3), nblcsize(3)
-integer :: cc(3), nbcc(3)
+real(8) :: lcsize(3)
+integer :: cc(3)
+
+real(8) :: nblcsize(3)
+integer :: nbcc(3)
 
 integer :: nmesh, nbnmesh
 integer,allocatable :: mesh(:,:), nbmesh(:,:)
@@ -275,7 +300,7 @@ character(MAXSTRLENGTH) :: PQEqParmPath
 contains
 
 !------------------------------------------------------------------------------------------
-subroutine reaxff_mdvariables_allocator()
+subroutine mdvariables_allocator_reaxff()
 use memory_allocator_mod
 !------------------------------------------------------------------------------------------
 implicit none
@@ -319,32 +344,6 @@ call allocator(qtfv,1,NBUFFER)
 
 return
 end subroutine
-
-
-!-----------------------------------------------------------------------------------------------------------------------
-character(len=256) function rankToString(irank)
-!-----------------------------------------------------------------------------------------------------------------------
-implicit none
-integer,intent(in) :: irank
-write(rankToString,*) irank
-rankToString = adjustl(rankToString)
-end function rankToString
-
-!-------------------------------------------------------------------------------------------
-function GetFileNameBase(DataDir,nstep) result(fileNameBase)
-!-------------------------------------------------------------------------------------------
-integer,intent(in) :: nstep
-character(len=:),allocatable :: DataDir,fileNameBase
-character(9) :: a9
-
-if(nstep>=0) then
-  write(a9,'(i9.9)') nstep
-  fileNameBase=trim(adjustl(DataDir))//"/"//a9
-else
-  fileNameBase=trim(adjustl(DataDir))//"/rxff"
-endif
-
-end function
 
 end module atoms
 

@@ -26,7 +26,7 @@ real(8),allocatable,intent(in out) :: q(:)
 real(8) :: fpqeq(NBUFFER)
 real(8),allocatable :: vdummy(:,:), fdummy(:,:) 
 
-integer :: i,j,l2g
+integer :: i,j
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2, g_h(2), h_hsh(2)
