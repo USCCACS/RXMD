@@ -207,8 +207,7 @@ real(8) :: dr_lg, dr6_lg, Elg, E_core, dE_core, dElg
 real(8) :: clmb,dclmb,erf_alphaijr,derf_alphaijr
 real(8) :: alpha_i, alpha_j
 
-!--- first element in table 0: potential
-!---                        1: derivative of potential
+!--- first element in table 0: potential 1: derivative of potential
 call allocator(TBL_EClmb,0,1,1,NTABLE,1,nboty)
 call allocator(TBL_Evdw,0,1,1,NTABLE,1,nboty)
 call allocator(TBL_EClmb_QEq,1,NTABLE,1,nboty)

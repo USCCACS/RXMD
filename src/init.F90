@@ -11,6 +11,7 @@ module init
   use memory_allocator_mod
   use fileio
   use fnn
+  use lists_mod
 
 contains
 
@@ -118,9 +119,6 @@ real(8) :: mm, dns, mat(3,3)
 
 wt0 = MPI_WTIME()
 
-!--- set force model
-force_model_func => force_reaxff
-
 !--- set charge model
 if(isPQEq) then
   charge_model_func => PQEq
@@ -135,10 +133,14 @@ else
   charge_model_func => QEq
   rctap = rctap0
 endif
+!--- set taper function for the vdw and coulomb terms
+rctap2 = rctap**2
+
+!--- set force model
+force_model_func => force_reaxff
 
 !--- set md dirver function 
 mddriver_func => mddriver_reaxff
-
 
 !--- set force field parameters
 call get_forcefield_params_reaxff(FFPath)
@@ -172,8 +174,6 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM
 dns=mm/MDBOX*UDENS
 
 
-!--- set taper function for the vdw and coulomb terms
-rctap2 = rctap**2
 
 CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
           84.d0/(rctap)**5, -70.d0/(rctap)**6, &
@@ -183,10 +183,10 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
 !--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
 call get_bondorder_cutoff(rc, rc2, maxrc, natoms_per_type)
 
-!--- setup potential table
+!--- setup potential table. need the cutoff distance. 
 call set_potentialtables_reaxff()
 
-!--- update box-related variables
+!--- update box-related variables based on the cutoff distance
 call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
                        cc, lcsize, hhi, mdbox, lbox, obox)
 
@@ -254,90 +254,3 @@ endif
 end subroutine
 
 end module
-
-!----------------------------------------------------------------
-subroutine GetNonbondingMesh()
-use atoms
-use reaxff_param_mod
-use memory_allocator_mod
-! setup 10[A] radius mesh to avoid visiting unecessary cells 
-!----------------------------------------------------------------
-implicit none
-
-integer :: i,j,k
-
-real(8) :: latticePerNode(3), rr(3), dr2
-real(8) :: maxrcell
-integer :: imesh(3), maximesh, ii(3), i1
-
-!--- initial estimate of LL cell dims
-nblcsize(1:3)=3d0
-
-!--- get mesh resolution which is close to the initial value of rlc.
-latticePerNode(1)=lata/vprocs(1)
-latticePerNode(2)=latb/vprocs(2)
-latticePerNode(3)=latc/vprocs(3)
-nbcc(1:3)=int(latticePerNode(1:3)/nblcsize(1:3))
-nblcsize(1:3)=latticePerNode(1:3)/nbcc(1:3)
-maxrcell = maxval(nblcsize(1:3))
-
-!--- get # of linked list cell to cover up the non-bonding cutoff length
-imesh(1:3)  = int(rctap/nblcsize(1:3)) + 1
-maximesh = maxval(imesh(1:3))
-
-!--- List up only cell indices within the cutoff range.
-!--- pre-compute nmesh to get exact array size.
-nbnmesh=0
-do i=-imesh(1), imesh(1)
-do j=-imesh(2), imesh(2)
-do k=-imesh(3), imesh(3)
-   ii(1:3) = [i,j,k]
-   do i1 = 1, 3
-      if(ii(i1)>0) then
-         ii(i1)=ii(i1)-1
-      else if(ii(i1)<0) then
-         ii(i1)=ii(i1)+1
-      endif
-   enddo
-   rr(1:3) = ii(1:3)*nblcsize(1:3)
-   dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rctap**2) nbnmesh = nbnmesh + 1
-enddo; enddo; enddo
-
-call allocator(nbmesh,1,3,1,nbnmesh)
-
-nbmesh(:,:)=0
-nbnmesh=0
-do i=-imesh(1), imesh(1)
-do j=-imesh(2), imesh(2)
-do k=-imesh(3), imesh(3)
-   ii(1:3) = [i,j,k]
-   do i1 = 1, 3
-      if(ii(i1)>0) then
-         ii(i1)=ii(i1)-1
-      else if(ii(i1)<0) then
-         ii(i1)=ii(i1)+1
-      endif
-   enddo
-   rr(1:3) = ii(1:3)*nblcsize(1:3)
-   dr2 = sum(rr(1:3)*rr(1:3))
-   if(dr2 <= rctap**2) then
-      nbnmesh = nbnmesh + 1
-      nbmesh(1:3,nbnmesh) = (/i, j, k/)
-   endif
-enddo; enddo; enddo
-
-call allocator(nbllist,1,NBUFFER)
-call allocator(nbheader, &
-                -MAXLAYERS_NB,nbcc(1)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB,nbcc(2)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB,nbcc(3)-1+MAXLAYERS_NB)
-call allocator(nbnacell, &
-                -MAXLAYERS_NB,nbcc(1)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB,nbcc(2)-1+MAXLAYERS_NB, &
-                -MAXLAYERS_NB,nbcc(3)-1+MAXLAYERS_NB)
-
-!--- normalize nblcsize, like lcsize.
-nblcsize(1:3)=nblcsize(1:3)/(/lata,latb,latc/)
-
-end subroutine

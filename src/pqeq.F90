@@ -3,6 +3,7 @@ module pqeq_mod
   use atoms
   use reaxff_param_mod
   use memory_allocator_mod
+  use lists_mod
 
 contains
 !------------------------------------------------------------------------------
@@ -77,7 +78,7 @@ open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
 call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
-call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
+call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell)
 
 call qeq_initialize()
 

@@ -79,7 +79,7 @@ integer function l2g(atype) result(global_id)
 !convert Local ID to Global ID 
 !-------------------------------------------------------------------------------------------
 implicit none
-real(8),intent(IN) :: atype
+real(8),intent(in) :: atype
 integer :: ity
 
 ity = nint(atype)
@@ -125,7 +125,7 @@ implicit none
 real(8),intent(in) :: hhinv(3,3), box_origin(3)
 integer,intent(in) :: nmax
 real(8),intent(in) :: rreal(:,:)
-real(8),intent(out) :: rnorm(:,:)
+real(8),intent(in out) :: rnorm(:,:)
 
 real(8) :: rr(3)
 integer :: i
@@ -147,7 +147,7 @@ subroutine xu2xs_inplace(hhinv,box_origin,nmax,rreal)
 implicit none
 real(8),intent(in) :: hhinv(3,3), box_origin(3)
 integer,intent(in) :: nmax
-real(8),intent(inout) :: rreal(:,:)
+real(8),intent(in out) :: rreal(:,:)
 real(8) :: rr(3)
 integer :: i
 
@@ -169,7 +169,7 @@ implicit none
 real(8),intent(in) :: hh(3,3,0:1),box_origin(3)
 integer,intent(in) :: nmax
 real(8),intent(in) :: rnorm(:,:)
-real(8),intent(out) :: rreal(:,:)
+real(8),intent(in out) :: rreal(:,:)
 
 real(8) :: rr(3)
 integer :: i
@@ -208,7 +208,7 @@ end subroutine
 subroutine get_boxparameters(H,la,lb,lc,angle1,angle2,angle3)
 !--------------------------------------------------------------------------------------------------------------
 implicit none
-real(8),intent(out) :: H(3,3)
+real(8),intent(in out) :: H(3,3)
 real(8),intent(in) :: la,lb,lc, angle1,angle2,angle3
 real(8) :: hh1, hh2 , lal, lbe, lga
 real(8) :: pi=atan(1.d0)*4.d0

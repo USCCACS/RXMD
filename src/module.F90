@@ -17,7 +17,7 @@ real(8),allocatable,dimension(:,:),target :: pos, v, f
 character(2),allocatable :: atmname(:)  
 real(8),allocatable :: mass(:)          
 
-real(8) :: HH(3,3,0:1), HHi(3,3), MDBOX, LBOX(0:3), OBOX(1:3) !MD box, local MD box, origin of box.
+real(8) :: hh(3,3,0:1), hhi(3,3), mdbox, lbox(3), obox(1:3) !MD box, local MD box, origin of box.
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
 

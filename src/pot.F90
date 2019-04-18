@@ -10,6 +10,7 @@ contains
 subroutine force_reaxff(atype, pos, f, q)
 use communication_mod
 use pqeq_mod
+use lists_mod
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
@@ -32,8 +33,8 @@ PE(:) = 0.d0
 !--- cache atoms and create linkedlist for bonding and non-bonding neighbor lists. 
 call COPYATOMS(MODE_COPY,NMINCELL*lcsize(1:3),atype,pos,vdummy,f,q) 
 
-call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
-call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
+call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell)
 
 call NEIGHBORLIST(NMINCELL, atype, pos)
 call GetNonbondingPairList(pos)
