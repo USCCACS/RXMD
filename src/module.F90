@@ -17,7 +17,12 @@ real(8),allocatable,dimension(:,:),target :: pos, v, f
 character(2),allocatable :: atmname(:)  
 real(8),allocatable :: mass(:)          
 
+integer :: myid, nprocs, vprocs(3), ierr, myparity(3), vID(3)
+
+!--- lattice parameters 
+real(8) :: lata,latb,latc,lalpha,lbeta,lgamma
 real(8) :: hh(3,3,0:1), hhi(3,3), mdbox, lbox(3), obox(1:3) !MD box, local MD box, origin of box.
+
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
 
@@ -83,19 +88,11 @@ use utils
 character(len=:),allocatable :: forcefield_type
 logical :: is_reaxff=.false., is_fnn=.false.
 
-!--- supported force types : 'reaxff', 'nff'
-character(MAXSTRLENGTH) :: force_type='reaxff'
-
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
 !  6-NBUFFER for qeq
 integer,parameter :: nmaxas=5
 integer,allocatable :: maxas(:,:)
-
-!--- lattice parameters 
-real(8) :: lata,latb,latc,lalpha,lbeta,lgamma
-
-integer :: myid, nprocs, ierr, myparity(3), vID(3)
 
 !<sbuffer> send buffer, <rbuffer> receive buffer
 real(8),allocatable :: sbuffer(:), rbuffer(:)
@@ -119,8 +116,6 @@ integer,parameter :: MAXLAYERS_NB=10
 ! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
 integer :: target_node(6)
 
-! For benchmarking, <vprocs> and <mc> will be read from vprocs.in
-integer :: vprocs(3)
 
 real(8),allocatable:: rc(:), rc2(:)   !<RCUT>: cutoff length for sigma-bonding.
 real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.

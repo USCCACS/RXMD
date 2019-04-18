@@ -1,7 +1,7 @@
 module communication_mod
 
   use mpi_mod
-  use base, only : hh, hhi, obox, lbox, natoms
+  use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr
   use atoms
   use memory_allocator_mod
 

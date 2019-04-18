@@ -12,7 +12,6 @@ use communication_mod
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,ity,it1,it2,irt
-real(8) :: ctmp, dr(3)
 
 call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -42,6 +41,7 @@ end PROGRAM
 
 !------------------------------------------------------------------------------
 subroutine FinalizeMD(irt)
+use base, only : myid, ierr
 use mpi_mod
 use atoms
 use memory_allocator_mod
@@ -117,7 +117,7 @@ end subroutine
 !----------------------------------------------------------------------------------------
 subroutine PRINTE(atype, v, q)
 use mpi_mod
-use base, only : hh, hhi, natoms, gnatoms, mdbox
+use base, only : hh, hhi, natoms, gnatoms, mdbox, myid, ierr
 use atoms
 use reaxff_param_mod
 use memory_allocator_mod

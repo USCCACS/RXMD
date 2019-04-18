@@ -49,8 +49,8 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine NEIGHBORLIST(nlayer, atype, pos)
-use base, only : natoms
-use atoms, only : maxneighbs, myid, nstep, pstep, header, rc2, nbrlist, &
+use base, only : natoms, myid
+use atoms, only : maxneighbs, nstep, pstep, header, rc2, nbrlist, &
                   llist, nacell, copyptr, it_timer, cc, nbrindx, maxas
 use reaxff_param_mod, only : inxn2
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
@@ -213,7 +213,8 @@ end subroutine
 subroutine GetNonbondingMesh()
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
-use atoms, only : lata, latb, latc, maxlayers_nb, rctap, vprocs, nblcsize, &
+use base, only : lata, latb, latc, vprocs
+use atoms, only : maxlayers_nb, rctap, nblcsize, &
                   nbheader, nbllist, nbmesh, nbnacell, nbnmesh, nbcc
 use reaxff_param_mod, only : nbuffer
 use memory_allocator_mod

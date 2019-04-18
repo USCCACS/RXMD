@@ -1,5 +1,6 @@
 module pqeq_mod
 
+  use base, only : myid, lata, latb, latc
   use atoms
   use reaxff_param_mod
   use memory_allocator_mod
@@ -25,7 +26,6 @@ real(8),allocatable,intent(in out) :: atype(:), pos(:,:)
 real(8),allocatable,intent(in out) :: q(:)
 
 real(8) :: fpqeq(NBUFFER)
-real(8),allocatable :: vdummy(:,:), fdummy(:,:) 
 
 integer :: i,j
 integer :: i1,j1,k1, nmax
@@ -77,7 +77,7 @@ open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
 #endif
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
-call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
+call COPYATOMS(imode=MODE_COPY, dr=QCopyDr, atype=atype, pos=pos, q=q)
 call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell)
 
 call qeq_initialize()
@@ -93,14 +93,14 @@ enddo
 
 !--- after the initialization, only the normalized coords are necessary for COPYATOMS()
 !--- The atomic coords are converted back to real at the end of this function.
-call COPYATOMS(MODE_QCOPY1,QCopyDr, atype, pos, vdummy, fdummy, q)
+call COPYATOMS(imode=MODE_QCOPY1, dr=QCopyDr, atype=atype, pos=pos, q=q)
 call get_gradient(Gnew)
 
 !--- Let the initial CG direction be the initial gradient direction
 hs(1:NATOMS) = gs(1:NATOMS)
 ht(1:NATOMS) = gt(1:NATOMS)
 
-call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
+call COPYATOMS(imode=MODE_QCOPY2, dr=QCopyDr, atype=atype, pos=pos, q=q)
 
 GEst2=1.d99
 do nstep_qeq=0, nmax-1
@@ -158,7 +158,7 @@ do nstep_qeq=0, nmax-1
   q(1:NATOMS) = qs(1:NATOMS) - mu*qt(1:NATOMS)
 
 !--- update new charges of buffered atoms.
-  call COPYATOMS(MODE_QCOPY1,QCopyDr, atype, pos, vdummy, fdummy, q)
+  call COPYATOMS(imode=MODE_QCOPY1, dr=QCopyDr, atype=atype, pos=pos, q=q)
 
 !--- save old residues.  
   Gold(:) = Gnew(:)
@@ -169,7 +169,7 @@ do nstep_qeq=0, nmax-1
   ht(1:NATOMS) = gt(1:NATOMS) + (Gnew(2)/Gold(2))*ht(1:NATOMS)
 
 !--- update new conjugate direction for buffered atoms.
-  call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
+  call COPYATOMS(imode=MODE_QCOPY2, dr=QCopyDr, atype=atype, pos=pos, q=q)
 
 enddo
 
