@@ -1,6 +1,7 @@
 module lists_mod
 
 contains
+
 !----------------------------------------------------------------------------------------
 subroutine LINKEDLIST(atype, rreal, cellDims, headAtom, atomList, NatomPerCell)
 use utils, only : xu2xs
@@ -48,16 +49,16 @@ it_timer(3)=it_timer(3)+(tj-ti)
 end subroutine 
 
 !----------------------------------------------------------------------
-subroutine NEIGHBORLIST(nlayer, atype, pos)
-use base, only : natoms, myid
-use atoms, only : maxneighbs, nstep, pstep, header, rc2, nbrlist, &
-                  llist, nacell, copyptr, it_timer, cc, nbrindx, maxas
-use reaxff_param_mod, only : inxn2
-! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
+subroutine neighborlist(nlayer, atype, pos, pair_types, skip_check)
+use base, only : natoms, myid, maxneighbs, header, llist, nacell, cc, rc2
+use atoms, only : nstep, pstep, nbrlist, copyptr, it_timer, nbrindx, maxas
 !----------------------------------------------------------------------
+! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 implicit none
 integer,intent(in) :: nlayer
 real(8),allocatable,intent(in) :: atype(:), pos(:,:)
+integer,allocatable,intent(in) :: pair_types(:,:)
+logical,intent(in),optional :: skip_check
 
 integer :: c1,c2,c3, ic(3), c4, c5, c6, ierr
 integer :: n, n1, m, m1, nty, mty, inxn
@@ -91,7 +92,7 @@ DO c3=-nlayer, cc(3)-1+nlayer
 
            if(n/=m) then
              nty = nint(atype(n))
-             inxn = inxn2(mty, nty)
+             inxn = pair_types(mty, nty)
 
              dr(1:3) = pos(n,1:3) - pos(m,1:3) 
              dr2 = sum(dr(1:3)*dr(1:3))
@@ -113,30 +114,33 @@ enddo; enddo; enddo
 
 !--- to get the reverse information (i.e. from i,j1&j to i1), store <i1> into <nbrindx>.
 
+if(.not. present(skip_check)) then
 !$omp parallel do default(shared) private(i,i1,j,j1,isFound)
-do i=1, copyptr(6)
-   do i1 = 1, nbrlist(i,0)
-      j = nbrlist(i,i1)
-      isFound=.false.
-      do j1 = 1, nbrlist(j,0)
-         if(i == nbrlist(j,j1)) then
-            nbrindx(i,i1)=j1
-            isFound=.true.
-         endif
+   do i=1, copyptr(6)
+      do i1 = 1, nbrlist(i,0)
+         j = nbrlist(i,i1)
+         isFound=.false.
+         do j1 = 1, nbrlist(j,0)
+            if(i == nbrlist(j,j1)) then
+               nbrindx(i,i1)=j1
+               isFound=.true.
+            endif
+         enddo
+         if(.not.isFound) &
+         print'(a,i6,30i4)','ERROR: inconsistency between nbrlist and nbrindx found', &
+              myid, i,nbrlist(i,0:nbrlist(i,0)), j, nbrlist(j,0:nbrlist(j,0))
       enddo
-      if(.not.isFound) &
-      print'(a,i6,30i4)','ERROR: inconsistency between nbrlist and nbrindx found', &
-           myid, i,nbrlist(i,0:nbrlist(i,0)), j, nbrlist(j,0:nbrlist(j,0))
    enddo
-enddo
 !$omp end parallel do
+   
+   !--- error trap
+   n=maxval(nbrlist(1:NATOMS,0))
+   if(n > MAXNEIGHBS) then
+      write(6,'(a45,2i5)') "ERROR: overflow of max # in neighbor list, ", myid, n
+      call MPI_FINALIZE(ierr)
+      stop
+   endif
 
-!--- error trap
-n=maxval(nbrlist(1:NATOMS,0))
-if(n > MAXNEIGHBS) then
-   write(6,'(a45,2i5)') "ERROR: overflow of max # in neighbor list, ", myid, n
-   call MPI_FINALIZE(ierr)
-   stop
 endif
 
 !--- for array size stat
@@ -213,10 +217,9 @@ end subroutine
 subroutine GetNonbondingMesh()
 ! setup 10[A] radius mesh to avoid visiting unecessary cells 
 !----------------------------------------------------------------
-use base, only : lata, latb, latc, vprocs
+use base, only : lata, latb, latc, vprocs, nbuffer
 use atoms, only : maxlayers_nb, rctap, nblcsize, &
                   nbheader, nbllist, nbmesh, nbnacell, nbnmesh, nbcc
-use reaxff_param_mod, only : nbuffer
 use memory_allocator_mod
 implicit none
 

@@ -22,11 +22,12 @@ module.o : utils.o memory.o
 
 fileio.o : module.o
 comm.o : module.o
-fnn.o : module.o
 velocity.o : module.o
-lists.o : module.o utils.o param.o
 
-cmdline.o : module.o memory.o fnn.o module.o
+lists.o : module.o utils.o
+fnn.o : module.o comm.o lists.o
+
+cmdline.o : module.o memory.o fnn.o 
 param.o : cmdline.o utils.o fileio.o comm.o velocity.o
 
 bo.o : param.o

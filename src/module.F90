@@ -18,6 +18,44 @@ character(2),allocatable :: atmname(:)
 real(8),allocatable :: mass(:)          
 
 integer :: myid, nprocs, vprocs(3), ierr, myparity(3), vID(3)
+! <target_node> stores partner node ID in the 6-communications. 
+! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
+integer :: target_node(6)
+
+
+
+!<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
+integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
+
+integer,parameter :: MODE_COPY_FNN=11
+
+integer,parameter :: NE_CPBK = 4
+
+
+!<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
+integer,parameter :: MAXLAYERS=5
+
+!<rc>: cutoff length for the primary cutoff. <maxrc> max cutoff length used to decide lcsize.
+real(8),allocatable:: rc(:), rc2(:) 
+real(8) :: maxrc                    
+
+!integer :: NBUFFER=5000
+!integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
+
+integer :: NBUFFER=30000
+integer,parameter :: MAXNEIGHBS=200  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+
+
+!<llist> Linked List
+!<header> header atom of linkedlist cell.
+!<nacell> Nr of atoms in a likedlist cell.
+integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
+ 
+! <lcsize> Linked list Cell SIZE. <cc> Nr of likedlist cell in local node.
+real(8) :: lcsize(3)
+integer :: cc(3)
 
 !--- lattice parameters 
 real(8) :: lata,latb,latc,lalpha,lbeta,lgamma
@@ -44,7 +82,8 @@ interface charge_model_interface
 end interface
 
 interface force_model_interface
-  subroutine force_model(atype, pos, f, q)
+  subroutine force_model(natoms, atype, pos, f, q)
+    integer,intent(in out) :: natoms
     real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
   end subroutine
 end interface
@@ -85,6 +124,14 @@ module atoms
 !-------------------------------------------------------------------------------------------
 use utils
 
+integer,parameter :: NMINCELL=4  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
+real(8),parameter :: MAXANGLE= 0.999999999999d0 
+real(8),parameter :: MINANGLE=-0.999999999999d0
+real(8),parameter :: NSMALL = 1.d-10
+
+integer,parameter :: MAXLAYERS_NB=10
+integer,parameter :: MAXNEIGHBS10=1500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
+
 character(len=:),allocatable :: forcefield_type
 logical :: is_reaxff=.false., is_fnn=.false.
 
@@ -102,37 +149,6 @@ real(8),allocatable :: sbuffer(:), rbuffer(:)
 !     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
 integer :: ns, nr, na, ne
 
-!<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
-integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
-integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
-
-integer,parameter :: NE_CPBK = 4
-
-!<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
-integer,parameter :: MAXLAYERS=5
-integer,parameter :: MAXLAYERS_NB=10
-        
-! <target_node> stores partner node ID in the 6-communications. 
-! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
-integer :: target_node(6)
-
-
-real(8),allocatable:: rc(:), rc2(:)   !<RCUT>: cutoff length for sigma-bonding.
-real(8) :: maxrc                        !<maxRCUT>: Max cutoff length. used to decide lcsize.
-
-!integer :: NBUFFER=5000
-!integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
-
-integer :: NBUFFER=30000
-integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS10=1500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
-
-integer,parameter :: NMINCELL=4  !<NMINCELL>: Nr of minimum linkedlist cell <-> minimum grain size.
-real(8),parameter :: MAXANGLE= 0.999999999999d0 
-real(8),parameter :: MINANGLE=-0.999999999999d0
-real(8),parameter :: NSMALL = 1.d-10
-
 ! stress tensor
 real(8) :: astr(6) = 0.d0
 
@@ -146,15 +162,6 @@ real(8) :: GTE, GKE, GPE(0:13)
 !--- output file format 
 logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.
 
-!<llist> Linked List
-!<header> header atom of linkedlist cell.
-!<nacell> Nr of atoms in a likedlist cell.
-integer,allocatable :: llist(:), header(:,:,:), nacell(:,:,:)
-
- 
-! <lcsize> Linked list Cell SIZE. <cc> Nr of likedlist cell in local node.
-real(8) :: lcsize(3)
-integer :: cc(3)
 
 real(8) :: nblcsize(3)
 integer :: nbcc(3)
@@ -296,6 +303,7 @@ contains
 
 !------------------------------------------------------------------------------------------
 subroutine mdvariables_allocator_reaxff()
+use base
 use memory_allocator_mod
 !------------------------------------------------------------------------------------------
 implicit none

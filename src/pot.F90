@@ -1,5 +1,6 @@
 module force_mod
 
+  use base, only : header, lcsize, llist, nacell
   use atoms
   use reaxff_param_mod
   use bo_mod
@@ -7,23 +8,22 @@ module force_mod
 contains
 
 !----------------------------------------------------------------------------------------------------------------------
-subroutine force_reaxff(atype, pos, f, q)
+subroutine force_reaxff(num_atoms, atype, pos, f, q)
 use communication_mod
 use pqeq_mod
 use lists_mod
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
+integer,intent(in out) :: num_atoms
 real(8),allocatable,intent(in out) :: atype(:), q(:)
 real(8),allocatable,intent(in out) :: pos(:,:), f(:,:)
-
-real(8),allocatable :: vdummy(:,:) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
 integer :: i, j, k
 real(8) :: dr(3)
 
-integer :: itype(NBUFFER) !-- integer part of atype
-integer :: gtype(NBUFFER) !-- global ID from atype
+integer :: itype(size(atype)) !-- integer part of atype
+integer :: gtype(size(atype)) !-- global ID from atype
 
 ccbnd(:) = 0.d0
 cdbnd(:) = 0.d0
@@ -31,12 +31,12 @@ f(:,:) = 0.d0
 PE(:) = 0.d0
 
 !--- cache atoms and create linkedlist for bonding and non-bonding neighbor lists. 
-call COPYATOMS(MODE_COPY,NMINCELL*lcsize(1:3),atype,pos,vdummy,f,q) 
+call COPYATOMS(imode=MODE_COPY, dr=NMINCELL*lcsize(1:3), atype=atype, pos=pos, f=f, q=q) 
 
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell)
 
-call NEIGHBORLIST(NMINCELL, atype, pos)
+call neighborlist(NMINCELL, atype, pos, inxn2)
 call GetNonbondingPairList(pos)
 
 !--- get atom type and global ids
@@ -77,7 +77,7 @@ do i=1, NBUFFER
    astr(6)=astr(6)+pos(i,1)*f(i,2)
 enddo
 
-CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
+CALL COPYATOMS(imode=MODE_CPBK, dr=[0.d0, 0.d0, 0.d0], atype=atype, pos=pos, f=f, q=q) 
 
 #ifdef RFDUMP
 open(81,file="rfdump"//trim(rankToString(myid))//".txt")

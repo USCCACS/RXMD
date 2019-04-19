@@ -1,7 +1,9 @@
 module communication_mod
 
   use mpi_mod
-  use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr
+  use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr, target_node, &
+                   MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, MODE_COPY_FNN
+
   use atoms
   use memory_allocator_mod
 
@@ -54,7 +56,7 @@ real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:)
 
 real(8),allocatable,target :: nipos(:,:)  
 
-logical :: commflag(NBUFFER)
+logical,allocatable :: commflag(:)
 type(pack1darray),allocatable :: pack1d(:)
 type(pack2darray),allocatable :: pack2d(:)
 type(pack2darray),allocatable :: norm2d(:)
@@ -70,7 +72,8 @@ integer,parameter :: is_xyz(6)=(/1,1,2,2,3,3/)  !<- [xxyyzz]
 
 call system_clock(tti,tk)
 
-call allocator(nipos,1,NBUFFER,1,3)
+call allocator(nipos,1,size(atype),1,3)
+allocate(commflag(size(atype)))
 
 call initialize(imode)
 
@@ -110,7 +113,8 @@ it_timer(4)=it_timer(4)+(ttj-tti)
 
 return
 
-CONTAINS 
+contains
+
 !--------------------------------------------------------------------------------------------------------------
 subroutine initialize(imode)
 implicit none
@@ -127,6 +131,28 @@ copyptr(0)=NATOMS
 
 !--- set the number of data per atom 
 select case(imode)
+
+   case(MODE_COPY_FNN)
+
+      np2d=1; np1d=2; nn2d=1
+
+      allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
+      ne = size(pack2d)*3+size(pack1d)
+
+      a=1
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
+
+      a=1
+      pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>frcindx; pack1d(a)%cpbk=.true.; a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos
+
+      do a=1, NATOMS
+         frcindx(a)=a
+      enddo
+
    case(MODE_COPY)
 
       np2d=1; np1d=7; nn2d=1
@@ -286,7 +312,7 @@ implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: dflag
 real(8),intent(in) :: dr(3)
-logical,intent(inout) :: commflag(NBUFFER)
+logical,allocatable,intent(inout) :: commflag(:)
 integer :: i
 
 !--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
@@ -465,6 +491,7 @@ end subroutine store_atoms
 
 !--------------------------------------------------------------------------------------------------------------
 subroutine append_atoms(dflag, imode)
+use base, only : nbuffer
 use atoms
 ! <append_atoms> append copied information into arrays
 ! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>

@@ -505,6 +505,12 @@ metaDataSize = 4*nmeta + 8*6
 
 call MPI_File_Open(MPI_COMM_WORLD,trim(fileName),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
 
+if(ierr > 0) then
+   if(myid==0) write(6,'(2a)') 'MPI_File_Open Error in ReadBIN(): ', trim(fileName)
+   call MPI_Finalize(ierr)
+   stop
+endif
+
 ! read metadata at the beginning of file
 offsettmp=0
 call MPI_File_Seek(fh,offsettmp,MPI_SEEK_SET,ierr)
@@ -569,6 +575,9 @@ do i=1, 3
 do j=1, 3
    HH(i,j,0)=mat(i,j)
 enddo; enddo
+
+! Check: box params are updated first time here but cutoff distance is determined 
+! based on ffield params. give a flag? 
 call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
                        cc, lcsize, hhi, mdbox, lbox, obox)
 

@@ -33,6 +33,10 @@ if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
   stop
 endif
 
+!--- TODO make this stat a class
+!--- allocate & initialize Array size Stat variables
+call allocator(maxas, 1, (ntime_step/pstep)+1, 1, nmaxas)
+
 !--- setup the vector ID and parity for processes, in x, y and z order.
 vID(1)=mod(myid,vprocs(1))
 vID(2)=mod(myid/vprocs(1),vprocs(2))
@@ -76,18 +80,7 @@ call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 GNATOMS = NATOMS ! Convert 4 byte to 8 byte
 call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
-if(is_reaxff) then
-  call mdcontext_reaxff(atype, pos, v, f, q)
-  print*,'get_mdcontext_func : mdcontext_reaxff'
-else if(is_fnn) then
-  call mdcontext_fnn(atype, pos, v, f, q)
-  print*,'get_mdcontext_func : mdcontext_fnn'
-else
-  call mdcontext_reaxff(atype, pos, v, f, q)
-  print*,'get_mdcontext_func : mdcontext_reaxff'
-endif
-
-
+!--- TODO where to put the spring force extention? 
 !--- for spring force
 if (isSpring) then
   call allocator(ipos,1,NBUFFER,1,3)
@@ -101,6 +94,39 @@ if (isSpring) then
   print*
   write(6,'(a)') repeat('-',60)
 endif
+
+!--- print out parameters and open data file
+if(myid==0) then
+   write(6,'(a)') repeat('-',60)
+   write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
+   write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
+   write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
+   write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
+                                  mdmode, current_step, ntime_step
+   write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
+   write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
+   write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
+   write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
+   write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
+   write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,2,0)
+   write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,3,0)
+   print'(a30,3f12.3)', 'lata,latb,latc:', lata,latb,latc
+   print'(a30,3f12.3)', 'lalpha,lbeta,lgamma:', lalpha,lbeta,lgamma
+   write(6,'(a30,2i9)') "NBUFFER, MAXNEIGHBS:", NBUFFER, MAXNEIGHBS
+   write(6,'(a)') repeat('-',60)
+endif
+
+if(is_reaxff) then
+  call mdcontext_reaxff(atype, pos, v, f, q)
+  print*,'get_mdcontext_func : mdcontext_reaxff'
+else if(is_fnn) then
+  call mdcontext_fnn(atype, pos, v, f, q)
+  print*,'get_mdcontext_func : mdcontext_fnn'
+else
+  call mdcontext_reaxff(atype, pos, v, f, q)
+  print*,'get_mdcontext_func : mdcontext_reaxff'
+endif
+
 
 end subroutine
 
@@ -181,7 +207,7 @@ CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
 
 
 !--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
-call get_bondorder_cutoff(rc, rc2, maxrc, natoms_per_type)
+call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
 
 !--- setup potential table. need the cutoff distance. 
 call set_potentialtables_reaxff()
@@ -201,26 +227,10 @@ call mdvariables_allocator_reaxff()
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()
 
-!--- allocate & initialize Array size Stat variables
-call allocator(maxas, 1, (ntime_step/pstep)+1, 1, nmaxas)
-
-!--- print out parameters and open data file
+!--- ReaxFF specific output 
 if(myid==0) then
+
    write(6,'(a)') repeat('-',60)
-   write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
-   write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
-   write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
-   write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
-                                  mdmode, current_step, ntime_step
-   write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
-   write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
-   write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
-   write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
-   write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
-   write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,2,0)
-   write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,3,0)
-   print'(a30,3f12.3)', 'lata,latb,latc:', lata,latb,latc
-   print'(a30,3f12.3)', 'lalpha,lbeta,lgamma:', lalpha,lbeta,lgamma
    write(6,'(a30,3f10.4)') "density [g/cc]:",dns
    write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
@@ -228,9 +238,7 @@ if(myid==0) then
    write(6,'(a30,3i6)')  '# of linkedlist cell (NB):', nbcc(1:3)
    write(6,'(a30,3f10.2)') "lcsize [A] (NB):", &
         lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
-   write(6,'(a30,2i6)') "MAXNEIGHBS, MAXNEIGHBS10:", MAXNEIGHBS,MAXNEIGHBS10
-   write(6,'(a30,i6,i9)') "NMINCELL, NBUFFER:", NMINCELL, NBUFFER
-   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
+   write(6,'(a30,2i6)') "NMINCELL, MAXNEIGHBS10:", NMINCELL, MAXNEIGHBS10
 
    print'(a30 $)','# of atoms per type:'
    do ity=1, nso
@@ -239,13 +247,14 @@ if(myid==0) then
    print*
 
    write(6,'(a)') repeat('-',60)
+   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
    write(6,'(a30,2(a12,1x))') &
          "FFPath, ParmPath:", trim(FFPath),trim(ParmPath)
    write(6,'(a30,i6,es10.1,i6,i6)') "isQEq,QEq_tol,NMAXQEq,qstep:", &
                                      isQEq,QEq_tol,NMAXQEq,qstep
    write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
 
-   print'(a)', "----------------------------------------------------------------"
+   write(6,'(a)') repeat('-',60)
    write(6,'(a)')  &
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 

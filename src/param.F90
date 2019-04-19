@@ -1,8 +1,7 @@
 !-------------------------------------------------------------------------------------------
 module reaxff_param_mod
 
-use base, only : atmname, mass
-use atoms, only : NBUFFER, MAXNEIGHBS
+use base, only : atmname, mass, NBUFFER, MAXNEIGHBS
 use memory_allocator_mod
 use utils
 
@@ -129,7 +128,7 @@ real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
 contains
 
 !------------------------------------------------------------------------------------------
-subroutine get_bondorder_cutoff(rcut, rcut2, maxrcut, natoms_per_type)
+subroutine get_cutoff_bondorder(rcut, rcut2, maxrcut, natoms_per_type)
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
@@ -683,7 +682,7 @@ real(8) :: ctmp
 !if(mdmode==10) call ConjugateGradient(atype,pos)
 
 call charge_model_func(atype, pos, q)
-call force_model_func(atype, pos, f, q)
+call force_model_func(natoms, atype, pos, f, q)
 
 !--- Enter Main MD loop 
 do nstep=0, num_mdsteps-1
@@ -723,10 +722,10 @@ do nstep=0, num_mdsteps-1
    pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+dt*v(1:NATOMS,1:3)
 
 !--- migrate atoms after positions are updated
-   call COPYATOMS(MODE_MOVE,[0.d0, 0.d0, 0.d0],atype, pos, v, f, q)
+   call COPYATOMS(imode=MODE_MOVE,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q)
    
    if(mod(nstep,qstep)==0) call charge_model_func(atype, pos, q)
-   call force_model_func(atype, pos, f, q)
+   call force_model_func(natoms, atype, pos, f, q)
 
    do i=1, NATOMS
       ity = nint(atype(i))
