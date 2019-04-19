@@ -7,12 +7,12 @@ implicit none
 
    interface allocator
       module procedure :: AllocatorD1D, AllocatorD2D, AllocatorD3D, AllocatorI1D, &
-                          AllocatorI2D, AllocatorI3D, AllocatorI81D 
+                          AllocatorI2D, AllocatorI3D, AllocatorI81D, AllocatorF2D
    end interface
 
    interface deallocator
       module procedure :: DeallocatorD1D, DeallocatorD2D, DeallocatorD3D, DeallocatorI1D, &
-                          DeallocatorI2D, DeallocatorI3D, DeallocatorI81D
+                          DeallocatorI2D, DeallocatorI3D, DeallocatorI81D, DeallocatorF2d
    end interface
 
 contains 
@@ -210,6 +210,35 @@ subroutine DeallocatorI3D(array)
   totalMemory = totalMemory - size(array)*4
   deallocate(array, stat=status)
   if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorI3D: totalMemory = ', totalMemory, status
+
+  return
+end subroutine 
+
+subroutine AllocatorF2D(array, imin1, imax1, imin2, imax2) 
+  implicit none
+  integer,intent(in) :: imin1, imax1, imin2, imax2
+  real(4),allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  allocate(array(imin1:imax1,imin2:imax2), stat=status)
+  totalMemory = totalMemory + size(array)*4
+
+  array = 0
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in AllocatorF2D: totalMemory = ', totalMemory, status
+
+  return 
+end subroutine
+
+subroutine DeallocatorF2D(array) 
+  implicit none
+  real(4),allocatable,dimension(:,:) :: array
+  integer :: status
+  
+  totalMemory = totalMemory - size(array)*4
+  deallocate(array, stat=status)
+
+  if(status/=0) print'(a30,i9,i3)', 'ERROR in DeallocatorF2D: totalMemory = ', totalMemory, status
 
   return
 end subroutine 

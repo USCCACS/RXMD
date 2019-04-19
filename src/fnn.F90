@@ -48,8 +48,10 @@ module fnn
   real(rk),allocatable :: infs(:,:)
 
   integer,parameter :: num_types=1, num_pairs=num_types*(num_types+1)/2
+  integer,parameter :: NMINCELL_FNN=1
 
   integer,allocatable :: pair_types(:,:)
+
 
 contains
 
@@ -82,6 +84,8 @@ call get_feedforward_network(str_gen('DAT'))
 
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc)
+
+call allocator(features,1, NBUFFER, 1, num_features) 
 
 !=============================================================================
 ! TODO this part should be merged into the basic context. 
@@ -165,7 +169,6 @@ real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 integer :: i, j, k
 real(8) :: dr(3)
 
-f(:,:) = 0.d0
 !do i=1, natoms
 !   print'(a,i6,4es25.15)','i,atype(i),pos(i,1:3): ', i,atype(i),pos(i,1:3)
 !enddo
@@ -174,7 +177,9 @@ call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
-call neighborlist(NMINCELL, atype, pos, pair_types, skip_check=.true.)
+call neighborlist(NMINCELL_FNN, atype, pos, pair_types, skip_check=.true.)
+
+call get_features(natoms, atype, pos, features) 
 
 end subroutine
 
@@ -249,61 +254,75 @@ print'(a,a3,f8.3,2i6)','atmname, mass: ', atom_name, atom_mass, &
 end subroutine
 
 !------------------------------------------------------------------------------
-function get_features(num_atoms, atype, pos) result(features)
-use atoms, only: pi
+subroutine get_features(num_atoms, atype, pos, features) 
 !------------------------------------------------------------------------------
 implicit none
-integer(ik),intent(in) :: num_atoms
+integer,intent(in) :: num_atoms
 real(8),intent(in),allocatable :: atype(:), pos(:,:)
-
-real(rk),allocatable :: features(:,:)
+real(rk),allocatable,intent(in out) :: features(:,:)
 
 real(rk) :: rr(3), rr2, rij, dr_norm, dsum, eta, fr, rij_mu
 integer(ik) :: i, j, j1, l1, l2, ii, idx, ia
+integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,n,n1,m,m1,nty,mty,inxn
 
-do i=1, num_atoms
+features = 0.0
 
-   do j=1, num_atoms
+!$omp parallel do default(shared) collapse(3) & 
+!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,rr,rr2,rij,dr_norm,fr,rij_mu,eta,idx) 
+do c1=0, cc(1)-1
+do c2=0, cc(2)-1
+do c3=0, cc(3)-1
 
-      if (i==j) cycle
+  m = header(c1, c2, c3)
+  do m1=1, nacell(c1, c2, c3)
+     mty = nint(atype(m))
 
-      rr(1:3) = pos(i,1:3) - pos(j,1:3)
+     do c4 = -1, 1
+     do c5 = -1, 1
+     do c6 = -1, 1
+        ic(1:3) = [c1, c2, c3] + [c4, c5, c6]
 
-      !do ia=1,3
-      !   if(rr(ia)>=sfd%lattice(ia)*0.5d0) rr(ia)=rr(ia)-sfd%lattice(ia)
-      !   if(rr(ia)<-sfd%lattice(ia)*0.5d0) rr(ia)=rr(ia)+sfd%lattice(ia)
-      !enddo
+        n = header(ic(1),ic(2),ic(3))
+        do n1=1, nacell(ic(1), ic(2), ic(3))
 
-      rr2 = sum(rr(1:3)*rr(1:3))
-      rij = sqrt(rr2)
+           if(n/=m) then
+             nty = nint(atype(n))
+             inxn = pair_types(mty, nty)
 
-      if(rij < ml_Rc) then
+             rr(1:3) = pos(n,1:3) - pos(m,1:3)
+             rr2 = sum(rr(1:3)*rr(1:3))
+             rij = sqrt(rr2)
 
-         rr(1:3) = rr(1:3)/rij
+             if(rr2<rc2(inxn)) then
 
-         dr_norm = rij/ml_Rc
-         fr = 0.5*( 1.0 + cos(pi*dr_norm) ) 
+                rr(1:3) = rr(1:3)/rij
+                dr_norm = rij/ml_Rc
+                fr = 0.5*( 1.0 + cos(pi*dr_norm) ) 
 
-         do l1 = 1, num_Mu
+                do l1 = 1, num_Mu
 
-            rij_mu = rij - ml_Mu(l1)
+                   rij_mu = rij - ml_Mu(l1)
 
-            do l2 = 1, num_Eta
+                   do l2 = 1, num_Eta
+                      eta = exp( -ml_Eta(l2) * rij_mu * rij_mu )
+                      idx = (l1-1)*num_Eta*num_forcecomps + (l2-1)*num_forcecomps
+                      features(n,idx+1) = features(n,idx+1) + rr(1)*eta*fr !<- rr(1)??
+                   enddo
 
-               eta = exp( -ml_Eta(l2) * rij_mu * rij_mu )
+                enddo
+             endif
 
-               idx = (l1-1)*num_Eta*num_forcecomps + (l2-1)*num_forcecomps
+           endif
 
-               !features(i,idx+1:idx+3) = features(i,idx+1:idx+3) + rr(1:3)*eta*fr
-               features(i,idx+1) = features(i,idx+1) + rr(1)*eta*fr
-            enddo
-         enddo
+           n=llist(n)
+        enddo
+     enddo; enddo; enddo
 
-      endif
+     m = llist(m)
+  enddo
+enddo; enddo; enddo
+!$omp end parallel do 
 
-   enddo
-
-enddo
 
 !do i=1, sfd%num_atoms
 !   print'(i6,30es13.5)',i,features(i,:)
@@ -311,7 +330,7 @@ enddo
 !stop 'foo'
 
 return
-end function
+end subroutine
 
 !------------------------------------------------------------------------------
 subroutine get_feedforward_network(path) 
@@ -321,7 +340,7 @@ subroutine get_feedforward_network(path)
    character(1),parameter :: cxyz(3) = ['x','y','z']
    type(network) :: netx,nety,netz
 
-   print*,'path: ', path
+   print*,'In get_feedforward_network, path: ', path
    netx = network_ctor(num_dims,path//'/'//cxyz(1))
    nety = network_ctor(num_dims,path//'/'//cxyz(2))
    netz = network_ctor(num_dims,path//'/'//cxyz(3))
@@ -335,7 +354,9 @@ type(network) function network_ctor(dims, netdata_prefix) result(net)
 
    integer(ik),intent(in) :: dims(:)
    character(len=*),intent(in) :: netdata_prefix
-   character(3) :: arow, acol, alayer
+
+   character(len=:),allocatable :: filename_b, filename_w
+   character(len=:),allocatable :: arow, acol, alayer
 
    integer(ik) :: i, nrow, ncol, fileunit
    integer(ik) :: num_layers
@@ -350,214 +371,25 @@ type(network) function network_ctor(dims, netdata_prefix) result(net)
      allocate(net%layers(i)%b(ncol))
      allocate(net%layers(i)%w(nrow,ncol))
      print*,'i,nrow,ncol: ', i,nrow,ncol 
-     write(alayer,'(i3)') i; alayer = adjustl(alayer)
-     write(arow,'(i3)') nrow; arow = adjustl(arow)
-     write(acol,'(i3)') ncol; acol = adjustl(acol)
-     print*,'b: ', trim(netdata_prefix)//'_b_'//trim(alayer)//'_'//trim(acol)//'.net', size(net%layers(i)%b)
-     open(newunit=fileunit, access='stream', form='unformatted', status='old', &
-          file=trim(netdata_prefix)//'_b_'//trim(alayer)//'_'//trim(acol)//'.net')
+
+     alayer = int_to_str(i)
+     arow = int_to_str(nrow)
+     acol = int_to_str(ncol)
+
+     filename_b = trim(netdata_prefix)//'_b_'//alayer//'_'//acol//'.net'
+     print*,'b: ', filename_b, size(net%layers(i)%b)
+     open(newunit=fileunit, file=filename_b, access='stream', form='unformatted', status='old')
      read(fileunit) net%layers(i)%b
      close(fileunit)
 
-     print*,'w: ', trim(netdata_prefix)//'_w_'//trim(alayer)//'_'//trim(arow)//'_'//trim(acol)//'.net'
-     open(newunit=fileunit, access='stream', form='unformatted', status='old', &
-          file=trim(netdata_prefix)//'_w_'//trim(alayer)//'_'//trim(arow)//'_'//trim(acol)//'.net')
+     filename_w = trim(netdata_prefix)//'_w_'//alayer//'_'//arow//'_'//acol//'.net'
+     print*,'w: ', filename_w, shape(net%layers(i)%w)
+     open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
      read(fileunit) net%layers(i)%w
      close(fileunit)
    enddo
 
 end function
-
-!!------------------------------------------------------------------------------
-!  function mynetwork_ctor(dims) result(netx)
-!    implicit none
-!!------------------------------------------------------------------------------
-!    integer,intent(in) :: dims(:)
-!    type(mynetwork) :: netx,nety,netz
-!
-!    integer(ik) :: i, j, k
-!    integer(ik) :: ncol, nrow, num_layers=0, target_atom=1
-!    integer(ik),parameter :: num_checks = 20, num_features = 27
-!    integer(ik),parameter :: num_features3 = num_features*3
-!    real(rk),allocatable :: x(:),y(:)
-!    character(len=1) :: a1
-!    real(rk) :: f(3)
-!   
-!    num_layers = size(dims)
-!    print'(a,9i5)','number of layers from dims: ', dims
-!
-!!    !--- load features
-!!    allocate(infs(num_checks, num_checks*num_features3))
-!!    open(1,file='Al_data/input_feature.npy.txt')
-!!    do i=1, num_checks
-!!       read(1,*) infs(i, 1:num_features3)     
-!!       !print*,infs(i, 1:num_features3)     
-!!    enddo
-!!    close(1)
-!
-!    !--- load network for x-force
-!    netx = network_ctor(dims)
-!
-!    do i=1, num_layers-1
-!      nrow = dims(i)
-!      ncol = dims(i+1)
-!
-!      write(a1,'(i1)') i
-!
-!      open(1,file='Al_data/Al_b_x_'//a1//'.txt')
-!      do j=1, ncol
-!         read(1,*) netx%layers(i)%b(j)
-!      enddo
-!      close(1)
-!
-!      open(1,file='Al_data/Al_w_x_'//a1//'.txt')
-!      do j=1, nrow 
-!         read(1,*) netx%layers(i)%w(j,1:ncol)
-!      enddo
-!      close(1)
-!    enddo
-!
-!    !--- load network for y-force
-!    allocate(nety%layers(num_layers))
-!    do i=1, num_layers-1
-!      nrow = dims(i);  ncol = dims(i+1)
-!
-!      write(a1,'(i1)') i
-!
-!      allocate(nety%layers(i)%b(ncol))
-!      open(1,file='Al_data/Al_b_y_'//a1//'.txt')
-!      do j=1, ncol; read(1,*) nety%layers(i)%b(j);  enddo
-!      close(1)
-!
-!      allocate(nety%layers(i)%w(nrow,ncol))
-!      open(1,file='Al_data/Al_w_y_'//a1//'.txt')
-!      do j=1, nrow;  read(1,*) nety%layers(i)%w(j,1:ncol);  enddo
-!      close(1)
-!    enddo
-!
-!    !--- load network for z-force
-!    allocate(netz%layers(num_layers))
-!    do i=1, num_layers-1
-!      nrow = dims(i);  ncol = dims(i+1)
-!
-!      write(a1,'(i1)') i
-!
-!      allocate(netz%layers(i)%b(ncol))
-!      open(1,file='Al_data/Al_b_z_'//a1//'.txt')
-!      do j=1, ncol; read(1,*) netz%layers(i)%b(j);  enddo
-!      close(1)
-!
-!      allocate(netz%layers(i)%w(nrow,ncol))
-!      open(1,file='Al_data/Al_w_z_'//a1//'.txt')
-!      do j=1, nrow;  read(1,*) netz%layers(i)%w(j,1:ncol);  enddo
-!      close(1)
-!    enddo
-!
-!    !--- initialize y with feature
-!    do target_atom=1, 20
-!
-!       !--- z-direction force
-!       if(allocated(y)) deallocate(y)
-!       allocate(y(num_features))
-!       y(1:num_features) = infs(target_atom,1:num_features)    
-!   
-!       !--- weight multiply plus bias 
-!       do i=1, num_layers-1
-!         nrow = dims(i);  ncol = dims(i+1)
-!         !-- w*x + b
-!         if(allocated(x)) deallocate(x);  allocate(x(ncol))
-!         do k=1,ncol
-!            x(k) = netx%layers(i)%b(k)+ & 
-!                 sum(netx%layers(i)%w(1:nrow,k)*y(1:nrow)) 
-!         enddo
-!
-!         !--- save prediction
-!         f(1)=x(1)
-!
-!         !--- apply relu and update y
-!         if(allocated(y)) deallocate(y); allocate(y(ncol))
-!         y=max(x,0.0) 
-!   
-!       enddo
-!   
-!       !--- y-direction force
-!       if(allocated(y)) deallocate(y); allocate(y(num_features))
-!       y(1:num_features) = infs(target_atom,num_features+1:2*num_features)    
-!   
-!       !--- weight multiply plus bias 
-!       do i=1, num_layers-1
-!         nrow = dims(i);  ncol = dims(i+1)
-!         !-- w*x + b
-!         if(allocated(x)) deallocate(x);  allocate(x(ncol))
-!         do k=1,ncol
-!            x(k) = nety%layers(i)%b(k)+ & 
-!                 sum(nety%layers(i)%w(1:nrow,k)*y(1:nrow)) 
-!         enddo
-!   
-!         !--- save prediction
-!         f(2)=x(1)
-!
-!         if(allocated(y)) deallocate(y); allocate(y(ncol))
-!         y=max(x,0.0) 
-!   
-!       enddo
-!   
-!       !--- z-direction force
-!       if(allocated(y)) deallocate(y); allocate(y(num_features))
-!       y(1:num_features) = infs(target_atom,2*num_features+1:3*num_features)    
-!   
-!       do i=1, num_layers-1
-!         nrow = dims(i);  ncol = dims(i+1)
-!         !-- w*x + b
-!         if(allocated(x)) deallocate(x);  allocate(x(ncol))
-!         do k=1,ncol
-!            x(k) = netz%layers(i)%b(k)+ & 
-!                 sum(netz%layers(i)%w(1:nrow,k)*y(1:nrow)) 
-!         enddo
-!   
-!         !--- save prediction
-!         f(3)=x(1)
-!
-!         !--- apply relu and update y
-!         if(allocated(y)) deallocate(y); allocate(y(ncol))
-!         y=max(x,0.0)
-!   
-!       enddo
-!   
-!       print'(a,i6,3f15.8)' ,'f: ', target_atom, f(1:3)/50d0
-!
-!    enddo
-!
-!    stop 'foo'
-!
-!    return
-!  end function
-!
-!  if(find_cmdline_argc('--network_dimensions',idx).or.find_cmdline_argc('-ndims',idx)) then
-!      call get_command_argument(idx+1,argv)
-!      read(argv, fmt=*) ii
-!
-!      num_dims = [num_features]
-!      do ia=1, ii
-!         call get_command_argument(idx+1+ia,argv)
-!         read(argv, fmt=*) ib
-!         num_dims = [num_dims, ib]
-!      enddo
-!      num_dims = [num_dims, num_forcecomps]
-!  endif
-!
-!!  print'(/a)', repeat('=',60)
-!!  print'(a30,2i6)', 'num_Mu, num_Eta : ', num_Mu, num_Eta
-!!  print'(a30,i9)', 'num epochs : ', o%num_epochs
-!!  print'(a30,a20,i5)', 'training datafile&size : ', trim(o%training_datafile), o%training_size
-!!  print'(a30,a20,i5)', 'test datafile&size : ',  trim(o%test_datafile), o%test_size
-!!  print'(a30,10i5)', 'network dimensions : ', o%num_dims
-!!  print'(a30,f8.3)', 'learning rate : ', o%learning_rate
-!!  print'(a30,a20)', 'network checkpoint file : ', trim(o%network_ckptfile)
-!!  print'(a/)', repeat('=',60)
-!
-!  return
-!end function
 
 !!------------------------------------------------------------------------------
 !function single_frame_ctor(num_atoms) result(o)
@@ -681,7 +513,6 @@ end function
 !
 !!------------------------------------------------------------------------------
 !function ml_get_features(single_frame_data) result(features)
-!use atoms, only: pi
 !!------------------------------------------------------------------------------
 !implicit none
 !type(single_frame),intent(in),optional :: single_frame_data

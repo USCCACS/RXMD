@@ -75,6 +75,19 @@ return
 end function
 
 !-------------------------------------------------------------------------------------------
+function int_to_str(i) result(str)
+!-------------------------------------------------------------------------------------------
+  integer,intent(in) :: i
+  character(len=:),allocatable :: str
+  character(len=32) :: str_buf
+
+  write(str_buf,'(i32)') i
+  str = trim(adjustl(str_buf))
+
+  return
+end function
+
+!-------------------------------------------------------------------------------------------
 integer function l2g(atype) result(global_id)
 !convert Local ID to Global ID 
 !-------------------------------------------------------------------------------------------

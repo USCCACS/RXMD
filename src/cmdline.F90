@@ -139,6 +139,9 @@ if(find_cmdline_argc('--network_dimensions',idx).or.find_cmdline_argc('-ndims',i
        num_dims = [num_dims, ib]
     enddo
     num_dims = [num_dims, num_forcecomps]
+else
+    !TODO, a better network size specifier later? 
+    num_dims = [num_features, 256, 512, 256, num_forcecomps]
 endif
 
 end subroutine
