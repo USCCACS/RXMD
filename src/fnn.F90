@@ -85,6 +85,7 @@ call get_feedforward_network(str_gen('DAT'))
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc)
 
+!--- features(natoms, num_features)
 call allocator(features,1, NBUFFER, 1, num_features) 
 
 !=============================================================================
@@ -177,44 +178,11 @@ call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
-call neighborlist(NMINCELL_FNN, atype, pos, pair_types, skip_check=.true.)
+!call neighborlist(NMINCELL_FNN, atype, pos, pair_types, skip_check=.true.)
 
 call get_features(natoms, atype, pos, features) 
 
 end subroutine
-
-!------------------------------------------------------------------------------------------
-subroutine get_cutoff_fnn(rcut, rcut2, maxrcut)
-!------------------------------------------------------------------------------------------
-implicit none
-real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
-real(8),intent(in out) :: maxrcut
-
-integer :: ity,jty,inxn
-
-!--- get the cutoff length 
-call allocator(rcut, 1, num_pairs)
-call allocator(rcut2, 1, num_pairs)
-call allocator(pair_types, 1, num_types, 1, num_types)
-
-do ity=1, num_types
-do jty=ity, num_types
-   pair_types(ity,jty) = ity + (jty-1)*num_types
-   inxn = pair_types(ity,jty) 
-
-   rcut(inxn)  = ml_Rc
-   rcut2(inxn) = ml_Rc*ml_Rc
-   print'(a,3i6,2f10.5)','ity, jty, inxn: ', ity, jty, inxn, rcut(inxn), rcut2(inxn)
-
-   pair_types(jty,ity) = pair_types(ity,jty) 
-enddo
-enddo
-
-maxrcut = maxval(rcut)
-
-end subroutine
-!------------------------------------------------------------------------------
-
 
 !------------------------------------------------------------------------------
 subroutine mddriver_fnn(num_mdsteps) 
@@ -245,8 +213,9 @@ character(2),allocatable,intent(in out) :: atom_name(:)
 if(.not.allocated(atom_mass)) allocate(atom_mass(num_types))
 if(.not.allocated(atom_name)) allocate(atom_name(num_types))
 
+! aluminum name & mass 
 atom_mass(1) = 27d0
-atom_name(1) = 'Ar'
+atom_name(1) = 'Al'
 
 print'(a,a3,f8.3,2i6)','atmname, mass: ', atom_name, atom_mass, &
        size(atom_name), size(atom_mass)
@@ -306,7 +275,7 @@ do c3=0, cc(3)-1
                    do l2 = 1, num_Eta
                       eta = exp( -ml_Eta(l2) * rij_mu * rij_mu )
                       idx = (l1-1)*num_Eta*num_forcecomps + (l2-1)*num_forcecomps
-                      features(n,idx+1) = features(n,idx+1) + rr(1)*eta*fr !<- rr(1)??
+                      features(n,idx+1) = features(n,idx+1) + eta*fr 
                    enddo
 
                 enddo
@@ -324,7 +293,7 @@ enddo; enddo; enddo
 !$omp end parallel do 
 
 
-!do i=1, sfd%num_atoms
+!do i=1, num_atoms
 !   print'(i6,30es13.5)',i,features(i,:)
 !enddo
 !stop 'foo'
@@ -350,104 +319,79 @@ end subroutine
 !------------------------------------------------------------------------------
 type(network) function network_ctor(dims, netdata_prefix) result(net)
 !------------------------------------------------------------------------------
-   implicit none
+implicit none
 
-   integer(ik),intent(in) :: dims(:)
-   character(len=*),intent(in) :: netdata_prefix
+integer(ik),intent(in) :: dims(:)
+character(len=*),intent(in) :: netdata_prefix
 
-   character(len=:),allocatable :: filename_b, filename_w
-   character(len=:),allocatable :: arow, acol, alayer
+character(len=:),allocatable :: filename_b, filename_w
+character(len=:),allocatable :: arow, acol, alayer
 
-   integer(ik) :: i, nrow, ncol, fileunit
-   integer(ik) :: num_layers
+integer(ik) :: i, nrow, ncol, fileunit
+integer(ik) :: num_layers
 
-   num_layers = size(dims)
+num_layers = size(dims)
 
-   allocate(net%layers(num_layers))
-   do i=1, num_layers-1
-     nrow = dims(i)
-     ncol = dims(i+1)
+allocate(net%layers(num_layers))
 
-     allocate(net%layers(i)%b(ncol))
-     allocate(net%layers(i)%w(nrow,ncol))
-     print*,'i,nrow,ncol: ', i,nrow,ncol 
+do i=1, num_layers-1
+  nrow = dims(i)
+  ncol = dims(i+1)
 
-     alayer = int_to_str(i)
-     arow = int_to_str(nrow)
-     acol = int_to_str(ncol)
+  allocate(net%layers(i)%b(ncol))
+  allocate(net%layers(i)%w(nrow,ncol))
+  print*,'i,nrow,ncol: ', i,nrow,ncol 
 
-     filename_b = trim(netdata_prefix)//'_b_'//alayer//'_'//acol//'.net'
-     print*,'b: ', filename_b, size(net%layers(i)%b)
-     open(newunit=fileunit, file=filename_b, access='stream', form='unformatted', status='old')
-     read(fileunit) net%layers(i)%b
-     close(fileunit)
+  alayer = int_to_str(i)
+  arow = int_to_str(nrow)
+  acol = int_to_str(ncol)
 
-     filename_w = trim(netdata_prefix)//'_w_'//alayer//'_'//arow//'_'//acol//'.net'
-     print*,'w: ', filename_w, shape(net%layers(i)%w)
-     open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
-     read(fileunit) net%layers(i)%w
-     close(fileunit)
-   enddo
+  filename_b = trim(netdata_prefix)//'_b_'//alayer//'_'//acol//'.net'
+  print*,'b: ', filename_b, size(net%layers(i)%b)
+  open(newunit=fileunit, file=filename_b, access='stream', form='unformatted', status='old')
+  read(fileunit) net%layers(i)%b
+  close(fileunit)
+
+  filename_w = trim(netdata_prefix)//'_w_'//alayer//'_'//arow//'_'//acol//'.net'
+  print*,'w: ', filename_w, shape(net%layers(i)%w)
+  open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
+  read(fileunit) net%layers(i)%w
+  close(fileunit)
+enddo
 
 end function
 
-!!------------------------------------------------------------------------------
-!function single_frame_ctor(num_atoms) result(o)
-!  implicit none
-!!------------------------------------------------------------------------------
-!  integer(ik),intent(in) :: num_atoms
-!  type(single_frame) :: o
-!
-!  allocate(o%aname(num_atoms), o%atype(num_atoms), o%q(num_atoms))
-!  !allocate(o%pos(num_atoms,3), o%f(num_atoms,3),o%v(num_atoms,3))
-!  allocate(o%pos(num_atoms,3), o%f(num_atoms,num_forcecomps),o%v(num_atoms,3))
-!
-!  o%atype = 0.0;  o%q = 0.0;  o%pos = 0.0;  o%f = 0.0;  o%v = 0.0
-!
-!  return
-!end function
+!------------------------------------------------------------------------------------------
+subroutine get_cutoff_fnn(rcut, rcut2, maxrcut)
+!------------------------------------------------------------------------------------------
+implicit none
+real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
+real(8),intent(in out) :: maxrcut
 
-!!------------------------------------------------------------------------------
-!function ml_load_data(dataset_path, num_frames) result(dataset)
-!!------------------------------------------------------------------------------
-!implicit none
-!
-!character(MAXSTRLENGTH), intent(in) :: dataset_path
-!integer(ik),intent(in) :: num_frames 
-!
-!type(single_frame), allocatable :: dataset(:)
-!integer(ik) :: fileunit, stat
-!integer(ik) :: i, ia, num_atoms
-!real(rk) :: lattice(6)
-!
-!allocate(dataset(num_frames))
-!
-!open(newunit=fileunit, file=dataset_path)
-!
-!do i=1, size(dataset) 
-!   read(fileunit, fmt=*, iostat=stat) num_atoms
-!   read(fileunit, fmt=*, iostat=stat) lattice(1:3)
-!
-!   lattice(1:3) = lattice(1:3)*LJ_factor
-!   lattice(4:6) = 90.d0
-!
-!   dataset(i) = single_frame_ctor(num_atoms)
-!
-!   dataset(i)%num_atoms = num_atoms
-!   dataset(i)%lattice = lattice
-!
-!   do ia=1, num_atoms
-!      read(fileunit, fmt=*) dataset(i)%aname(ia), dataset(i)%pos(ia,1:3), dataset(i)%f(ia,1:num_forcecomps)
-!      !write(6, fmt=*) dataset(i)%aname(ia), dataset(i)%pos(ia,1:3), dataset(i)%f(ia,1:3) 
-!      dataset(i)%pos(ia,1:3) = dataset(i)%pos(ia,1:3)*LJ_factor
-!
-!      dataset(i)%f(ia,:) = dataset(i)%f(ia,:)*50
-!   enddo
-!
-!enddo 
-!   
-!end function
-!
+integer :: ity,jty,inxn
+
+!--- get the cutoff length 
+call allocator(rcut, 1, num_pairs)
+call allocator(rcut2, 1, num_pairs)
+call allocator(pair_types, 1, num_types, 1, num_types)
+
+do ity=1, num_types
+do jty=ity, num_types
+   pair_types(ity,jty) = ity + (jty-1)*num_types
+   inxn = pair_types(ity,jty) 
+
+   rcut(inxn)  = ml_Rc
+   rcut2(inxn) = ml_Rc*ml_Rc
+   print'(a,3i6,2f10.5)','ity, jty, inxn: ', ity, jty, inxn, rcut(inxn), rcut2(inxn)
+
+   pair_types(jty,ity) = pair_types(ity,jty) 
+enddo
+enddo
+
+maxrcut = maxval(rcut)
+
+end subroutine
+
 !!------------------------------------------------------------------------------
 !subroutine ml_initialize()
 !!------------------------------------------------------------------------------
@@ -510,75 +454,5 @@ end function
 !
 !  return
 !end subroutine
-!
-!!------------------------------------------------------------------------------
-!function ml_get_features(single_frame_data) result(features)
-!!------------------------------------------------------------------------------
-!implicit none
-!type(single_frame),intent(in),optional :: single_frame_data
-!real(rk),allocatable :: features(:,:)
-!
-!real(rk) :: rr(3), rr2, rij, dr_norm, dsum, eta, fr, rij_mu
-!integer(ik) :: i, j, j1, l1, l2, ii, idx, ia
-!
-!!--- reset feature vector
-!allocate(features(single_frame_data%num_atoms, num_features))
-!features=0.d0
-!
-!!--- associate block to rename single_frame_data
-!associate(sfd => single_frame_data)
-!
-!  do i=1, sfd%num_atoms
-!  
-!     do j=1, sfd%num_atoms
-!  
-!        if (i==j) cycle
-!  
-!        rr(1:3) = sfd%pos(i,1:3) - sfd%pos(j,1:3)
-!        do ia=1,3
-!           if(rr(ia)>=sfd%lattice(ia)*0.5d0) rr(ia)=rr(ia)-sfd%lattice(ia)
-!           if(rr(ia)<-sfd%lattice(ia)*0.5d0) rr(ia)=rr(ia)+sfd%lattice(ia)
-!        enddo
-!  
-!        rr2 = sum(rr(1:3)*rr(1:3))
-!        rij = sqrt(rr2)
-!  
-!        if(rij < ml_Rc) then
-!
-!           rr(1:3) = rr(1:3)/rij
-!
-!           dr_norm = rij/ml_Rc
-!           fr = 0.5*( 1.0 + cos(pi*dr_norm) ) 
-!
-!           do l1 = 1, num_Mu
-!
-!              rij_mu = rij - ml_Mu(l1)
-!
-!              do l2 = 1, num_Eta
-!  
-!                 eta = exp( -ml_Eta(l2) * rij_mu * rij_mu )
-!  
-!                 idx = (l1-1)*num_Eta*num_forcecomps + (l2-1)*num_forcecomps
-!
-!                 !features(i,idx+1:idx+3) = features(i,idx+1:idx+3) + rr(1:3)*eta*fr
-!                 features(i,idx+1) = features(i,idx+1) + rr(1)*eta*fr
-!              enddo
-!           enddo
-!
-!        endif
-!
-!     enddo
-!
-!  enddo
-!
-!  !do i=1, sfd%num_atoms
-!  !   print'(i6,30es13.5)',i,features(i,:)
-!  !enddo
-!  !stop 'foo'
-!
-!end associate
-!
-!return
-!end function
 
 end module
