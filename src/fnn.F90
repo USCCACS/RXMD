@@ -20,10 +20,10 @@ module fnn
 
   real(rk),allocatable :: features(:,:) 
 
-  integer(rk),parameter :: num_Mu = 9
+  integer(ik),parameter :: num_Mu = 9
   real(rk),parameter :: ml_Mu(num_Mu) = [1.0,2.0,2.86,4.06,4.96,5.74,6.42,7.02,7.58]
 
-  integer(rk),parameter :: num_Eta = 3
+  integer(ik),parameter :: num_Eta = 3
   !real(rk),parameter :: ml_Eta(num_Eta) = [0.5,1.0,3.0,20.0]
   real(rk),parameter :: ml_Eta(num_Eta) = [0.5,1.0,3.0]
 
@@ -33,8 +33,10 @@ module fnn
   real(rk),parameter :: ml_Rc = 8.0
 
   !integer(rk),parameter :: num_forcecomps = 3
-  integer(rk),parameter :: num_forcecomps = 1
-  integer(rk),parameter :: num_features = num_Mu*num_Eta*num_forcecomps
+  integer(ik),parameter :: num_forcecomps = 1
+  integer(ik),parameter :: num_features = num_Mu*num_Eta*num_forcecomps
+
+  integer(ik),parameter :: num_networks = 3
 
   type :: layer
     real(rk),allocatable :: b(:)
@@ -44,6 +46,8 @@ module fnn
   type :: network
     type(layer),allocatable :: layers(:)
   end type
+
+  type(network),allocatable :: networks(:)
 
   real(rk),allocatable :: infs(:,:)
 
@@ -79,14 +83,16 @@ enddo
 !--- set md dirver function 
 mddriver_func => mddriver_fnn
 
+!--- features(natoms, num_features)
+call allocator(features,1, NBUFFER, 1, num_features) 
+!--- use three types of networks, [x,y,z]
+allocate(networks(3))
+
 !--- set force field parameters
-call get_feedforward_network(str_gen('DAT'))
+call get_feedforward_network(networks, str_gen('DAT'))
 
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc)
-
-!--- features(natoms, num_features)
-call allocator(features,1, NBUFFER, 1, num_features) 
 
 !=============================================================================
 ! TODO this part should be merged into the basic context. 
@@ -161,18 +167,17 @@ endif
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_force_fnn(natoms, atype, pos, f, q)
+subroutine get_force_fnn(networks, natoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
 implicit none
+type(network),intent(in),allocatable :: networks(:)
 integer,intent(in out) :: natoms
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
-integer :: i, j, k
-real(8) :: dr(3)
+integer(ik) :: i, j, k, n, ncol, nrow, num_layers
+integer(ik) :: na, nn, nl
 
-!do i=1, natoms
-!   print'(a,i6,4es25.15)','i,atype(i),pos(i,1:3): ', i,atype(i),pos(i,1:3)
-!enddo
+real(rk),allocatable :: x(:),y(:)
 
 call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 
@@ -181,6 +186,51 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 !call neighborlist(NMINCELL_FNN, atype, pos, pair_types, skip_check=.true.)
 
 call get_features(natoms, atype, pos, features) 
+
+num_layers = size(num_dims)
+
+do na=1, natoms
+
+   network_loop : do nn=1, num_networks
+
+      if(allocated(y)) deallocate(y)
+      allocate(y(num_features))
+
+      y(1:num_features) = features(na,1:num_features)    
+   
+      layer_loop : do nl=1, num_layers-1
+
+        nrow = num_dims(nl)
+        ncol = num_dims(nl+1)
+     
+        !-- w*x + b
+        if(allocated(x)) deallocate(x);  allocate(x(ncol))
+     
+        do k=1,ncol
+          x(k) = networks(nn)%layers(nl)%b(k)+ & 
+                sum(networks(nn)%layers(nl)%w(1:nrow,k)*y(1:nrow)) 
+        enddo
+
+     
+        !--- apply relu and update y
+        if(allocated(y)) deallocate(y); allocate(y(ncol))
+        y = max(x,0.0) ! relu
+     
+      enddo layer_loop
+
+      if(size(x)==1) then
+         !if(na==1) print'(a,3i6,f8.5)','f(na,nn): ', na,nn,nl,x(1)
+         f(na,nn) = x(1)
+      else
+         print*,'ERROR: the last layer size is not 1'
+         stop 
+      endif
+
+   enddo network_loop
+
+   !print*,na,f(na,1:3)
+
+enddo
 
 end subroutine
 
@@ -192,12 +242,10 @@ integer,intent(in) :: num_mdsteps
 
 integer :: i
 
-!do i=1, NATOMS
-!   print*,i,atype(i),pos(i,1:3)
-!enddo
-
 !--- set force model
-call get_force_fnn(natoms, atype, pos, f, q)
+do i=1, num_mdsteps
+   call get_force_fnn(networks, natoms, atype, pos, f, q)
+enddo
 
 return
 end subroutine
@@ -302,17 +350,18 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_feedforward_network(path) 
+subroutine get_feedforward_network(networks, path) 
 !------------------------------------------------------------------------------
+   implicit none
+   type(network),allocatable,intent(in out) :: networks(:)
    character(len=:),allocatable,intent(in) :: path
 
    character(1),parameter :: cxyz(3) = ['x','y','z']
-   type(network) :: netx,nety,netz
 
    print*,'In get_feedforward_network, path: ', path
-   netx = network_ctor(num_dims,path//'/'//cxyz(1))
-   nety = network_ctor(num_dims,path//'/'//cxyz(2))
-   netz = network_ctor(num_dims,path//'/'//cxyz(3))
+   networks(1) = network_ctor(num_dims,path//'/'//cxyz(1))
+   networks(2) = network_ctor(num_dims,path//'/'//cxyz(2))
+   networks(3) = network_ctor(num_dims,path//'/'//cxyz(3))
     
 end subroutine
 
@@ -340,22 +389,24 @@ do i=1, num_layers-1
 
   allocate(net%layers(i)%b(ncol))
   allocate(net%layers(i)%w(nrow,ncol))
-  print*,'i,nrow,ncol: ', i,nrow,ncol 
+  !print*,'i,nrow,ncol: ', i,nrow,ncol 
 
   alayer = int_to_str(i)
   arow = int_to_str(nrow)
   acol = int_to_str(ncol)
 
   filename_b = trim(netdata_prefix)//'_b_'//alayer//'_'//acol//'.net'
-  print*,'b: ', filename_b, size(net%layers(i)%b)
   open(newunit=fileunit, file=filename_b, access='stream', form='unformatted', status='old')
   read(fileunit) net%layers(i)%b
   close(fileunit)
 
   filename_w = trim(netdata_prefix)//'_w_'//alayer//'_'//arow//'_'//acol//'.net'
-  print*,'w: ', filename_w, shape(net%layers(i)%w)
   open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
   read(fileunit) net%layers(i)%w
+
+  write(*, fmt='(a30,2i6,a30,i6)') &
+       'w: '//filename_w, shape(net%layers(i)%w), ' b: '//filename_b, size(net%layers(i)%b)
+
   close(fileunit)
 enddo
 
@@ -391,68 +442,5 @@ enddo
 maxrcut = maxval(rcut)
 
 end subroutine
-
-!!------------------------------------------------------------------------------
-!subroutine ml_initialize()
-!!------------------------------------------------------------------------------
-!  implicit none
-!
-!  integer(ik) :: iepoch, idata
-!  real(rk) :: loss, cum_loss = 0.0, cum_loss0 = 0.0
-!
-!  type(network_type) :: network
-!  type(cmdargs) :: cmd 
-!
-!  integer :: i, j
-!
-!  integer(ik) :: fileunit, n, num_layers
-!  integer(ik), allocatable :: dims(:)
-!
-!  type(mynetwork) :: mynet
-!
-!  cmd = cmdargs_ctor()
-!
-!  mynet = mynetwork_ctor(cmd%num_dims)
-!
-!  dataset = ml_load_data(cmd%training_datafile, num_frames=cmd%training_size)
-!
-!  network = network_type(cmd%num_dims, 'relu')
-!  !network = network_type(cmd%num_dims)
-!
-!  if (trim(cmd%network_ckptfile) /= 'n/a') & 
-!     call network%load(cmd%network_ckptfile)
-!
-!  do iepoch = 1, cmd%num_epochs
-!
-!     cum_loss = 0.0
-!     do idata = 1, size(dataset)
-!    
-!       associate(d => dataset(idata)) 
-!
-!         features = ml_get_features(single_frame_data = d) 
-!  
-!         loss = ml_train_model(network, num_atoms = d%num_atoms,  &
-!                            x = features, y = d%f, &
-!                            learning_rate = cmd%learning_rate) 
-!       end associate
-!
-!       cum_loss = cum_loss + loss
-!
-!     enddo
-!
-!     if(mod(iepoch,10)==0) then
-!        call network%save('network.ckpt')
-!        write(*, fmt='(a,i6,es)') 'iepoch, loss: ', iepoch, cum_loss/size(dataset)
-!     endif
-!
-!  enddo
-!
-!  associate(d => dataset(1))
-!     features = ml_get_features(single_frame_data = d)
-!     call ml_finalcheck(network, num_atoms = d%num_atoms, x = features, y = d%f)
-!  end associate
-!
-!  return
-!end subroutine
 
 end module
