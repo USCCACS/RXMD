@@ -3,15 +3,12 @@ module init
 !------------------------------------------------------------------------------------------
 
   use base, only : hh,hhi,lbox,obox, mdbox
-  use qeq_mod
-  use pqeq_mod
+  use qeq_mod, only : QEq
+  use pqeq_mod, only : PQEq, initialize_eField, initialize_pqeq
   use force_mod
-  use reaxff_param_mod
-  use velocity_modifiers_mod
   use memory_allocator_mod
-  use fileio
+  use fileio, only : ReadBIN
   use fnn
-  use lists_mod
 
 contains
 
@@ -118,58 +115,49 @@ endif
 
 if(is_reaxff) then
   call mdcontext_reaxff(atype, pos, v, f, q)
-  print*,'get_mdcontext_func : mdcontext_reaxff'
+  if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 else if(is_fnn) then
   call mdcontext_fnn(atype, pos, v, f, q)
-  print*,'get_mdcontext_func : mdcontext_fnn'
+  if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
 else
   call mdcontext_reaxff(atype, pos, v, f, q)
-  print*,'get_mdcontext_func : mdcontext_reaxff'
+  if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 endif
 
 
 end subroutine
 
 !------------------------------------------------------------------------------------------
-subroutine mdcontext_reaxff(atype, pos, v, f, q)
-! This subroutine takes care of setting up initial system configuration.
-! Unit conversion of parameters (energy, length & mass) are also done here.
+subroutine get_drived_properties(get_cutoff_func, set_potentialtables_func, &
+                                 atmname, mass, natoms_per_type, &
+                                 dthm, hmas, dns)
 !------------------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in out),allocatable,dimension(:) :: atype, q
-real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
+interface cutoff_func_interface
+  subroutine get_cutoff(rcut, rcut2, maxrcut, natoms_per_type)
+    real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
+    real(8),intent(in out) :: maxrcut
+    integer(8),allocatable,intent(in out),optional :: natoms_per_type(:)
+  end subroutine
+end interface
 
-integer :: i,j,k, ity
-real(8) :: mm, dns, mat(3,3)
+interface potentialtable_interface
+  subroutine set_potentialtable()
+  end subroutine
+end interface
 
-wt0 = MPI_WTIME()
+procedure(get_cutoff) :: get_cutoff_func
+procedure(set_potentialtable),optional :: set_potentialtables_func
 
-!--- set charge model
-if(isPQEq) then
-  charge_model_func => PQEq
-  rctap = rctap0_pqeq
+character(2),allocatable,intent(in) :: atmname(:)
+real(8),allocatable,intent(in) :: mass(:)
 
-  call allocator(spos,1,NBUFFER,1,3)
+integer(8),allocatable,intent(in out) :: natoms_per_type(:)
+real(8),allocatable,intent(in out) :: dthm(:),hmas(:)
+real(8),intent(in out) :: dns
 
-  call initialize_pqeq(chi,eta)
-  if(isEfield) call initialize_eField(myid)
-
-else
-  charge_model_func => QEq
-  rctap = rctap0
-endif
-!--- set taper function for the vdw and coulomb terms
-rctap2 = rctap**2
-
-!--- set force model
-force_model_func => force_reaxff
-
-!--- set md dirver function 
-mddriver_func => mddriver_reaxff
-
-!--- set force field parameters
-call get_forcefield_params_reaxff(FFPath)
+integer :: i, ity
 
 !--- get number of atoms per each type. 
 call allocator(natoms_per_type, 1, size(atmname))
@@ -191,26 +179,16 @@ do ity=1, size(mass)
 enddo
 
 !--- get density 
-mm = 0.d0
+dns = 0.d0
 do i=1, NATOMS
    ity = nint(atype(i))
-   mm = mm + mass(ity)
+   dns = dns + mass(ity)
 enddo
-call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-dns=mm/MDBOX*UDENS
+call MPI_ALLREDUCE(MPI_IN_PLACE, dns, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
+dns=dns/mdbox*UDENS
 
-
-
-CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
-          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
-          20.d0/(rctap)**7 /)
-
-
-!--- determine cutoff distances only for exsiting atom pairs. cutoff cleanup using natoms_per_type()
-call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
-
-!--- setup potential table. need the cutoff distance. 
-call set_potentialtables_reaxff()
+!--- setup cutoff distance, rc, rc2, and maxrc. 
+call get_cutoff_func(rc, rc2, maxrc, natoms_per_type)
 
 !--- update box-related variables based on the cutoff distance
 call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
@@ -222,7 +200,129 @@ call allocator(llist,1,NBUFFER)
 call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 
+
+!--- setup potential tables
+if(present(set_potentialtables_func)) call set_potentialtables_func()
+
+return
+end subroutine
+
+!------------------------------------------------------------------------------------------
+subroutine mdcontext_fnn(atype, pos, v, f, q)
+!------------------------------------------------------------------------------------------
+implicit none
+
+real(8),intent(in out),allocatable,dimension(:) :: atype, q
+real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
+
+integer :: i,ity
+real(8) :: dns, mm
+
+call set_name_and_mass_fnn(mass, atmname)
+
+!--- FIXME set all atomtype 1 for now
+do i=1, size(atype)
+   ity=nint(atype(i))
+   if(ity>0) then 
+      atype(i)=1.d0+l2g(atype(i))*1d-13
+   endif
+enddo
+
+!--- set md dirver function 
+mddriver_func => mddriver_fnn
+
+!--- features(natoms, num_features)
+call allocator(features,1, NBUFFER, 1, num_features) 
+
+!--- use three types of networks, [x,y,z]
+allocate(networks(3))
+
+!--- set force field parameters
+call load_weight_and_bais_fnn(networks, str_gen('DAT'))
+
+call get_drived_properties(get_cutoff_func=get_cutoff_fnn, & 
+     atmname=atmname, mass=mass, natoms_per_type=natoms_per_type, &
+     dthm=dthm, hmas=hmas, dns=dns)
+
+!--- FNN specific output 
+if(myid==0) then
+
+   write(6,'(a)') repeat('-',60)
+   write(6,'(a30,3f10.4)') "density [g/cc]:",dns
+   write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
+   write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
+        maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
+   write(6,'(a30,2i6)') "NMINCELL, MAXNEIGHBS10:", NMINCELL, MAXNEIGHBS10
+
+   print'(a30 $)','# of atoms per type:'
+   do ity=1, num_pairs
+      if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
+   enddo
+   print*
+
+   write(6,'(a)') repeat('-',60)
+   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
+   write(6,'(a30,2(a12,1x))') &
+         "FFPath, ParmPath:", trim(FFPath),trim(ParmPath)
+   write(6,'(a)') repeat('-',60)
+
+endif
+
+
+end subroutine
+
+!------------------------------------------------------------------------------------------
+subroutine mdcontext_reaxff(atype, pos, v, f, q)
+! This subroutine takes care of setting up initial system configuration.
+! Unit conversion of parameters (energy, length & mass) are also done here.
+!------------------------------------------------------------------------------------------
+implicit none
+
+real(8),intent(in out),allocatable,dimension(:) :: atype, q
+real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
+
+integer :: i,j,k, ity
+real(8) :: dns
+
+wt0 = MPI_WTIME()
+
+!--- allocate variales used during reaxff energy & force calculations
 call mdvariables_allocator_reaxff()
+
+!--- set charge model
+if(isPQEq) then
+  charge_model_func => PQEq
+  rctap = rctap0_pqeq
+
+  call allocator(spos,1,NBUFFER,1,3)
+
+  call initialize_pqeq(chi,eta)
+  if(isEfield) call initialize_eField(myid)
+
+else
+  charge_model_func => QEq
+  rctap = rctap0
+endif
+
+!--- set taper function for the vdw and coulomb terms
+rctap2 = rctap**2
+CTap(0:7)=(/1.d0, 0.d0, 0.d0, 0.d0,   -35.d0/(rctap)**4, &
+          84.d0/(rctap)**5, -70.d0/(rctap)**6, &
+          20.d0/(rctap)**7 /)
+
+!--- set force model
+force_model_func => force_reaxff
+
+!--- set md dirver function 
+mddriver_func => mddriver_reaxff
+
+!--- set force field parameters
+call get_forcefield_params_reaxff(FFPath)
+
+!--- get force field dependent parameters
+call get_drived_properties(get_cutoff_bondorder, set_potentialtables_reaxff, &
+                           atmname, mass, natoms_per_type, &
+                           dthm, hmas, dns)
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()
