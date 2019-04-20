@@ -34,7 +34,7 @@ subroutine WriteBND(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
 integer :: i, ity, j, j1, jty, m
 real(8) :: bndordr(MAXNEIGHBS)
@@ -157,7 +157,7 @@ subroutine WritePDB(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
 integer :: i, ity, igd 
 real(8) :: tt=0.d0, ss=0.d0
@@ -246,7 +246,7 @@ subroutine WriteXYZ(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
 integer :: i, ity, idx1, idx0 , igd
 

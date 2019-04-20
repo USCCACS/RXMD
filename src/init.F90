@@ -114,13 +114,13 @@ if(myid==0) then
 endif
 
 if(is_reaxff) then
-  call mdcontext_reaxff(atype, pos, v, f, q)
+  call mdcontext_reaxff()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 else if(is_fnn) then
-  call mdcontext_fnn(atype, pos, v, f, q)
+  call mdcontext_fnn()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
 else
-  call mdcontext_reaxff(atype, pos, v, f, q)
+  call mdcontext_reaxff()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 endif
 
@@ -200,7 +200,6 @@ call allocator(llist,1,NBUFFER)
 call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 
-
 !--- setup potential tables
 if(present(set_potentialtables_func)) call set_potentialtables_func()
 
@@ -208,12 +207,9 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------------------
-subroutine mdcontext_fnn(atype, pos, v, f, q)
+subroutine mdcontext_fnn()
 !------------------------------------------------------------------------------------------
 implicit none
-
-real(8),intent(in out),allocatable,dimension(:) :: atype, q
-real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
 
 integer :: i,ity
 real(8) :: dns, mm
@@ -272,14 +268,11 @@ endif
 end subroutine
 
 !------------------------------------------------------------------------------------------
-subroutine mdcontext_reaxff(atype, pos, v, f, q)
+subroutine mdcontext_reaxff()
 ! This subroutine takes care of setting up initial system configuration.
 ! Unit conversion of parameters (energy, length & mass) are also done here.
 !------------------------------------------------------------------------------------------
 implicit none
-
-real(8),intent(in out),allocatable,dimension(:) :: atype, q
-real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
 
 integer :: i,j,k, ity
 real(8) :: dns
