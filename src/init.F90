@@ -111,6 +111,11 @@ if(myid==0) then
    print'(a30,3f12.3)', 'lalpha,lbeta,lgamma:', lalpha,lbeta,lgamma
    write(6,'(a30,2i9)') "NBUFFER, MAXNEIGHBS:", NBUFFER, MAXNEIGHBS
    write(6,'(a)') repeat('-',60)
+   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
+   write(6,'(a30,2(a12,1x))') &
+         "FFPath, ParmPath:", trim(FFPath),trim(ParmPath)
+   write(6,'(a)') repeat('-',60)
+
 endif
 
 if(is_reaxff) then
@@ -203,6 +208,22 @@ call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,
 !--- setup potential tables
 if(present(set_potentialtables_func)) call set_potentialtables_func()
 
+if(myid==0) then
+   write(6,'(a)') repeat('-',60)
+   write(6,'(a30,3f10.4)') "density [g/cc]:",dns
+   write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
+   write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
+        maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
+
+   print'(a30 $)','# of atoms per type:'
+   do ity=1, num_pairs
+      if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
+   enddo
+   print*
+   write(6,'(a)') repeat('-',60)
+endif
+
+
 return
 end subroutine
 
@@ -231,7 +252,7 @@ mddriver_func => mddriver_fnn
 call allocator(features,1, NBUFFER, 1, num_features) 
 
 !--- use three types of networks, [x,y,z]
-allocate(networks(3))
+allocate(networks(num_networks))
 
 !--- set force field parameters
 call load_weight_and_bais_fnn(networks, str_gen('DAT'))
@@ -244,22 +265,13 @@ call get_drived_properties(get_cutoff_func=get_cutoff_fnn, &
 if(myid==0) then
 
    write(6,'(a)') repeat('-',60)
-   write(6,'(a30,3f10.4)') "density [g/cc]:",dns
-   write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
-   write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
-        maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
-   write(6,'(a30,2i6)') "NMINCELL, MAXNEIGHBS10:", NMINCELL, MAXNEIGHBS10
-
-   print'(a30 $)','# of atoms per type:'
-   do ity=1, num_pairs
-      if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
-   enddo
-   print*
-
-   write(6,'(a)') repeat('-',60)
-   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
-   write(6,'(a30,2(a12,1x))') &
-         "FFPath, ParmPath:", trim(FFPath),trim(ParmPath)
+   write(6,*) 'num_dims: ', num_dims
+   write(6,*) 'num_Mu, ml_Mu: ', num_Mu, ml_Mu
+   write(6,*) 'num_Eta, ml_Eta', num_Eta, ml_Eta
+   write(6,*) 'ml_Rc: ', ml_Rc
+   write(6,*) 'num_forcecomps: ', num_forcecomps
+   write(6,*) 'num_features: ', num_features
+   write(6,*) 'num_networks: ', num_networks
    write(6,'(a)') repeat('-',60)
 
 endif
@@ -324,30 +336,12 @@ call GetNonbondingMesh()
 if(myid==0) then
 
    write(6,'(a)') repeat('-',60)
-   write(6,'(a30,3f10.4)') "density [g/cc]:",dns
-   write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
-   write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
-        maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
-   write(6,'(a30,3i6)')  '# of linkedlist cell (NB):', nbcc(1:3)
-   write(6,'(a30,3f10.2)') "lcsize [A] (NB):", &
-        lata/nbcc(1)/vprocs(1),latb/nbcc(2)/vprocs(2),latc/nbcc(3)/vprocs(3)
    write(6,'(a30,2i6)') "NMINCELL, MAXNEIGHBS10:", NMINCELL, MAXNEIGHBS10
-
-   print'(a30 $)','# of atoms per type:'
-   do ity=1, nso
-      if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
-   enddo
-   print*
-
-   write(6,'(a)') repeat('-',60)
-   write(6,'(a30,a12)') "DataDir :", trim(DataDir)
-   write(6,'(a30,2(a12,1x))') &
-         "FFPath, ParmPath:", trim(FFPath),trim(ParmPath)
    write(6,'(a30,i6,es10.1,i6,i6)') "isQEq,QEq_tol,NMAXQEq,qstep:", &
                                      isQEq,QEq_tol,NMAXQEq,qstep
    write(6,'(a30,f8.3,f8.3)') 'Lex_fqs,Lex_k:',Lex_fqs,Lex_k
-
    write(6,'(a)') repeat('-',60)
+
    write(6,'(a)')  &
    "nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Econj) 5-Ehbond 6-(Evdw,EClmb,Echarge)"
 

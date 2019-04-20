@@ -120,7 +120,7 @@ do na=1, natoms
 
    enddo network_loop
 
-   print'(a,i6,6f10.5)','na,pos(na,1:3),f(na,1:3): ', na,pos(na,1:3),f(na,1:3)
+   !print'(a,i6,6f10.5)','na,pos(na,1:3),f(na,1:3): ', na,pos(na,1:3),f(na,1:3)
 
 enddo
 
@@ -231,8 +231,6 @@ do c3=0, cc(3)-1
   enddo
 enddo; enddo; enddo
 !$omp end parallel do 
-
-print'(i6,30es13.5)',i,features(i,:)
 
 !do i=1, num_atoms
 !   print'(i6,30es13.5)',i,features(i,:)
