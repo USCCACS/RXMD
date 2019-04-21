@@ -65,11 +65,6 @@ real(8) :: hh(3,3,0:1), hhi(3,3), mdbox, lbox(3), obox(1:3) !MD box, local MD bo
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
 
-interface potentialtable_interface
-  subroutine potentialtable_ctor()
-  end subroutine
-end interface
-
 interface forcefield_param_interface
   subroutine forcefield_param(path)
     character(len=:),allocatable,intent(in) :: path
@@ -113,7 +108,6 @@ end interface
 procedure(charge_model),pointer :: charge_model_func => null()
 procedure(force_model),pointer :: force_model_func => null()
 procedure(forcefield_param),pointer :: get_forcefield_param => null()
-procedure(potentialtable_ctor),pointer :: set_potentialtable => null()
 procedure(velocity_scaling),pointer :: velocity_scaling_func => null()
 procedure(mddriver),pointer :: mddriver_func => null()
 procedure(get_mdcontext),pointer :: get_mdcontext_func => null()

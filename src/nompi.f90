@@ -33,27 +33,27 @@ module nompi
    real(8),allocatable,dimension(:) :: nompi_sbuf_vector_r8, nompi_rbuf_vector_r8
 
    interface mpi_file_write
-      module procedure :: mpi_file_write_r8, mpi_file_write_i4, mpi_file_write_c
+      module procedure mpi_file_write_r8, mpi_file_write_i4, mpi_file_write_c
    end interface
 
    interface mpi_file_read
-      module procedure :: mpi_file_read_r8, mpi_file_read_i4
+      module procedure mpi_file_read_r8, mpi_file_read_i4
    end interface
 
    interface mpi_send
-      module procedure :: mpi_send_vector_i4, mpi_send_scalar_i4
-      module procedure :: mpi_send_vector_r8, mpi_send_scalar_r8
+      module procedure mpi_send_vector_i4, mpi_send_scalar_i4
+      module procedure mpi_send_vector_r8, mpi_send_scalar_r8
    end interface
 
    interface mpi_recv
-      module procedure :: mpi_recv_vector_i4, mpi_recv_scalar_i4
-      module procedure :: mpi_recv_vector_r8, mpi_recv_scalar_r8
+      module procedure mpi_recv_vector_i4, mpi_recv_scalar_i4
+      module procedure mpi_recv_vector_r8, mpi_recv_scalar_r8
    end interface
 
    interface mpi_allreduce
-      module procedure :: mpi_allreduce_scalar_i8, mpi_allreduce_1d_i8
-      module procedure :: mpi_allreduce_scalar_i4, mpi_allreduce_1d_i4, mpi_allreduce_2d_i4, mpi_allreduce_1d_i4_minmax
-      module procedure :: mpi_allreduce_scalar_r8, mpi_allreduce_1d_r8, mpi_allreduce_2d_r8
+      module procedure mpi_allreduce_scalar_i8, mpi_allreduce_1d_i8
+      module procedure mpi_allreduce_scalar_i4, mpi_allreduce_1d_i4, mpi_allreduce_2d_i4, mpi_allreduce_1d_i4_minmax
+      module procedure mpi_allreduce_scalar_r8, mpi_allreduce_1d_r8, mpi_allreduce_2d_r8
    end interface
 
 contains
@@ -247,7 +247,7 @@ contains
    end subroutine
 
    subroutine mpi_bcast(buffer, icount, datatype, root, comm, ierror)
-     type(*), dimension(..) :: buffer
+     integer, intent(in) :: buffer
      integer, intent(in) :: icount, root
      integer, intent(in) :: comm, datatype
      integer, optional, intent(out) :: ierror

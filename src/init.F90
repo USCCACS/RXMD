@@ -265,9 +265,9 @@ allocate(networks(num_networks))
 !--- set force field parameters
 call load_weight_and_bais_fnn(networks, str_gen('DAT'))
 
-call get_drived_properties(get_cutoff_func=get_cutoff_fnn, & 
-     atmname=atmname, mass=mass, natoms_per_type=natoms_per_type, &
-     dthm=dthm, hmas=hmas, dns=dns)
+call get_drived_properties(get_cutoff_bondorder, set_potentialtables_reaxff, &
+                           atmname, mass, natoms_per_type, &
+                           dthm, hmas, dns)
 
 !--- FNN specific output 
 if(myid==0) then
@@ -333,9 +333,10 @@ mddriver_func => mddriver_reaxff
 call get_forcefield_params_reaxff(FFPath)
 
 !--- get force field dependent parameters
-call get_drived_properties(get_cutoff_bondorder, set_potentialtables_reaxff, &
-                           atmname, mass, natoms_per_type, &
-                           dthm, hmas, dns)
+call get_drived_properties(get_cutoff_func=get_cutoff_bondorder, &
+                           set_potentialtables_func=set_potentialtables_reaxff, &
+                           atmname=atmname, mass=mass, natoms_per_type=natoms_per_type, &
+                           dthm=dthm, hmas=hmas, dns=dns)
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()

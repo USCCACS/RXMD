@@ -2,6 +2,7 @@
 module cmdline_args
 !-------------------------------------------------------------------------------------------
 
+use mpi_mod
 use base, only : myid, vprocs, ierr
 use atoms, only : dt, fstep, ftol, isbinary, isbondfile, ispdb, isqeq, isxyz, &
 lex_fqs, lex_k, lex_w2, mdmode, NMAXQEq, ntime_step, &
