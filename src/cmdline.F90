@@ -2,9 +2,15 @@
 module cmdline_args
 !-------------------------------------------------------------------------------------------
 
-use base
-use atoms
-use fnn
+use base, only : myid, vprocs, ierr
+use atoms, only : dt, fstep, ftol, isbinary, isbondfile, ispdb, isqeq, isxyz, &
+lex_fqs, lex_k, lex_w2, mdmode, NMAXQEq, ntime_step, &
+ParmPath, ParmPath0, PQEqParmPath, springConst, forcefield_type, & 
+DataDir, DataDir0, FFPath, FFPath0, pstep, qeq_tol, qstep, sstep, treq, utime, vsfact, & 
+forcefield_type, is_fnn, is_reaxff, isEfield, isLG, isPQEq, isSpring, isPolarizable, &
+ntype_pqeq, ntype_pqeq2, Elempqeq, x0pqeq, j0pqeq, Zpqeq, Rcpqeq, Rspqeq, Kspqeq, &
+alphacc, alphasc, alphass, MAXSTRLENGTH, UTEMP0
+use fnn, only : num_dims, num_features, num_forcecomps
 
 contains
 

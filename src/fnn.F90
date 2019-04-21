@@ -1,11 +1,13 @@
 module fnn
   use iso_fortran_env, only: int32, int64, real32, real64, real128
 
-  use utils
-  use base
-  use lists_mod
-  use communication_mod
+  use utils, only : pi, int_to_str
   use memory_allocator_mod
+  use mpi_mod
+
+  use base
+  use lists_mod, only : getnonbondingmesh, linkedlist
+  use communication_mod, only : copyatoms
 
   implicit none
 

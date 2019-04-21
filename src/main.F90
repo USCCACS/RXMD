@@ -1,11 +1,10 @@
 !------------------------------------------------------------------------------
 program rxmd
 !------------------------------------------------------------------------------
-use base
+use base, only : atype, f, pos, q, v 
 use init
 use mpi_mod
-use reaxff_param_mod
-use cmdline_args
+use cmdline_args, only : get_cmdline_args, get_rxmd_parms
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,ity,it1,it2,irt

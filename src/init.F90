@@ -2,13 +2,21 @@
 module init
 !------------------------------------------------------------------------------------------
 
-  use base, only : hh,hhi,lbox,obox, mdbox
+  use base
+  use atoms
+  use mpi_mod
   use qeq_mod, only : QEq
   use pqeq_mod, only : PQEq, initialize_eField, initialize_pqeq
-  use force_mod
+  use force_mod, only : force_reaxff
   use memory_allocator_mod
   use fileio, only : ReadBIN
-  use fnn
+
+  use fnn, only : features, get_cutoff_fnn, ml_eta, ml_mu, ml_rc, networks, num_networks, &
+                  num_dims, num_mu, num_eta, num_features, num_forcecomps, num_pairs, & 
+                  mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_name_and_mass_fnn
+
+  use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
+      get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
 contains
 

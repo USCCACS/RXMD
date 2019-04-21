@@ -1,8 +1,7 @@
 module velocity_modifiers_mod
 
   use mpi_mod
-  use base
-  use utils
+  use base, only : NATOMS, GNATOMS, mass, myid, ierr
 
 contains
 
