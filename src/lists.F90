@@ -7,8 +7,7 @@ contains
 !----------------------------------------------------------------------------------------
 subroutine LINKEDLIST(atype, rreal, cellDims, headAtom, atomList, NatomPerCell)
 use utils, only : xu2xs
-use base, only : hhi, obox
-use atoms, only : copyptr, it_timer
+use base, only : hhi, obox, copyptr, it_timer
 ! partitions the volume into linked-list cells <lcsize>
 !----------------------------------------------------------------------------------------
 implicit none
@@ -52,8 +51,8 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine neighborlist(nlayer, atype, pos, pair_types, skip_check)
-use base, only : natoms, myid, maxneighbs, header, llist, nacell, cc, rc2
-use atoms, only : nstep, pstep, nbrlist, copyptr, it_timer, nbrindx, maxas
+use base, only : natoms, myid, maxneighbs, header, llist, nacell, cc, rc2, nstep, pstep, copyptr, it_timer
+use atoms, only : nbrlist, nbrindx, maxas
 !----------------------------------------------------------------------
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 implicit none
@@ -157,8 +156,9 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine GetNonbondingPairList(pos)
+use base, only : it_timer
 use atoms, only : nbnmesh, rctap2, nbheader, nbmesh, nbplist, &
-                  nbllist, nbnacell, nbcc, it_timer
+                  nbllist, nbnacell, nbcc
 !----------------------------------------------------------------------
 implicit none
 

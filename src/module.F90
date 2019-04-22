@@ -10,7 +10,27 @@ end module
 
 !-------------------------------------------------------------------------------------------
 module base
+use utils, only : MAXSTRLENGTH
 !-------------------------------------------------------------------------------------------
+!integer :: NBUFFER=5000
+!integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
+
+integer :: NBUFFER=30000
+integer,parameter :: MAXNEIGHBS=200  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+
+!<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
+integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
+integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
+
+integer,parameter :: MODE_COPY_FNN=11
+
+integer,parameter :: NE_CPBK = 4
+
+!<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
+integer,parameter :: MAXLAYERS=5
+
+
 ! position, atom type, velocity, force & charge
 real(8),allocatable,dimension(:),target :: atype, q
 real(8),allocatable,dimension(:,:),target :: pos, v, f
@@ -23,31 +43,9 @@ integer :: myid, nprocs, vprocs(3), ierr, myparity(3), vID(3)
 ! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
 integer :: target_node(6)
 
-
-
-!<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
-integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
-integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
-
-integer,parameter :: MODE_COPY_FNN=11
-
-integer,parameter :: NE_CPBK = 4
-
-
-!<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
-integer,parameter :: MAXLAYERS=5
-
 !<rc>: cutoff length for the primary cutoff. <maxrc> max cutoff length used to decide lcsize.
 real(8),allocatable:: rc(:), rc2(:) 
 real(8) :: maxrc                    
-
-!integer :: NBUFFER=5000
-!integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-!integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
-
-integer :: NBUFFER=30000
-integer,parameter :: MAXNEIGHBS=200  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-
 
 !<llist> Linked List
 !<header> header atom of linkedlist cell.
@@ -64,6 +62,63 @@ real(8) :: hh(3,3,0:1), hhi(3,3), mdbox, lbox(3), obox(1:3) !MD box, local MD bo
 
 integer :: NATOMS         !local # of atoms
 integer(8) :: GNATOMS     !global # of atoms
+
+!--- <frcindx> FoRCe INDeX. Index to return calculated force to original atoms.
+real(8),allocatable,target :: frcindx(:)
+integer :: copyptr(0:6)
+
+!--- total, kinetic and potential energies (local and global)
+real(8) :: TE, KE, PE0, GTE, GKE, GPE0
+
+!--- RXMD parameters
+! <mdmode> determines MD mode
+integer :: mdmode
+! <nstep> current MD step, <ntime_step> Total # of time steps in one MD run.
+! <current_step> will be used for subsequent runs.
+integer :: nstep=0, ntime_step, current_step
+!<vsfact> velocity scaling factor, <dt> one time step
+real(8) :: treq, vsfact, dt, dmt
+integer :: sstep
+!--- output file format 
+logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.
+!--- output format flags, explained in 'rxmdopt.in'
+integer :: fstep, pstep
+!--- conjugate_gradient tolerance of energy convergence 
+REAL(8) :: ftol   
+
+
+character(len=:),allocatable :: forcefield_type
+logical :: is_reaxff=.false., is_fnn=.false.
+
+!--- cutoff range calculation. 
+integer(8),allocatable :: natoms_per_type(:)
+
+!--- dthm=dt/(2*mass), hmas=mass/2
+real(8),allocatable :: dthm(:), hmas(:)
+
+!--- stress tensor
+real(8) :: astr(6) = 0.d0
+
+!--- from cmdline_args
+logical :: isSpring=.false.
+real(8) :: springConst=0.d0
+logical :: hasSpringForce(16)
+real(8),allocatable :: ipos(:,:)
+
+logical :: isFF=.false., isData=.false., isMDparm=.false.
+character(MAXSTRLENGTH) :: FFPath0='ffield', DataDir0='DAT', ParmPath0='rxmd.in'
+character(len=:),allocatable :: FFPath, DataDir, ParmPath
+
+!<ns> # of atoms to be sent, <nr> # of atoms to be received, <na> # of all of transfered atoms.
+!<ne> # of elements for one atom.
+!     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
+integer :: ns, nr, na, ne
+
+
+!-- variables for timing
+integer,parameter :: MAXTIMERS=30
+integer :: it_timer(MAXTIMERS)=0
+real(8) :: wt0=0.d0
 
 interface forcefield_param_interface
   subroutine forcefield_param(path)
@@ -127,36 +182,16 @@ real(8),parameter :: NSMALL = 1.d-10
 integer,parameter :: MAXLAYERS_NB=10
 integer,parameter :: MAXNEIGHBS10=1500 !<MAXNEIGHBS>: Max # of Ngbs within 10[A]. 
 
-character(len=:),allocatable :: forcefield_type
-logical :: is_reaxff=.false., is_fnn=.false.
-
 !--- For array size statistics
 !  1-NATOMS, 2-nbrlist, 3-nbrlist for qeq, 4-NBUFFER for move, 5-NBUFFER for copy
 !  6-NBUFFER for qeq
 integer,parameter :: nmaxas=5
 integer,allocatable :: maxas(:,:)
 
-!<sbuffer> send buffer, <rbuffer> receive buffer
-real(8),allocatable :: sbuffer(:), rbuffer(:)
-   
-!<ns> # of atoms to be sent, <nr> # of atoms to be received, <na> # of all of transfered atoms.
-!<ne> # of elements for one atom.
-!     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
-integer :: ns, nr, na, ne
-
-! stress tensor
-real(8) :: astr(6) = 0.d0
-
-
 ! TE: Total Energy,  KE: Kinetic Energy,  PE :: Potential Energies
 !  0-Esystem, 1-Ebond, 2-Elp, 3-Eover, 4-Eunder, 5-Eval, 6-Epen
 !  7-Ecoa,  8-Etors, 9-Econj, 10-Ehbond, 11-Evdwaals, 12-Ecoulomb 13-Echarge
-real(8) :: TE, KE, PE(0:13)
-real(8) :: GTE, GKE, GPE(0:13)
-
-!--- output file format 
-logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.
-
+real(8) :: PE(13), GPE(13)
 
 real(8) :: nblcsize(3)
 integer :: nbcc(3)
@@ -175,57 +210,14 @@ real(8) :: QEq_tol
 !<nstep_qeq> counter of iteration
 integer :: nstep_qeq, qstep
 
-!-- variables for timing
-integer,parameter :: Ntimer=30
-integer :: it_timer(Ntimer)=0, it_timer_max(Ntimer)=0, it_timer_min(Ntimer)=0
-real(8) :: wt0=0.d0
-
-!---
-! <mdmode> determines MD mode
-integer :: mdmode
-! <nstep> current MD step, <ntime_step> Total # of time steps in one MD run.
-! <current_step> will be used for subsequent runs.
-integer :: nstep=0, ntime_step, current_step
-!<vsfact> velocity scaling factor, <dt> one time step
-real(8) :: treq, vsfact, dt, dmt
-integer :: sstep
-
-!--- output format flags, explained in 'rxmdopt.in'
-integer :: fstep, pstep
-
-!--- conjugate_gradient tolerance of energy convergence 
-REAL(8) :: ftol   
-
-!--- <frcindx> FoRCe INDeX. Index to return calculated force to original atoms.
-real(8),allocatable,target :: frcindx(:)
-integer :: copyptr(0:6)
-
-
-!--- cutoff range calculation. 
-integer(8),allocatable :: natoms_per_type(:)
-
-!--- dthm=dt/(2*mass), hmas=mass/2
-real(8),allocatable :: dthm(:), hmas(:)
 
 !--- potential teble
 integer,parameter :: NTABLE=5000
 real(8),allocatable :: TBL_Eclmb(:,:,:), TBL_Evdw(:,:,:), TBL_Eclmb_QEq(:,:)
 real(8) :: UDR, UDRi
 
-!--- from cmdline_args
-logical :: isSpring=.false.
-real(8) :: springConst=0.d0
-logical :: hasSpringForce(16)
-real(8),allocatable :: ipos(:,:)
-
-logical :: isFF=.false., isData=.false., isMDparm=.false.
-character(MAXSTRLENGTH) :: FFPath0='ffield', DataDir0='DAT', ParmPath0='rxmd.in'
-character(len=:),allocatable :: FFPath, DataDir, ParmPath
-
 logical :: isLG=.false.
-
 logical :: isEfield=.false.
-
 
 !<nbllist> Linked List for non-bonding interaction
 !<nbheader> header atom of linkedlist cell for non-bonding interaction
@@ -233,7 +225,8 @@ logical :: isEfield=.false.
 integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
 
 !<nbrlist> neighbor list, <nbrindx> neighbor index
-integer,allocatable :: nbrlist(:,:), nbrindx(:,:)
+integer,allocatable :: nbrlist(:,:)
+integer,allocatable :: nbrindx(:,:)
 
 !<nbplist> neighbor list of nonbonding interaction, non-bonding pair list
 integer,allocatable :: nbplist(:,:)
@@ -266,7 +259,6 @@ real(8),allocatable,target :: qs(:),qt(:),gs(:), gt(:), hs(:), ht(:), hshs(:), h
 real(8),allocatable,target :: qsfp(:),qsfv(:),qtfp(:),qtfv(:) 
 real(8),allocatable :: hessian(:,:)
 real(8) :: Lex_fqs=1.0, Lex_w=1.d0, Lex_w2=1.d0, Lex_k=2.d0
-
 
 !--- Taper function 
 real(8),parameter :: rctap0 = 10.d0 ![A]

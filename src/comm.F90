@@ -2,6 +2,7 @@ module communication_mod
 
   use mpi_mod
   use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr, target_node, &
+                   copyptr, frcindx, nstep, pstep, it_timer, isSpring,  na, ne, ns, nr, &
                    MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, MODE_COPY_FNN
 
   use atoms
@@ -70,10 +71,15 @@ integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 integer,parameter :: cptridx(6)=(/0,0,2,2,4,4/)
 integer,parameter :: is_xyz(6)=(/1,1,2,2,3,3/)  !<- [xxyyzz]
 
+!<sbuffer> send buffer, <rbuffer> receive buffer
+real(8),allocatable :: sbuffer(:), rbuffer(:)
+
 call system_clock(tti,tk)
 
-call allocator(nipos,1,size(atype),1,3)
-allocate(commflag(size(atype)))
+if(.not.allocated(commflag)) allocate(commflag(size(atype)))
+if(.not.allocated(nipos)) call allocator(nipos,1, size(atype), 1, 3)
+if(.not.allocated(sbuffer)) call allocator(sbuffer, 1, size(atype))
+if(.not.allocated(rbuffer)) call allocator(rbuffer, 1, size(atype))
 
 call initialize(imode)
 
@@ -101,7 +107,7 @@ call deallocator(nipos)
 
 call finalize(imode)
 
-!--- for array size stat
+!--- for array size stat. this better be a class not exposing nstep&pstep. 
 if(mod(nstep,pstep)==0) then
   ni=nstep/pstep+1
   if(imode==MODE_MOVE) maxas(ni,4)=na/ne

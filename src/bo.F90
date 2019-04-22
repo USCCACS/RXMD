@@ -1,10 +1,12 @@
 module bo_mod
 
+  use base, only : rc2, copyptr
+  use atoms
+  use reaxff_param_mod
+
 contains
 !--------------------------------------------------------------------------------------------
 SUBROUTINE BOCALC(nlayer, atype, pos)
-use atoms
-use reaxff_param_mod
 !--------------------------------------------------------------------------------------------
 integer,intent(in) :: nlayer
 real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3)
@@ -30,9 +32,6 @@ CONTAINS
 
 !--------------------------------------------------------------------------------------------
 SUBROUTINE BOPRIM()
-use base, only : rc2
-use atoms
-use reaxff_param_mod
 !--------------------------------------------------------------------------------------------
 ! Calculates the BOp(0:3,i,j) and the deltap(i). 
 !--------------------------------------------------------------------------------------------
@@ -125,8 +124,6 @@ END SUBROUTINE
 
 !--------------------------------------------------------------------------------------------
 SUBROUTINE BOFULL()
-use atoms 
-use reaxff_param_mod
 !--------------------------------------------------------------------------------------------
 !  Subroutine calculates the Bond Order and its derivatives
 !--------------------------------------------------------------------------------------------

@@ -28,7 +28,7 @@ call mdcontext_base(atype, pos, v, f, q)
 call system_clock(it1,irt)
 call mddriver_func(ntime_step)
 call system_clock(it2,irt)
-it_timer(Ntimer)=(it2-it1)
+it_timer(MAXTIMERS)=(it2-it1)
 
 if(myid==0)  print'(a30)', 'rxmd has finished successfully'
 

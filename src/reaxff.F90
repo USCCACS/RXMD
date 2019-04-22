@@ -1,7 +1,9 @@
 !-------------------------------------------------------------------------------------------
 module reaxff_param_mod
 
-use base, only : atmname, mass, NBUFFER, MAXNEIGHBS
+use base, only : atmname, mass, NBUFFER, MAXNEIGHBS, it_timer, &
+                 current_step, gte, gke, gpe0, ke, pe0, nstep, pstep, astr
+
 use memory_allocator_mod
 use utils
 
@@ -754,7 +756,7 @@ end subroutine
 !-------------------------------------------------------------------------------------------
 subroutine print_e_reaxff(atype, v, q)
 use mpi_mod
-use base, only : hh, hhi, natoms, gnatoms, mdbox, myid, ierr
+use base, only : hh, hhi, natoms, gnatoms, mdbox, myid, ierr, hmas, wt0
 use atoms
 use memory_allocator_mod
 ! calculate the kinetic energy and sum up all of potential energies, then print them.
@@ -781,32 +783,30 @@ qq=sum(q(1:NATOMS))
 ss=sum(astr(1:3))/3.d0
 
 !--- potential energy 
-PE(0)=sum(PE(1:13))
+PE0=sum(PE(1:13))
 
 !--- copy data into buffer
-buf(0:13) = PE(0:13)
-buf(14) = KE; buf(15) = ss; buf(16) = qq
-buf(17:22)=astr(1:6)
+buf(0) = PE0; buf(1:13) = PE(1:13); buf(14) = KE
+buf(15) = ss; buf(16) = qq;  buf(17:22)=astr(1:6)
 call MPI_ALLREDUCE (MPI_IN_PLACE, buf, size(buf), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 !--- copy data from buffer
-GPE(0:13) = buf(0:13)
-GKE = buf(14); ss = buf(15); qq = buf(16)
-astr(1:6)=buf(17:22)
+GPE(1:13) = buf(1:13)/GNATOMS
+GPE0 = buf(0)/GNATOMS
+GKE = buf(14)/GNATOMS
+ss = buf(15); qq = buf(16); astr(1:6)=buf(17:22)
 
 !--- compute properties
-GPE(:)=GPE(:)/GNATOMS
-GKE=GKE/GNATOMS
 tt=GKE*UTEMP
 astr(1:6)=astr(1:6)/MDBOX*USTRS/pstep
 ss=ss/MDBOX*USTRS/pstep
 
 !--- total energy
-GTE = GKE + GPE(0)
+GTE = GKE + GPE0
 if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(a,i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') 'MDstep: ',cstep,GTE,GPE(0),GKE, &
+   write(6,'(a,i9,3es13.5,6es11.3,1x,3f8.2,i4,f8.2,f8.2)') 'MDstep: ',cstep,GTE,GPE0,GKE, &
    GPE(1),sum(GPE(2:4)),sum(GPE(5:7)),sum(GPE(8:9)),GPE(10),sum(GPE(11:13)), &
    tt, ss, qq, nstep_qeq, GetTotalMemory()*1e-9, MPI_WTIME()-wt0
 
@@ -824,24 +824,25 @@ end subroutine
 !-------------------------------------------------------------------------------------------
 subroutine finalize_reaxff()
 use mpi_mod
-use base, only : myid, ierr
+use base, only : myid, ierr, it_timer, MAXTIMERS
 use atoms
 use memory_allocator_mod
 !-------------------------------------------------------------------------------------------
 implicit none
 integer :: i,it,irt
-integer,allocatable :: ibuf(:),ibuf1(:)
+integer :: ibuf(size(maxas)),ibuf1(size(maxas))
+integer :: it_timer_max(size(it_timer)), it_timer_min(size(it_timer))
 
+it_timer_max(:) = 0; it_timer_min(:) = 0
 
-allocate(ibuf(nmaxas),ibuf1(nmaxas))
 ibuf(:)=0
 do i=1,nmaxas
    ibuf(i)=maxval(maxas(:,i))
 enddo
 call MPI_ALLREDUCE(ibuf, ibuf1, nmaxas, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
 
-call MPI_ALLREDUCE(it_timer, it_timer_max, Ntimer, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
-call MPI_ALLREDUCE(it_timer, it_timer_min, Ntimer, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(it_timer, it_timer_max, MAXTIMERS, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(it_timer, it_timer_min, MAXTIMERS, MPI_INTEGER, MPI_MIN, MPI_COMM_WORLD, ierr)
 
 if(myid==0) then
    call system_clock(it,irt)
@@ -886,14 +887,13 @@ if(myid==0) then
    print'(a20,f12.4,3x,f12.4)','WriteBIN: ', dble(it_timer_max(23))/irt, dble(it_timer_min(23))/irt
    print*
 
-   print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(Ntimer))/irt, dble(it_timer_min(Ntimer))/irt
+   print'(a20,f12.4,3x,f12.4)','total (sec): ',dble(it_timer_max(MAXTIMERS))/irt, &
+                                               dble(it_timer_min(MAXTIMERS))/irt
 
    print'(a)','----------------------------------------------'
 
    print'(a30)', 'rxmd successfully finished'
 endif
-
-deallocate(ibuf,ibuf1)
 
 end subroutine
 

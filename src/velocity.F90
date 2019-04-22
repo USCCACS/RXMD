@@ -1,13 +1,13 @@
 module velocity_modifiers_mod
 
   use mpi_mod
-  use base, only : NATOMS, GNATOMS, mass, myid, ierr
+  use utils, only : UTEMP0, UTEMP, matinv
+  use base, only : NATOMS, GNATOMS, mass, treq, KE, GKE, myid, ierr, dthm, hmas
 
 contains
 
 !------------------------------------------------------------------------------------------
 subroutine simple_scaling(atype, v, scaling_factor)
-use atoms
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -20,7 +20,6 @@ end subroutine
 
 !------------------------------------------------------------------------------------------
 subroutine scale_to_target_temperature(atype, v, t_target)
-use atoms
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -35,7 +34,6 @@ end subroutine
 
 !------------------------------------------------------------------------------------------
 subroutine gaussian_dist_velocity(atype, v)
-use atoms
 ! Generate gaussian distributed velocity as an initial value using Box-Muller algorithm
 !------------------------------------------------------------------------------------------
 implicit none
@@ -106,7 +104,6 @@ end subroutine
 
 !-----------------------------------------------------------------------
 subroutine adjust_temperature(atype, v)
-use atoms
 !-----------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -143,7 +140,6 @@ end
 
 !-----------------------------------------------------------------------
 subroutine scale_temperature(atype, v)
-use atoms
 !-----------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
@@ -187,7 +183,6 @@ end
 
 !-----------------------------------------------------------------------
 subroutine linear_momentum(atype, v)
-use atoms
 !-----------------------------------------------------------------------
 implicit none
 
@@ -220,7 +215,6 @@ end
 
 !----------------------------------------------------------------------
 subroutine angular_momentum(atype, pos, v)
-use atoms
 !----------------------------------------------------------------------
 implicit none
 
@@ -299,7 +293,6 @@ end subroutine
 
 !------------------------------------------------------------------------------
 subroutine vkick(dtf, atype, v, f)
-use atoms
 !------------------------------------------------------------------------------
 implicit none
 
