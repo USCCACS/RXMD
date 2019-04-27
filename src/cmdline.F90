@@ -4,7 +4,44 @@ use atoms
 implicit none
 !-------------------------------------------------------------------------------------------
 
+interface get_token_and_set_value
+   module procedure :: set_r8, set_i4, set_l
+end interface
+
 contains
+
+subroutine set_r8(linein, val)
+   character(len=:),allocatable,intent(in out) :: linein
+   real(8),intent(in out) :: val
+   character(len=:),allocatable :: token
+
+   if(getstr(linein, token) < 0) &
+     stop 'Error:  token not found in set_r8'
+    
+   read(token,*) val
+end subroutine
+
+subroutine set_i4(linein, val)
+   character(len=:),allocatable,intent(in out) :: linein
+   integer,intent(in out) :: val
+   character(len=:),allocatable :: token
+
+   if(getstr(linein, token) < 0) &
+     stop 'Error:  token not found in set_i4'
+
+   read(token,*) val
+end subroutine
+
+subroutine set_l(linein, val)
+   character(len=:),allocatable,intent(in out) :: linein
+   logical,intent(in out) :: val
+   character(len=:),allocatable :: token
+
+   if(getstr(linein, token) < 0) &
+     stop 'Error:  token not found in set_l'
+
+   read(token,*) val
+end subroutine
 
 !-------------------------------------------------------------------------------------------
 subroutine get_cmdline_args(myrank, eFieldDir, eFieldStrength)
@@ -109,7 +146,8 @@ use MemoryAllocator
 implicit none
 !-------------------------------------------------------------------------------------------
 character(MAXSTRLENGTH),intent(in) :: PQEqParmPath
-character(MAXSTRLENGTH) :: linein, token 
+character(MAXSTRLENGTH) :: linein0
+character(len=:),allocatable :: linein, token 
 integer :: n,nparms, istat
 
 open(1,file=PQEqParmPath,status='old')
@@ -117,12 +155,14 @@ open(1,file=PQEqParmPath,status='old')
 n=0; nparms=1
 
 do while (n<nparms)
-  read(1,'(256a)',end=10) linein
+  read(1,'(a)',end=10) linein0
+  linein = trim(adjustl(linein0))
 
   if(linein(1:1)=='#') cycle
 
-  if(index(linein(:), 'NPARMS') /= 0) then
+  if(index(linein, 'NPARMS') /= 0) then
     istat=getstr(linein, token)
+
     istat=getstr(linein, token)
     read(token,*) nparms
 
@@ -176,21 +216,61 @@ subroutine get_rxmd_parms(rxmdParmPath)
 implicit none
 !-------------------------------------------------------------------------------------------
 character(MAXSTRLENGTH),intent(in) :: rxmdParmPath
-character(MAXSTRLENGTH) :: argv
+character(MAXSTRLENGTH) :: argv, linein0
+character(len=:),allocatable :: linein, token
 integer :: idx
 
-!--- read RXMD control parameters. command line arguments may overwrite the parms from file
 open(1, file=trim(ParmPath), status="old")
-read(1,*) mdmode
-read(1,*) dt, ntime_step
-read(1,*) treq, vsfact, sstep
-read(1,*) fstep, pstep
-read(1,*) vprocs(1:3)
-read(1,*) isQEq, NMAXQEq, QEq_tol, qstep
-read(1,*) Lex_fqs, Lex_k
-read(1,*) isBinary, isBondFile, isPDB, isXYZ
-read(1,*) ftol
-close(1)
+
+do while (.true.)
+  read(1,'(a)',end=10) linein0
+  linein = trim(adjustl(linein0))
+
+  if(getstr(linein, token) > 0) then
+
+    select case (token)
+      case ('mdmode')
+         call get_token_and_set_value(linein, mdmode)
+      case ('time')
+         call get_token_and_set_value(linein, dt)
+         call get_token_and_set_value(linein, ntime_step)
+      case ('temperature')
+         call get_token_and_set_value(linein, treq)
+         call get_token_and_set_value(linein, vsfact)
+         call get_token_and_set_value(linein, sstep)
+      case ('io_step')
+         call get_token_and_set_value(linein, fstep)
+         call get_token_and_set_value(linein, pstep)
+      case ('io_type')
+         call get_token_and_set_value(linein, isBinary)
+         call get_token_and_set_value(linein, isBondFile)
+         call get_token_and_set_value(linein, isPDB)
+         call get_token_and_set_value(linein, isXYZ)
+      case ('processors')
+         call get_token_and_set_value(linein, vprocs(1))
+         call get_token_and_set_value(linein, vprocs(2))
+         call get_token_and_set_value(linein, vprocs(3))
+      case ('QEq')
+         call get_token_and_set_value(linein, isQEq)
+         call get_token_and_set_value(linein, NMAXQEq)
+         call get_token_and_set_value(linein, QEq_tol)
+         call get_token_and_set_value(linein, qstep)
+      case ('exL')
+         call get_token_and_set_value(linein, Lex_fqs)
+         call get_token_and_set_value(linein, Lex_k)
+      case ('CG_tol')
+         call get_token_and_set_value(linein, ftol)
+      case default
+         stop 'ERROR: '//trim(token)//' is not found'
+    end select
+
+    !--- goto next line
+    cycle
+  endif
+
+end do
+
+10 close(1)
 
 if(find_cmdline_argc('--mdmode',idx)) then
     call get_command_argument(idx+1,argv)
@@ -267,29 +347,37 @@ if(find_cmdline_argc('--isPDB',idx)) isPDB=.true.
 if(find_cmdline_argc('--isXYZ',idx)) isXYZ=.true. 
 
 end subroutine
+
 !-------------------------------------------------------------------------------------------
 integer function getstr(linein,lineout)
 implicit none
 !-------------------------------------------------------------------------------------------
 
-character(MAXSTRLENGTH),intent(inout) :: linein,lineout
+character(len=:),allocatable,intent(in out) :: linein,lineout
 integer :: pos1
 
-! remove whitespace before string
-linein=adjustl(linein)
+!--- remove whitespace 
+linein = adjustl(linein)
 
-! return if it's a comment line or entirely whitespace
-if(linein(1:1)=='#' .or.  &
-   linein == repeat(' ', len(linein)) ) then
+!--- return if black line
+if(len(linein)==0) then
+  getstr=-2
+  return
+endif
+
+!--- return if it's a comment line or entirely whitespace
+if(linein(1:1)=='#' .or. linein == repeat(' ', len(linein)) ) then
    getstr=-1
    return
 endif
 
-! get a token
-pos1=index(linein(:),' ')
+! find position in linein to get a token. if whitespace is not found, take entire line
+pos1=index(linein,' ')-1
+if(pos1==-1) pos1=len(linein)
+
 lineout=linein(1:pos1)
 linein=linein(pos1+1:)
-getstr=0
+getstr=len(lineout)
 
 return
 end
@@ -320,6 +408,3 @@ return
 end function
 
 end module
-
-
-
