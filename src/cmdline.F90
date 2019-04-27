@@ -3,7 +3,7 @@ module cmdline_args
 !-------------------------------------------------------------------------------------------
 
 use mpi_mod
-use utils, only : UTIME, UTEMP0 
+use utils, only : UTIME, UTEMP0, MAXSTRLENGTH 
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, &
@@ -12,7 +12,7 @@ use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfil
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
                   isEfield, isLG, isPQEq, isPolarizable, PQEqParmPath, &
                   ntype_pqeq, ntype_pqeq2, Elempqeq, x0pqeq, j0pqeq, Zpqeq, Rcpqeq, Rspqeq, Kspqeq, &
-                  alphacc, alphasc, alphass, MAXSTRLENGTH
+                  alphacc, alphasc, alphass
 
 use fnn, only : num_dims, num_features, num_forcecomps
 
