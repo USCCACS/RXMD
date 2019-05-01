@@ -13,7 +13,8 @@ module init
 
   use fnn, only : features, get_cutoff_fnn, ml_eta, ml_mu, ml_rc, networks, num_networks, &
                   num_dims, num_mu, num_eta, num_features, num_forcecomps, num_pairs, & 
-                  mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_name_and_mass_fnn
+                  mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, &
+                  set_name_and_mass_fnn, get_cutoff_fnn, set_potentialtables_fnn
 
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
@@ -265,7 +266,7 @@ allocate(networks(num_networks))
 !--- set force field parameters
 call load_weight_and_bais_fnn(networks, str_gen('DAT'))
 
-call get_drived_properties(get_cutoff_bondorder, set_potentialtables_reaxff, &
+call get_drived_properties(get_cutoff_fnn, set_potentialtables_fnn, &
                            atmname, mass, natoms_per_type, &
                            dthm, hmas, dns)
 
