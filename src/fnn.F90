@@ -76,9 +76,10 @@ integer,intent(in out) :: natoms
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
 integer(ik) :: i, j, k, n, ncol, nrow, num_layers
+integer(ik) :: m1,k1,n1
 integer(ik) :: na, nn, nl
 
-real(rk),allocatable :: x(:),y(:)
+real(rk),allocatable :: x(:,:),y(:,:)
 
 call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 
@@ -90,48 +91,85 @@ call get_features_fnn(natoms, atype, pos, features)
 
 num_layers = size(num_dims)
 
-do na=1, natoms
 
-   network_loop : do nn=1, num_networks
+network_loop : do nn=1, num_networks
 
-      if(allocated(y)) deallocate(y)
-      allocate(y(num_features))
+  y = features(1:natoms,1:num_features)
+  !print*,'ncol,nrow:', num_dims(1), num_dims(2)
 
-      y(1:num_features) = features(na,1:num_features)    
-   
-      layer_loop : do nl=1, num_layers-1
+  layer_loop : do nl=1, num_layers-1
 
-        nrow = num_dims(nl)
-        ncol = num_dims(nl+1)
-     
-        !-- w*x + b
-        if(allocated(x)) deallocate(x);  allocate(x(ncol))
-     
-        do k=1,ncol
-          x(k) = networks(nn)%layers(nl)%b(k) + & 
-                sum(networks(nn)%layers(nl)%w(1:nrow,k)*y(1:nrow)) 
-        enddo
+#ifdef BLAS
+    m1 = size(y,1); k1 = size(y,2)
+    n1 = size(networks(nn)%layers(nl)%w,2)
 
-     
-        !--- apply relu and update y
-        if(allocated(y)) deallocate(y); allocate(y(ncol))
-        y = max(x,0.0) ! relu
-     
-      enddo layer_loop
+    if(allocated(x)) deallocate(x); allocate(x,mold=y)
+    do i=1,natoms
+       x(i,:) = networks(nn)%layers(nl)%b(:)
+    enddo
 
-      if(size(x)==1) then
-         !if(na==1) print'(a,3i6,f8.5)','f(na,nn): ', na,nn,nl,x(1)
-         f(na,nn) = x(1)
-      else
-         print*,'ERROR: the last layer size is not 1'
-         stop 
-      endif
+    call sgemm('n','n', m1,k1,n1, 1.0, y,m1, networks(nn)%layers(nl)%w,n1, 1.0, x,m1)
+#else
+    x = matmul(y,networks(nn)%layers(nl)%w)
+    do i=1,natoms
+       x(i,:) = networks(nn)%layers(nl)%b(:)
+    enddo
+#endif
 
-   enddo network_loop
+    !print'(a,4i6)','ncol,nrow:', num_dims(nl), num_dims(nl+1),shape(y)
+    y = max(x,0.0) ! relu
 
-   !print'(a,i6,6f10.5)','na,pos(na,1:3),f(na,1:3): ', na,pos(na,1:3),f(na,1:3)
+  enddo layer_loop
 
-enddo
+  !--- update force
+  f(:,nn) = x(:,1)
+
+enddo network_loop
+
+
+
+!do na=1, natoms
+!
+!   network_loop : do nn=1, num_networks
+!
+!      if(allocated(y)) deallocate(y)
+!      allocate(y(num_features))
+!
+!      y(1:num_features) = features(na,1:num_features)    
+!   
+!      layer_loop : do nl=1, num_layers-1
+!
+!        nrow = num_dims(nl)
+!        ncol = num_dims(nl+1)
+!     
+!        !-- w*x + b
+!        if(allocated(x)) deallocate(x);  allocate(x(ncol))
+!     
+!        do k=1,ncol
+!          x(k) = networks(nn)%layers(nl)%b(k) + & 
+!                sum(networks(nn)%layers(nl)%w(1:nrow,k)*y(1:nrow)) 
+!        enddo
+!
+!     
+!        !--- apply relu and update y
+!        if(allocated(y)) deallocate(y); allocate(y(ncol))
+!        y = max(x,0.0) ! relu
+!     
+!      enddo layer_loop
+!
+!      if(size(x)==1) then
+!         !if(na==1) print'(a,3i6,f8.5)','f(na,nn): ', na,nn,nl,x(1)
+!         f(na,nn) = x(1)
+!      else
+!         print*,'ERROR: the last layer size is not 1'
+!         stop 
+!      endif
+!
+!   enddo network_loop
+!
+!   !print'(a,i6,6f10.5)','na,pos(na,1:3),f(na,1:3): ', na,pos(na,1:3),f(na,1:3)
+!
+!enddo
 
 end subroutine
 
