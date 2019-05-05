@@ -297,19 +297,20 @@ subroutine load_weight_and_bais_fnn(networks, path)
    character(1),parameter :: cxyz(3) = ['x','y','z']
 
    print*,'In get_feedforward_network, path: ', path
-   networks(1) = network_ctor(num_dims,path//'/'//cxyz(1))
-   networks(2) = network_ctor(num_dims,path//'/'//cxyz(2))
-   networks(3) = network_ctor(num_dims,path//'/'//cxyz(3))
+   networks(1) = network_ctor(num_dims,path,cxyz(1))
+   networks(2) = network_ctor(num_dims,path,cxyz(2))
+   networks(3) = network_ctor(num_dims,path,cxyz(3))
     
 end subroutine
 
 !------------------------------------------------------------------------------
-type(network) function network_ctor(dims, netdata_prefix) result(net)
+type(network) function network_ctor(dims, path, suffix) result(net)
 !------------------------------------------------------------------------------
 implicit none
 
 integer(ik),intent(in) :: dims(:)
-character(len=*),intent(in) :: netdata_prefix
+character(len=:),allocatable,intent(in) :: path
+character(len=1),intent(in) :: suffix
 
 character(len=:),allocatable :: filename_b, filename_w
 character(len=:),allocatable :: arow, acol, alayer
@@ -333,12 +334,12 @@ do i=1, num_layers-1
   arow = int_to_str(nrow)
   acol = int_to_str(ncol)
 
-  filename_b = trim(netdata_prefix)//'_b_'//alayer//'_'//acol//'.net'
+  filename_b = trim(path)//'b_'//alayer//'_'//acol//'.'//suffix
   open(newunit=fileunit, file=filename_b, access='stream', form='unformatted', status='old')
   read(fileunit) net%layers(i)%b
   close(fileunit)
 
-  filename_w = trim(netdata_prefix)//'_w_'//alayer//'_'//arow//'_'//acol//'.net'
+  filename_w = trim(path)//'w_'//alayer//'_'//arow//'_'//acol//'.'//suffix
   open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
   read(fileunit) net%layers(i)%w
 

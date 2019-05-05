@@ -264,7 +264,7 @@ call allocator(features,1, NBUFFER, 1, num_features)
 allocate(networks(num_networks))
 
 !--- set force field parameters
-call load_weight_and_bais_fnn(networks, str_gen('DAT'))
+call load_weight_and_bais_fnn(networks, str_gen('FNN/Al/'))
 
 call get_drived_properties(get_cutoff_fnn, set_potentialtables_fnn, &
                            atmname, mass, natoms_per_type, &
