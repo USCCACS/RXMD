@@ -3,7 +3,7 @@ include ../make.inc
 # suffix rules
 .SUFFIXES: .o .F90 .cpp
 .F90.o:
-	$(MPIF90) $(MPIF90_FLAGS) $(LIBS) -c $<
+	$(MPIF90) $(MPIF90_FLAGS) -c $<
 
 %.o: %.mod
 
