@@ -268,7 +268,7 @@ end
 subroutine get_rxmd_parms(rxmdParmPath)
 implicit none
 !-------------------------------------------------------------------------------------------
-character(MAXSTRLENGTH),intent(in) :: rxmdParmPath
+character(len=:),allocatable,intent(in) :: rxmdParmPath
 character(MAXSTRLENGTH) :: argv, linein0
 character(len=:),allocatable :: linein, token
 integer :: idx

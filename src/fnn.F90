@@ -2,18 +2,39 @@ module fnnin_parser
 
   use utils, only : getstr
 
+  use iso_fortran_env, only: int32, int64, real32, real64, real128
+  !integer,parameter :: rk = real64
+  !integer,parameter :: rk = real128
+  integer,parameter :: rk = real32
+
+  !integer, parameter :: ik = int64
+  integer, parameter :: ik = int32
+
+  type :: layer
+    real(rk),allocatable :: b(:)
+    real(rk),allocatable :: w(:,:)
+  end type
+
+  type :: network
+    type(layer),allocatable :: layers(:)
+  end type
+
+  type(network),allocatable :: networks(:)
+
   type model_params
     character(len=:),allocatable :: element
-    real(4) :: mass
-    integer(4),allocatable :: hlayers(:)
+    real(rk) :: mass
+    integer(ik),allocatable :: hlayers(:)
+
+    type(network),allocatable :: networks(:)
   end type
 
   type fnn_param
-    real(4),allocatable,dimension(:) :: rad_eta, rad_mu
-    real(4),allocatable,dimension(:) :: ang_mu, ang_eta, ang_zeta
-    integer(4),allocatable,dimension(:) :: ang_lambda
+    real(rk),allocatable,dimension(:) :: rad_eta, rad_mu
+    real(rk),allocatable,dimension(:) :: ang_mu, ang_eta, ang_zeta
+    integer(ik),allocatable,dimension(:) :: ang_lambda
 
-    real(4) :: rad_rc, rad_damp, ang_rc, ang_damp
+    real(rk) :: rad_rc, rad_damp, ang_rc, ang_damp
 
     type(model_params), allocatable :: models(:) 
 
@@ -192,8 +213,6 @@ module fnn
 
   use fnnin_parser
 
-  use iso_fortran_env, only: int32, int64, real32, real64, real128
-
   use utils, only : pi, int_to_str
   use memory_allocator_mod
   use mpi_mod
@@ -204,49 +223,28 @@ module fnn
 
   implicit none
 
-  !integer,parameter :: rk = real64
-  !integer,parameter :: rk = real128
-  integer,parameter :: rk = real32
-
-  !integer, parameter :: ik = int64
-  integer, parameter :: ik = int32
-
   integer(ik),allocatable :: num_dims(:)
 
   real(rk),allocatable :: features(:,:) 
 
-  integer(ik),parameter :: num_Mu = 9
-  real(rk),parameter :: ml_Mu(num_Mu) = [1.0,2.0,2.86,4.06,4.96,5.74,6.42,7.02,7.58]
+  integer(ik) :: num_Mu = 0
+  real(rk),allocatable :: ml_Mu(:)
 
-  integer(ik),parameter :: num_Eta = 3
-  !real(rk),parameter :: ml_Eta(num_Eta) = [0.5,1.0,3.0,20.0]
-  real(rk),parameter :: ml_Eta(num_Eta) = [0.5,1.0,3.0]
+  integer(ik) :: num_Eta = 0
+  real(rk),allocatable :: ml_Eta(:)
 
-  !real(rk),parameter :: LJ_factor = 3.405
-  !real(rk),parameter :: ml_Rc = 2.550*LJ_factor
   real(rk),parameter :: LJ_factor = 1.0
-  real(rk),parameter :: ml_Rc = 8.0
+  real(rk) :: ml_Rc = 0.0
 
-  !integer(rk),parameter :: num_forcecomps = 3
   integer(ik),parameter :: num_forcecomps = 1
-  integer(ik),parameter :: num_features = num_Mu*num_Eta*num_forcecomps
+  integer(ik) :: num_features
 
   integer(ik),parameter :: num_networks = 3
 
-  type :: layer
-    real(rk),allocatable :: b(:)
-    real(rk),allocatable :: w(:,:)
-  end type
-
-  type :: network
-    type(layer),allocatable :: layers(:)
-  end type
-
-  type(network),allocatable :: networks(:)
-
   real(rk),allocatable :: infs(:,:)
 
-  integer,parameter :: num_types=1, num_pairs=num_types*(num_types+1)/2
+  integer(ik) :: num_types = 0, num_pairs = 0
+
   integer,parameter :: NMINCELL_FNN=1
 
   integer,allocatable :: pair_types(:,:)
@@ -380,26 +378,6 @@ do i=1, num_mdsteps
 enddo
 
 return
-end subroutine
-
-!------------------------------------------------------------------------------
-subroutine set_name_and_mass_fnn(atom_mass, atom_name)
-!------------------------------------------------------------------------------
-implicit none
-
-real(8),allocatable,intent(in out) :: atom_mass(:)
-character(2),allocatable,intent(in out) :: atom_name(:)
-
-if(.not.allocated(atom_mass)) allocate(atom_mass(num_types))
-if(.not.allocated(atom_name)) allocate(atom_name(num_types))
-
-! aluminum name & mass 
-atom_mass(1) = 27d0
-atom_name(1) = 'Al'
-
-print'(a,a3,f8.3,2i6)','atmname, mass: ', atom_name, atom_mass, &
-       size(atom_name), size(atom_mass)
-
 end subroutine
 
 !------------------------------------------------------------------------------

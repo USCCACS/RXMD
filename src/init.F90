@@ -12,9 +12,11 @@ module init
   use fileio, only : ReadBIN
 
   use fnn, only : features, get_cutoff_fnn, ml_eta, ml_mu, ml_rc, networks, num_networks, &
-                  num_dims, num_mu, num_eta, num_features, num_forcecomps, num_pairs, & 
+                  num_dims, num_mu, num_eta, num_features, num_forcecomps, num_pairs, num_types, & 
                   mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, &
-                  set_name_and_mass_fnn, get_cutoff_fnn, set_potentialtables_fnn
+                  set_potentialtables_fnn
+
+  use fnnin_parser
 
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
@@ -145,7 +147,7 @@ end subroutine
 subroutine get_drived_properties(get_cutoff_func, set_potentialtables_func, &
                                  atmname, mass, natoms_per_type, &
                                  dthm, hmas, dns)
-!------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------
 implicit none
 
 interface cutoff_func_interface
@@ -182,6 +184,9 @@ enddo
 call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
                    MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
+!--- get density 
+dns = sum(mass*natoms_per_type)/mdbox*UDENS
+
 !--- dt/2*mass, mass/2
 call allocator(dthm, 1, size(atmname))
 call allocator(hmas, 1, size(atmname))
@@ -191,15 +196,6 @@ do ity=1, size(mass)
       hmas(ity) = 0.5d0*mass(ity)
    endif
 enddo
-
-!--- get density 
-dns = 0.d0
-do i=1, NATOMS
-   ity = nint(atype(i))
-   dns = dns + mass(ity)
-enddo
-call MPI_ALLREDUCE(MPI_IN_PLACE, dns, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
-dns=dns/mdbox*UDENS
 
 !--- setup cutoff distance, rc, rc2, and maxrc. 
 call get_cutoff_func(rc, rc2, maxrc, natoms_per_type)
@@ -241,10 +237,46 @@ subroutine mdcontext_fnn()
 !------------------------------------------------------------------------------------------
 implicit none
 
-integer :: i,ity
+integer :: i,ity, num_models
 real(8) :: dns, mm
 
-call set_name_and_mass_fnn(mass, atmname)
+type(fnn_param) :: fp
+
+!FIXME path needs to given from cmdline
+fp = fnn_param_ctor(str_gen('fnn.in'))
+call fp%print()
+
+!ml_Mu = fp%rad_mu
+ml_Mu = [1.0,2.0,2.86,4.06,4.96,5.74,6.42,7.02,7.58]  !for now for testing
+num_Mu = size(ml_Mu)
+!ml_Eta = fp%rad_eta
+ml_Eta = [0.5,1.0,3.0] ! for now for testing
+num_Eta = size(ml_Eta)
+!ml_Rc = fp%rad_rc
+ml_Rc = 8.0 ! for now for testing
+
+num_features = num_Mu*num_Eta*num_forcecomps
+
+num_models = size(fp%models)
+
+num_types = num_models
+num_pairs=num_types*(num_types+1)/2
+
+allocate( mass(num_models), atmname(num_models) )
+do i=1, num_models
+   atmname(i) = fp%models(i)%element
+   mass(i) = fp%models(i)%mass
+enddo
+
+!print'(a,a3,f8.3,2i6)','atmname, mass: ', &
+!       atmname, mass, size(atmname), size(mass)
+
+do i=1, num_models
+   allocate(fp%models(i)%networks(num_networks))
+   num_dims = [num_features, fp%models(i)%hlayers, num_forcecomps] !FIXME. should be a better way?
+   call load_weight_and_bais_fnn(fp%models(i)%networks, str_gen('FNN/'//fp%models(i)%element//'/') )
+   !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
+enddo
 
 !--- FIXME set all atomtype 1 for now
 do i=1, size(atype)
@@ -260,11 +292,7 @@ mddriver_func => mddriver_fnn
 !--- features(natoms, num_features)
 call allocator(features,1, NBUFFER, 1, num_features) 
 
-!--- use three types of networks, [x,y,z]
-allocate(networks(num_networks))
-
 !--- set force field parameters
-call load_weight_and_bais_fnn(networks, str_gen('FNN/Al/'))
 
 call get_drived_properties(get_cutoff_fnn, set_potentialtables_fnn, &
                            atmname, mass, natoms_per_type, &
@@ -284,7 +312,6 @@ if(myid==0) then
    write(6,'(a)') repeat('-',60)
 
 endif
-
 
 end subroutine
 
