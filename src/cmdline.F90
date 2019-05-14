@@ -2,7 +2,7 @@
 module cmdline_args
 !-------------------------------------------------------------------------------------------
 use mpi_mod
-use utils, only : UTIME, UTEMP0, MAXSTRLENGTH 
+use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH 
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, &
@@ -411,40 +411,6 @@ treq = treq/UTEMP0
 Lex_w2=2.d0*Lex_k/dt/dt
 
 end subroutine
-
-!-------------------------------------------------------------------------------------------
-integer function getstr(linein,lineout)
-implicit none
-!-------------------------------------------------------------------------------------------
-
-character(len=:),allocatable,intent(in out) :: linein,lineout
-integer :: pos1
-
-!--- remove whitespace 
-linein = adjustl(linein)
-
-!--- return if black line
-if(len(linein)==0) then
-  getstr=-2
-  return
-endif
-
-!--- return if it's a comment line or entirely whitespace
-if(linein(1:1)=='#' .or. linein == repeat(' ', len(linein)) ) then
-   getstr=-1
-   return
-endif
-
-! find position in linein to get a token. if whitespace is not found, take entire line
-pos1=index(linein,' ')-1
-if(pos1==-1) pos1=len(linein)
-
-lineout=linein(1:pos1)
-linein=linein(pos1+1:)
-getstr=len(lineout)
-
-return
-end
 
 !-------------------------------------------------------------------------------------------
 logical function find_cmdline_argc(key,idx)

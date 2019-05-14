@@ -282,4 +282,40 @@ OBOX(1:3) = LBOX(1:3)*vID(1:3)
 return
 end
 
+!-------------------------------------------------------------------------------------------
+integer function getstr(linein,lineout)
+implicit none
+!-------------------------------------------------------------------------------------------
+
+character(len=:),allocatable,intent(in out) :: linein,lineout
+integer :: pos1
+
+!--- remove whitespace 
+linein = adjustl(linein)
+
+!--- return if black line
+if(len(linein)==0) then
+  getstr=-2
+  return
+endif
+
+!--- return if it's a comment line or entirely whitespace
+if(linein(1:1)=='#' .or. linein == repeat(' ', len(linein)) ) then
+   getstr=-1
+   return
+endif
+
+! find position in linein to get a token. if whitespace is not found, take entire line
+pos1=index(linein,' ')-1
+if(pos1==-1) pos1=len(linein)
+
+lineout=linein(1:pos1)
+linein=linein(pos1+1:)
+getstr=len(lineout)
+
+return
+end
+
+
 end module
+

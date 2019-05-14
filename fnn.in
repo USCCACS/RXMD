@@ -1,0 +1,21 @@
+# radial feature parameters
+rad_eta  1.5  2.0  2.3  2.5  3.0  3.3  3.5  3.7  4.0  4.25  4.5  4.75  5.0  5.5  6.0  6.5  7.0  7.5  8.0
+rad_mu   0.5  1.0  2.0  3.0  8.0
+
+rad_rc     10.0 
+rad_damp   15.0
+
+# angular feature parameters
+ang_lambda   -1  1
+ang_zeta    2.0  4.0  6.0
+ang_eta     2.0  0.5  0.2  0.05
+ang_mu      2.0  2.5  3.0  3.5   4.0
+
+ang_rc      4.0
+ang_damp    8.0
+
+# model data: element name, AMU, hidden layers
+model       Al  26.98    256 512 256
+#model       Ge  72.61    256 512 256
+#model       Sb  121.75   256 512 256
+#model       Te  127.6    256 512 256
