@@ -12,9 +12,18 @@ end module
 module base
 use utils, only : MAXSTRLENGTH
 !-------------------------------------------------------------------------------------------
+
+type :: force_field_class
+end type
+
+type :: mdbase_class
+   class(force_field_class),allocatable :: ff
+end type
+
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
+
 
 integer :: NBUFFER=30000
 integer,parameter :: MAXNEIGHBS=200  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
@@ -148,7 +157,9 @@ interface velocity_scaling_interface
 end interface
 
 interface mddriver_interface 
-  subroutine mddriver(num_mdsteps)
+  subroutine mddriver(mdbase, num_mdsteps)
+    import :: mdbase_class
+    type(mdbase_class),intent(in out) :: mdbase
     integer,intent(in) :: num_mdsteps
   end subroutine
 end interface

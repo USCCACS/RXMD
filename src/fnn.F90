@@ -1,6 +1,7 @@
 module fnnin_parser
 
   use utils, only : getstr
+  use base, only : force_field_class
 
   use iso_fortran_env, only: int32, int64, real32, real64, real128
   !integer,parameter :: rk = real64
@@ -19,9 +20,7 @@ module fnnin_parser
     type(layer),allocatable :: layers(:)
   end type
 
-  type(network),allocatable :: networks(:)
-
-  type model_params
+  type :: model_params
     character(len=:),allocatable :: element
     real(rk) :: mass
     integer(ik),allocatable :: hlayers(:)
@@ -29,7 +28,7 @@ module fnnin_parser
     type(network),allocatable :: networks(:)
   end type
 
-  type fnn_param
+  type, extends(force_field_class) :: fnn_param
     real(rk),allocatable,dimension(:) :: rad_eta, rad_mu
     real(rk),allocatable,dimension(:) :: ang_mu, ang_eta, ang_zeta
     integer(ik),allocatable,dimension(:) :: ang_lambda
@@ -43,14 +42,15 @@ module fnnin_parser
 
   end type
 
-   interface get_tokens_and_append
-      module procedure :: get_tokens_and_append_rv, get_tokens_and_append_iv, get_tokens_and_append_rs, get_tokens_and_append_model
-   end interface
+  interface get_tokens_and_append
+      module procedure :: get_tokens_and_append_rv, get_tokens_and_append_iv, & 
+                          get_tokens_and_append_rs, get_tokens_and_append_model
+  end interface
 
-   character(len=:),allocatable,private :: sbuf
-   integer,private :: ibuf
-   real(4),private :: rbuf
-    character(len=:),allocatable,private :: token
+  character(len=:),allocatable,private :: sbuf
+  integer,private :: ibuf
+  real(rk),private :: rbuf
+  character(len=:),allocatable,private :: token
 
 contains
 
@@ -172,7 +172,6 @@ contains
 
     end do
 
-
     10 close(iunit)
 
   end function
@@ -209,7 +208,9 @@ contains
 
 end module
 
+!------------------------------------------------------------------------------
 module fnn
+!------------------------------------------------------------------------------
 
   use fnnin_parser
 
@@ -227,21 +228,16 @@ module fnn
 
   real(rk),allocatable :: features(:,:) 
 
-  integer(ik) :: num_Mu = 0
-  real(rk),allocatable :: ml_Mu(:)
-
-  integer(ik) :: num_Eta = 0
-  real(rk),allocatable :: ml_Eta(:)
+  integer(ik) :: num_Mu = 0, num_Eta = 0
+  real(rk),allocatable :: ml_Mu(:), ml_Eta(:)
 
   real(rk),parameter :: LJ_factor = 1.0
   real(rk) :: ml_Rc = 0.0
 
   integer(ik),parameter :: num_forcecomps = 1
-  integer(ik) :: num_features
+  integer(ik) :: num_features = 0
 
   integer(ik),parameter :: num_networks = 3
-
-  real(rk),allocatable :: infs(:,:)
 
   integer(ik) :: num_types = 0, num_pairs = 0
 
@@ -259,12 +255,15 @@ subroutine set_potentialtables_fnn()
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_force_fnn(networks, natoms, atype, pos, f, q)
+subroutine get_force_fnn(ff, natoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
 implicit none
-type(network),intent(in),allocatable :: networks(:)
+class(force_field_class),allocatable,target,intent(in out) :: ff
+type(fnn_param),pointer :: fp => null()
 integer,intent(in out) :: natoms
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
+
+type(network),allocatable :: networks(:)
 
 integer(ik) :: i, j, k, n, ncol, nrow, num_layers
 integer(ik) :: m1,k1,n1
@@ -280,8 +279,14 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_features_fnn(natoms, atype, pos, features) 
 
-num_layers = size(num_dims)
 
+! not sure if this is the best way, but binding force_field_class to fnn_parm
+select type(ff); type is (fnn_param) 
+   fp => ff
+end select
+num_layers = size(fp%models(1)%hlayers)
+
+networks = fp%models(1)%networks ! for now for testing
 
 network_loop : do nn=1, num_networks
 
@@ -313,7 +318,7 @@ network_loop : do nn=1, num_networks
   enddo layer_loop
 
   !--- update force
-  f(:,nn) = x(:,1)
+  f(1:natoms,nn) = x(1:natoms,1)
 
 enddo network_loop
 
@@ -365,16 +370,17 @@ enddo network_loop
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine mddriver_fnn(num_mdsteps) 
+subroutine mddriver_fnn(mdbase, num_mdsteps) 
 !------------------------------------------------------------------------------
 implicit none
+type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 
 integer :: i
 
 !--- set force model
 do i=1, num_mdsteps
-   call get_force_fnn(networks, natoms, atype, pos, f, q)
+   call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
 enddo
 
 return
@@ -537,10 +543,11 @@ call allocator(rcut, 1, num_pairs)
 call allocator(rcut2, 1, num_pairs)
 call allocator(pair_types, 1, num_types, 1, num_types)
 
+inxn=0
 do ity=1, num_types
 do jty=ity, num_types
-   pair_types(ity,jty) = ity + (jty-1)*num_types
-   inxn = pair_types(ity,jty) 
+   inxn = inxn + 1
+   pair_types(ity,jty) = inxn
 
    rcut(inxn)  = ml_Rc
    rcut2(inxn) = ml_Rc*ml_Rc

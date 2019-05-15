@@ -1,13 +1,15 @@
 !------------------------------------------------------------------------------
 program rxmd
 !------------------------------------------------------------------------------
-use base, only : atype, f, pos, q, v 
+use base, only : mdbase_class, atype, f, pos, q, v 
 use init
 use mpi_mod
 use cmdline_args, only : get_cmdline_args, get_rxmd_parms
 !------------------------------------------------------------------------------
 implicit none
 integer :: i,ity,it1,it2,irt
+
+type(mdbase_class) :: mdbase
 
 call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -22,11 +24,11 @@ call get_cmdline_args(myid, eFieldDir, eFieldStrength)
 call get_rxmd_parms(ParmPath)
 
 !--- initialize the MD system
-call mdcontext_base(atype, pos, v, f, q)
+call mdcontext_base(mdbase, atype, pos, v, f, q)
 
 !--- Enter Main MD loop 
 call system_clock(it1,irt)
-call mddriver_func(ntime_step)
+call mddriver_func(mdbase, ntime_step)
 call system_clock(it2,irt)
 it_timer(MAXTIMERS)=(it2-it1)
 

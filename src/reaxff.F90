@@ -128,7 +128,7 @@ real(8), allocatable :: rcore(:,:),ecore(:,:),acore(:,:)
 contains
 
 !-------------------------------------------------------------------------------------------
-subroutine mddriver_reaxff(num_mdsteps)
+subroutine mddriver_reaxff(mdbase, num_mdsteps)
 use base
 use atoms
 use velocity_modifiers_mod
@@ -136,6 +136,7 @@ use communication_mod
 use fileio
 !-------------------------------------------------------------------------------------------
 implicit none
+type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 integer :: i,ity
 real(8) :: ctmp

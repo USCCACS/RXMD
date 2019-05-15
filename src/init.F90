@@ -11,10 +11,9 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN
 
-  use fnn, only : features, get_cutoff_fnn, ml_eta, ml_mu, ml_rc, networks, num_networks, &
+  use fnn, only : features, get_cutoff_fnn, ml_eta, ml_mu, ml_rc, num_networks, &
                   num_dims, num_mu, num_eta, num_features, num_forcecomps, num_pairs, num_types, & 
-                  mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, &
-                  set_potentialtables_fnn
+                  mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_potentialtables_fnn
 
   use fnnin_parser
 
@@ -24,9 +23,11 @@ module init
 contains
 
 !------------------------------------------------------------------------------------------
-subroutine mdcontext_base(atype, pos, v, f, q)
+subroutine mdcontext_base(mdbase, atype, pos, v, f, q)
 !------------------------------------------------------------------------------------------
 implicit none
+
+type(mdbase_class),intent(in out) :: mdbase 
 
 real(8),intent(in out),allocatable,dimension(:) :: atype, q
 real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
@@ -133,7 +134,7 @@ if(is_reaxff) then
   call mdcontext_reaxff()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 else if(is_fnn) then
-  call mdcontext_fnn()
+  mdbase%ff = mdcontext_fnn()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
 else
   call mdcontext_reaxff()
@@ -215,13 +216,13 @@ if(present(set_potentialtables_func)) call set_potentialtables_func()
 
 if(myid==0) then
    write(6,'(a)') repeat('-',60)
-   write(6,'(a30,3f10.4)') "density [g/cc]:",dns
+   write(6,'(a30,3f10.4)') "density [g/cc]:", dns
    write(6,'(a30,3i6)')  '# of linkedlist cell:', cc(1:3)
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
         maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
 
    print'(a30 $)','# of atoms per type:'
-   do ity=1, num_pairs
+   do ity=1, size(natoms_per_type)
       if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
    enddo
    print*
@@ -233,7 +234,7 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------------------
-subroutine mdcontext_fnn()
+function mdcontext_fnn() result(fp)
 !------------------------------------------------------------------------------------------
 implicit none
 
@@ -260,7 +261,7 @@ num_features = num_Mu*num_Eta*num_forcecomps
 num_models = size(fp%models)
 
 num_types = num_models
-num_pairs=num_types*(num_types+1)/2
+num_pairs = num_types*(num_types+1)/2
 
 allocate( mass(num_models), atmname(num_models) )
 do i=1, num_models
@@ -313,7 +314,7 @@ if(myid==0) then
 
 endif
 
-end subroutine
+end function
 
 !------------------------------------------------------------------------------------------
 subroutine mdcontext_reaxff()

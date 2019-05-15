@@ -13,8 +13,6 @@ use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, &
                   ntype_pqeq, ntype_pqeq2, Elempqeq, x0pqeq, j0pqeq, Zpqeq, Rcpqeq, Rspqeq, Kspqeq, &
                   alphacc, alphasc, alphass
 
-use fnn, only : num_dims, num_features, num_forcecomps
-
 interface get_token_and_set_value
    module procedure :: set_r8, set_i4, set_l
 end interface
@@ -171,24 +169,6 @@ if(find_cmdline_argc('--spring',idx).or.find_cmdline_argc('-s',idx)) then
        print'(f10.5)', springConst 
        print'(a60)',repeat('-',60)
     endif
-endif
-
-
-if(find_cmdline_argc('--network_dimensions',idx).or.find_cmdline_argc('-ndims',idx)) then
-    call get_command_argument(idx+1,argv)
-    read(argv, fmt=*) ii
-
-    num_dims = [num_features]
-    do ia=1, ii
-       call get_command_argument(idx+1+ia,argv)
-       read(argv, fmt=*) ib
-       num_dims = [num_dims, ib]
-    enddo
-    num_dims = [num_dims, num_forcecomps]
-else
-    !TODO, a better network size specifier later? 
-    allocate(num_dims(5))
-    num_dims = [num_features, 256, 512, 256, num_forcecomps]
 endif
 
 end subroutine
