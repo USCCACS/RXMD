@@ -29,7 +29,7 @@ module fnnin_parser
   end type
 
   type, extends(force_field_class) :: fnn_param
-    real(rk),allocatable,dimension(:) :: rad_eta, rad_mu
+    real(rk),allocatable,dimension(:) :: rad_mu, rad_eta
     real(rk),allocatable,dimension(:) :: ang_mu, ang_eta, ang_zeta
     integer(ik),allocatable,dimension(:) :: ang_lambda
 
@@ -228,11 +228,11 @@ module fnn
 
   real(rk),allocatable :: features(:,:) 
 
-  integer(ik) :: num_Mu = 0, num_Eta = 0
-  real(rk),allocatable :: ml_Mu(:), ml_Eta(:)
+  !integer(ik) :: num_Mu = 0, num_Eta = 0
+  !real(rk),allocatable :: ml_Mu(:), ml_Eta(:)
 
   real(rk),parameter :: LJ_factor = 1.0
-  real(rk) :: ml_Rc = 0.0
+  !real(rk) :: ml_Rc = 0.0
 
   integer(ik),parameter :: num_forcecomps = 1
   integer(ik) :: num_features = 0
@@ -277,14 +277,13 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 !call neighborlist(NMINCELL_FNN, atype, pos, pair_types, skip_check=.true.)
 
-call get_features_fnn(natoms, atype, pos, features) 
-
-
 ! not sure if this is the best way, but binding force_field_class to fnn_parm
 select type(ff); type is (fnn_param) 
    fp => ff
 end select
 num_layers = size(fp%models(1)%hlayers)
+
+call get_features_fnn(natoms, atype, pos, features, fp) 
 
 networks = fp%models(1)%networks ! for now for testing
 
@@ -322,51 +321,6 @@ network_loop : do nn=1, num_networks
 
 enddo network_loop
 
-
-
-!do na=1, natoms
-!
-!   network_loop : do nn=1, num_networks
-!
-!      if(allocated(y)) deallocate(y)
-!      allocate(y(num_features))
-!
-!      y(1:num_features) = features(na,1:num_features)    
-!   
-!      layer_loop : do nl=1, num_layers-1
-!
-!        nrow = num_dims(nl)
-!        ncol = num_dims(nl+1)
-!     
-!        !-- w*x + b
-!        if(allocated(x)) deallocate(x);  allocate(x(ncol))
-!     
-!        do k=1,ncol
-!          x(k) = networks(nn)%layers(nl)%b(k) + & 
-!                sum(networks(nn)%layers(nl)%w(1:nrow,k)*y(1:nrow)) 
-!        enddo
-!
-!     
-!        !--- apply relu and update y
-!        if(allocated(y)) deallocate(y); allocate(y(ncol))
-!        y = max(x,0.0) ! relu
-!     
-!      enddo layer_loop
-!
-!      if(size(x)==1) then
-!         !if(na==1) print'(a,3i6,f8.5)','f(na,nn): ', na,nn,nl,x(1)
-!         f(na,nn) = x(1)
-!      else
-!         print*,'ERROR: the last layer size is not 1'
-!         stop 
-!      endif
-!
-!   enddo network_loop
-!
-!   !print'(a,i6,6f10.5)','na,pos(na,1:3),f(na,1:3): ', na,pos(na,1:3),f(na,1:3)
-!
-!enddo
-
 end subroutine
 
 !------------------------------------------------------------------------------
@@ -387,12 +341,13 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_features_fnn(num_atoms, atype, pos, features) 
+subroutine get_features_fnn(num_atoms, atype, pos, features, fp)
 !------------------------------------------------------------------------------
 implicit none
 integer,intent(in) :: num_atoms
 real(8),intent(in),allocatable :: atype(:), pos(:,:)
 real(rk),allocatable,intent(in out) :: features(:,:)
+type(fnn_param),intent(in) :: fp
 
 real(rk) :: rr(3), rr2, rij, dr_norm, dsum, eta, fr, rij_mu
 integer(ik) :: i, j, j1, l1, l2, ii, idx, ia
@@ -413,7 +368,7 @@ do c3=0, cc(3)-1
      do c4 = -1, 1
      do c5 = -1, 1
      do c6 = -1, 1
-        ic(1:3) = [c1, c2, c3] + [c4, c5, c6]
+        ic(1:3) = [c1+c4, c2+c5, c3+c6]
 
         n = header(ic(1),ic(2),ic(3))
         do n1=1, nacell(ic(1), ic(2), ic(3))
@@ -429,16 +384,16 @@ do c3=0, cc(3)-1
              if(rr2<rc2(inxn)) then
 
                 rr(1:3) = rr(1:3)/rij
-                dr_norm = rij/ml_Rc
+                dr_norm = rij/fp%rad_rc
                 fr = 0.5*( 1.0 + cos(pi*dr_norm) ) 
 
-                do l1 = 1, num_Mu
+                do l1 = 1, size(fp%rad_mu)
 
-                   rij_mu = rij - ml_Mu(l1)
+                   rij_mu = rij - fp%rad_mu(l1)
 
-                   do l2 = 1, num_Eta
-                      eta = exp( -ml_Eta(l2) * rij_mu * rij_mu )
-                      idx = (l1-1)*num_Eta*num_forcecomps + (l2-1)*num_forcecomps
+                   do l2 = 1, size(fp%rad_eta)
+                      eta = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
+                      idx = (l1-1)*size(fp%rad_eta)*num_forcecomps + (l2-1)*num_forcecomps
                       features(n,idx+1) = features(n,idx+1) + eta*fr 
                    enddo
 
@@ -465,10 +420,11 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine load_weight_and_bais_fnn(networks, path) 
+subroutine load_weight_and_bais_fnn(networks, num_dims, path) 
 !------------------------------------------------------------------------------
    implicit none
    type(network),allocatable,intent(in out) :: networks(:)
+   integer(ik),intent(in) :: num_dims(:)
    character(len=:),allocatable,intent(in) :: path
 
    character(1),parameter :: cxyz(3) = ['x','y','z']
@@ -529,12 +485,12 @@ enddo
 end function
 
 !------------------------------------------------------------------------------------------
-subroutine get_cutoff_fnn(rcut, rcut2, maxrcut, natoms_per_type)
+subroutine get_cutoff_fnn(rcut, rcut2, maxrcut, radial_cutoff)
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
 real(8),intent(in out) :: maxrcut
-integer(8),allocatable,intent(in out),optional :: natoms_per_type(:)
+real(rk),intent(in) :: radial_cutoff
 
 integer :: ity,jty,inxn
 
@@ -549,8 +505,8 @@ do jty=ity, num_types
    inxn = inxn + 1
    pair_types(ity,jty) = inxn
 
-   rcut(inxn)  = ml_Rc
-   rcut2(inxn) = ml_Rc*ml_Rc
+   rcut(inxn)  = radial_cutoff
+   rcut2(inxn) = radial_cutoff*radial_cutoff
    print'(a,3i6,2f10.5)','ity, jty, inxn: ', ity, jty, inxn, rcut(inxn), rcut2(inxn)
 
    pair_types(jty,ity) = pair_types(ity,jty) 

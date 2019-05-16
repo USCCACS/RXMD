@@ -221,7 +221,7 @@ subroutine get_cutoff_bondorder(rcut, rcut2, maxrcut, natoms_per_type)
 implicit none
 real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
 real(8),intent(in out) :: maxrcut
-integer(8),allocatable,intent(in out),optional :: natoms_per_type(:)
+integer(8),intent(in out) :: natoms_per_type(:)
 
 integer :: ity,jty,inxn
 real(8) :: dr, BOsig

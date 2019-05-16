@@ -11,8 +11,8 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN
 
-  use fnn, only : features, get_cutoff_fnn, ml_eta, ml_mu, ml_rc, num_networks, &
-                  num_dims, num_mu, num_eta, num_features, num_forcecomps, num_pairs, num_types, & 
+  use fnn, only : features, get_cutoff_fnn, num_networks, &
+                  num_features, num_forcecomps, num_pairs, num_types, & 
                   mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_potentialtables_fnn
 
   use fnnin_parser
@@ -32,6 +32,7 @@ type(mdbase_class),intent(in out) :: mdbase
 real(8),intent(in out),allocatable,dimension(:) :: atype, q
 real(8),intent(in out),allocatable,dimension(:,:) :: pos, v, f
 
+real(8) :: dns
 integer :: i,j,k, ity, l(3)
 
 !--- an error trap
@@ -85,9 +86,16 @@ call allocator(frcindx,1,NBUFFER)
 
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
-!--- get global number of atoms
-GNATOMS = NATOMS ! Convert 4 byte to 8 byte
-call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+!--- get global number of atoms by summing up each type. 
+do i=1, NATOMS
+   ity=nint(atype(i))
+   natoms_per_type(ity)=natoms_per_type(ity)+1
+enddo
+call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
+                   MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+
+GNATOMS = sum(natoms_per_type)
+
 
 !--- TODO where to put the spring force extention? 
 !--- for spring force
@@ -130,67 +138,21 @@ if(myid==0) then
 
 endif
 
-if(is_reaxff) then
-  call mdcontext_reaxff()
-  if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
-else if(is_fnn) then
+if(is_fnn) then
   mdbase%ff = mdcontext_fnn()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
 else
   call mdcontext_reaxff()
+  call set_potentialtables_reaxff()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 endif
 
-
-end subroutine
-
-!------------------------------------------------------------------------------------------
-subroutine get_drived_properties(get_cutoff_func, set_potentialtables_func, &
-                                 atmname, mass, natoms_per_type, &
-                                 dthm, hmas, dns)
-!-----------------------------------------------------------------------------------------
-implicit none
-
-interface cutoff_func_interface
-  subroutine get_cutoff(rcut, rcut2, maxrcut, natoms_per_type)
-    real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
-    real(8),intent(in out) :: maxrcut
-    integer(8),allocatable,intent(in out),optional :: natoms_per_type(:)
-  end subroutine
-end interface
-
-interface potentialtable_interface
-  subroutine set_potentialtable()
-  end subroutine
-end interface
-
-procedure(get_cutoff) :: get_cutoff_func
-procedure(set_potentialtable),optional :: set_potentialtables_func
-
-character(2),allocatable,intent(in) :: atmname(:)
-real(8),allocatable,intent(in) :: mass(:)
-
-integer(8),allocatable,intent(in out) :: natoms_per_type(:)
-real(8),allocatable,intent(in out) :: dthm(:),hmas(:)
-real(8),intent(in out) :: dns
-
-integer :: i, ity
-
-!--- get number of atoms per each type. 
-call allocator(natoms_per_type, 1, size(atmname))
-do i=1, NATOMS
-   ity=nint(atype(i))
-   natoms_per_type(ity)=natoms_per_type(ity)+1
-enddo
-call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
-                   MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
-
-!--- get density 
-dns = sum(mass*natoms_per_type)/mdbox*UDENS
+!--- To get density, dhtm, hmas, need mass from forcefield
+dns = sum(mass*natoms_per_type(1:size(mass)))/mdbox*UDENS
 
 !--- dt/2*mass, mass/2
-call allocator(dthm, 1, size(atmname))
-call allocator(hmas, 1, size(atmname))
+call allocator(dthm, 1, size(mass))
+call allocator(hmas, 1, size(mass))
 do ity=1, size(mass)
    if(mass(ity) > 0.d0) then
       dthm(ity) = dt*0.5d0/mass(ity)
@@ -198,21 +160,15 @@ do ity=1, size(mass)
    endif
 enddo
 
-!--- setup cutoff distance, rc, rc2, and maxrc. 
-call get_cutoff_func(rc, rc2, maxrc, natoms_per_type)
-
-!--- update box-related variables based on the cutoff distance
+!--- maxrc from forcefiled is necessary to update box-related variables. 
 call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
                        cc, lcsize, hhi, mdbox, lbox, obox)
 
-!--- Linked List & Near Neighb Parameters
+!--- Linked List & Near Neighb Parameters. cc is from update_box_params()
 call allocator(nbrlist,1,NBUFFER,0,MAXNEIGHBS)
 call allocator(llist,1,NBUFFER)
 call allocator(header,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
 call allocator(nacell,-MAXLAYERS,cc(1)-1+MAXLAYERS,-MAXLAYERS,cc(2)-1+MAXLAYERS,-MAXLAYERS,cc(3)-1+MAXLAYERS)
-
-!--- setup potential tables
-if(present(set_potentialtables_func)) call set_potentialtables_func()
 
 if(myid==0) then
    write(6,'(a)') repeat('-',60)
@@ -230,7 +186,6 @@ if(myid==0) then
 endif
 
 
-return
 end subroutine
 
 !------------------------------------------------------------------------------------------
@@ -239,24 +194,14 @@ function mdcontext_fnn() result(fp)
 implicit none
 
 integer :: i,ity, num_models
-real(8) :: dns, mm
 
 type(fnn_param) :: fp
 
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
-call fp%print()
 
-!ml_Mu = fp%rad_mu
-ml_Mu = [1.0,2.0,2.86,4.06,4.96,5.74,6.42,7.02,7.58]  !for now for testing
-num_Mu = size(ml_Mu)
-!ml_Eta = fp%rad_eta
-ml_Eta = [0.5,1.0,3.0] ! for now for testing
-num_Eta = size(ml_Eta)
-!ml_Rc = fp%rad_rc
-ml_Rc = 8.0 ! for now for testing
-
-num_features = num_Mu*num_Eta*num_forcecomps
+!FIXME feature size should include angular features. for now for testing
+num_features = size(fp%rad_mu)*size(fp%rad_eta)*num_forcecomps
 
 num_models = size(fp%models)
 
@@ -274,17 +219,16 @@ enddo
 
 do i=1, num_models
    allocate(fp%models(i)%networks(num_networks))
-   num_dims = [num_features, fp%models(i)%hlayers, num_forcecomps] !FIXME. should be a better way?
-   call load_weight_and_bais_fnn(fp%models(i)%networks, str_gen('FNN/'//fp%models(i)%element//'/') )
+   call load_weight_and_bais_fnn(fp%models(i)%networks, &
+                                 [num_features, fp%models(i)%hlayers, num_forcecomps], &
+                                 str_gen('FNN/'//fp%models(i)%element//'/') )
    !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
 
 !--- FIXME set all atomtype 1 for now
 do i=1, size(atype)
-   ity=nint(atype(i))
-   if(ity>0) then 
-      atype(i)=1.d0+l2g(atype(i))*1d-13
-   endif
+   ity = nint(atype(i))
+   if(ity>0) atype(i)=1.d0+l2g(atype(i))*1d-13
 enddo
 
 !--- set md dirver function 
@@ -293,26 +237,11 @@ mddriver_func => mddriver_fnn
 !--- features(natoms, num_features)
 call allocator(features,1, NBUFFER, 1, num_features) 
 
-!--- set force field parameters
-
-call get_drived_properties(get_cutoff_fnn, set_potentialtables_fnn, &
-                           atmname, mass, natoms_per_type, &
-                           dthm, hmas, dns)
+!--- set cutoff distance
+call get_cutoff_fnn(rc, rc2, maxrc, fp%rad_rc)
 
 !--- FNN specific output 
-if(myid==0) then
-
-   write(6,'(a)') repeat('-',60)
-   write(6,*) 'num_dims: ', num_dims
-   write(6,*) 'num_Mu, ml_Mu: ', num_Mu, ml_Mu
-   write(6,*) 'num_Eta, ml_Eta', num_Eta, ml_Eta
-   write(6,*) 'ml_Rc: ', ml_Rc
-   write(6,*) 'num_forcecomps: ', num_forcecomps
-   write(6,*) 'num_features: ', num_features
-   write(6,*) 'num_networks: ', num_networks
-   write(6,'(a)') repeat('-',60)
-
-endif
+if(myid==0) call fp%print()
 
 end function
 
@@ -324,7 +253,6 @@ subroutine mdcontext_reaxff()
 implicit none
 
 integer :: i,j,k, ity
-real(8) :: dns
 
 wt0 = MPI_WTIME()
 
@@ -361,11 +289,8 @@ mddriver_func => mddriver_reaxff
 !--- set force field parameters
 call get_forcefield_params_reaxff(FFPath)
 
-!--- get force field dependent parameters
-call get_drived_properties(get_cutoff_func=get_cutoff_bondorder, &
-                           set_potentialtables_func=set_potentialtables_reaxff, &
-                           atmname=atmname, mass=mass, natoms_per_type=natoms_per_type, &
-                           dthm=dthm, hmas=hmas, dns=dns)
+!--- get cutoff distance based on the bond-order
+call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
 
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
 call GetNonbondingMesh()

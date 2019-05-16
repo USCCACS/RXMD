@@ -20,6 +20,7 @@ type :: mdbase_class
    class(force_field_class),allocatable :: ff
 end type
 
+
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
@@ -99,8 +100,10 @@ REAL(8) :: ftol
 character(len=:),allocatable :: forcefield_type
 logical :: is_reaxff=.false., is_fnn=.false.
 
-!--- cutoff range calculation. 
-integer(8),allocatable :: natoms_per_type(:)
+!--- natoms_per_type() is used to clear unused cutoff distance for ReaxFF
+!--- see get_cutoff_bondorder()
+integer,parameter :: MAX_ATOMTYPE=16
+integer(8) :: natoms_per_type(MAX_ATOMTYPE)=0
 
 !--- dthm=dt/(2*mass), hmas=mass/2
 real(8),allocatable :: dthm(:), hmas(:)
