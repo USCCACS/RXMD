@@ -11,7 +11,7 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN
 
-  use fnn, only : features, get_cutoff_fnn, num_networks, &
+  use fnn, only : features, get_cutoff_fnn, num_networks_per_atom, &
                   num_features, num_forcecomps, num_pairs, num_types, & 
                   mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_potentialtables_fnn
 
@@ -218,7 +218,7 @@ enddo
 !       atmname, mass, size(atmname), size(mass)
 
 do i=1, num_models
-   allocate(fp%models(i)%networks(num_networks))
+   allocate(fp%models(i)%networks(num_networks_per_atom))
    call load_weight_and_bais_fnn(fp%models(i)%networks, &
                                  [num_features, fp%models(i)%hlayers, num_forcecomps], &
                                  str_gen('FNN/'//fp%models(i)%element//'/') )
@@ -227,8 +227,7 @@ enddo
 
 !--- FIXME set all atomtype 1 for now
 do i=1, size(atype)
-   ity = nint(atype(i))
-   if(ity>0) atype(i)=1.d0+l2g(atype(i))*1d-13
+   if(nint(atype(i))>0) atype(i)=1.d0+l2g(atype(i))*1d-13
 enddo
 
 !--- set md dirver function 

@@ -228,16 +228,12 @@ module fnn
 
   real(rk),allocatable :: features(:,:) 
 
-  !integer(ik) :: num_Mu = 0, num_Eta = 0
-  !real(rk),allocatable :: ml_Mu(:), ml_Eta(:)
-
   real(rk),parameter :: LJ_factor = 1.0
-  !real(rk) :: ml_Rc = 0.0
 
   integer(ik),parameter :: num_forcecomps = 1
   integer(ik) :: num_features = 0
 
-  integer(ik),parameter :: num_networks = 3
+  integer(ik),parameter :: num_networks_per_atom = 3
 
   integer(ik) :: num_types = 0, num_pairs = 0
 
@@ -287,10 +283,9 @@ call get_features_fnn(natoms, atype, pos, features, fp)
 
 networks = fp%models(1)%networks ! for now for testing
 
-network_loop : do nn=1, num_networks
+network_loop : do nn=1, num_networks_per_atom
 
   y = features(1:natoms,1:num_features)
-  !print*,'ncol,nrow:', num_dims(1), num_dims(2)
 
   layer_loop : do nl=1, num_layers-1
 
@@ -311,7 +306,6 @@ network_loop : do nn=1, num_networks
     enddo
 #endif
 
-    !print'(a,4i6)','ncol,nrow:', num_dims(nl), num_dims(nl+1),shape(y)
     y = max(x,0.0) ! relu
 
   enddo layer_loop
@@ -429,7 +423,7 @@ subroutine load_weight_and_bais_fnn(networks, num_dims, path)
 
    character(1),parameter :: cxyz(3) = ['x','y','z']
 
-   print*,'In get_feedforward_network, path: ', path
+   print*,'INFO: loading weight and bais values from : ', path
    networks(1) = network_ctor(num_dims,path,cxyz(1))
    networks(2) = network_ctor(num_dims,path,cxyz(2))
    networks(3) = network_ctor(num_dims,path,cxyz(3))
