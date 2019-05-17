@@ -3,7 +3,7 @@ module fnnin_parser
   use utils, only : getstr
   use base, only : force_field_class
 
-  use iso_fortran_env, only: int32, int64, real32, real64, real128
+  use iso_fortran_env, only: int32, int64, real32, real64 
 
   implicit none
 
@@ -364,14 +364,14 @@ real(rk),allocatable,intent(in out) :: features(:,:,:)
 type(fnn_param),intent(in) :: fp
 
 real(rk) :: rr(3), rr2, rij, dsum 
-integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx, ia
+integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx
 integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,n,n1,m,m1,nty,mty,inxn
 
 integer(ik) :: nnbr, lnbr(MAXNEIGHBS), l1_stride, l2_stride, l3_stride
 real(rk) :: r_ij(0:3), r_kj(0:3), eta_ij, eta_kj, fc_ij, fc_kj, rij_mu, rkj_mu
 real(rk) :: cos_ijk, theta_ijk, lambda_ijk, zeta_G3a, zeta_G3b, zeta_const
 
-real(rk) :: G3_mu_eta, G3a_xyz(3), G3a, G3b_xyz(3), G3b
+real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 
 features = 0.0
 
@@ -425,9 +425,7 @@ do c3=0, cc(3)-1
 
                       idx = (inxn-1)*fp%feature_size_rad + (l1-1)*l1_stride + l2
 
-                      do ia=1,3 
-                         features(ia,n,idx) = features(ia,n,idx) + eta_ij*fc_ij*rr(ia)
-                      enddo
+                      features(1:3,n,idx) = features(1:3,n,idx) + eta_ij*fc_ij*rr(1:3)
                    enddo
 
                 enddo
@@ -472,14 +470,11 @@ do j=1, num_atoms
          cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) / ( r_ij(0) * r_kj(0) )
          theta_ijk = acos(cos_ijk)
 
+         G3a_c1 = (r_ij(0)-r_kj(0)*cos_ijk)/(r_ij(0)*r_kj(0))/r_ij(0)
+         G3a_c2 = (r_kj(0)-r_ij(0)*cos_ijk)/(r_ij(0)*r_kj(0))/r_kj(0)
 
-         do ia=1,3
-            G3a_xyz(ia) = (r_ij(ia)/r_ij(0))*(r_ij(0)-r_kj(0)*cos_ijk) + &
-                          (r_kj(ia)/r_kj(0))*(r_kj(0)-r_ij(0)*cos_ijk)
-            G3a_xyz(ia) = G3a_xyz(ia)/(r_ij(0)*r_kj(0))
-
-            G3b_xyz(ia) = r_ij(ia)/r_kj(0) + r_kj(ia)/r_ij(0)
-         enddo
+         G3a_xyz(1:3) = r_ij(1:3)*G3a_c1 + r_kj(1:3)*G3a_c2
+         G3b_xyz(1:3) = r_ij(1:3)/r_kj(0) + r_kj(1:3)/r_ij(0)
 
          do l1=1, size(fp%ang_mu)
 
@@ -506,11 +501,8 @@ do j=1, num_atoms
                      idx = fp%feature_size_rad + &
                          (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + l4
 
-                     do ia=1, 3
-                        features(ia,n,idx) = features(ia,n,idx) + &
-                           G3a_xyz(ia)*G3_mu_eta*zeta_G3a + &
-                           G3b_xyz(ia)*G3_mu_eta*zeta_G3b
-                     enddo
+                     features(1:3,n,idx) = features(1:3,n,idx) + &
+                         (G3a_xyz(1:3)*zeta_G3a + G3b_xyz(1:3)*zeta_G3b)*G3_mu_eta
 
          enddo; enddo; enddo; enddo
           
