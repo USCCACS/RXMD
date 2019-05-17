@@ -46,9 +46,11 @@ module fnnin_parser
 
   end type
 
+  type(fnn_param),target :: fnn_param_obj
+
   interface get_tokens_and_append
-      module procedure :: get_tokens_and_append_rv, get_tokens_and_append_iv, & 
-                          get_tokens_and_append_rs, get_tokens_and_append_model
+      module procedure get_tokens_and_append_rv, get_tokens_and_append_iv, & 
+                       get_tokens_and_append_rs, get_tokens_and_append_model
   end interface
 
   character(len=:),allocatable,private :: sbuf
@@ -278,7 +280,7 @@ end subroutine
 !------------------------------------------------------------------------------
 subroutine get_force_fnn(ff, natoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
-class(force_field_class),allocatable,target,intent(in out) :: ff
+class(force_field_class),pointer,intent(in out) :: ff
 type(fnn_param),pointer :: fp => null()
 integer,intent(in out) :: natoms
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)

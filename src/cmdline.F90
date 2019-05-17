@@ -14,7 +14,7 @@ use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, &
                   alphacc, alphasc, alphass
 
 interface get_token_and_set_value
-   module procedure :: set_r8, set_i4, set_l
+   module procedure set_r8, set_i4, set_l
 end interface
 
 contains

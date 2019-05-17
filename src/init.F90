@@ -11,7 +11,7 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN
 
-  use fnn, only : features, get_cutoff_fnn, num_networks_per_atom, &
+  use fnn, only : fnn_param, fnn_param_obj, features, get_cutoff_fnn, num_networks_per_atom, &
                   num_forcecomps, num_pairs, num_types, & 
                   mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_potentialtables_fnn
 
@@ -75,6 +75,7 @@ do i=1,3
                    
 enddo    
 
+
 !--- read atom and MD box data
 call allocator(atype,1,NBUFFER)
 call allocator(q,1,NBUFFER)
@@ -105,9 +106,9 @@ if (isSpring) then
   ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
   write(6,'(a)') repeat('-',60)
-  write(6,'(a,f8.2 $)') 'springConst [kcal/mol] ', springConst 
+  write(6,'(a,f8.2, $)') 'springConst [kcal/mol] ', springConst 
   do ity=1, size(hasSpringForce) 
-     if(hasSpringForce(ity)) print'(i3 $)',ity
+     if(hasSpringForce(ity)) print'(i3, $)',ity
   enddo
   print*
   write(6,'(a)') repeat('-',60)
@@ -140,7 +141,8 @@ if(myid==0) then
 endif
 
 if(is_fnn) then
-  mdbase%ff = mdcontext_fnn()
+  fnn_param_obj = mdcontext_fnn()
+  mdbase%ff => fnn_param_obj
   if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
 else
   call mdcontext_reaxff()
@@ -178,9 +180,9 @@ if(myid==0) then
    write(6,'(a30,f10.3,2x,3f10.2)') "maxrc, lcsize [A]:", &
         maxrc,lata/cc(1)/vprocs(1),latb/cc(2)/vprocs(2),latc/cc(3)/vprocs(3)
 
-   print'(a30 $)','# of atoms per type:'
+   print'(a30, $)','# of atoms per type:'
    do ity=1, size(natoms_per_type)
-      if(natoms_per_type(ity)>0) print'(i12,a2,i2 $)',natoms_per_type(ity),' -',ity
+      if(natoms_per_type(ity)>0) print'(i12,a2,i2, $)',natoms_per_type(ity),' -',ity
    enddo
    print*
    write(6,'(a)') repeat('-',60)
@@ -212,15 +214,15 @@ do i=1, num_models
    mass(i) = fp%models(i)%mass
 enddo
 
-!print'(a,a3,f8.3,2i6)','atmname, mass: ', &
-!       atmname, mass, size(atmname), size(mass)
+print'(a,a3,f8.3,2i6)','atmname, mass: ', &
+       atmname, mass, size(atmname), size(mass)
 
 do i=1, num_models
    allocate(fp%models(i)%networks(num_networks_per_atom))
    call load_weight_and_bais_fnn(fp%models(i)%networks, &
                                  [fp%feature_size, fp%models(i)%hlayers, num_forcecomps], &
                                  str_gen('FNN/'//fp%models(i)%element//'/') )
-   !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
+   print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
 
 !--- FIXME set all atomtype 1 for now
