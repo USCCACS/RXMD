@@ -51,8 +51,9 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine neighborlist(nlayer, atype, pos, pair_types, skip_check)
-use base, only : natoms, myid, maxneighbs, header, llist, nacell, cc, rc2, nstep, pstep, copyptr, it_timer
-use atoms, only : nbrlist, nbrindx, maxas
+use base, only : natoms, myid, maxneighbs, nbrlist, header, llist, nacell, &
+                 cc, rc2, nstep, pstep, copyptr, it_timer
+use atoms, only : nbrindx, maxas
 !----------------------------------------------------------------------
 ! calculate neighbor list for atoms witin cc(1:3, -nlayer:nlayer) cells.
 implicit none

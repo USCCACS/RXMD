@@ -4,8 +4,10 @@ module fnnin_parser
   use base, only : force_field_class
 
   use iso_fortran_env, only: int32, int64, real32, real64, real128
+
+  implicit none
+
   !integer,parameter :: rk = real64
-  !integer,parameter :: rk = real128
   integer,parameter :: rk = real32
 
   !integer, parameter :: ik = int64
@@ -37,6 +39,8 @@ module fnnin_parser
 
     type(model_params), allocatable :: models(:) 
 
+    integer(ik) :: feature_size_rad, feature_size 
+
     contains 
        procedure :: print => fnn_param_print
 
@@ -55,7 +59,6 @@ module fnnin_parser
 contains
 
   subroutine get_tokens_and_append_model(linein, models)
-    implicit none
     character(len=:),allocatable,intent(in out) :: linein
     type(model_params),allocatable,intent(in out) :: models(:)
     type(model_params) :: mbuf
@@ -80,7 +83,6 @@ contains
   end subroutine
 
   subroutine get_tokens_and_append_rv(linein, array)
-    implicit none
     character(len=:),allocatable,intent(in out) :: linein
     real(4),allocatable,intent(in out) :: array(:)
 
@@ -96,7 +98,6 @@ contains
   end subroutine
 
   subroutine get_tokens_and_append_iv(linein, array)
-    implicit none
     character(len=:),allocatable,intent(in out) :: linein
     integer(4),allocatable,intent(in out) :: array(:)
 
@@ -112,7 +113,6 @@ contains
   end subroutine
 
   subroutine get_tokens_and_append_rs(linein, scalar)
-    implicit none
     character(len=:),allocatable,intent(in out) :: linein
     real(4),intent(in out) :: scalar
 
@@ -125,7 +125,6 @@ contains
   end subroutine
 
   function fnn_param_ctor(path) result(c)
-    implicit none
     character(len=:),allocatable,intent(in) :: path
     character(256) :: linein0
     character(len=:),allocatable :: linein
@@ -134,6 +133,11 @@ contains
     integer :: iunit
 
     open(newunit=iunit, file=path, status='old', form='formatted')
+
+    ! allocate zero-sized array
+    allocate(c%models(0), c%rad_mu(0),c%rad_eta(0))
+    allocate(c%ang_mu(0),c%ang_eta(0),c%ang_zeta(0),c%ang_lambda(0))
+    c%rad_rc = -1.0; c%ang_rc = -1.0; c%rad_damp = 1.0e9; c%ang_damp = 1.0e9
 
     do while (.true.)
       read(iunit,'(a)',end=10) linein0
@@ -174,27 +178,52 @@ contains
 
     10 close(iunit)
 
+    ! setup feature vector size. 
+    if (c%rad_rc<0) stop 'ERROR: radial feature cutoff must to be positive.'
+
+    c%feature_size = 1
+    if(size(c%rad_mu)>0) c%feature_size = c%feature_size * size(c%rad_mu)
+    if(size(c%rad_eta)>0) c%feature_size = c%feature_size * size(c%rad_eta)
+
+    ! upto here is radial feature
+    c%feature_size_rad = c%feature_size*size(c%models)
+
+    if (c%ang_rc>0) then
+       if(size(c%ang_mu)>0) c%feature_size = c%feature_size * size(c%ang_mu)
+       if(size(c%ang_eta)>0) c%feature_size = c%feature_size * size(c%ang_eta)
+       if(size(c%ang_lambda)>0) c%feature_size = c%feature_size * size(c%ang_lambda)
+       if(size(c%ang_zeta)>0) c%feature_size = c%feature_size * size(c%ang_zeta)
+    endif
+
+    if (size(c%models)<0) stop 'ERROR: at least one model must be defined.'
+
+
   end function
 
   subroutine fnn_param_print(this)
-    implicit none
     class(fnn_param), intent(in) :: this
     integer :: i,j
 
     print'(a)',repeat('-',60)
+       print'(a,i9)', 'feature_size_rad: ', this%feature_size_rad
+       print'(a,i9)', 'feature_size: ', this%feature_size
+    print'(a)',repeat('-',60)
        print'(a,20f6.2)', 'rad_eta: ', this%rad_eta
        print'(a,20f6.2)', 'rad_mu: ', this%rad_mu
-    print'(a)',repeat('-',60)
-       print'(a,20f6.2)', 'ang_eta: ', this%ang_eta
-       print'(a,20f6.2)', 'ang_mu: ', this%ang_mu
-       print'(a,20i6)', 'ang_lambda: ', this%ang_lambda
-       print'(a,20f6.2)', 'ang_zeta: ', this%ang_zeta
-    print'(a)',repeat('-',60)
        print'(a,20f6.2)', 'rad_rc: ', this%rad_rc
        print'(a,20f6.2)', 'rad_damp: ', this%rad_damp
-       print'(a,20f6.2)', 'ang_rc: ', this%ang_rc
-       print'(a,20f6.2)', 'ang_damp: ', this%ang_damp
     print'(a)',repeat('-',60)
+
+    if(this%ang_rc>0.0) then
+       print'(a)',repeat('-',60)
+          print'(a,20f6.2)', 'ang_eta: ', this%ang_eta
+          print'(a,20f6.2)', 'ang_mu: ', this%ang_mu
+          print'(a,20i6)', 'ang_lambda: ', this%ang_lambda
+          print'(a,20f6.2)', 'ang_zeta: ', this%ang_zeta
+          print'(a,20f6.2)', 'ang_rc: ', this%ang_rc
+          print'(a,20f6.2)', 'ang_damp: ', this%ang_damp
+       print'(a)',repeat('-',60)
+    endif
 
     do i = 1, size(this%models)
        associate(m => this%models(i))
@@ -224,15 +253,11 @@ module fnn
 
   implicit none
 
-  integer(ik),allocatable :: num_dims(:)
-
-  real(rk),allocatable :: features(:,:) 
+  real(rk),allocatable :: features(:,:,:) 
 
   real(rk),parameter :: LJ_factor = 1.0
 
   integer(ik),parameter :: num_forcecomps = 1
-  integer(ik) :: num_features = 0
-
   integer(ik),parameter :: num_networks_per_atom = 3
 
   integer(ik) :: num_types = 0, num_pairs = 0
@@ -253,7 +278,6 @@ end subroutine
 !------------------------------------------------------------------------------
 subroutine get_force_fnn(ff, natoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
-implicit none
 class(force_field_class),allocatable,target,intent(in out) :: ff
 type(fnn_param),pointer :: fp => null()
 integer,intent(in out) :: natoms
@@ -267,25 +291,23 @@ integer(ik) :: na, nn, nl
 
 real(rk),allocatable :: x(:,:),y(:,:)
 
-call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
-
-call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
-
-!call neighborlist(NMINCELL_FNN, atype, pos, pair_types, skip_check=.true.)
-
 ! not sure if this is the best way, but binding force_field_class to fnn_parm
 select type(ff); type is (fnn_param) 
    fp => ff
 end select
 num_layers = size(fp%models(1)%hlayers)
 
+call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
+
 call get_features_fnn(natoms, atype, pos, features, fp) 
+
 
 networks = fp%models(1)%networks ! for now for testing
 
 network_loop : do nn=1, num_networks_per_atom
 
-  y = features(1:natoms,1:num_features)
+  y = features(nn,1:natoms,1:fp%feature_size)
 
   layer_loop : do nl=1, num_layers-1
 
@@ -320,7 +342,6 @@ end subroutine
 !------------------------------------------------------------------------------
 subroutine mddriver_fnn(mdbase, num_mdsteps) 
 !------------------------------------------------------------------------------
-implicit none
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 
@@ -337,20 +358,29 @@ end subroutine
 !------------------------------------------------------------------------------
 subroutine get_features_fnn(num_atoms, atype, pos, features, fp)
 !------------------------------------------------------------------------------
-implicit none
 integer,intent(in) :: num_atoms
 real(8),intent(in),allocatable :: atype(:), pos(:,:)
-real(rk),allocatable,intent(in out) :: features(:,:)
+real(rk),allocatable,intent(in out) :: features(:,:,:)
 type(fnn_param),intent(in) :: fp
 
-real(rk) :: rr(3), rr2, rij, dr_norm, dsum, eta, fr, rij_mu
-integer(ik) :: i, j, j1, l1, l2, ii, idx, ia
+real(rk) :: rr(3), rr2, rij, dsum 
+integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx, ia
 integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,n,n1,m,m1,nty,mty,inxn
+
+integer(ik) :: nnbr, lnbr(MAXNEIGHBS), l1_stride, l2_stride, l3_stride
+real(rk) :: r_ij(0:3), r_kj(0:3), eta_ij, eta_kj, fc_ij, fc_kj, rij_mu, rkj_mu
+real(rk) :: cos_ijk, theta_ijk, lambda_ijk, zeta_G3a, zeta_G3b, zeta_const
+
+real(rk) :: G3_mu_eta, G3a_xyz(3), G3a, G3b_xyz(3), G3b
 
 features = 0.0
 
+nbrlist(:,0) = 0
+
+l1_stride = size(fp%rad_eta)
+
 !$omp parallel do default(shared) collapse(3) & 
-!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,rr,rr2,rij,dr_norm,fr,rij_mu,eta,idx) 
+!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
 do c1=0, cc(1)-1
 do c2=0, cc(2)-1
 do c3=0, cc(3)-1
@@ -375,20 +405,29 @@ do c3=0, cc(3)-1
              rr2 = sum(rr(1:3)*rr(1:3))
              rij = sqrt(rr2)
 
-             if(rr2<rc2(inxn)) then
+             if(rij<fp%rad_rc) then
+
+                if(rij<fp%ang_rc) then
+                   nbrlist(m, 0) = nbrlist(m, 0) + 1
+                   nbrlist(m, nbrlist(m, 0)) = n
+                endif
 
                 rr(1:3) = rr(1:3)/rij
-                dr_norm = rij/fp%rad_rc
-                fr = 0.5*( 1.0 + cos(pi*dr_norm) ) 
+                fc_ij = 0.5*( 1.0 + cos(pi*rij/fp%rad_damp) ) 
 
                 do l1 = 1, size(fp%rad_mu)
 
                    rij_mu = rij - fp%rad_mu(l1)
 
                    do l2 = 1, size(fp%rad_eta)
-                      eta = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
-                      idx = (l1-1)*size(fp%rad_eta)*num_forcecomps + (l2-1)*num_forcecomps
-                      features(n,idx+1) = features(n,idx+1) + eta*fr 
+
+                      eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
+
+                      idx = (inxn-1)*fp%feature_size_rad + (l1-1)*l1_stride + l2
+
+                      do ia=1,3 
+                         features(ia,n,idx) = features(ia,n,idx) + eta_ij*fc_ij*rr(ia)
+                      enddo
                    enddo
 
                 enddo
@@ -405,8 +444,83 @@ do c3=0, cc(3)-1
 enddo; enddo; enddo
 !$omp end parallel do 
 
+! return if the angular cutoff is not given.
+if(fp%ang_rc < 0.0) return
+
+l1_stride = size(fp%ang_zeta)*size(fp%ang_lambda)*size(fp%ang_eta)
+l2_stride = size(fp%ang_zeta)*size(fp%ang_lambda)
+l3_stride = size(fp%ang_zeta)
+
+do j=1, num_atoms
+
+   do i1=1, nbrlist(i,0)-1
+      i = nbrlist(i,i1)
+
+      r_ij(1:3) = pos(i,1:3) - pos(j,1:3)
+      r_ij(0) = sqrt( sum(r_ij(1:3)*r_ij(1:3)) )
+
+      fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/fp%ang_damp) ) 
+
+      do k1=i1+1, nbrlist(i,0)
+         k = nbrlist(i,k1)
+
+         r_kj(1:3) = pos(k,1:3) - pos(j,1:3)
+         r_kj(0) = sqrt( sum(r_kj(1:3)*r_kj(1:3)) )
+
+         fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/fp%ang_damp) ) 
+
+         cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) / ( r_ij(0) * r_kj(0) )
+         theta_ijk = acos(cos_ijk)
+
+
+         do ia=1,3
+            G3a_xyz(ia) = (r_ij(ia)/r_ij(0))*(r_ij(0)-r_kj(0)*cos_ijk) + &
+                          (r_kj(ia)/r_kj(0))*(r_kj(0)-r_ij(0)*cos_ijk)
+            G3a_xyz(ia) = G3a_xyz(ia)/(r_ij(0)*r_kj(0))
+
+            G3b_xyz(ia) = r_ij(ia)/r_kj(0) + r_kj(ia)/r_ij(0)
+         enddo
+
+         do l1=1, size(fp%ang_mu)
+
+            rij_mu = r_ij(0) - fp%ang_mu(l1)
+            rkj_mu = r_kj(0) - fp%ang_mu(l1)
+
+            do l2=1, size(fp%ang_eta)
+
+               eta_ij = exp( -fp%ang_eta(l2) * rij_mu * rij_mu )
+               eta_kj = exp( -fp%ang_eta(l2) * rkj_mu * rkj_mu )
+
+               G3_mu_eta = eta_ij*eta_kj*fc_ij*fc_kj
+
+               do l3=1, size(fp%ang_lambda)
+
+                  lambda_ijk = 1.0 + fp%ang_lambda(l3)*cos_ijk 
+
+                  do l4=1, size(fp%ang_zeta)
+
+                     zeta_const = 2**(1-fp%ang_zeta(l4)) 
+                     zeta_G3a = zeta_const * (lambda_ijk**fp%ang_zeta(l4))
+                     zeta_G3b = zeta_const * (lambda_ijk**(fp%ang_zeta(l4)-1))
+
+                     idx = fp%feature_size_rad + &
+                         (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + l4
+
+                     do ia=1, 3
+                        features(ia,n,idx) = features(ia,n,idx) + &
+                           G3a_xyz(ia)*G3_mu_eta*zeta_G3a + &
+                           G3b_xyz(ia)*G3_mu_eta*zeta_G3b
+                     enddo
+
+         enddo; enddo; enddo; enddo
+          
+      enddo
+   enddo
+
+enddo
+
 !do i=1, num_atoms
-!   print'(i6,30es13.5)',i,features(i,:)
+!   print'(i6,i6,a1,3x,30i6)',i,nbrlist(i,0),',', nbrlist(i,1:10)
 !enddo
 !stop 'foo'
 
@@ -416,7 +530,6 @@ end subroutine
 !------------------------------------------------------------------------------
 subroutine load_weight_and_bais_fnn(networks, num_dims, path) 
 !------------------------------------------------------------------------------
-   implicit none
    type(network),allocatable,intent(in out) :: networks(:)
    integer(ik),intent(in) :: num_dims(:)
    character(len=:),allocatable,intent(in) :: path
@@ -433,7 +546,6 @@ end subroutine
 !------------------------------------------------------------------------------
 type(network) function network_ctor(dims, path, suffix) result(net)
 !------------------------------------------------------------------------------
-implicit none
 
 integer(ik),intent(in) :: dims(:)
 character(len=:),allocatable,intent(in) :: path
@@ -481,7 +593,6 @@ end function
 !------------------------------------------------------------------------------------------
 subroutine get_cutoff_fnn(rcut, rcut2, maxrcut, radial_cutoff)
 !------------------------------------------------------------------------------------------
-implicit none
 real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
 real(8),intent(in out) :: maxrcut
 real(rk),intent(in) :: radial_cutoff

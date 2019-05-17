@@ -48,6 +48,9 @@ real(8),allocatable,dimension(:,:),target :: pos, v, f
 character(2),allocatable :: atmname(:)  
 real(8),allocatable :: mass(:)          
 
+!<nbrlist> neighbor list
+integer,allocatable :: nbrlist(:,:)
+
 integer :: myid, nprocs, vprocs(3), ierr, myparity(3), vID(3)
 ! <target_node> stores partner node ID in the 6-communications. 
 ! if targe_node(i)==-1, the node doesn't have a partner in i-direction.
@@ -238,8 +241,7 @@ logical :: isEfield=.false.
 !<nbnacell> Nr of atoms in a likedlist cell for non-bonding interaction
 integer,allocatable :: nbllist(:), nbheader(:,:,:), nbnacell(:,:,:)
 
-!<nbrlist> neighbor list, <nbrindx> neighbor index
-integer,allocatable :: nbrlist(:,:)
+!<nbrindx> neighbor index
 integer,allocatable :: nbrindx(:,:)
 
 !<nbplist> neighbor list of nonbonding interaction, non-bonding pair list

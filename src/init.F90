@@ -12,7 +12,7 @@ module init
   use fileio, only : ReadBIN
 
   use fnn, only : features, get_cutoff_fnn, num_networks_per_atom, &
-                  num_features, num_forcecomps, num_pairs, num_types, & 
+                  num_forcecomps, num_pairs, num_types, & 
                   mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_potentialtables_fnn
 
   use fnnin_parser
@@ -87,6 +87,7 @@ call allocator(frcindx,1,NBUFFER)
 call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 
 !--- get global number of atoms by summing up each type. 
+natoms_per_type = 0
 do i=1, NATOMS
    ity=nint(atype(i))
    natoms_per_type(ity)=natoms_per_type(ity)+1
@@ -200,9 +201,6 @@ type(fnn_param) :: fp
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
 
-!FIXME feature size should include angular features. for now for testing
-num_features = size(fp%rad_mu)*size(fp%rad_eta)*num_forcecomps
-
 num_models = size(fp%models)
 
 num_types = num_models
@@ -220,7 +218,7 @@ enddo
 do i=1, num_models
    allocate(fp%models(i)%networks(num_networks_per_atom))
    call load_weight_and_bais_fnn(fp%models(i)%networks, &
-                                 [num_features, fp%models(i)%hlayers, num_forcecomps], &
+                                 [fp%feature_size, fp%models(i)%hlayers, num_forcecomps], &
                                  str_gen('FNN/'//fp%models(i)%element//'/') )
    !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
@@ -233,8 +231,8 @@ enddo
 !--- set md dirver function 
 mddriver_func => mddriver_fnn
 
-!--- features(natoms, num_features)
-call allocator(features,1, NBUFFER, 1, num_features) 
+!--- features(3,natoms, num_features)
+call allocator(features, 1,3, 1,NBUFFER, 1,fp%feature_size) 
 
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc, fp%rad_rc)

@@ -1,8 +1,10 @@
 module bo_mod
 
-  use base, only : rc2, copyptr
+  use base, only : rc2, copyptr, nbrlist
   use atoms
   use reaxff_param_mod
+
+  implicit none
 
 contains
 !--------------------------------------------------------------------------------------------
@@ -35,7 +37,6 @@ SUBROUTINE BOPRIM()
 !--------------------------------------------------------------------------------------------
 ! Calculates the BOp(0:3,i,j) and the deltap(i). 
 !--------------------------------------------------------------------------------------------
-implicit none
 
 integer :: n,i,j, j1,i1
 integer :: ity, jty, inxn
