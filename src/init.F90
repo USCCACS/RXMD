@@ -203,6 +203,9 @@ type(fnn_param) :: fp
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
 
+!--- FNN specific output 
+if(myid==0) call fp%print()
+
 num_models = size(fp%models)
 
 num_types = num_models
@@ -214,15 +217,15 @@ do i=1, num_models
    mass(i) = fp%models(i)%mass
 enddo
 
-print'(a,a3,f8.3,2i6)','atmname, mass: ', &
-       atmname, mass, size(atmname), size(mass)
+!print'(a,a3,f8.3,2i6)','atmname, mass: ', &
+!       atmname, mass, size(atmname), size(mass)
 
 do i=1, num_models
    allocate(fp%models(i)%networks(num_networks_per_atom))
    call load_weight_and_bais_fnn(fp%models(i)%networks, &
                                  [fp%feature_size, fp%models(i)%hlayers, num_forcecomps], &
                                  str_gen('FNN/'//fp%models(i)%element//'/') )
-   print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
+   !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
 
 !--- FIXME set all atomtype 1 for now
@@ -238,9 +241,6 @@ call allocator(features, 1,3, 1,NBUFFER, 1,fp%feature_size)
 
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc, fp%rad_rc)
-
-!--- FNN specific output 
-if(myid==0) call fp%print()
 
 end function
 

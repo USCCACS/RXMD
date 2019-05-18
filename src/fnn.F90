@@ -39,7 +39,7 @@ module fnnin_parser
 
     type(model_params), allocatable :: models(:) 
 
-    integer(ik) :: feature_size_rad, feature_size 
+    integer(ik) :: feature_size_rad, feature_size_ang, feature_size 
 
     contains 
        procedure :: print => fnn_param_print
@@ -140,6 +140,7 @@ contains
     allocate(c%models(0), c%rad_mu(0),c%rad_eta(0))
     allocate(c%ang_mu(0),c%ang_eta(0),c%ang_zeta(0),c%ang_lambda(0))
     c%rad_rc = -1.0; c%ang_rc = -1.0; c%rad_damp = 1.0e9; c%ang_damp = 1.0e9
+    c%feature_size_rad = 0; c%feature_size_ang = 0
 
     do while (.true.)
       read(iunit,'(a)',end=10) linein0
@@ -180,25 +181,24 @@ contains
 
     10 close(iunit)
 
-    ! setup feature vector size. 
+    if (size(c%models)<0) stop 'ERROR: at least one model must be defined.'
     if (c%rad_rc<0) stop 'ERROR: radial feature cutoff must to be positive.'
 
-    c%feature_size = 1
-    if(size(c%rad_mu)>0) c%feature_size = c%feature_size * size(c%rad_mu)
-    if(size(c%rad_eta)>0) c%feature_size = c%feature_size * size(c%rad_eta)
+    ! setup feature vector size. 
+    c%feature_size_rad = 1
+    if(size(c%rad_mu)>0) c%feature_size_rad = c%feature_size_rad * size(c%rad_mu)
+    if(size(c%rad_eta)>0) c%feature_size_rad = c%feature_size_rad * size(c%rad_eta)
 
     ! upto here is radial feature
-    c%feature_size_rad = c%feature_size*size(c%models)
-
     if (c%ang_rc>0) then
-       if(size(c%ang_mu)>0) c%feature_size = c%feature_size * size(c%ang_mu)
-       if(size(c%ang_eta)>0) c%feature_size = c%feature_size * size(c%ang_eta)
-       if(size(c%ang_lambda)>0) c%feature_size = c%feature_size * size(c%ang_lambda)
-       if(size(c%ang_zeta)>0) c%feature_size = c%feature_size * size(c%ang_zeta)
+       c%feature_size_ang = 1
+       if(size(c%ang_mu)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_mu)
+       if(size(c%ang_eta)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_eta)
+       if(size(c%ang_lambda)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_lambda)
+       if(size(c%ang_zeta)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_zeta)
     endif
 
-    if (size(c%models)<0) stop 'ERROR: at least one model must be defined.'
-
+    c%feature_size = c%feature_size_rad*size(c%models) + c%feature_size_ang
 
   end function
 
@@ -207,19 +207,21 @@ contains
     integer :: i,j
 
     print'(a)',repeat('-',60)
-       print'(a,i9)', 'feature_size_rad: ', this%feature_size_rad
+       print'(a,2i9)', 'feature_size_rad(single & all pair):  ', &
+               this%feature_size_rad, this%feature_size_rad*size(this%models)
+       print'(a,i9)', 'feature_size_ang: ', this%feature_size_ang
        print'(a,i9)', 'feature_size: ', this%feature_size
     print'(a)',repeat('-',60)
-       print'(a,20f6.2)', 'rad_eta: ', this%rad_eta
        print'(a,20f6.2)', 'rad_mu: ', this%rad_mu
+       print'(a,20f6.2)', 'rad_eta: ', this%rad_eta
        print'(a,20f6.2)', 'rad_rc: ', this%rad_rc
        print'(a,20f6.2)', 'rad_damp: ', this%rad_damp
     print'(a)',repeat('-',60)
 
     if(this%ang_rc>0.0) then
        print'(a)',repeat('-',60)
-          print'(a,20f6.2)', 'ang_eta: ', this%ang_eta
           print'(a,20f6.2)', 'ang_mu: ', this%ang_mu
+          print'(a,20f6.2)', 'ang_eta: ', this%ang_eta
           print'(a,20i6)', 'ang_lambda: ', this%ang_lambda
           print'(a,20f6.2)', 'ang_zeta: ', this%ang_zeta
           print'(a,20f6.2)', 'ang_rc: ', this%ang_rc
@@ -229,7 +231,7 @@ contains
 
     do i = 1, size(this%models)
        associate(m => this%models(i))
-          print*, m%element, m%mass, m%hlayers(:)
+          print'(a,f6.2,10i6)', m%element, m%mass, m%hlayers(:)
        end associate
     end do
     print'(a)',repeat('-',60)
@@ -346,12 +348,24 @@ subroutine mddriver_fnn(mdbase, num_mdsteps)
 !------------------------------------------------------------------------------
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
+real(4) :: ke
 
-integer :: i
+integer :: i,ity,istep
 
 !--- set force model
-do i=1, num_mdsteps
+do istep=0, num_mdsteps-1
+
+   ke=0.d0
+   do i=1, NATOMS
+      ity=nint(atype(i))
+      ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
+   enddo
+   call MPI_ALLREDUCE(MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+   ke = ke/GNATOMS
+
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+   if(mod(istep,pstep)==0) print'(a,i6,es15.5)','step: ', istep, ke
+
 enddo
 
 return
@@ -366,10 +380,11 @@ real(rk),allocatable,intent(in out) :: features(:,:,:)
 type(fnn_param),intent(in) :: fp
 
 real(rk) :: rr(3), rr2, rij, dsum 
-integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx
+integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii
 integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,n,n1,m,m1,nty,mty,inxn
 
-integer(ik) :: nnbr, lnbr(MAXNEIGHBS), l1_stride, l2_stride, l3_stride
+integer(ik) :: nnbr, lnbr(MAXNEIGHBS)
+integer(ik) :: idx, idx_stride, l1_stride, l2_stride, l3_stride
 real(rk) :: r_ij(0:3), r_kj(0:3), eta_ij, eta_kj, fc_ij, fc_kj, rij_mu, rkj_mu
 real(rk) :: cos_ijk, theta_ijk, lambda_ijk, zeta_G3a, zeta_G3b, zeta_const
 
@@ -379,6 +394,7 @@ features = 0.0
 
 nbrlist(:,0) = 0
 
+idx_stride = fp%feature_size_rad
 l1_stride = size(fp%rad_eta)
 
 !$omp parallel do default(shared) collapse(3) & 
@@ -425,7 +441,7 @@ do c3=0, cc(3)-1
 
                       eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
 
-                      idx = (inxn-1)*fp%feature_size_rad + (l1-1)*l1_stride + l2
+                      idx = (inxn-1)*idx_stride + (l1-1)*l1_stride + l2
 
                       features(1:3,n,idx) = features(1:3,n,idx) + eta_ij*fc_ij*rr(1:3)
                    enddo
@@ -447,6 +463,7 @@ enddo; enddo; enddo
 ! return if the angular cutoff is not given.
 if(fp%ang_rc < 0.0) return
 
+idx_stride = fp%feature_size_rad*size(fp%models)
 l1_stride = size(fp%ang_zeta)*size(fp%ang_lambda)*size(fp%ang_eta)
 l2_stride = size(fp%ang_zeta)*size(fp%ang_lambda)
 l3_stride = size(fp%ang_zeta)
@@ -606,7 +623,7 @@ do jty=ity, num_types
 
    rcut(inxn)  = radial_cutoff
    rcut2(inxn) = radial_cutoff*radial_cutoff
-   print'(a,3i6,2f10.5)','ity, jty, inxn: ', ity, jty, inxn, rcut(inxn), rcut2(inxn)
+   !print'(a,3i6,2f10.5)','ity, jty, inxn: ', ity, jty, inxn, rcut(inxn), rcut2(inxn)
 
    pair_types(jty,ity) = pair_types(ity,jty) 
 enddo
