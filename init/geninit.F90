@@ -26,9 +26,42 @@ integer :: numParams, numAtomNames
 
 logical :: getReal=.false., getNorm=.false., noCoordinateShift=.false.
 
-logical :: isLG
+logical :: isLG, is_fnn
 
 contains
+
+!-------------------------------------------------------------------------------------------
+integer function getstr(linein,lineout)
+implicit none
+!-------------------------------------------------------------------------------------------
+
+character(len=:),allocatable,intent(in out) :: linein,lineout
+integer :: pos1
+
+!--- remove whitespace 
+linein = adjustl(linein)
+
+!--- return if black line
+if(len(linein)==0) then
+  getstr=-2
+  return
+endif
+
+!--- return if it's a comment line or entirely whitespace
+if(linein(1:1)=='#' .or. linein == repeat(' ', len(linein)) ) then
+   getstr=-1
+   return
+endif
+
+! find position in linein to get a token. if whitespace is not found, take entire line
+pos1=index(linein,' ')-1
+if(pos1==-1) pos1=len(linein)
+
+lineout=linein(1:pos1)
+linein=linein(pos1+1:)
+getstr=len(lineout)
+
+end function
 
 !----------------------------------------------------------------
 subroutine convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma,mc,natoms,ctype,pos,note)
@@ -114,6 +147,48 @@ close(40)
 print'(2a)','coordinates are saved in ',outFile
 
 stop
+
+end subroutine
+!----------------------------------------------------------------
+subroutine get_atomnames_for_fnn(fileName)
+implicit none
+!----------------------------------------------------------------
+character(256),intent(in) :: fileName
+
+character(256) :: linein0
+character(len=:),allocatable :: linein, token
+character(3) :: c3
+integer :: funit, i
+
+allocate(character(3)::atomNames(0))
+
+open(newunit=funit,file=trim(fileName),status='old',form='formatted')
+
+do while (.true.)
+  read(funit,'(a)',end=10) linein0
+  linein = trim(adjustl(linein0))
+
+  if(getstr(linein, token) > 0) then
+   
+    if(token=='model') then
+      if(getstr(linein, token)>0) then
+        c3 = token
+        atomNames = [c3,atomNames]
+      else
+        print*,'ERROR: while processing', trim(linein0)
+      endif
+    endif
+  endif
+
+end do
+
+10 close(funit)
+
+numAtomNames = size(atomNames)
+do i=1, numAtomNames
+   print'(i3,a,a2 $)',i,'-',atomNames(i)
+enddo
+print*
 
 end subroutine
 
@@ -251,6 +326,10 @@ do i=1, command_argument_count()
      case("-output","-o")
        call get_command_argument(i+1,argv)
        outputDirName=adjustl(argv)
+     case("-fnn")
+       call get_command_argument(i+1,argv)
+       ffieldFileName=adjustl(argv)
+       is_fnn = .true.
      case("-lg")
        isLG = .true. 
      case("-getreal","-r")
@@ -277,7 +356,11 @@ write(6,'(a20,i9,3i6)') ' nprocs,vprocs: ',nprocs, vprocs(1:3)
 write(6,'(a20,i9,3i6)') ' mctot,mc: ',mctot, mc(1:3)
 write(6,'(a60)') repeat('-',60)
 
-call getAtomNames(ffieldFileName)
+if(is_fnn) then
+  call get_atomnames_for_fnn(ffieldFileName)
+else
+  call getAtomNames(ffieldFileName)
+endif
 
 !--- read # of atoms and file description
 read(1,*) natoms, fnote

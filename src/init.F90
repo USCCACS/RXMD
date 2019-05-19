@@ -246,11 +246,6 @@ do i=1, num_models
    !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
 
-!--- FIXME set all atomtype 1 for now
-do i=1, size(atype)
-   if(nint(atype(i))>0) atype(i)=1.d0+l2g(atype(i))*1d-13
-enddo
-
 !--- set md dirver function 
 mddriver_func => mddriver_fnn
 

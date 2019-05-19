@@ -1,10 +1,10 @@
 ### Si-C system ###
-# model data: element name, AMU, hidden layers
-model       C   12.0    512 1024 512
-model       Si  28.0    512 1024 512
+# model data: element name, AMU, scaling factor, hidden layers
+model       C   12.0   1.0   512 1024 512
+model       Si  28.0   1.0   512 1024 512
 # radial feature parameters,  for now for testing
-rad_mu 1.5 2.0 2.3 2.5 3.0 3.3 3.5 3.7 4.0 4.25 4.5 4.75 5.0 5.5 6.0 6.5 7.0 7.5 8.0
-rad_eta 0.5 1.0 2.0 3.0 8.0
+rad_mu 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0 5.5 6.0 6.5 7.0 7.5
+rad_eta 0.5 1.0 2.0 3.0
 rad_rc  8.0 
 rad_damp  12.0
 # angular feature parameters
@@ -35,4 +35,3 @@ ang_damp    8.0
 #model       Ge  72.61    256 512 256
 #model       Sb  121.75   256 512 256
 #model       Te  127.6    256 512 256
-
