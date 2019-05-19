@@ -288,7 +288,6 @@ subroutine set_potentialtables_fnn()
 ! TODO: implement 
 
 end subroutine
-
 !------------------------------------------------------------------------------
 subroutine get_force_fnn(ff, natoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
@@ -297,61 +296,52 @@ type(fnn_param),pointer :: fp => null()
 integer,intent(in out) :: natoms
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
-type(network),allocatable :: networks(:)
+integer(ik) :: i, ity, nn, nl, ncol, nrow
 
-integer(ik) :: i, j, k, n, ncol, nrow, num_layers
-integer(ik) :: m1,k1,n1
-integer(ik) :: na, nn, nl
-
-real(rk),allocatable :: x(:,:),y(:,:)
+real(rk),allocatable :: x(:),y(:)
 
 ! not sure if this is the best way, but binding force_field_class to fnn_parm
 select type(ff); type is (fnn_param) 
    fp => ff
 end select
-num_layers = size(fp%models(1)%hlayers)
 
 call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_features_fnn(natoms, atype, pos, features, fp) 
 
+do i=1, natoms
+  
+   ity = atype(i)
 
-networks = fp%models(1)%networks ! for now for testing
+   do nn=1, num_networks_per_atom  ! fx,fy,fz loop
+ 
+     y = features(nn,i,1:fp%feature_size)
+ 
+     associate(m=>fp%models(ity)) 
+        do nl=1, size(m%hlayers)-1
 
-network_loop : do nn=1, num_networks_per_atom
+           nrow = m%networks(nn)%dims(nl)
+           ncol = m%networks(nn)%dims(nl+1)
 
-  y = features(nn,1:natoms,1:fp%feature_size)
+           if(allocated(x)) deallocate(x);  allocate(x(ncol))
 
-  layer_loop : do nl=1, num_layers-1
+           x = matmul(y,m%networks(nn)%layers(nl)%w) + &
+                        m%networks(nn)%layers(nl)%b
 
-#ifdef BLAS
-    m1 = size(y,1); k1 = size(y,2)
-    n1 = size(networks(nn)%layers(nl)%w,2)
+           if(allocated(y)) deallocate(y); allocate(y(ncol))
 
-    if(allocated(x)) deallocate(x); allocate(x,mold=y)
-    do i=1,natoms
-       x(i,:) = networks(nn)%layers(nl)%b(:)
-    enddo
+           y = max(x,0.0) ! relu
+        enddo 
+     end associate
+ 
+     f(i,nn) = x(1) ! update force
+   enddo
 
-    call sgemm('n','n', m1,k1,n1, 1.0, y,m1, networks(nn)%layers(nl)%w,n1, 1.0, x,m1)
-#else
-    x = matmul(y,networks(nn)%layers(nl)%w)
-    do i=1,natoms
-       x(i,:) = networks(nn)%layers(nl)%b(:)
-    enddo
-#endif
-
-    y = max(x,0.0) ! relu
-
-  enddo layer_loop
-
-  !--- update force
-  f(1:natoms,nn) = x(1:natoms,1)
-
-enddo network_loop
+enddo
 
 end subroutine
+
 
 !------------------------------------------------------------------------------
 subroutine mddriver_fnn(mdbase, num_mdsteps) 
@@ -378,7 +368,7 @@ do nstep=0, num_mdsteps-1
    ke = ke/GNATOMS
 
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
-   if(mod(nstep,pstep)==0) print'(a,i6,es15.5)','step: ', nstep, ke
+   if(mod(nstep,pstep)==0.and.myid==0) print'(a,i6,es15.5)','step: ', nstep, ke
 
 enddo
 
@@ -566,12 +556,13 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine mean_stddev_loader(mean, stddev, feature_size, path, suffix) 
+subroutine mean_stddev_loader(mean, stddev, feature_size, path, suffix, verbose) 
 !------------------------------------------------------------------------------
 real(rk),allocatable,intent(in out) :: mean(:), stddev(:)
 integer(ik),intent(in) :: feature_size
 character(len=:),allocatable,intent(in) :: path
 character(len=1),intent(in) :: suffix !<- ['x','y','z']
+logical,optional :: verbose
 
 integer(ik) :: funit_m, funit_s
 logical :: exist_m, exist_s
@@ -594,11 +585,14 @@ if(exist_m .and. exist_s) then
   open(newunit=funit_s, file=filename_s, access='stream', form='unformatted', status='old')
   read(funit_s) stddev
   close(funit_s)
-  write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
+  if(present(verbose) .and. verbose) &
+     write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
 else
-  print'(a)', repeat('-',60)
-  print'(a)', 'INFO: '//filename_m//' & '//filename_s//' not be used.'
-  print'(a)', repeat('-',60)
+  if(present(verbose) .and. verbose) then
+     print'(a)', repeat('-',60)
+     print'(a)', 'INFO: '//filename_m//' & '//filename_s//' not be used.'
+     print'(a)', repeat('-',60)
+  endif
 
   mean=0.0
   stddev=1.0
@@ -607,12 +601,13 @@ endif
 end subroutine
 
 !------------------------------------------------------------------------------
-type(network) function network_ctor(dims, path, suffix) result(net)
+type(network) function network_ctor(dims, path, suffix, verbose) result(net)
 !------------------------------------------------------------------------------
 
 integer(ik),intent(in) :: dims(:)
 character(len=:),allocatable,intent(in) :: path
 character(len=1),intent(in) :: suffix !<- ['x','y','z']
+logical,optional :: verbose
 
 character(len=:),allocatable :: filename_b, filename_w
 character(len=:),allocatable :: arow, acol, alayer
@@ -646,8 +641,9 @@ do i=1, num_layers-1
   open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
   read(fileunit) net%layers(i)%w
 
-  write(*, fmt='(a30,2i6,a30,i6)') &
-       'w: '//filename_w, shape(net%layers(i)%w), ' b: '//filename_b, size(net%layers(i)%b)
+  if(present(verbose) .and. verbose) &
+     write(*, fmt='(a30,2i6,a30,i6)') &
+        'w: '//filename_w, shape(net%layers(i)%w), ' b: '//filename_b, size(net%layers(i)%b)
 
   close(fileunit)
 enddo

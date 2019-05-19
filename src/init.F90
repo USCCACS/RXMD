@@ -203,7 +203,11 @@ integer,allocatable :: dims(:)
 character(len=:),allocatable :: path
 character(len=1) :: xyz_suffix(3)=['x','y','z']
 
+logical :: verbose=.false.
+
 type(fnn_param) :: fp
+
+if(myid==0) verbose=.true.
 
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
@@ -234,9 +238,9 @@ do i=1, num_models
       dims = [fp%feature_size, m%hlayers, num_forcecomps]
 
       do j=1, num_networks_per_atom
-         m%networks(j)  = network_ctor(dims, path, xyz_suffix(j))
+         m%networks(j)  = network_ctor(dims, path, xyz_suffix(j), verbose)
          call mean_stddev_loader(m%fstat(j)%mean, m%fstat(j)%stddev, &
-                                 fp%feature_size, path, xyz_suffix(j))
+                                 fp%feature_size, path, xyz_suffix(j), verbose)
       enddo
    end associate
    !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
