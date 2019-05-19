@@ -12,8 +12,10 @@ module init
   use fileio, only : ReadBIN
 
   use fnn, only : fnn_param, fnn_param_obj, features, get_cutoff_fnn, num_networks_per_atom, &
-                  num_forcecomps, num_pairs, num_types, & 
-                  mddriver_fnn, getnonbondingmesh, load_weight_and_bais_fnn, set_potentialtables_fnn
+                  network_ctor, mean_stddev_loader, num_forcecomps, num_pairs, num_types, & 
+                  mddriver_fnn, set_potentialtables_fnn
+
+  use lists_mod, only: getnonbondingmesh 
 
   use fnnin_parser
 
@@ -196,7 +198,10 @@ function mdcontext_fnn() result(fp)
 !------------------------------------------------------------------------------------------
 implicit none
 
-integer :: i,ity, num_models
+integer :: i,j, ity, num_models
+integer,allocatable :: dims(:)
+character(len=:),allocatable :: path
+character(len=1) :: xyz_suffix(3)=['x','y','z']
 
 type(fnn_param) :: fp
 
@@ -221,10 +226,19 @@ enddo
 !       atmname, mass, size(atmname), size(mass)
 
 do i=1, num_models
-   allocate(fp%models(i)%networks(num_networks_per_atom))
-   call load_weight_and_bais_fnn(fp%models(i)%networks, &
-                                 [fp%feature_size, fp%models(i)%hlayers, num_forcecomps], &
-                                 str_gen('FNN/'//fp%models(i)%element//'/') )
+   associate ( m => fp%models(i) )
+      allocate(m%networks(num_networks_per_atom))
+      allocate(m%fstat(num_networks_per_atom))
+   
+      path = str_gen('FNN/'//m%element//'/')
+      dims = [fp%feature_size, m%hlayers, num_forcecomps]
+
+      do j=1, num_networks_per_atom
+         m%networks(j)  = network_ctor(dims, path, xyz_suffix(j))
+         call mean_stddev_loader(m%fstat(j)%mean, m%fstat(j)%stddev, &
+                                 fp%feature_size, path, xyz_suffix(j))
+      enddo
+   end associate
    !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
 

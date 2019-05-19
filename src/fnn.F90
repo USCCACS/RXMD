@@ -1,7 +1,8 @@
 module fnnin_parser
 
-  use utils, only : getstr
+  use utils, only : getstr, getfilenamebase
   use base, only : force_field_class
+  use fileio, only : output
 
   use iso_fortran_env, only: int32, int64, real32, real64 
 
@@ -19,15 +20,24 @@ module fnnin_parser
   end type
 
   type :: network
+    integer(ik),allocatable :: dims(:)
     type(layer),allocatable :: layers(:)
+  end type
+
+  type :: feature_stat
+    real(rk),allocatable :: mean(:)
+    real(rk),allocatable :: stddev(:)
   end type
 
   type :: model_params
     character(len=:),allocatable :: element
     real(rk) :: mass
+    real(rk) :: scaling_factor
+
     integer(ik),allocatable :: hlayers(:)
 
     type(network),allocatable :: networks(:)
+    type(feature_stat),allocatable :: fstat(:)
   end type
 
   type, extends(force_field_class) :: fnn_param
@@ -69,6 +79,8 @@ contains
     mbuf%element = trim(adjustl(token))
     if (getstr(linein, token) < 0) stop 'erro while reading element mass'  
     read(token, *) mbuf%mass
+    if (getstr(linein, token) < 0) stop 'erro while reading scaling factor'  
+    read(token, *) mbuf%scaling_factor
 
     ! allocate zero-sized array
     if(.not.allocated(mbuf%hlayers)) allocate(mbuf%hlayers(0))
@@ -231,7 +243,7 @@ contains
 
     do i = 1, size(this%models)
        associate(m => this%models(i))
-          print'(a,f6.2,10i6)', m%element, m%mass, m%hlayers(:)
+          print'(a,2f6.2,10i6)', m%element, m%mass, m%scaling_factor, m%hlayers(:)
        end associate
     end do
     print'(a)',repeat('-',60)
@@ -258,8 +270,6 @@ module fnn
   implicit none
 
   real(rk),allocatable :: features(:,:,:) 
-
-  real(rk),parameter :: LJ_factor = 1.0
 
   integer(ik),parameter :: num_forcecomps = 1
   integer(ik),parameter :: num_networks_per_atom = 3
@@ -350,10 +360,14 @@ type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 real(4) :: ke
 
-integer :: i,ity,istep
+integer :: i,ity,nstep
+
 
 !--- set force model
-do istep=0, num_mdsteps-1
+do nstep=0, num_mdsteps-1
+
+   if(mod(nstep,fstep)==0) &
+        call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
    ke=0.d0
    do i=1, NATOMS
@@ -364,7 +378,7 @@ do istep=0, num_mdsteps-1
    ke = ke/GNATOMS
 
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
-   if(mod(istep,pstep)==0) print'(a,i6,es15.5)','step: ', istep, ke
+   if(mod(nstep,pstep)==0) print'(a,i6,es15.5)','step: ', nstep, ke
 
 enddo
 
@@ -381,7 +395,7 @@ type(fnn_param),intent(in) :: fp
 
 real(rk) :: rr(3), rr2, rij, dsum 
 integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii
-integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,n,n1,m,m1,nty,mty,inxn
+integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,inxn
 
 integer(ik) :: nnbr, lnbr(MAXNEIGHBS)
 integer(ik) :: idx, idx_stride, l1_stride, l2_stride, l3_stride
@@ -403,31 +417,34 @@ do c1=0, cc(1)-1
 do c2=0, cc(2)-1
 do c3=0, cc(3)-1
 
-  m = header(c1, c2, c3)
-  do m1=1, nacell(c1, c2, c3)
-     mty = nint(atype(m))
+  i = header(c1, c2, c3)
+  do i1=1, nacell(c1, c2, c3)
+     ity = nint(atype(i))
+
+     !print'(3i6,i6,3f10.5)',c1,c2,c3,m,pos(m,1:3)
 
      do c4 = -1, 1
      do c5 = -1, 1
      do c6 = -1, 1
         ic(1:3) = [c1+c4, c2+c5, c3+c6]
 
-        n = header(ic(1),ic(2),ic(3))
-        do n1=1, nacell(ic(1), ic(2), ic(3))
+        j = header(ic(1),ic(2),ic(3))
+        do j1=1, nacell(ic(1), ic(2), ic(3))
 
-           if(n/=m) then
-             nty = nint(atype(n))
-             inxn = pair_types(mty, nty)
+           if(i/=j) then
+             jty = nint(atype(j))
+             inxn = pair_types(ity, jty)
 
-             rr(1:3) = pos(n,1:3) - pos(m,1:3)
+             rr(1:3) = pos(j,1:3) - pos(i,1:3)
              rr2 = sum(rr(1:3)*rr(1:3))
              rij = sqrt(rr2)
 
              if(rij<fp%rad_rc) then
+     !print'( f10.5, 2(3i6,i6,3f10.5) )',rij, c1,c2,c3,m,pos(m,1:3), c4,c5,c6,n,pos(n,1:3)
 
                 if(rij<fp%ang_rc) then
-                   nbrlist(m, 0) = nbrlist(m, 0) + 1
-                   nbrlist(m, nbrlist(m, 0)) = n
+                   nbrlist(i, 0) = nbrlist(i, 0) + 1
+                   nbrlist(i, nbrlist(i, 0)) = j
                 endif
 
                 rr(1:3) = rr(1:3)/rij
@@ -443,7 +460,7 @@ do c3=0, cc(3)-1
 
                       idx = (inxn-1)*idx_stride + (l1-1)*l1_stride + l2
 
-                      features(1:3,n,idx) = features(1:3,n,idx) + eta_ij*fc_ij*rr(1:3)
+                      features(1:3,i,idx) = features(1:3,i,idx) + eta_ij*fc_ij*rr(1:3)
                    enddo
 
                 enddo
@@ -451,14 +468,15 @@ do c3=0, cc(3)-1
 
            endif
 
-           n=llist(n)
+           j=llist(j)
         enddo
      enddo; enddo; enddo
 
-     m = llist(m)
+     i = llist(i)
   enddo
 enddo; enddo; enddo
 !$omp end parallel do 
+
 
 ! return if the angular cutoff is not given.
 if(fp%ang_rc < 0.0) return
@@ -470,8 +488,8 @@ l3_stride = size(fp%ang_zeta)
 
 do j=1, num_atoms
 
-   do i1=1, nbrlist(i,0)-1
-      i = nbrlist(i,i1)
+   do i1=1, nbrlist(j,0)-1
+      i = nbrlist(j,i1)
 
       r_ij(1:3) = pos(i,1:3) - pos(j,1:3)
       r_ij(0) = sqrt( sum(r_ij(1:3)*r_ij(1:3)) )
@@ -520,7 +538,7 @@ do j=1, num_atoms
                      idx = fp%feature_size_rad + &
                          (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + l4
 
-                     features(1:3,n,idx) = features(1:3,n,idx) + &
+                     features(1:3,i,idx) = features(1:3,i,idx) + &
                          (G3a_xyz(1:3)*zeta_G3a + G3b_xyz(1:3)*zeta_G3b)*G3_mu_eta
 
          enddo; enddo; enddo; enddo
@@ -529,6 +547,15 @@ do j=1, num_atoms
    enddo
 
 enddo
+
+do i=1,num_atoms
+   ity = int(atype(i))
+   do j = 1, 3 ! xyz-loop
+      features(j,i,:)=features(j,i,:) - fp%models(ity)%fstat(j)%mean(:)
+      features(j,i,:)=features(j,i,:) / fp%models(ity)%fstat(j)%stddev(:)
+   enddo 
+enddo
+
 
 !do i=1, num_atoms
 !   print'(i6,i6,a1,3x,30i6)',i,nbrlist(i,0),',', nbrlist(i,1:10)
@@ -539,19 +566,44 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine load_weight_and_bais_fnn(networks, num_dims, path) 
+subroutine mean_stddev_loader(mean, stddev, feature_size, path, suffix) 
 !------------------------------------------------------------------------------
-   type(network),allocatable,intent(in out) :: networks(:)
-   integer(ik),intent(in) :: num_dims(:)
-   character(len=:),allocatable,intent(in) :: path
+real(rk),allocatable,intent(in out) :: mean(:), stddev(:)
+integer(ik),intent(in) :: feature_size
+character(len=:),allocatable,intent(in) :: path
+character(len=1),intent(in) :: suffix !<- ['x','y','z']
 
-   character(1),parameter :: cxyz(3) = ['x','y','z']
+integer(ik) :: funit_m, funit_s
+logical :: exist_m, exist_s
+character(len=:),allocatable :: filename_m, filename_s
 
-   print*,'INFO: loading weight and bais values from : ', path
-   networks(1) = network_ctor(num_dims,path,cxyz(1))
-   networks(2) = network_ctor(num_dims,path,cxyz(2))
-   networks(3) = network_ctor(num_dims,path,cxyz(3))
-    
+filename_m = path//'feature_mean_'//int_to_str(feature_size)//'.'//suffix
+filename_s = path//'feature_stddev_'//int_to_str(feature_size)//'.'//suffix
+
+if(.not.allocated(mean)) allocate(mean(feature_size))
+if(.not.allocated(stddev)) allocate(stddev(feature_size))
+
+inquire(file=filename_m, exist=exist_m)
+inquire(file=filename_s, exist=exist_s)
+
+! mean and stddev must exist, otherwise no feature vector standardization.
+if(exist_m .and. exist_s) then
+  open(newunit=funit_m, file=filename_m, access='stream', form='unformatted', status='old')
+  read(funit_m) mean
+  close(funit_m)
+  open(newunit=funit_s, file=filename_s, access='stream', form='unformatted', status='old')
+  read(funit_s) stddev
+  close(funit_s)
+  write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
+else
+  print'(a)', repeat('-',60)
+  print'(a)', 'INFO: '//filename_m//' & '//filename_s//' not be used.'
+  print'(a)', repeat('-',60)
+
+  mean=0.0
+  stddev=1.0
+endif
+
 end subroutine
 
 !------------------------------------------------------------------------------
@@ -560,7 +612,7 @@ type(network) function network_ctor(dims, path, suffix) result(net)
 
 integer(ik),intent(in) :: dims(:)
 character(len=:),allocatable,intent(in) :: path
-character(len=1),intent(in) :: suffix
+character(len=1),intent(in) :: suffix !<- ['x','y','z']
 
 character(len=:),allocatable :: filename_b, filename_w
 character(len=:),allocatable :: arow, acol, alayer
@@ -568,7 +620,8 @@ character(len=:),allocatable :: arow, acol, alayer
 integer(ik) :: i, nrow, ncol, fileunit
 integer(ik) :: num_layers
 
-num_layers = size(dims)
+net%dims = dims
+num_layers = size(net%dims)
 
 allocate(net%layers(num_layers))
 
