@@ -288,12 +288,116 @@ subroutine set_potentialtables_fnn()
 ! TODO: implement 
 
 end subroutine
+
 !------------------------------------------------------------------------------
-subroutine get_force_fnn(ff, natoms, atype, pos, f, q)
+function sort_pos_by_type(num_atoms, num_types, atype, pos, v, q) result(anum)
+!------------------------------------------------------------------------------
+integer(ik),intent(in)  :: num_atoms, num_types
+real(8),intent(in out),allocatable:: atype(:),pos(:,:),v(:,:),q(:)
+real(8),allocatable :: atype0(:),pos0(:,:),v0(:,:),q0(:)
+
+integer(ik) :: anum(num_types+1), anum1(num_types)
+
+integer :: i, ii, ity, nsum
+
+!FIXME should be a better way to sort these arrays here.
+
+allocate(atype0(num_atoms),pos0(num_atoms,3),v0(num_atoms,3),q0(num_atoms)) 
+
+anum=0
+do i=1, num_atoms
+   ity = nint(atype(i))+1
+   anum(ity) = anum(ity)+1
+enddo
+
+anum1=0; nsum=0
+do i=1, num_atoms
+
+   ity = nint(atype(i))
+   anum1(ity) = anum1(ity)+1
+
+   ii = anum(ity)+anum1(ity)
+
+   atype0(ii) = atype(i)
+   pos0(ii,1:3) = pos(i,1:3)
+   v0(ii,1:3) = v(i,1:3)
+   q0(ii) = q(i)
+enddo
+
+atype(1:num_atoms)=atype0(1:num_atoms)
+pos(1:num_atoms,1:3)=pos0(1:num_atoms,1:3)
+v(1:num_atoms,1:3)=v0(1:num_atoms,1:3)
+q(1:num_atoms)=q0(1:num_atoms)
+
+deallocate(atype0,pos0,v0,q0)
+
+end function
+
+!------------------------------------------------------------------------------
+subroutine get_force_fnn(ff, num_atoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
 class(force_field_class),pointer,intent(in out) :: ff
 type(fnn_param),pointer :: fp => null()
-integer,intent(in out) :: natoms
+integer,intent(in out) :: num_atoms 
+real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
+
+integer(ik) :: i, ii, ity, nn, nl, ncol, nrow, i1,i2, nsum
+integer(ik),allocatable :: atom_per_type(:)
+
+real(rk),allocatable :: x(:,:),y(:,:)
+
+! not sure if this is the best way, but binding force_field_class to fnn_parm
+select type(ff); type is (fnn_param) 
+   fp => ff
+end select
+
+if(.not.allocated(atom_per_type)) allocate(atom_per_type(0:size(fp%models)))
+atom_per_type = sort_pos_by_type(num_atoms, size(fp%models), atype, pos, v, q)
+
+call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
+
+call get_features_fnn(num_atoms, atype, pos, features, fp) 
+
+
+nsum = 0
+do ity = 1, size(fp%models)
+
+   nsum = nsum + atom_per_type(ity-1)
+   i1 = nsum + 1
+   i2 = nsum + atom_per_type(ity)
+   !print*,'atom_per_type,nsum,i1,i2: ', atom_per_type, nsum, i1, i2
+
+   do nn=1, num_networks_per_atom  ! fx,fy,fz loop
+ 
+     y = features(nn,1:fp%feature_size,i1:i2)
+ 
+     associate(n=>fp%models(ity)%networks(nn), m=>fp%models(ity)) 
+        do nl=1, size(n%layers)-1
+
+           !print*,'ity,nl,shape(x),shape(%w),shape(y): ', ity,nl,shape(x),shape(n%layers(nl)%w),shape(y)
+           x = matmul(n%layers(nl)%w,y)
+           do i=1, size(x,dim=2)
+              x(:,i)=x(:,i)+n%layers(nl)%b(:)
+           enddo
+
+           y = max(x,0.0) ! relu
+        enddo 
+     end associate
+
+     f(i1:i2,nn) = x(1,:) ! update force. 
+   enddo
+
+enddo
+
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine get_force_fnn1(ff, num_atoms, atype, pos, f, q)
+!------------------------------------------------------------------------------
+class(force_field_class),pointer,intent(in out) :: ff
+type(fnn_param),pointer :: fp => null()
+integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
 integer(ik) :: i, ity, nn, nl, ncol, nrow
@@ -308,15 +412,15 @@ end select
 call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
-call get_features_fnn(natoms, atype, pos, features, fp) 
+call get_features_fnn(num_atoms, atype, pos, features, fp) 
 
-do i=1, natoms
+do i=1, num_atoms 
   
    ity = atype(i)
 
    do nn=1, num_networks_per_atom  ! fx,fy,fz loop
  
-     y = features(nn,i,1:fp%feature_size)
+     y = features(nn,1:fp%feature_size,i)
  
      associate(m=>fp%models(ity)) 
         do nl=1, size(m%hlayers)-1
@@ -351,7 +455,6 @@ integer,intent(in) :: num_mdsteps
 real(4) :: ke
 
 integer :: i,ity,nstep
-
 
 !--- set force model
 do nstep=0, num_mdsteps-1
@@ -450,7 +553,7 @@ do c3=0, cc(3)-1
 
                       idx = (inxn-1)*idx_stride + (l1-1)*l1_stride + l2
 
-                      features(1:3,i,idx) = features(1:3,i,idx) + eta_ij*fc_ij*rr(1:3)
+                      features(1:3,idx,i) = features(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
                    enddo
 
                 enddo
@@ -528,7 +631,7 @@ do j=1, num_atoms
                      idx = fp%feature_size_rad + &
                          (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + l4
 
-                     features(1:3,i,idx) = features(1:3,i,idx) + &
+                     features(1:3,idx,i) = features(1:3,idx,i) + &
                          (G3a_xyz(1:3)*zeta_G3a + G3b_xyz(1:3)*zeta_G3b)*G3_mu_eta
 
          enddo; enddo; enddo; enddo
@@ -538,11 +641,11 @@ do j=1, num_atoms
 
 enddo
 
-do i=1,num_atoms
+do i=1, num_atoms
    ity = int(atype(i))
    do j = 1, 3 ! xyz-loop
-      features(j,i,:)=features(j,i,:) - fp%models(ity)%fstat(j)%mean(:)
-      features(j,i,:)=features(j,i,:) / fp%models(ity)%fstat(j)%stddev(:)
+      features(j,1:fp%feature_size,i)=features(j,1:fp%feature_size,i) - fp%models(ity)%fstat(j)%mean(:)
+      features(j,1:fp%feature_size,i)=features(j,1:fp%feature_size,i) / fp%models(ity)%fstat(j)%stddev(:)
    enddo 
 enddo
 
@@ -625,7 +728,7 @@ do i=1, num_layers-1
   ncol = dims(i+1)
 
   allocate(net%layers(i)%b(ncol))
-  allocate(net%layers(i)%w(nrow,ncol))
+  allocate(net%layers(i)%w(ncol,nrow))
   !print*,'i,nrow,ncol: ', i,nrow,ncol 
 
   alayer = int_to_str(i)

@@ -537,6 +537,6 @@ print*,'atoms per domain: ',lnatoms(:)
 print'(a,3x,6f12.3)','L1, L2, L3, Lalpha, Lbeta, Lgamma: ', & 
            L1, L2, L3, Lalpha, Lbeta, Lgamma
 print'(a60)',repeat('-',60)
-
+print'(a)','geninit successfully finished'
 end
 
