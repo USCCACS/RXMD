@@ -173,7 +173,7 @@ do while (.true.)
     if(token=='model') then
       if(getstr(linein, token)>0) then
         c3 = token
-        atomNames = [c3,atomNames]
+        atomNames = [atomNames,c3]
       else
         print*,'ERROR: while processing', trim(linein0)
       endif
