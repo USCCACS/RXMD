@@ -250,7 +250,7 @@ enddo
 mddriver_func => mddriver_fnn
 
 !--- features(3,natoms, num_features)
-call allocator(features, 1,3, 1,NBUFFER, 1,fp%feature_size) 
+call allocator(features, 1,3, 1,fp%feature_size, 1,NBUFFER) 
 
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc, fp%rad_rc)

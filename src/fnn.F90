@@ -1,8 +1,9 @@
 module fnnin_parser
 
-  use utils, only : getstr, getfilenamebase
+  use utils, only : getstr, getfilenamebase, l2g
   use base, only : force_field_class
   use fileio, only : output
+  use velocity_modifiers_mod, only : vkick
 
   use iso_fortran_env, only: int32, int64, real32, real64 
 
@@ -359,7 +360,6 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_features_fnn(num_atoms, atype, pos, features, fp) 
 
-
 nsum = 0
 do ity = 1, size(fp%models)
 
@@ -456,6 +456,8 @@ real(4) :: ke
 
 integer :: i,ity,nstep
 
+call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+
 !--- set force model
 do nstep=0, num_mdsteps-1
 
@@ -470,8 +472,19 @@ do nstep=0, num_mdsteps-1
    call MPI_ALLREDUCE(MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
    ke = ke/GNATOMS
 
-   call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
    if(mod(nstep,pstep)==0.and.myid==0) print'(a,i6,es15.5)','step: ', nstep, ke
+
+!--- update velocity & position
+   call vkick(1.d0, atype, v, f)
+   pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
+
+!--- migrate atoms after positions are updated
+   call COPYATOMS(imode=MODE_MOVE_FNN,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q)
+
+   call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+
+!--- update velocity
+   call vkick(1.d0, atype, v, f)
 
 enddo
 
@@ -491,9 +504,9 @@ integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii
 integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,inxn
 
 integer(ik) :: nnbr, lnbr(MAXNEIGHBS)
-integer(ik) :: idx, idx_stride, l1_stride, l2_stride, l3_stride
-real(rk) :: r_ij(0:3), r_kj(0:3), eta_ij, eta_kj, fc_ij, fc_kj, rij_mu, rkj_mu
-real(rk) :: cos_ijk, theta_ijk, lambda_ijk, zeta_G3a, zeta_G3b, zeta_const
+integer(ik) :: idx, idx_stride, l1_stride, l2_stride, l3_stride, l4_stride
+real(rk) :: r_ij(0:3), r_kj(0:3), r_ij_norm(3), r_kj_norm(3), eta_ij, eta_kj, fc_ij, fc_kj, rij_mu, rkj_mu
+real(rk) :: cos_ijk, lambda_ijk, rijk_inv, zeta_G3a, zeta_G3b, zeta_G3b_0, zeta_const
 
 real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 
@@ -528,20 +541,20 @@ do c3=0, cc(3)-1
              jty = nint(atype(j))
              inxn = pair_types(ity, jty)
 
-             rr(1:3) = pos(j,1:3) - pos(i,1:3)
+             rr(1:3) = pos(i,1:3) - pos(j,1:3)
              rr2 = sum(rr(1:3)*rr(1:3))
              rij = sqrt(rr2)
 
              if(rij<fp%rad_rc) then
-     !print'( f10.5, 2(3i6,i6,3f10.5) )',rij, c1,c2,c3,m,pos(m,1:3), c4,c5,c6,n,pos(n,1:3)
 
-                if(rij<fp%ang_rc) then
+                if(rij<fp%ang_rc .and. ity /= jty) then
                    nbrlist(i, 0) = nbrlist(i, 0) + 1
                    nbrlist(i, nbrlist(i, 0)) = j
                 endif
 
                 rr(1:3) = rr(1:3)/rij
-                fc_ij = 0.5*( 1.0 + cos(pi*rij/fp%rad_damp) ) 
+                !fc_ij = 0.5*( 1.0 + cos(pi*rij/fp%rad_damp) ) 
+                fc_ij = 0.5*( 1.0 + cos(3.14*rij/fp%rad_damp) )  ! for debugging. to be removed. 
 
                 do l1 = 1, size(fp%rad_mu)
 
@@ -551,8 +564,7 @@ do c3=0, cc(3)-1
 
                       eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
 
-                      idx = (inxn-1)*idx_stride + (l1-1)*l1_stride + l2
-
+                      idx = (jty-1)*idx_stride + (l1-1)*l1_stride + l2
                       features(1:3,idx,i) = features(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
                    enddo
 
@@ -570,69 +582,78 @@ do c3=0, cc(3)-1
 enddo; enddo; enddo
 !$omp end parallel do 
 
-
 ! return if the angular cutoff is not given.
 if(fp%ang_rc < 0.0) return
 
 idx_stride = fp%feature_size_rad*size(fp%models)
-l1_stride = size(fp%ang_zeta)*size(fp%ang_lambda)*size(fp%ang_eta)
-l2_stride = size(fp%ang_zeta)*size(fp%ang_lambda)
-l3_stride = size(fp%ang_zeta)
+
+l1_stride = size(fp%ang_lambda)*size(fp%ang_zeta)*size(fp%ang_eta)
+l2_stride = size(fp%ang_zeta)*size(fp%ang_eta)
+l3_stride = size(fp%ang_eta)
+l4_stride = 1
 
 do j=1, num_atoms
 
    do i1=1, nbrlist(j,0)-1
       i = nbrlist(j,i1)
 
-      r_ij(1:3) = pos(i,1:3) - pos(j,1:3)
+      r_ij(1:3) = pos(j,1:3) - pos(i,1:3)
       r_ij(0) = sqrt( sum(r_ij(1:3)*r_ij(1:3)) )
+      r_ij_norm(1:3) = r_ij(1:3)/r_ij(0)
 
-      fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/fp%ang_damp) ) 
+      !fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/fp%ang_damp) ) 
+      fc_ij = 0.5*( 1.0 + cos(3.14*r_ij(0)/fp%ang_damp) )  ! for debugging. to be removed. 
 
-      do k1=i1+1, nbrlist(i,0)
-         k = nbrlist(i,k1)
+      do k1=i1+1, nbrlist(j,0)
+         k = nbrlist(j,k1)
 
-         r_kj(1:3) = pos(k,1:3) - pos(j,1:3)
+         r_kj(1:3) = pos(j,1:3) - pos(k,1:3)
          r_kj(0) = sqrt( sum(r_kj(1:3)*r_kj(1:3)) )
+         r_kj_norm(1:3) = r_kj(1:3)/r_kj(0)
 
-         fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/fp%ang_damp) ) 
+         rijk_inv = 1.0/(r_ij(0) * r_kj(0))
 
-         cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) / ( r_ij(0) * r_kj(0) )
-         theta_ijk = acos(cos_ijk)
+         !fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/fp%ang_damp) ) 
+         fc_kj = 0.5*( 1.0 + cos(3.14*r_kj(0)/fp%ang_damp) )  ! for debugging. to be removed. 
 
-         G3a_c1 = (r_ij(0)-r_kj(0)*cos_ijk)/(r_ij(0)*r_kj(0))/r_ij(0)
-         G3a_c2 = (r_kj(0)-r_ij(0)*cos_ijk)/(r_ij(0)*r_kj(0))/r_kj(0)
+         cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) * rijk_inv
 
-         G3a_xyz(1:3) = r_ij(1:3)*G3a_c1 + r_kj(1:3)*G3a_c2
-         G3b_xyz(1:3) = r_ij(1:3)/r_kj(0) + r_kj(1:3)/r_ij(0)
+         G3a_c1 = r_ij(0)-r_kj(0)*cos_ijk
+         G3a_c2 = r_kj(0)-r_ij(0)*cos_ijk
 
+         G3a_xyz(1:3) = (r_ij_norm(1:3)*G3a_c1 + r_kj_norm(1:3)*G3a_c2)*rijk_inv*fc_ij*fc_kj
+         G3b_xyz(1:3) = (r_ij_norm(1:3) + r_kj_norm(1:3))*fc_ij*fc_kj
+
+! l1: mu, l2:lambda, l3:zeta, l4:eta
          do l1=1, size(fp%ang_mu)
 
             rij_mu = r_ij(0) - fp%ang_mu(l1)
             rkj_mu = r_kj(0) - fp%ang_mu(l1)
 
-            do l2=1, size(fp%ang_eta)
+            do l2=1, size(fp%ang_lambda)
 
-               eta_ij = exp( -fp%ang_eta(l2) * rij_mu * rij_mu )
-               eta_kj = exp( -fp%ang_eta(l2) * rkj_mu * rkj_mu )
+               lambda_ijk = 1.0 + fp%ang_lambda(l2)*cos_ijk 
 
-               G3_mu_eta = eta_ij*eta_kj*fc_ij*fc_kj
+               do l3=1, size(fp%ang_zeta)
 
-               do l3=1, size(fp%ang_lambda)
+                  zeta_const = 2.0**(1.0-fp%ang_zeta(l3))
+                  zeta_G3a = fp%ang_zeta(l3) * fp%ang_lambda(l2) * zeta_const * (lambda_ijk**(fp%ang_zeta(l3)-1))
+                  zeta_G3b_0 = zeta_const * (lambda_ijk**fp%ang_zeta(l3))
 
-                  lambda_ijk = 1.0 + fp%ang_lambda(l3)*cos_ijk 
+                  do l4=1, size(fp%ang_eta)
 
-                  do l4=1, size(fp%ang_zeta)
+                     zeta_G3b = - 2.0*fp%ang_eta(l4) * zeta_G3b_0
 
-                     zeta_const = 2**(1-fp%ang_zeta(l4)) 
-                     zeta_G3a = zeta_const * (lambda_ijk**fp%ang_zeta(l4))
-                     zeta_G3b = zeta_const * (lambda_ijk**(fp%ang_zeta(l4)-1))
+                     eta_ij = exp( -fp%ang_eta(l4) * rij_mu * rij_mu )
+                     eta_kj = exp( -fp%ang_eta(l4) * rkj_mu * rkj_mu )
 
-                     idx = fp%feature_size_rad + &
-                         (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + l4
+                     G3_mu_eta = eta_ij*eta_kj
 
-                     features(1:3,idx,i) = features(1:3,idx,i) + &
-                         (G3a_xyz(1:3)*zeta_G3a + G3b_xyz(1:3)*zeta_G3b)*G3_mu_eta
+                     idx = idx_stride + 1 + &
+                         (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
+
+                     features(1:3,idx,j) = features(1:3,idx,j) + &
+                         G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
 
          enddo; enddo; enddo; enddo
           
@@ -648,12 +669,6 @@ do i=1, num_atoms
       features(j,1:fp%feature_size,i)=features(j,1:fp%feature_size,i) / fp%models(ity)%fstat(j)%stddev(:)
    enddo 
 enddo
-
-
-!do i=1, num_atoms
-!   print'(i6,i6,a1,3x,30i6)',i,nbrlist(i,0),',', nbrlist(i,1:10)
-!enddo
-!stop 'foo'
 
 return
 end subroutine

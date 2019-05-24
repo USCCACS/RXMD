@@ -3,7 +3,8 @@ module communication_mod
   use mpi_mod
   use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr, target_node, &
                    copyptr, frcindx, nstep, pstep, it_timer, isSpring,  na, ne, ns, nr, &
-                   MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, MODE_COPY_FNN
+                   MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, &
+                   MODE_COPY_FNN, MODE_MOVE_FNN
 
   use atoms
   use memory_allocator_mod
@@ -110,7 +111,7 @@ call finalize(imode)
 !--- for array size stat. this better be a class not exposing nstep&pstep. 
 if(mod(nstep,pstep)==0) then
   ni=nstep/pstep+1
-  if(imode==MODE_MOVE) maxas(ni,4)=na/ne
+  if(imode==MODE_MOVE.or.imode==MODE_MOVE_FNN) maxas(ni,4)=na/ne
   if(imode==MODE_COPY) maxas(ni,5)=na/ne
 endif
 
@@ -137,6 +138,24 @@ copyptr(0)=NATOMS
 
 !--- set the number of data per atom 
 select case(imode)
+
+   case(MODE_MOVE_FNN)
+
+      np2d=2; np1d=2; nn2d=1
+
+      allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
+      ne = size(pack2d)*3+size(pack1d)
+
+      a=1
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
+      pack2d(a)%ptr=>v; a=a+1 
+
+      a=1
+      pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>q;     a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos;  a=a+1
 
    case(MODE_COPY_FNN)
 
@@ -278,7 +297,7 @@ implicit none
 integer,intent(in) :: imode
 integer :: i,a
 
-if(imode==MODE_MOVE) then
+if(imode==MODE_MOVE.or.imode==MODE_MOVE_FNN) then
 !--- remove atoms which are transfered to neighbor nodes.
 !--- if atype is smaller than zero (this is done in store_atoms), ignore the atom.
    ni=0
@@ -480,7 +499,7 @@ else
         endif
 
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
-        if(imode==MODE_MOVE) atype(n) = -1.d0 
+        if(imode==MODE_MOVE.or.imode==MODE_MOVE_FNN) atype(n) = -1.d0 
 
 !--- increment the number of atoms to be sent 
         ns = ns + ne

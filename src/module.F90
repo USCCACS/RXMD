@@ -27,13 +27,13 @@ end type
 
 
 integer :: NBUFFER=10000
-integer,parameter :: MAXNEIGHBS=30  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer,parameter :: MAXNEIGHBS=100  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
 
-integer,parameter :: MODE_COPY_FNN=11
+integer,parameter :: MODE_COPY_FNN=11, MODE_MOVE_FNN=12
 
 integer,parameter :: NE_CPBK = 4
 
