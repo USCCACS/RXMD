@@ -5,7 +5,7 @@ implicit none
 !-------------------------------------------------------------------------------------------
 
 interface get_token_and_set_value
-   module procedure :: set_r8, set_i4, set_l
+   module procedure set_r8, set_i4, set_l
 end interface
 
 contains
