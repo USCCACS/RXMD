@@ -697,11 +697,11 @@ inquire(file=filename_s, exist=exist_s)
 
 ! mean and stddev must exist, otherwise no feature vector standardization.
 if(exist_m .and. exist_s) then
-  open(newunit=funit_m, file=filename_m, access='stream', form='unformatted', status='old')
-  read(funit_m) mean
+  open(newunit=funit_m, file=filename_m, access='stream', form='formatted', status='old')
+  read(funit_m,*) mean
   close(funit_m)
-  open(newunit=funit_s, file=filename_s, access='stream', form='unformatted', status='old')
-  read(funit_s) stddev
+  open(newunit=funit_s, file=filename_s, access='stream', form='formatted', status='old')
+  read(funit_s,*) stddev
   close(funit_s)
   if(present(verbose) .and. verbose) &
      write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
@@ -751,13 +751,13 @@ do i=1, num_layers-1
   acol = int_to_str(ncol)
 
   filename_b = trim(path)//'b_'//alayer//'_'//acol//'.'//suffix
-  open(newunit=fileunit, file=filename_b, access='stream', form='unformatted', status='old')
-  read(fileunit) net%layers(i)%b
+  open(newunit=fileunit, file=filename_b, access='stream', form='formatted', status='old')
+  read(fileunit,*) net%layers(i)%b
   close(fileunit)
 
   filename_w = trim(path)//'w_'//alayer//'_'//arow//'_'//acol//'.'//suffix
-  open(newunit=fileunit, file=filename_w, access='stream', form='unformatted', status='old')
-  read(fileunit) net%layers(i)%w
+  open(newunit=fileunit, file=filename_w, access='stream', form='formatted', status='old')
+  read(fileunit,*) net%layers(i)%w
 
   if(present(verbose) .and. verbose) &
      write(*, fmt='(a30,2i6,a30,i6)') &
