@@ -453,10 +453,13 @@ subroutine mddriver_fnn(mdbase, num_mdsteps)
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 real(4) :: ke
+real(8) :: cpu0,cpu1,cpu2,comp=0.d0
 
 integer :: i,ity,nstep
 
 call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+
+call cpu_time(cpu0)
 
 !--- set force model
 do nstep=0, num_mdsteps-1
@@ -464,12 +467,13 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
+   call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
    ke=0.d0
    do i=1, NATOMS
       ity=nint(atype(i))
       ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
    enddo
-   call MPI_ALLREDUCE(MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+   call MPI_ALLREDUCE(MPI_IN_PLACE, ke, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD, ierr)
    ke = ke/GNATOMS
 
    if(mod(nstep,pstep)==0.and.myid==0) print'(a,i6,es15.5)','step: ', nstep, ke
@@ -481,12 +485,19 @@ do nstep=0, num_mdsteps-1
 !--- migrate atoms after positions are updated
    call COPYATOMS(imode=MODE_MOVE_FNN,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q)
 
+
+   call cpu_time(cpu1)
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+   call cpu_time(cpu2)
+   comp = comp + (cpu2-cpu1)
 
 !--- update velocity
    call vkick(1.d0, atype, v, f)
 
 enddo
+
+call cpu_time(cpu2)
+if(myid==0) print'(a,2f12.5)','comp, total (sec): ', comp, cpu2-cpu0
 
 return
 end subroutine

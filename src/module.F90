@@ -26,8 +26,8 @@ end type
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
 
 
-integer :: NBUFFER=10000
-integer,parameter :: MAXNEIGHBS=100  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer :: NBUFFER=100000
+integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
