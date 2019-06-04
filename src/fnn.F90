@@ -335,7 +335,7 @@ deallocate(atype0,pos0,v0,q0)
 end function
 
 !------------------------------------------------------------------------------
-subroutine get_force_fnn(ff, num_atoms, atype, pos, f, q)
+subroutine get_force_fnn1(ff, num_atoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
 class(force_field_class),pointer,intent(in out) :: ff
 type(fnn_param),pointer :: fp => null()
@@ -366,22 +366,22 @@ do ity = 1, size(fp%models)
    nsum = nsum + atom_per_type(ity-1)
    i1 = nsum + 1
    i2 = nsum + atom_per_type(ity)
-   !print*,'atom_per_type,nsum,i1,i2: ', atom_per_type, nsum, i1, i2
+   print*,'atom_per_type,nsum,i1,i2: ', atom_per_type, nsum, i1, i2
 
    do nn=1, num_networks_per_atom  ! fx,fy,fz loop
  
      y = features(nn,1:fp%feature_size,i1:i2)
  
      associate(n=>fp%models(ity)%networks(nn), m=>fp%models(ity)) 
-        do nl=1, size(n%layers)-1
+        do nl=1, size(n%dims)-1
 
-           !print*,'ity,nl,shape(x),shape(%w),shape(y): ', ity,nl,shape(x),shape(n%layers(nl)%w),shape(y)
            x = matmul(n%layers(nl)%w,y)
            do i=1, size(x,dim=2)
               x(:,i)=x(:,i)+n%layers(nl)%b(:)
            enddo
 
            y = max(x,0.0) ! relu
+           !print*,'ity,nl,shape(x),shape(%w),shape(y): ', ity,nl,shape(x),shape(n%layers(nl)%w),shape(y)
         enddo 
      end associate
 
@@ -390,10 +390,11 @@ do ity = 1, size(fp%models)
 
 enddo
 
+
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_force_fnn1(ff, num_atoms, atype, pos, f, q)
+subroutine get_force_fnn(ff, num_atoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
 class(force_field_class),pointer,intent(in out) :: ff
 type(fnn_param),pointer :: fp => null()
@@ -422,18 +423,12 @@ do i=1, num_atoms
  
      y = features(nn,1:fp%feature_size,i)
  
-     associate(m=>fp%models(ity)) 
-        do nl=1, size(m%hlayers)-1
+     associate(m=>fp%models(ity), n=>fp%models(ity)%networks(nn)) 
+        do nl=1, size(n%dims)-1
+           x = matmul(n%layers(nl)%w,y) + n%layers(nl)%b
 
-           nrow = m%networks(nn)%dims(nl)
-           ncol = m%networks(nn)%dims(nl+1)
-
-           if(allocated(x)) deallocate(x);  allocate(x(ncol))
-
-           x = matmul(y,m%networks(nn)%layers(nl)%w) + &
-                        m%networks(nn)%layers(nl)%b
-
-           if(allocated(y)) deallocate(y); allocate(y(ncol))
+           !print'(a,3i4,4i6)','i,ity,nn,shape(w),shape(b),shape(x): ', &
+           !        i,ity,nn,shape(n%layers(nl)%w),shape(n%layers(nl)%b),shape(x)
 
            y = max(x,0.0) ! relu
         enddo 
@@ -443,6 +438,10 @@ do i=1, num_atoms
    enddo
 
 enddo
+
+! TODO: obtained force is scaled by the scaling_factor assuming that the trained weight matrix & biased are also scaled. 
+! better to have a check on their consistency. 
+f(1:num_atoms,1:3)=f(1:num_atoms,1:3)/fp%models(ity)%scaling_factor
 
 end subroutine
 
@@ -484,7 +483,6 @@ do nstep=0, num_mdsteps-1
 
 !--- migrate atoms after positions are updated
    call COPYATOMS(imode=MODE_MOVE_FNN,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q)
-
 
    call cpu_time(cpu1)
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
@@ -676,10 +674,10 @@ enddo
 do i=1, num_atoms
    ity = int(atype(i))
    do j = 1, 3 ! xyz-loop
-      features(j,1:fp%feature_size,i)=features(j,1:fp%feature_size,i) - fp%models(ity)%fstat(j)%mean(:)
-      features(j,1:fp%feature_size,i)=features(j,1:fp%feature_size,i) / fp%models(ity)%fstat(j)%stddev(:)
+      features(j,:,i)=(features(j,:,i)-fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
    enddo 
 enddo
+
 
 return
 end subroutine
@@ -708,12 +706,17 @@ inquire(file=filename_s, exist=exist_s)
 
 ! mean and stddev must exist, otherwise no feature vector standardization.
 if(exist_m .and. exist_s) then
+
   open(newunit=funit_m, file=filename_m, access='stream', form='formatted', status='old')
-  read(funit_m,*) mean
+  if(myid==0) read(funit_m,*) mean
+  call MPI_BCAST(mean, size(mean), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
   close(funit_m)
+
   open(newunit=funit_s, file=filename_s, access='stream', form='formatted', status='old')
-  read(funit_s,*) stddev
+  if(myid==0) read(funit_s,*) stddev
+  call MPI_BCAST(stddev, size(stddev), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
   close(funit_s)
+
   if(present(verbose) .and. verbose) &
      write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
 else
@@ -763,18 +766,20 @@ do i=1, num_layers-1
 
   filename_b = trim(path)//'b_'//alayer//'_'//acol//'.'//suffix
   open(newunit=fileunit, file=filename_b, access='stream', form='formatted', status='old')
-  read(fileunit,*) net%layers(i)%b
+  if(myid==0) read(fileunit,*) net%layers(i)%b
+  call MPI_BCAST(net%layers(i)%b, size(net%layers(i)%b), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
   close(fileunit)
 
   filename_w = trim(path)//'w_'//alayer//'_'//arow//'_'//acol//'.'//suffix
   open(newunit=fileunit, file=filename_w, access='stream', form='formatted', status='old')
-  read(fileunit,*) net%layers(i)%w
+  if(myid==0) read(fileunit,*) net%layers(i)%w
+  call MPI_BCAST(net%layers(i)%w, size(net%layers(i)%w), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
+  close(fileunit)
 
   if(present(verbose) .and. verbose) &
      write(*, fmt='(a30,2i6,a30,i6)') &
         'w: '//filename_w, shape(net%layers(i)%w), ' b: '//filename_b, size(net%layers(i)%b)
 
-  close(fileunit)
 enddo
 
 end function

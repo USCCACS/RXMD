@@ -1,6 +1,7 @@
 ### GeSe2 system ###
-model       Ge   72.61   1.0   512 1024 512
-model       Se   78.96   1.0   512 1024 512
+## model data: element name, AMU, scaling factor, hidden layers
+model       Ge   72.61   25.0   512 1024 512
+model       Se   78.96   25.0   512 1024 512
 # radial feature parameters
 rad_mu     1.5  2.0  2.3  2.5  3.0  3.3  3.5  3.7  4.0  4.25  4.5  4.75  5.0  5.5  6.0  6.5  7.0  7.5  8.0
 rad_eta    0.5  1.0  2.0  3.0  8.0
