@@ -2,7 +2,7 @@ module fnnin_parser
 
   use utils, only : getstr, getfilenamebase, l2g
   use base, only : force_field_class
-  use fileio, only : output
+  use fileio, only : output, writebin
   use velocity_modifiers_mod, only : vkick
 
   use iso_fortran_env, only: int32, int64, real32, real64 
@@ -366,7 +366,7 @@ do ity = 1, size(fp%models)
    nsum = nsum + atom_per_type(ity-1)
    i1 = nsum + 1
    i2 = nsum + atom_per_type(ity)
-   print*,'atom_per_type,nsum,i1,i2: ', atom_per_type, nsum, i1, i2
+   !print*,'atom_per_type,nsum,i1,i2: ', atom_per_type, nsum, i1, i2
 
    do nn=1, num_networks_per_atom  ! fx,fy,fz loop
  
@@ -388,8 +388,11 @@ do ity = 1, size(fp%models)
      f(i1:i2,nn) = x(1,:) ! update force. 
    enddo
 
-enddo
+! TODO: obtained force is scaled by the scaling_factor assuming that the trained
+! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
+   f(i1:i2,1:3)=f(i1:i2,1:3)/fp%models(ity)%scaling_factor
 
+enddo
 
 end subroutine
 
@@ -443,17 +446,16 @@ do i=1, num_atoms
 
 enddo
 
-
 end subroutine
-
 
 !------------------------------------------------------------------------------
 subroutine mddriver_fnn(mdbase, num_mdsteps) 
+use utils, only : UTEMP, UTEMP0
+use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, scale_temperature
 !------------------------------------------------------------------------------
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
-real(4) :: ke
-real(8) :: cpu0,cpu1,cpu2,comp=0.d0
+real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 
 integer :: i,ity
 
@@ -464,12 +466,28 @@ call cpu_time(cpu0)
 !--- set force model
 do nstep=0, num_mdsteps-1
 
-   if(mod(nstep,fstep)==0) &
+  if(mod(nstep,pstep)==0) call print_e_fnn(atype, v, q)
+
+  if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
-   call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+  if(mod(nstep,sstep)==0.and.mdmode==4) &
+      v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
 
-   if(mod(nstep,pstep)==0) call print_e_fnn(atype, v, q)
+   if(mod(nstep,sstep)==0.and.mdmode==5) then
+      ctmp = (treq*UTEMP0)/( GKE*UTEMP )
+      v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
+   endif
+
+   if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
+      call gaussian_dist_velocity(atype, v)
+
+!--- element-wise velocity scaling
+   if(mod(nstep,sstep)==0.and.mdmode==7) &
+      call scale_temperature(atype, v)
+
+   if(mod(nstep,sstep)==0.and.mdmode==8) &
+      call adjust_temperature(atype, v)
 
 !--- update velocity & position
    call vkick(1.d0, atype, v, f)
@@ -487,6 +505,13 @@ do nstep=0, num_mdsteps-1
    call vkick(1.d0, atype, v, f)
 
 enddo
+
+!--- save the final configurations
+call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
+
+!--- update rxff.bin in working directory for continuation run
+call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+
 
 call cpu_time(cpu2)
 if(myid==0) print'(a,2f12.5)','comp, total (sec): ', comp, cpu2-cpu0
@@ -835,6 +860,7 @@ enddo
 call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 ke = ke/GNATOMS
 tt = ke*UTEMP
+GKE = ke ! FIXME for ctmp = (treq*UTEMP0)/( GKE*UTEMP )
 
 if(myid==0) then
    
