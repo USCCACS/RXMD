@@ -437,11 +437,12 @@ do i=1, num_atoms
      f(i,nn) = x(1) ! update force
    enddo
 
+! TODO: obtained force is scaled by the scaling_factor assuming that the trained
+! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
+   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor
+
 enddo
 
-! TODO: obtained force is scaled by the scaling_factor assuming that the trained weight matrix & biased are also scaled. 
-! better to have a check on their consistency. 
-f(1:num_atoms,1:3)=f(1:num_atoms,1:3)/fp%models(ity)%scaling_factor
 
 end subroutine
 
@@ -454,7 +455,7 @@ integer,intent(in) :: num_mdsteps
 real(4) :: ke
 real(8) :: cpu0,cpu1,cpu2,comp=0.d0
 
-integer :: i,ity,nstep
+integer :: i,ity
 
 call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
 
@@ -467,15 +468,8 @@ do nstep=0, num_mdsteps-1
         call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
-   ke=0.d0
-   do i=1, NATOMS
-      ity=nint(atype(i))
-      ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
-   enddo
-   call MPI_ALLREDUCE(MPI_IN_PLACE, ke, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD, ierr)
-   ke = ke/GNATOMS
 
-   if(mod(nstep,pstep)==0.and.myid==0) print'(a,i6,es15.5)','step: ', nstep, ke
+   if(mod(nstep,pstep)==0) call print_e_fnn(atype, v, q)
 
 !--- update velocity & position
    call vkick(1.d0, atype, v, f)
@@ -813,6 +807,42 @@ enddo
 enddo
 
 maxrcut = maxval(rcut)
+
+end subroutine
+
+!-------------------------------------------------------------------------------------------
+subroutine print_e_fnn(atype, v, q)
+use mpi_mod
+use base, only : hh, hhi, natoms, gnatoms, mdbox, myid, ierr, hmas, wt0
+use atoms
+use memory_allocator_mod
+! calculate the kinetic energy and sum up all of potential energies, then print them.
+!-------------------------------------------------------------------------------------------
+implicit none
+
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: v(:,:)
+
+integer :: i,ity,cstep
+real(8) :: tt=0.d0
+
+ke=0.d0
+do i=1, NATOMS
+   ity=nint(atype(i))
+   ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+ke = ke/GNATOMS
+tt = ke*UTEMP
+
+if(myid==0) then
+   
+   cstep = nstep + current_step 
+
+   write(6,'(a,i9,es13.5,2f8.2)') 'MDstep: ', cstep,ke, tt,GetTotalMemory()*1e-9
+
+endif
 
 end subroutine
 

@@ -26,7 +26,7 @@ integer :: numParams, numAtomNames
 
 logical :: getReal=.false., getNorm=.false., noCoordinateShift=.false.
 
-logical :: isLG, is_fnn
+logical :: isLG, is_fnn, is_reaxff
 
 contains
 
@@ -153,14 +153,12 @@ end subroutine
 subroutine get_atomnames_for_fnn(fileName)
 implicit none
 !----------------------------------------------------------------
-character(256),intent(in) :: fileName
+character(len=256),intent(in) :: fileName
 
-character(256) :: linein0
+character(len=256) :: linein0
 character(len=:),allocatable :: linein, token
-character(3) :: c3
+character(len=3) :: c3
 integer :: funit, i
-
-allocate(character(3)::atomNames(0))
 
 open(newunit=funit,file=trim(fileName),status='old',form='formatted')
 
@@ -173,7 +171,12 @@ do while (.true.)
     if(token=='model') then
       if(getstr(linein, token)>0) then
         c3 = token
-        atomNames = [atomNames,c3]
+        if(.not.allocated(atomNames)) then
+           allocate(character(len=3)::atomNames(1))
+           atomNames(1) = c3
+        else
+           atomNames = [atomNames,c3]
+        endif
       else
         print*,'ERROR: while processing', trim(linein0)
       endif
@@ -342,6 +345,25 @@ do i=1, command_argument_count()
      case default
    end select
 enddo
+
+inquire(file='../fnn.in', exist=is_fnn)
+if(is_fnn) then
+   print'(a)',repeat('-',60)
+   ffieldFileName='../fnn.in'
+   print'(a)','Found fnn.in file: '//trim(adjustl(ffieldFileName))
+   print'(a)','Generate rxff.bin for FNN simulation' 
+   print'(a)',repeat('-',60)
+endif
+
+inquire(file='../ffield', exist=is_reaxff)
+if(is_reaxff) then
+   print'(a)',repeat('-',60)
+   ffieldFileName='../ffield'
+   print'(a)','Found ffield file: '//trim(adjustl(ffieldFileName))
+   print'(a)','Generate rxff.bin for ReaxFF simulation' 
+   print'(a)',repeat('-',60)
+endif
+
 
 mctot=mc(1)*mc(2)*mc(3)
 nprocs=vprocs(1)*vprocs(2)*vprocs(3)

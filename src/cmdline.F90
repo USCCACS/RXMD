@@ -84,24 +84,14 @@ if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
     stop
 endif
 
-if(find_cmdline_argc('--forcefiled_type',idx).or.find_cmdline_argc('-ft',idx)) then
-    call get_command_argument(idx+1,argv)
-    forcefield_type=trim(adjustl(argv))
-
-    if(index(forcefield_type,'reaxff')>0.or.index(forcefield_type,'ReaxFF')>0) then
-         is_reaxff=.true.
-    else if(index(forcefield_type,'fnn')>0.or.index(forcefield_type,'FNN')>0) then
-         is_fnn=.true.
-    else 
-      if(myrank==0) then
-         print'(3a)', 'unsupported forcefield type : ', forcefield_type, '. set forcefield type ReaxFF.'
-         is_reaxff=.true.
-      endif
-    endif
-else
-    print'(3a)', 'no forcefield was specified. set forcefield type FNN'
-    is_fnn=.true.
+inquire(file='fnn.in', exist=is_fnn)
+if(is_fnn) then
+  ParmPath='fnn.in'
+  FFPath=""
 endif
+
+inquire(file='ffield', exist=is_reaxff)
+if(is_reaxff) ParmPath='ffield'
 
 if(find_cmdline_argc('--rxmdin',idx).or.find_cmdline_argc('-in',idx)) then
     call get_command_argument(idx+1,argv)
@@ -111,10 +101,18 @@ else
 endif
 
 if(find_cmdline_argc('--ffield',idx).or.find_cmdline_argc('-ff',idx)) then
+    is_reaxff=.true.
     call get_command_argument(idx+1,argv)
     FFPath=trim(adjustl(argv))
 else
     FFPath=trim(adjustl(FFPath0))
+endif
+
+if(find_cmdline_argc('--fnn',idx).or.find_cmdline_argc('-fnn',idx)) then
+    is_fnn=.true.
+    call get_command_argument(idx+1,argv)
+    ParmPath=trim(adjustl(argv))
+    FFPath=""
 endif
 
 if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
