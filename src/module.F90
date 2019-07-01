@@ -120,9 +120,9 @@ real(8) :: springConst=0.d0
 logical :: hasSpringForce(16)
 real(8),allocatable :: ipos(:,:)
 
-logical :: isFF=.false., isData=.false., isMDparm=.false.
-character(MAXSTRLENGTH) :: FFPath0='ffield', DataDir0='DAT', ParmPath0='rxmd.in'
-character(len=:),allocatable :: FFPath, DataDir, ParmPath
+logical :: isFF=.false., isData=.false., isMDparm=.false., isRunFromXYZ=.false.
+character(MAXSTRLENGTH) :: FFPath0="ffield", DataDir0="DAT", ParmPath0="rxmd.in"
+character(len=:),allocatable :: FFPath, DataDir, ParmPath, RunFromXYZPath
 
 !<ns> # of atoms to be sent, <nr> # of atoms to be received, <na> # of all of transfered atoms.
 !<ne> # of elements for one atom.

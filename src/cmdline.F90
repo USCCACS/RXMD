@@ -3,8 +3,8 @@ module cmdline_args
 !-------------------------------------------------------------------------------------------
 use mpi_mod
 use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH 
-use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, &
-                 mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, &
+use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
+                 mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, &
                  forcefield_type, is_fnn, is_reaxff
 
@@ -120,6 +120,12 @@ if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
     DataDir=trim(adjustl(argv))
 else
     DataDir=trim(adjustl(DataDir0))
+endif
+
+if(find_cmdline_argc('--run_from_xyz',idx).or.find_cmdline_argc('-runxyz',idx)) then
+    call get_command_argument(idx+1,argv)
+    isRunFromXYZ=.true.
+    RunFromXYZPath=trim(adjustl(argv))
 endif
 
 if(find_cmdline_argc('--pqeq',idx).or.find_cmdline_argc('-pqeq',idx)) then
