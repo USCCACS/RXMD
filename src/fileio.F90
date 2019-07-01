@@ -464,6 +464,90 @@ return
 end
 
 !--------------------------------------------------------------------------
+subroutine ReadXYZ(atype, rreal, v, q, f, fileName)
+use atoms; use MemoryAllocator
+!--------------------------------------------------------------------------
+implicit none
+
+character(*),intent(in) :: fileName
+real(8),allocatable,dimension(:),intent(inout) :: atype,q
+real(8),allocatable,dimension(:,:),intent(inout) :: rreal,v,f
+
+real(8) :: dbuf6(6), mat(3,3)
+
+integer :: ti,tj,tk
+
+integer :: i,j,i1, ntot, iigd, num_unit, funit
+real(8),allocatable :: pos0(:)
+integer,allocatable :: atype0(:)
+
+call system_clock(ti,tk)
+
+if(myid==0) then
+  open(newunit=funit, file=trim(filename), status='old', form='formatted')
+
+  read(funit,fmt=*) num_unit
+  allocate(pos0(3*num_unit), atype0(num_unit))
+
+  read(funit,fmt=*) dbuf6(1:6)
+
+  do i = 1, num_unit
+!FIXME: here, user needs to convert element name to cooresponding integer beforehand. a better way to handle this? 
+     read(funit,fmt=*) atype0(i),pos0(i*3-2:i*3) 
+  enddo
+
+  close(funit)
+endif
+
+call MPI_Bcast(num_unit,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+if(myid>0) allocate(pos0(3*num_unit), atype0(num_unit))
+
+call MPI_Bcast(dbuf6,size(dbuf6),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+lata=dbuf6(1); latb=dbuf6(2); latc=dbuf6(3)
+lalpha=dbuf6(4); lbeta=dbuf6(5); lgamma=dbuf6(6)
+
+call MPI_Bcast(atype0,num_unit,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(pos0,3*num_unit,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+
+!--- allocate arrays
+if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocatord2d(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocatord2d(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocatord2d(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocatord1d(qsfv,1,NBUFFER)
+f(:,:)=0.0
+
+iigd = num_unit*myid ! for global ID
+ntot=0
+do i=1,num_unit
+   ntot=ntot+1
+   rreal(ntot,1:3) = pos0(3*i-2:3*i) + vID(1:3) ! adding the box origin
+   rreal(ntot,1:3) = rreal(ntot,1:3)*(/lata,latb,latc/) ! real coords
+   atype(ntot) = dble(atype0(i)) + (iigd+ntot)*1d-13
+enddo 
+NATOMS=ntot
+
+!--- update to glocal cell parameters
+lata=lata*vprocs(1)
+latb=latb*vprocs(2)
+latc=latc*vprocs(3)
+
+call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+do i=1, 3
+do j=1, 3
+   HH(i,j,0)=mat(i,j)
+enddo; enddo
+call UpdateBoxParams()
+
+call system_clock(tj,tk)
+it_timer(22)=it_timer(22)+(tj-ti)
+
+return
+end
+
+!--------------------------------------------------------------------------
 subroutine ReadBIN(atype, rreal, v, q, f, fileName)
 use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
