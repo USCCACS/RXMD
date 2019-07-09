@@ -5,7 +5,7 @@ implicit none
 !-------------------------------------------------------------------------------------------
 
 interface get_token_and_set_value
-   module procedure :: set_r8, set_i4, set_l
+   module procedure set_r8, set_i4, set_l
 end interface
 
 contains
@@ -267,7 +267,8 @@ do while (.true.)
       case ('CG_tol')
          call get_token_and_set_value(linein, ftol)
       case default
-         stop 'ERROR: '//trim(token)//' is not found'
+         if(myid==0) print*,'ERROR: '//trim(token)//' is not found'
+         stop
     end select
 
     !--- goto next line
