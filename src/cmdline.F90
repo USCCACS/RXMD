@@ -3,8 +3,8 @@ module cmdline_args
 !-------------------------------------------------------------------------------------------
 use mpi_mod
 use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH 
-use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, &
-                 mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, &
+use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
+                 mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, &
                  forcefield_type, is_fnn, is_reaxff
 
@@ -14,7 +14,7 @@ use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, &
                   alphacc, alphasc, alphass
 
 interface get_token_and_set_value
-   module procedure set_r8, set_i4, set_l
+   module procedure set_r8, set_i4, set_l, set_str
 end interface
 
 contains
@@ -50,6 +50,17 @@ subroutine set_l(linein, val)
      stop 'Error:  token not found in set_l'
 
    read(token,*) val
+end subroutine
+
+subroutine set_str(linein, val)
+   character(len=:),allocatable,intent(in out) :: linein
+   character(MAXSTRLENGTH),intent(in out) :: val
+   character(len=:),allocatable :: token
+
+   if(getstr(linein, token) < 0) &
+     stop 'Error:  token not found in set_str'
+
+   read(token,'(a)') val
 end subroutine
 
 !-------------------------------------------------------------------------------------------
@@ -122,11 +133,21 @@ else
     DataDir=trim(adjustl(DataDir0))
 endif
 
+if(find_cmdline_argc('--run_from_xyz',idx).or.find_cmdline_argc('-runxyz',idx)) then
+    call get_command_argument(idx+1,argv)
+    isRunFromXYZ=.true.
+    RunFromXYZPath=trim(adjustl(argv))
+endif
+
+!--- PQEq parameters
 if(find_cmdline_argc('--pqeq',idx).or.find_cmdline_argc('-pqeq',idx)) then
     isPQEq = .true.
     call get_command_argument(idx+1,argv)
     PQEqParmPath=trim(adjustl(argv))
 
+endif
+
+if(isPQEq) then
     if(myrank==0) then
        print'(a60)',repeat('-',60)
        print'(2a30)','Enabling PQEq: PQEqParmPath: ', trim(adjustl(PQEqParmPath))
@@ -134,23 +155,26 @@ if(find_cmdline_argc('--pqeq',idx).or.find_cmdline_argc('-pqeq',idx)) then
     endif
 
     call get_pqeq_parms(PQEqParmPath)
-
-    !--- electric field is applied only when PQEq is on
-    if(find_cmdline_argc('--efield',idx).or.find_cmdline_argc('-e',idx)) then
-        isEfield=.true.
-        call get_command_argument(idx+1,argv)
-        read(argv,*) eFieldDir
-        call get_command_argument(idx+2,argv)
-        read(argv,*) eFieldStrength
-    
-        if(myrank==0) then
-           print'(a60)',repeat('-',60)
-           print'(a30)','Enabling electric field : '
-           print'(a30,i3,f10.5)', 'eField [V/A], eFiled direction : ', eFieldDir, eFieldStrength
-           print'(a60)',repeat('-',60)
-        endif
-    endif
 endif
+
+
+!--- electric field 
+if(find_cmdline_argc('--efield',idx).or.find_cmdline_argc('-e',idx)) then
+    isEfield=.true.
+    call get_command_argument(idx+1,argv)
+    read(argv,*) eFieldDir
+    call get_command_argument(idx+2,argv)
+    read(argv,*) eFieldStrength
+endif
+
+if(isEfield .and. myrank==0) then
+   print'(a60)',repeat('-',60)
+   print'(a30)','Enabling electric field : '
+   print'(a30,i3,f10.5)', 'eField [V/A], eFiled direction : ', eFieldDir, eFieldStrength
+   print'(a60)',repeat('-',60)
+endif
+
+
 
 if(find_cmdline_argc('--lg',idx).or.find_cmdline_argc('-lg',idx)) then
     if(myrank==0) print'(a30)','Enabling LG term'
@@ -291,9 +315,16 @@ do while (.true.)
          call get_token_and_set_value(linein, Lex_k)
       case ('CG_tol')
          call get_token_and_set_value(linein, ftol)
+      case ('efield')
+         isEfield=.true.
+         call get_token_and_set_value(linein, eFieldDir)
+         call get_token_and_set_value(linein, eFieldStrength)
+      case ('PQEqParm')
+         isPQEq=.true.
+         call get_token_and_set_value(linein, PQEqParmPath)
       case default
-         print*,'ERROR: '//trim(token)//' is not found'
-         stop 
+         if(myid==0) print*,'ERROR: '//trim(token)//' is not found'
+         stop
     end select
 
     !--- goto next line

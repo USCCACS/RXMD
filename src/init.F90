@@ -9,7 +9,7 @@ module init
   use pqeq_mod, only : PQEq, initialize_eField, initialize_pqeq
   use force_mod, only : force_reaxff
   use memory_allocator_mod
-  use fileio, only : ReadBIN
+  use fileio, only : ReadBIN, ReadXYZ
 
   use fnn, only : fnn_param, fnn_param_obj, features, get_cutoff_fnn, num_networks_per_atom, &
                   network_ctor, mean_stddev_loader, num_forcecomps, num_pairs, num_types, & 
@@ -87,7 +87,11 @@ call allocator(f,1,NBUFFER,1,3)
 !--- index array for returning reaction force
 call allocator(frcindx,1,NBUFFER)
 
-call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+if(isRunFromXYZ) then
+  call ReadXYZ(atype, pos, v, q, f, RunFromXYZPath)
+else
+  call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+endif
 
 !--- get global number of atoms by summing up each type. 
 natoms_per_type = 0
