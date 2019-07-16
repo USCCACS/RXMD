@@ -13,7 +13,7 @@ module init
 
   use fnn, only : fnn_param, fnn_param_obj, features, get_cutoff_fnn, num_networks_per_atom, &
                   network_ctor, mean_stddev_loader, num_forcecomps, num_pairs, num_types, & 
-                  mddriver_fnn, set_potentialtables_fnn
+                  mddriver_fnn, set_potentialtables_fnn, get_max_cutoff
 
   use lists_mod, only: getnonbondingmesh 
 
@@ -239,7 +239,8 @@ do i=1, num_models
       allocate(m%fstat(num_networks_per_atom))
    
       path = str_gen('FNN/'//m%element//'/')
-      dims = [fp%feature_size, m%hlayers, num_forcecomps]
+      !dims = [fp%feature_size, m%hlayers, num_forcecomps] ! TO BE REMOVED
+      dims = m%layersize
 
       do j=1, num_networks_per_atom
          m%networks(j)  = network_ctor(dims, path, xyz_suffix(j), verbose)
@@ -257,7 +258,7 @@ mddriver_func => mddriver_fnn
 call allocator(features, 1,3, 1,fp%feature_size, 1,NBUFFER) 
 
 !--- set cutoff distance
-call get_cutoff_fnn(rc, rc2, maxrc, fp%rad_rc)
+call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fp))
 
 end function
 

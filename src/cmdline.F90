@@ -315,13 +315,6 @@ do while (.true.)
          call get_token_and_set_value(linein, Lex_k)
       case ('CG_tol')
          call get_token_and_set_value(linein, ftol)
-      case ('efield')
-         isEfield=.true.
-         call get_token_and_set_value(linein, eFieldDir)
-         call get_token_and_set_value(linein, eFieldStrength)
-      case ('PQEqParm')
-         isPQEq=.true.
-         call get_token_and_set_value(linein, PQEqParmPath)
       case default
          if(myid==0) print*,'ERROR: '//trim(token)//' is not found'
          stop

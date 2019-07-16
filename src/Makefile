@@ -25,7 +25,7 @@ comm.o : module.o
 velocity.o : module.o
 
 lists.o : module.o utils.o
-fnn.o : module.o comm.o lists.o
+fnn.o : module.o comm.o lists.o fileio.o
 
 cmdline.o : module.o memory.o fnn.o 
 reaxff.o : cmdline.o utils.o fileio.o comm.o velocity.o
