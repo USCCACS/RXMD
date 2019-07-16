@@ -11,7 +11,7 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN, ReadXYZ
 
-  use fnn, only : fnn_param, fnn_param_obj, features, get_cutoff_fnn, num_networks_per_atom, &
+  use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, num_networks_per_atom, &
                   network_ctor, mean_stddev_loader, num_forcecomps, num_pairs, num_types, & 
                   mddriver_fnn, set_potentialtables_fnn, get_max_cutoff
 
@@ -239,23 +239,23 @@ do i=1, num_models
       allocate(m%fstat(num_networks_per_atom))
    
       path = str_gen('FNN/'//m%element//'/')
-      !dims = [fp%feature_size, m%hlayers, num_forcecomps] ! TO BE REMOVED
       dims = m%layersize
 
       do j=1, num_networks_per_atom
          m%networks(j)  = network_ctor(dims, path, xyz_suffix(j), verbose)
          call mean_stddev_loader(m%fstat(j)%mean, m%fstat(j)%stddev, &
-                                 fp%feature_size, path, xyz_suffix(j), verbose)
+                                 dims(1), path, xyz_suffix(j), verbose)
       enddo
+
+!--- features(3, num_features, natoms)
+     call allocator(m%features, 1,3, 1,dims(1), 1,NBUFFER) 
+
    end associate
    !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
 enddo
 
 !--- set md dirver function 
 mddriver_func => mddriver_fnn
-
-!--- features(3,natoms, num_features)
-call allocator(features, 1,3, 1,fp%feature_size, 1,NBUFFER) 
 
 !--- set cutoff distance
 call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fp))

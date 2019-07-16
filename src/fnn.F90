@@ -31,18 +31,6 @@ module fnnin_parser
     real(rk),allocatable :: stddev(:)
   end type
 
-  type :: model_params
-    character(len=:),allocatable :: element
-    real(rk) :: mass
-    real(rk) :: scaling_factor
-
-    !integer(ik),allocatable :: hlayers(:)
-    integer(ik),allocatable :: layersize(:)
-
-    type(network),allocatable :: networks(:)
-    type(feature_stat),allocatable :: fstat(:)
-  end type
-
   type :: rad_feature_type
     logical :: is_defined
     real(rk),allocatable,dimension(:) :: mu, eta
@@ -56,24 +44,34 @@ module fnnin_parser
     real(rk) :: rc, rdamp
   end type
 
+  type :: model_params
+    character(len=:),allocatable :: element
+    real(rk) :: mass
+    real(rk) :: scaling_factor
+
+    real(rk),allocatable :: features(:,:,:) 
+
+    !integer(ik),allocatable :: hlayers(:)
+    integer(ik),allocatable :: layersize(:)
+
+    type(network),allocatable :: networks(:)
+    type(feature_stat),allocatable :: fstat(:)
+
+    type(rad_feature_type),allocatable :: rad(:) ! params for B in A-B
+    type(ang_feature_type),allocatable :: ang(:) ! params for B in B-A-B
+    integer(ik),allocatable :: feature_ptr_rad(:), feature_ptr_ang(:), feature_ptr(:)
+  end type
+
   type, extends(force_field_class) :: fnn_param
-    type(rad_feature_type),allocatable :: rad(:,:)
-    type(ang_feature_type),allocatable :: ang(:,:,:)
-
     type(model_params), allocatable :: models(:) 
-
-    integer(ik) :: feature_size_rad, feature_size_ang, feature_size 
-
     contains 
        procedure :: print => fnn_param_print
-
   end type
 
   type(fnn_param),target :: fnn_param_obj
 
   interface get_tokens_and_append
-      module procedure get_tokens_and_append_rv, get_tokens_and_append_iv, & 
-                       get_tokens_and_append_rs, get_tokens_and_append_model, &
+      module procedure get_tokens_and_append_model, &
                        get_tokens_and_append_rad, get_tokens_and_append_ang
   end interface
 
@@ -87,22 +85,95 @@ contains
   function get_max_cutoff(fp) result(max_rc)
     type(fnn_param),intent(in) :: fp 
     real(rk) :: max_rc
+    integer :: ia, ib
 
-    !FIXME get maximum cutoff distance from all models
+    max_rc = -1.d0
+
+    do ia=1,size(fp%models)
+       do ib=1,size(fp%models(ia)%rad)
+          if(max_rc<fp%models(ia)%rad(ib)%rc) max_rc = fp%models(ia)%rad(ib)%rc
+       enddo
+       do ib=1,size(fp%models(ia)%ang)
+          if(max_rc<fp%models(ia)%ang(ib)%rc) max_rc = fp%models(ia)%ang(ib)%rc
+       enddo
+    enddo
 
     return 
   end function
 
   subroutine get_tokens_and_append_rad(linein, rad)
     character(len=:),allocatable,intent(in out) :: linein
-    type(rad_feature_type),allocatable,intent(in out) :: rad(:,:)
+    type(rad_feature_type),intent(in out) :: rad
+    integer :: num_fields
+
+    rad%is_defined = .true.
+    if(.not.allocated(rad%mu)) allocate(rad%mu(0))
+    if(.not.allocated(rad%eta)) allocate(rad%eta(0))
+
+    num_fields = 0
+    do while (getstr(linein, token) > 0)
+       if(token==':') then
+          num_fields = num_fields + 1
+       else
+          select case(num_fields)
+             case(1)
+               read(token,*) rad%rc
+             case(2)
+               read(token,*) rad%rdamp
+             case(3)
+               read(token,*) rbuf
+               rad%mu = [rad%mu, rbuf]
+             case(4)
+               read(token,*) rbuf
+               rad%eta = [rad%eta, rbuf]
+             case default
+               print'(a)', 'WARNING: unknown field in get_tokens_and_append_rad(): '//linein
+          end select
+       endif
+    enddo
 
     return
   end subroutine
 
   subroutine get_tokens_and_append_ang(linein, ang)
     character(len=:),allocatable,intent(in out) :: linein
-    type(ang_feature_type),allocatable,intent(in out) :: ang(:,:,:)
+    type(ang_feature_type),intent(in out) :: ang
+    integer :: num_fields
+
+    ang%is_defined = .true.
+    if(.not.allocated(ang%lambda)) allocate(ang%lambda(0))
+    if(.not.allocated(ang%zeta)) allocate(ang%zeta(0))
+    if(.not.allocated(ang%eta)) allocate(ang%eta(0))
+    if(.not.allocated(ang%mu)) allocate(ang%mu(0))
+
+    num_fields = 0
+    do while (getstr(linein, token) > 0)
+       if(token==':') then
+          num_fields = num_fields + 1
+       else
+          select case(num_fields)
+             case(1)
+               read(token,*) ang%rc
+             case(2)
+               read(token,*) ang%rdamp
+             case(3)
+               read(token,*) ibuf
+               ang%lambda = [ang%lambda, ibuf]
+             case(4)
+               read(token,*) rbuf
+               ang%zeta = [ang%zeta, rbuf]
+             case(5)
+               read(token,*) rbuf
+               ang%eta = [ang%eta, rbuf]
+             case(6)
+               read(token,*) rbuf
+               ang%mu = [ang%mu, rbuf]
+             case default
+               print'(a)', 'WARNING: unknown field in get_tokens_and_append_ang(): '//linein
+          end select
+       endif
+    enddo
+
 
     return
   end subroutine
@@ -112,11 +183,11 @@ contains
     type(model_params),allocatable,intent(in out) :: models(:)
     type(model_params) :: mbuf
 
-    if (getstr(linein, token) < 0) stop 'erro while reading element name'  
+    if (getstr(linein, token) < 0) stop 'erro while reading element name'
     mbuf%element = trim(adjustl(token))
-    if (getstr(linein, token) < 0) stop 'erro while reading element mass'  
+    if (getstr(linein, token) < 0) stop 'erro while reading element mass'
     read(token, *) mbuf%mass
-    if (getstr(linein, token) < 0) stop 'erro while reading scaling factor'  
+    if (getstr(linein, token) < 0) stop 'erro while reading scaling factor'
     read(token, *) mbuf%scaling_factor
 
     ! allocate zero-sized array
@@ -133,47 +204,16 @@ contains
     return
   end subroutine
 
-  subroutine get_tokens_and_append_rv(linein, array)
-    character(len=:),allocatable,intent(in out) :: linein
-    real(4),allocatable,intent(in out) :: array(:)
-
-    ! allocate zero-sized array
-    if(.not.allocated(array)) allocate(array(0)) 
-
-    do while (getstr(linein, token) > 0) 
-       read(token,*) rbuf 
-       array = [array, rbuf]
+  function get_index_of_model(element, models) result(idx)
+    type(model_params),allocatable,intent(in) :: models(:)
+    character(len=:),allocatable,intent(in) :: element
+    integer :: idx
+    do idx=1, size(models)
+       if(models(idx)%element == element) return
     enddo
-
+    idx = -1
     return
-  end subroutine
-
-  subroutine get_tokens_and_append_iv(linein, array)
-    character(len=:),allocatable,intent(in out) :: linein
-    integer(4),allocatable,intent(in out) :: array(:)
-
-    ! allocate zero-sized array
-    if(.not.allocated(array)) allocate(array(0)) 
-
-    do while (getstr(linein, token) > 0) 
-       read(token,*) ibuf 
-       array = [array, ibuf]
-    enddo
-
-    return
-  end subroutine
-
-  subroutine get_tokens_and_append_rs(linein, scalar)
-    character(len=:),allocatable,intent(in out) :: linein
-    real(4),intent(in out) :: scalar
-
-    if (getstr(linein, token) > 0) then
-       read(token,*) rbuf 
-       scalar = rbuf
-    endif 
-
-    return
-  end subroutine
+  end function
 
   function fnn_param_ctor(path) result(c)
     character(len=:),allocatable,intent(in) :: path
@@ -181,7 +221,7 @@ contains
     character(len=:),allocatable :: linein
 
     type(fnn_param) :: c 
-    integer :: iunit, num_models, ia,ib,ic
+    integer :: iunit, num_models, feature_ptr, ia,ib,ic
 
     open(newunit=iunit, file=path, status='old', form='formatted')
 
@@ -196,24 +236,25 @@ contains
     end do
     10 rewind(iunit)
 
+    if (size(c%models)<0) stop 'ERROR: at least one model must be defined.'
+
     ! radial and angular parameters are defined for atomic pairs & triplets
     num_models = size(c%models)
-    allocate(c%rad(num_models,num_models),c%ang(num_models,num_models,num_models))
+    do ia=1,size(c%models)
+       allocate(c%models(ia)%rad(num_models), c%models(ia)%ang(num_models))
+       
+       ! initialize params for the pair and triples
+       do ib=1,size(c%models)
+          c%models(ia)%rad(ib)%is_defined=.false.
+          c%models(ia)%ang(ib)%is_defined=.false.
 
-    do ia=1,num_models
-    do ib=1,num_models
-       allocate(c%rad(ia,ib)%mu(0),c%rad(ia,ib)%eta(0))
-       c%rad(ia,ib)%is_defined = .false.
-    enddo; enddo
+          allocate(c%models(ia)%rad(ib)%mu(0),c%models(ia)%rad(ib)%eta(0))
 
-    do ia=1,num_models
-    do ib=1,num_models
-    do ic=1,num_models
-       allocate(c%ang(ia,ib,ic)%mu(0),c%ang(ia,ib,ic)%eta(0))
-       allocate(c%ang(ia,ib,ic)%zeta(0),c%ang(ia,ib,ic)%lambda(0))
-       c%ang(ia,ib,ic)%is_defined = .false.
-    enddo; enddo; enddo
+          allocate(c%models(ia)%ang(ib)%mu(0),c%models(ia)%ang(ib)%eta(0))
+          allocate(c%models(ia)%ang(ib)%zeta(0),c%models(ia)%ang(ib)%lambda(0))
+       enddo
 
+    enddo
 
     do while (.true.)
       read(iunit,'(a)',end=20) linein0
@@ -222,9 +263,13 @@ contains
       if(getstr(linein, token) > 0) then
         select case (token)
            case ('rad')
-             call get_tokens_and_append(linein, c%rad)
+             if(getstr(linein,token)>0) ia = get_index_of_model(token,c%models)
+             if(getstr(linein,token)>0) ib = get_index_of_model(token,c%models)
+             call get_tokens_and_append(linein, c%models(ia)%rad(ib))
            case ('ang')
-             call get_tokens_and_append(linein, c%ang)
+             if(getstr(linein,token)>0) ia = get_index_of_model(token,c%models)
+             if(getstr(linein,token)>0) ib = get_index_of_model(token,c%models)
+             call get_tokens_and_append(linein, c%models(ia)%ang(ib))
            case default
         end select
       endif
@@ -233,61 +278,122 @@ contains
     20 close(iunit)
 
 
-!    if (size(c%models)<0) stop 'ERROR: at least one model must be defined.'
-!    if (c%rad_rc<0) stop 'ERROR: radial feature cutoff must to be positive.'
-!
-!    ! setup feature vector size. 
-!    c%feature_size_rad = 1
-!    if(size(c%rad_mu)>0) c%feature_size_rad = c%feature_size_rad * size(c%rad_mu)
-!    if(size(c%rad_eta)>0) c%feature_size_rad = c%feature_size_rad * size(c%rad_eta)
-!
-!    ! upto here is radial feature
-!    if (c%ang_rc>0) then
-!       c%feature_size_ang = 1
-!       if(size(c%ang_mu)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_mu)
-!       if(size(c%ang_eta)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_eta)
-!       if(size(c%ang_lambda)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_lambda)
-!       if(size(c%ang_zeta)>0) c%feature_size_ang = c%feature_size_ang * size(c%ang_zeta)
-!    endif
-!
-!    c%feature_size = c%feature_size_rad*size(c%models) + c%feature_size_ang
+    do ia=1,size(c%models)
+
+       associate(m=>c%models(ia)) 
+
+         allocate(m%feature_ptr_rad(0),m%feature_ptr_ang(0),m%feature_ptr(2))
+  
+         feature_ptr = 1
+
+         do ib=1,size(m%rad)
+            if(m%rad(ib)%is_defined) then
+               m%feature_ptr_rad = [m%feature_ptr_rad, feature_ptr]
+               feature_ptr = feature_ptr + size(m%rad(ib)%eta)*size(m%rad(ib)%mu)
+            else
+               m%feature_ptr_rad = [m%feature_ptr_rad, -1]
+            endif
+            !print'(a,100i5)','ia,ib,size(e,m),feature_ptr,m%feature_ptr_rad: ', &
+            !    ia,ib,size(m%rad(ib)%eta),size(m%rad(ib)%mu),feature_ptr, m%feature_ptr_rad
+         enddo
+         m%feature_ptr(1) = feature_ptr
+
+         do ib=1,size(m%ang)
+            if(m%ang(ib)%is_defined) then
+               m%feature_ptr_ang = [m%feature_ptr_ang, feature_ptr]
+               feature_ptr = feature_ptr + &
+                  size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%eta)*size(m%ang(ib)%mu)
+            else
+               m%feature_ptr_ang = [m%feature_ptr_ang, -1]
+            endif
+            !print'(a,100i5)','ia,ib,size(l,z,m,e),feature_ptr,m%feature_ptr_ang: ', ia,ib,feature_ptr,  &
+            !      size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%eta),size(m%ang(ib)%mu),m%feature_ptr_ang
+         enddo
+         m%feature_ptr(2) = feature_ptr
+
+         !print'(a,5i6)','ia,size(rad),size(ang),m%feature_ptr(1:2): ', &
+         !        ia,size(m%feature_ptr_rad),size(m%feature_ptr_ang),m%feature_ptr(1:2)
+       end associate
+
+    enddo
 
   end function
 
   subroutine fnn_param_print(this)
     class(fnn_param), intent(in) :: this
-    integer :: i,j
+    integer :: ia,ib,ic
 
-!    print'(a)',repeat('-',60)
-!       print'(a,2i9)', 'feature_size_rad(single & all pair):  ', &
-!               this%feature_size_rad, this%feature_size_rad*size(this%models)
-!       print'(a,i9)', 'feature_size_ang: ', this%feature_size_ang
-!       print'(a,i9)', 'feature_size: ', this%feature_size
-!    print'(a)',repeat('-',60)
-!       print'(a,20f6.2)', 'rad_mu: ', this%rad_mu
-!       print'(a,20f6.2)', 'rad_eta: ', this%rad_eta
-!       print'(a,20f6.2)', 'rad_rc: ', this%rad_rc
-!       print'(a,20f6.2)', 'rad_damp: ', this%rad_damp
-!    print'(a)',repeat('-',60)
-!
-!    if(this%ang_rc>0.0) then
-!       print'(a)',repeat('-',60)
-!          print'(a,20f6.2)', 'ang_mu: ', this%ang_mu
-!          print'(a,20f6.2)', 'ang_eta: ', this%ang_eta
-!          print'(a,20i6)', 'ang_lambda: ', this%ang_lambda
-!          print'(a,20f6.2)', 'ang_zeta: ', this%ang_zeta
-!          print'(a,20f6.2)', 'ang_rc: ', this%ang_rc
-!          print'(a,20f6.2)', 'ang_damp: ', this%ang_damp
-!       print'(a)',repeat('-',60)
-!    endif
-!
-!    do i = 1, size(this%models)
-!       associate(m => this%models(i))
-!          print'(a,2f6.2,10i6)', m%element, m%mass, m%scaling_factor, m%hlayers(:)
-!       end associate
-!    end do
-!    print'(a)',repeat('-',60)
-    
+    do ia=1, size(this%models)
+       write(*,*)
+       write(*,fmt='(a)') repeat('=',60)
+       print'(a,2f8.3)','element,mass,scaling_factor : '//this%models(ia)%element, &
+                        this%models(ia)%mass, this%models(ia)%scaling_factor
+       print'(a,10i5)','layer size: ', this%models(ia)%layersize
+       print'(a,2i6)', 'rad&ang sizes: ', size(this%models(ia)%rad), size(this%models(ia)%ang)
+       write(*,fmt='(a)') repeat('=',60)
+
+       do ib=1,size(this%models(ia)%rad)
+
+          if(.not.this%models(ia)%rad(ib)%is_defined) cycle
+
+          write(*,fmt='(a)') 'radial feature parameters: '//this%models(ia)%element//' - '//this%models(ib)%element
+          write(*,fmt='(a,2f8.3)') 'rc&rdamp: ', &
+               this%models(ia)%rad(ib)%rc, this%models(ia)%rad(ib)%rdamp 
+       
+          write(*,fmt='(a)',advance='no') 'mu: '
+          do ic=1,size(this%models(ia)%rad(ib)%mu)
+             write(*,fmt='(f8.3)',advance='no') this%models(ia)%rad(ib)%mu(ic)
+          enddo
+          write(*,*)
+
+          write(*,fmt='(a)',advance='no') 'eta: '
+          do ic=1,size(this%models(ia)%rad(ib)%eta)
+             write(*,fmt='(f8.3)',advance='no') this%models(ia)%rad(ib)%eta(ic)
+          enddo
+          write(*,*)
+
+          write(*,'(a)') repeat('-',60)
+       enddo
+
+       do ib=1,size(this%models(ia)%ang)
+
+          if(.not.this%models(ia)%ang(ib)%is_defined) cycle
+
+          write(*,fmt='(a,a)') 'angular feature parameters: ', &
+                this%models(ib)%element//' - '//this%models(ia)%element//' - '//this%models(ib)%element
+       
+          write(*,fmt='(a,2f8.3)') 'rc&rdamp: ', &
+               this%models(ia)%ang(ib)%rc, this%models(ia)%ang(ib)%rdamp 
+
+          write(*,fmt='(a)',advance='no') 'lambda: '
+          do ic=1,size(this%models(ia)%ang(ib)%lambda)
+             write(*,fmt='(i3)',advance='no') this%models(ia)%ang(ib)%lambda(ic)
+          enddo
+          write(*,*)
+
+          write(*,fmt='(a)',advance='no') 'zeta: '
+          do ic=1,size(this%models(ia)%ang(ib)%zeta)
+             write(*,fmt='(f8.3)',advance='no') this%models(ia)%ang(ib)%zeta(ic)
+          enddo
+          write(*,*)
+
+          write(*,fmt='(a)',advance='no') 'mu: '
+          do ic=1,size(this%models(ia)%ang(ib)%mu)
+             write(*,fmt='(f8.3)',advance='no') this%models(ia)%ang(ib)%mu(ic)
+          enddo
+          write(*,*)
+
+          write(*,fmt='(a)',advance='no') 'eta: '
+          do ic=1,size(this%models(ia)%ang(ib)%eta)
+             write(*,fmt='(f8.3)',advance='no') this%models(ia)%ang(ib)%eta(ic)
+          enddo
+          write(*,*)
+
+          write(*,'(a)') repeat('-',60)
+       enddo
+      
+    enddo
+
   end subroutine
 
 
@@ -309,7 +415,6 @@ module fnn
 
   implicit none
 
-  real(rk),allocatable :: features(:,:,:) 
 
   integer(ik),parameter :: num_forcecomps = 1
   integer(ik),parameter :: num_networks_per_atom = 3
@@ -329,112 +434,6 @@ subroutine set_potentialtables_fnn()
 
 end subroutine
 
-!!------------------------------------------------------------------------------
-!function sort_pos_by_type(num_atoms, num_types, atype, pos, v, q) result(anum)
-!!------------------------------------------------------------------------------
-!integer(ik),intent(in)  :: num_atoms, num_types
-!real(8),intent(in out),allocatable:: atype(:),pos(:,:),v(:,:),q(:)
-!real(8),allocatable :: atype0(:),pos0(:,:),v0(:,:),q0(:)
-!
-!integer(ik) :: anum(num_types+1), anum1(num_types)
-!
-!integer :: i, ii, ity, nsum
-!
-!!FIXME should be a better way to sort these arrays here.
-!
-!allocate(atype0(num_atoms),pos0(num_atoms,3),v0(num_atoms,3),q0(num_atoms)) 
-!
-!anum=0
-!do i=1, num_atoms
-!   ity = nint(atype(i))+1
-!   anum(ity) = anum(ity)+1
-!enddo
-!
-!anum1=0; nsum=0
-!do i=1, num_atoms
-!
-!   ity = nint(atype(i))
-!   anum1(ity) = anum1(ity)+1
-!
-!   ii = anum(ity)+anum1(ity)
-!
-!   atype0(ii) = atype(i)
-!   pos0(ii,1:3) = pos(i,1:3)
-!   v0(ii,1:3) = v(i,1:3)
-!   q0(ii) = q(i)
-!enddo
-!
-!atype(1:num_atoms)=atype0(1:num_atoms)
-!pos(1:num_atoms,1:3)=pos0(1:num_atoms,1:3)
-!v(1:num_atoms,1:3)=v0(1:num_atoms,1:3)
-!q(1:num_atoms)=q0(1:num_atoms)
-!
-!deallocate(atype0,pos0,v0,q0)
-!
-!end function
-!
-!!------------------------------------------------------------------------------
-!subroutine get_force_fnn1(ff, num_atoms, atype, pos, f, q)
-!!------------------------------------------------------------------------------
-!class(force_field_class),pointer,intent(in out) :: ff
-!type(fnn_param),pointer :: fp => null()
-!integer,intent(in out) :: num_atoms 
-!real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
-!
-!integer(ik) :: i, ii, ity, nn, nl, ncol, nrow, i1,i2, nsum
-!integer(ik),allocatable :: atom_per_type(:)
-!
-!real(rk),allocatable :: x(:,:),y(:,:)
-!
-!! not sure if this is the best way, but binding force_field_class to fnn_parm
-!select type(ff); type is (fnn_param) 
-!   fp => ff
-!end select
-!
-!if(.not.allocated(atom_per_type)) allocate(atom_per_type(0:size(fp%models)))
-!atom_per_type = sort_pos_by_type(num_atoms, size(fp%models), atype, pos, v, q)
-!
-!call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
-!call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
-!
-!call get_features_fnn(num_atoms, atype, pos, features, fp) 
-!
-!nsum = 0
-!do ity = 1, size(fp%models)
-!
-!   nsum = nsum + atom_per_type(ity-1)
-!   i1 = nsum + 1
-!   i2 = nsum + atom_per_type(ity)
-!   !print*,'atom_per_type,nsum,i1,i2: ', atom_per_type, nsum, i1, i2
-!
-!   do nn=1, num_networks_per_atom  ! fx,fy,fz loop
-! 
-!     y = features(nn,1:fp%feature_size,i1:i2)
-! 
-!     associate(n=>fp%models(ity)%networks(nn), m=>fp%models(ity)) 
-!        do nl=1, size(n%dims)-1
-!
-!           x = matmul(n%layers(nl)%w,y)
-!           do i=1, size(x,dim=2)
-!              x(:,i)=x(:,i)+n%layers(nl)%b(:)
-!           enddo
-!
-!           y = max(x,0.0) ! relu
-!           !print*,'ity,nl,shape(x),shape(%w),shape(y): ', ity,nl,shape(x),shape(n%layers(nl)%w),shape(y)
-!        enddo 
-!     end associate
-!
-!     f(i1:i2,nn) = x(1,:) ! update force. 
-!   enddo
-!
-!! TODO: obtained force is scaled by the scaling_factor assuming that the trained
-!! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
-!   f(i1:i2,1:3)=f(i1:i2,1:3)/fp%models(ity)%scaling_factor
-!
-!enddo
-!
-!end subroutine
-
 !------------------------------------------------------------------------------
 subroutine get_force_fnn(ff, num_atoms, atype, pos, f, q)
 !------------------------------------------------------------------------------
@@ -447,43 +446,43 @@ integer(ik) :: i, ity, nn, nl, ncol, nrow
 
 real(rk),allocatable :: x(:),y(:)
 
-!! not sure if this is the best way, but binding force_field_class to fnn_parm
-!select type(ff); type is (fnn_param) 
-!   fp => ff
-!end select
-!
-!call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
-!call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
-!
-!call get_features_fnn(num_atoms, atype, pos, features, fp) 
-!
-!do i=1, num_atoms 
-!  
-!   ity = atype(i)
-!
-!   do nn=1, num_networks_per_atom  ! fx,fy,fz loop
-! 
-!     y = features(nn,1:fp%feature_size,i)
-! 
-!     associate(m=>fp%models(ity), n=>fp%models(ity)%networks(nn)) 
-!        do nl=1, size(n%dims)-1
-!           x = matmul(n%layers(nl)%w,y) + n%layers(nl)%b
-!
-!           !print'(a,3i4,4i6)','i,ity,nn,shape(w),shape(b),shape(x): ', &
-!           !        i,ity,nn,shape(n%layers(nl)%w),shape(n%layers(nl)%b),shape(x)
-!
-!           y = max(x,0.0) ! relu
-!        enddo 
-!     end associate
-! 
-!     f(i,nn) = x(1) ! update force
-!   enddo
-!
-!! TODO: obtained force is scaled by the scaling_factor assuming that the trained
-!! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
-!   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor
-!
-!enddo
+! not sure if this is the best way, but binding force_field_class to fnn_parm
+select type(ff); type is (fnn_param) 
+   fp => ff
+end select
+
+call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
+
+call get_features_fnn(num_atoms, atype, pos, fp) 
+
+do i=1, num_atoms 
+  
+   ity = atype(i)
+
+   do nn=1, num_networks_per_atom  ! fx,fy,fz loop
+ 
+     y = fp%models(ity)%features(nn,1:fp%models(ity)%layersize(1),i)
+ 
+     associate(m=>fp%models(ity), n=>fp%models(ity)%networks(nn)) 
+        do nl=1, size(n%dims)-1
+           x = matmul(n%layers(nl)%w,y) + n%layers(nl)%b
+
+           !print'(a,3i4,4i6)','i,ity,nn,shape(w),shape(b),shape(x): ', &
+           !        i,ity,nn,shape(n%layers(nl)%w),shape(n%layers(nl)%b),shape(x)
+
+           y = max(x,0.0) ! relu
+        enddo 
+     end associate
+ 
+     f(i,nn) = x(1) ! update force
+   enddo
+
+! TODO: obtained force is scaled by the scaling_factor assuming that the trained
+! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
+   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor
+
+enddo
 
 end subroutine
 
@@ -570,16 +569,15 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_features_fnn(num_atoms, atype, pos, features, fp)
+subroutine get_features_fnn(num_atoms, atype, pos, fp)
 !------------------------------------------------------------------------------
 integer,intent(in) :: num_atoms
 real(8),intent(in),allocatable :: atype(:), pos(:,:)
-real(rk),allocatable,intent(in out) :: features(:,:,:)
-type(fnn_param),intent(in) :: fp
+type(fnn_param),intent(in out) :: fp
 
 real(rk) :: rr(3), rr2, rij, dsum 
 integer(ik) :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii
-integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,inxn
+integer(ik) :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,kty,inxn
 
 integer(ik) :: nnbr, lnbr(MAXNEIGHBS)
 integer(ik) :: idx, idx_stride, l1_stride, l2_stride, l3_stride, l4_stride
@@ -588,161 +586,178 @@ real(rk) :: cos_ijk, lambda_ijk, rijk_inv, zeta_G3a, zeta_G3b, zeta_G3b_0, zeta_
 
 real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 
-!features = 0.0
-!
-!nbrlist(:,0) = 0
-!
-!idx_stride = fp%feature_size_rad
-!l1_stride = size(fp%rad_eta)
-!
-!!$omp parallel do default(shared) collapse(3) & 
-!!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
-!do c1=0, cc(1)-1
-!do c2=0, cc(2)-1
-!do c3=0, cc(3)-1
-!
-!  i = header(c1, c2, c3)
-!  do i1=1, nacell(c1, c2, c3)
-!     ity = nint(atype(i))
-!
-!     !print'(3i6,i6,3f10.5)',c1,c2,c3,m,pos(m,1:3)
-!
-!     do c4 = -1, 1
-!     do c5 = -1, 1
-!     do c6 = -1, 1
-!        ic(1:3) = [c1+c4, c2+c5, c3+c6]
-!
-!        j = header(ic(1),ic(2),ic(3))
-!        do j1=1, nacell(ic(1), ic(2), ic(3))
-!
-!           if(i/=j) then
-!             jty = nint(atype(j))
-!             inxn = pair_types(ity, jty)
-!
-!             rr(1:3) = pos(i,1:3) - pos(j,1:3)
-!             rr2 = sum(rr(1:3)*rr(1:3))
-!             rij = sqrt(rr2)
-!
-!             if(rij<fp%rad_rc) then
-!
-!                if(rij<fp%ang_rc .and. ity /= jty) then
-!                   nbrlist(i, 0) = nbrlist(i, 0) + 1
-!                   nbrlist(i, nbrlist(i, 0)) = j
-!                endif
-!
-!                rr(1:3) = rr(1:3)/rij
-!                fc_ij = 0.5*( 1.0 + cos(pi*rij/fp%rad_damp) ) 
-!
-!                do l1 = 1, size(fp%rad_mu)
-!
-!                   rij_mu = rij - fp%rad_mu(l1)
-!
-!                   do l2 = 1, size(fp%rad_eta)
-!
-!                      eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
-!
-!                      idx = (jty-1)*idx_stride + (l1-1)*l1_stride + l2
-!                      features(1:3,idx,i) = features(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
-!                   enddo
-!
-!                enddo
-!             endif
-!
-!           endif
-!
-!           j=llist(j)
-!        enddo
-!     enddo; enddo; enddo
-!
-!     i = llist(i)
-!  enddo
-!enddo; enddo; enddo
-!!$omp end parallel do 
-!
-!! return if the angular cutoff is not given.
-!if(fp%ang_rc < 0.0) return
-!
-!idx_stride = fp%feature_size_rad*size(fp%models)
-!
-!l1_stride = size(fp%ang_lambda)*size(fp%ang_zeta)*size(fp%ang_eta)
-!l2_stride = size(fp%ang_zeta)*size(fp%ang_eta)
-!l3_stride = size(fp%ang_eta)
-!l4_stride = 1
-!
-!do j=1, num_atoms
-!
-!   do i1=1, nbrlist(j,0)-1
-!      i = nbrlist(j,i1)
-!
-!      r_ij(1:3) = pos(j,1:3) - pos(i,1:3)
-!      r_ij(0) = sqrt( sum(r_ij(1:3)*r_ij(1:3)) )
-!      r_ij_norm(1:3) = r_ij(1:3)/r_ij(0)
-!
-!      fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/fp%ang_damp) ) 
-!
-!      do k1=i1+1, nbrlist(j,0)
-!         k = nbrlist(j,k1)
-!
-!         r_kj(1:3) = pos(j,1:3) - pos(k,1:3)
-!         r_kj(0) = sqrt( sum(r_kj(1:3)*r_kj(1:3)) )
-!         r_kj_norm(1:3) = r_kj(1:3)/r_kj(0)
-!
-!         rijk_inv = 1.0/(r_ij(0) * r_kj(0))
-!
-!         fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/fp%ang_damp) ) 
-!
-!         cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) * rijk_inv
-!
-!         G3a_c1 = r_ij(0)-r_kj(0)*cos_ijk
-!         G3a_c2 = r_kj(0)-r_ij(0)*cos_ijk
-!
-!         G3a_xyz(1:3) = (r_ij_norm(1:3)*G3a_c1 + r_kj_norm(1:3)*G3a_c2)*rijk_inv*fc_ij*fc_kj
-!         G3b_xyz(1:3) = (r_ij_norm(1:3) + r_kj_norm(1:3))*fc_ij*fc_kj
-!
-!! l1: mu, l2:lambda, l3:zeta, l4:eta
-!         do l1=1, size(fp%ang_mu)
-!
-!            rij_mu = r_ij(0) - fp%ang_mu(l1)
-!            rkj_mu = r_kj(0) - fp%ang_mu(l1)
-!
-!            do l2=1, size(fp%ang_lambda)
-!
-!               lambda_ijk = 1.0 + fp%ang_lambda(l2)*cos_ijk 
-!
-!               do l3=1, size(fp%ang_zeta)
-!
-!                  zeta_const = 2.0**(1.0-fp%ang_zeta(l3))
-!                  zeta_G3a = fp%ang_zeta(l3) * fp%ang_lambda(l2) * zeta_const * (lambda_ijk**(fp%ang_zeta(l3)-1))
-!                  zeta_G3b_0 = zeta_const * (lambda_ijk**fp%ang_zeta(l3))
-!
-!                  do l4=1, size(fp%ang_eta)
-!
-!                     zeta_G3b = - 2.0*fp%ang_eta(l4) * zeta_G3b_0
-!
-!                     eta_ij = exp( -fp%ang_eta(l4) * rij_mu * rij_mu )
-!                     eta_kj = exp( -fp%ang_eta(l4) * rkj_mu * rkj_mu )
-!
-!                     G3_mu_eta = eta_ij*eta_kj
-!
-!                     idx = idx_stride + 1 + &
-!                         (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
-!
-!                     features(1:3,idx,j) = features(1:3,idx,j) + &
-!                         G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
-!
-!         enddo; enddo; enddo; enddo
-!          
-!      enddo
-!   enddo
-!
-!enddo
-!
-!do i=1, num_atoms
-!   ity = int(atype(i))
-!   do j = 1, 3 ! xyz-loop
-!      features(j,:,i)=(features(j,:,i)-fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
-!   enddo 
-!enddo
+nbrlist(:,0) = 0
+
+!$omp parallel do default(shared) collapse(3) & 
+!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
+do c1=0, cc(1)-1
+do c2=0, cc(2)-1
+do c3=0, cc(3)-1
+
+  i = header(c1, c2, c3)
+  do i1=1, nacell(c1, c2, c3)
+     ity = nint(atype(i))
+
+     !print'(3i6,i6,3f10.5)',c1,c2,c3,m,pos(m,1:3)
+
+     do c4 = -1, 1
+     do c5 = -1, 1
+     do c6 = -1, 1
+        ic(1:3) = [c1+c4, c2+c5, c3+c6]
+
+        j = header(ic(1),ic(2),ic(3))
+        do j1=1, nacell(ic(1), ic(2), ic(3))
+
+           if(i/=j) then
+             jty = nint(atype(j))
+             !inxn = pair_types(ity, jty)
+
+             rr(1:3) = pos(i,1:3) - pos(j,1:3)
+             rr2 = sum(rr(1:3)*rr(1:3))
+             rij = sqrt(rr2)
+
+             associate( rad=>fp%models(ity)%rad(jty), ang=>fp%models(ity)%ang(jty), &
+                ptr_rad=>fp%models(ity)%feature_ptr_rad(jty), feats=>fp%models(ity)%features ) 
+
+                if(rij<rad%rc) then
+  
+                  if(rij<ang%rc) then
+                     nbrlist(i, 0) = nbrlist(i, 0) + 1
+                     nbrlist(i, nbrlist(i, 0)) = j
+                  endif
+  
+                  rr(1:3) = rr(1:3)/rij
+                  fc_ij = 0.5*( 1.0 + cos(pi*rij/rad%rdamp) ) 
+  
+                  do l1 = 1, size(rad%mu)
+  
+                     !rij_mu = rij - fp%rad_mu(l1)
+                     rij_mu = rij - rad%mu(l1)
+  
+                     do l2 = 1, size(rad%eta)
+  
+                        !eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
+                        eta_ij = exp( -rad%eta(l2) * rij_mu * rij_mu )
+  
+                        idx = ptr_rad + (l1-1)*size(rad%mu) + l2
+                        feats(1:3,idx,i) = feats(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
+                     enddo
+  
+                  enddo
+
+                endif
+
+             end associate
+
+           endif
+
+           j=llist(j)
+        enddo
+     enddo; enddo; enddo
+
+     i = llist(i)
+  enddo
+enddo; enddo; enddo
+!$omp end parallel do 
+
+
+do j=1, num_atoms
+
+   jty = nint(atype(j))
+
+   do i1=1, nbrlist(j,0)
+
+      i = nbrlist(j,i1)
+      ity = nint(atype(i))
+
+      if(.not. fp%models(jty)%ang(ity)%is_defined) cycle
+
+      r_ij(1:3) = pos(j,1:3) - pos(i,1:3)
+      r_ij(0) = sqrt( sum(r_ij(1:3)*r_ij(1:3)) )
+      r_ij_norm(1:3) = r_ij(1:3)/r_ij(0)
+
+      fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/fp%models(jty)%ang(ity)%rdamp) ) 
+
+      do k1=i1, nbrlist(j,0)
+
+         k = nbrlist(j,k1)
+         kty = nint(atype(k))
+
+         ! NOTE: from here on, assuming (ity==kty) and (i!=j) and &
+         ! angular-features parameters for ity & kty are defined.
+         if(ity/=kty .or. i==k) cycle
+
+         r_kj(1:3) = pos(j,1:3) - pos(k,1:3)
+         r_kj(0) = sqrt( sum(r_kj(1:3)*r_kj(1:3)) )
+         r_kj_norm(1:3) = r_kj(1:3)/r_kj(0)
+
+         rijk_inv = 1.0/(r_ij(0) * r_kj(0))
+
+         associate(ang=>fp%models(jty)%ang(ity), feats=>fp%models(jty)%features, & 
+                   ptr_ang=>fp%models(jty)%feature_ptr_ang(ity))
+  
+           fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/ang%rdamp) ) 
+  
+           cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) * rijk_inv
+  
+           G3a_c1 = r_ij(0)-r_kj(0)*cos_ijk
+           G3a_c2 = r_kj(0)-r_ij(0)*cos_ijk
+  
+           G3a_xyz(1:3) = (r_ij_norm(1:3)*G3a_c1 + r_kj_norm(1:3)*G3a_c2)*rijk_inv*fc_ij*fc_kj
+           G3b_xyz(1:3) = (r_ij_norm(1:3) + r_kj_norm(1:3))*fc_ij*fc_kj
+  
+  ! l1: mu, l2:lambda, l3:zeta, l4:eta
+           do l1=1, size(ang%mu)
+  
+              rij_mu = r_ij(0) - ang%mu(l1)
+              rkj_mu = r_kj(0) - ang%mu(l1)
+  
+              do l2=1, size(ang%lambda)
+  
+                 lambda_ijk = 1.0 + ang%lambda(l2)*cos_ijk 
+  
+                 do l3=1, size(ang%zeta)
+  
+                    zeta_const = 2.0**(1.0-ang%zeta(l3))
+                    zeta_G3a = ang%zeta(l3) * ang%lambda(l2) * zeta_const * (lambda_ijk**(ang%zeta(l3)-1))
+                    zeta_G3b_0 = zeta_const * (lambda_ijk**ang%zeta(l3))
+  
+                    do l4=1, size(ang%eta)
+  
+                       zeta_G3b = - 2.0*ang%eta(l4) * zeta_G3b_0
+  
+                       eta_ij = exp( -ang%eta(l4) * rij_mu * rij_mu )
+                       eta_kj = exp( -ang%eta(l4) * rkj_mu * rkj_mu )
+  
+                       G3_mu_eta = eta_ij*eta_kj
+
+                       l1_stride = size(ang%lambda)*size(ang%zeta)*size(ang%eta)
+                       l2_stride = size(ang%zeta)*size(ang%eta)
+                       l3_stride = size(ang%eta)
+                       l4_stride = 1
+  
+                       idx = ptr_ang + &
+                           (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
+  
+                       feats(1:3,idx,j) = feats(1:3,idx,j) + &
+                           G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
+  
+           enddo; enddo; enddo; enddo
+
+         end associate
+          
+      enddo
+   enddo
+
+enddo
+
+do i=1, num_atoms
+   ity = int(atype(i))
+   do j = 1, 3 ! xyz-loop
+      fp%models(ity)%features(j,:,i)=(fp%models(ity)%features(j,:,i)-fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
+      print*,i,ity,size(fp%models(ity)%features(j,:,i))
+   enddo 
+enddo
 
 
 return
@@ -761,40 +776,40 @@ integer(ik) :: funit_m, funit_s
 logical :: exist_m, exist_s
 character(len=:),allocatable :: filename_m, filename_s
 
-!filename_m = path//'feature_mean_'//int_to_str(feature_size)//'.'//suffix
-!filename_s = path//'feature_stddev_'//int_to_str(feature_size)//'.'//suffix
-!
-!if(.not.allocated(mean)) allocate(mean(feature_size))
-!if(.not.allocated(stddev)) allocate(stddev(feature_size))
-!
-!inquire(file=filename_m, exist=exist_m)
-!inquire(file=filename_s, exist=exist_s)
-!
-!! mean and stddev must exist, otherwise no feature vector standardization.
-!if(exist_m .and. exist_s) then
-!
-!  open(newunit=funit_m, file=filename_m, access='stream', form='formatted', status='old')
-!  if(myid==0) read(funit_m,*) mean
-!  call MPI_BCAST(mean, size(mean), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
-!  close(funit_m)
-!
-!  open(newunit=funit_s, file=filename_s, access='stream', form='formatted', status='old')
-!  if(myid==0) read(funit_s,*) stddev
-!  call MPI_BCAST(stddev, size(stddev), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
-!  close(funit_s)
-!
-!  if(present(verbose) .and. verbose) &
-!     write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
-!else
-!  if(present(verbose) .and. verbose) then
-!     print'(a)', repeat('-',60)
-!     print'(a)', 'INFO: '//filename_m//' & '//filename_s//' not be used.'
-!     print'(a)', repeat('-',60)
-!  endif
-!
-!  mean=0.0
-!  stddev=1.0
-!endif
+filename_m = path//'feature_mean_'//int_to_str(feature_size)//'.'//suffix
+filename_s = path//'feature_stddev_'//int_to_str(feature_size)//'.'//suffix
+
+if(.not.allocated(mean)) allocate(mean(feature_size))
+if(.not.allocated(stddev)) allocate(stddev(feature_size))
+
+inquire(file=filename_m, exist=exist_m)
+inquire(file=filename_s, exist=exist_s)
+
+! mean and stddev must exist, otherwise no feature vector standardization.
+if(exist_m .and. exist_s) then
+
+  open(newunit=funit_m, file=filename_m, access='stream', form='formatted', status='old')
+  if(myid==0) read(funit_m,*) mean
+  call MPI_BCAST(mean, size(mean), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
+  close(funit_m)
+
+  open(newunit=funit_s, file=filename_s, access='stream', form='formatted', status='old')
+  if(myid==0) read(funit_s,*) stddev
+  call MPI_BCAST(stddev, size(stddev), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
+  close(funit_s)
+
+  if(present(verbose) .and. verbose) &
+     write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
+else
+  if(present(verbose) .and. verbose) then
+     print'(a)', repeat('-',60)
+     print'(a)', 'INFO: '//filename_m//' & '//filename_s//' not be used.'
+     print'(a)', repeat('-',60)
+  endif
+
+  mean=0.0
+  stddev=1.0
+endif
 
 end subroutine
 
