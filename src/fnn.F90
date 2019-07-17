@@ -13,7 +13,7 @@ module fnnin_parser
   integer,parameter :: rk = real32 ! rk = real64
   integer,parameter :: ik = int32 ! ik = int64
 
-  integer,parameter :: NUM_ANG_MODES=2
+  integer,parameter :: NUM_ANG_MODES=2 ! number of modes in a triplet
 
   type :: layer
     real(rk),allocatable :: b(:)
@@ -236,14 +236,14 @@ contains
     end do
     10 rewind(iunit)
 
-    if (size(c%models)<0) stop 'ERROR: at least one model must be defined.'
+    if (size(c%models)<=0) stop 'ERROR: at least one model must be defined.'
 
     ! radial and angular parameters are defined for atomic pairs & triplets
     num_models = size(c%models)
     do ia=1,size(c%models)
        allocate(c%models(ia)%rad(num_models), c%models(ia)%ang(num_models))
        
-       ! initialize param arrays for the pair and triples. if the param exsits
+       ! initialize param arrays for the pairs and triples. if the param exsits
        ! in fnn.in, is_defined becomes .true.
        do ib=1,size(c%models)
           c%models(ia)%rad(ib)%is_defined=.false.
@@ -279,9 +279,9 @@ contains
     end do
     20 close(iunit)
 
-    ! compute pointers to specify where feature vectors will be stored based on atom-types
-    ! the first array index for an ity-jty pair is models(ity)%feature_ptr_rad(jty). 
-    ! the first array index for an ity-jty-kty triplet is models(jty)%feature_ptr_ang(ity or kty). 
+! compute pointers to specify where feature vectors will be stored based on atom-types.
+!   radial: the first array index for an ity-jty pair is models(ity)%feature_ptr_rad(jty). 
+!   angular: the first array index for an ity-jty-kty triplet is models(jty)%feature_ptr_ang(ity or kty). 
     do ia=1,size(c%models)
 
        associate(m=>c%models(ia)) 
@@ -449,9 +449,9 @@ integer :: i, ity, iunit
 
 open(newunit=iunit,file=filename//"_feature.xyz",form='formatted')
 write(iunit,'(i6)') num_atoms
-write(iunit,'(6f12.5)') HH(1,1,0),HH(2,2,0),HH(3,3,0),HH(2,3,0),HH(3,1,0),HH(1,2,0)
+write(iunit,'(6f12.5)') lata,latb,latc,lalpha,lbeta,lgamma
 do i=1, num_atoms
-   ity=atype(i)
+   ity=nint(atype(i))
    write(iunit,fmt='(a,6f12.5,3x)') fp%models(ity)%element,pos(i,1:3),f(i,1:3)
 enddo
 close(iunit)
@@ -666,8 +666,10 @@ do c3=0, cc(3)-1
              rr2 = sum(rr(1:3)*rr(1:3))
              rij = sqrt(rr2)
 
-             associate( rad=>fp%models(ity)%rad(jty), ang=>fp%models(ity)%ang(jty), &
-                ptr_rad=>fp%models(ity)%feature_ptr_rad(jty), feats=>fp%models(ity)%features ) 
+             associate( rad => fp%models(ity)%rad(jty), &
+                        ang => fp%models(ity)%ang(jty), &
+                        ptr_rad => fp%models(ity)%feature_ptr_rad(jty), &
+                        feats => fp%models(ity)%features ) 
 
                 if(rij<rad%rc) then
   
@@ -743,8 +745,14 @@ do j=1, num_atoms
 
          rijk_inv = 1.0/(r_ij(0) * r_kj(0))
 
-         associate(ang=>fp%models(jty)%ang(ity), feats=>fp%models(jty)%features, & 
-                   ptr_ang=>fp%models(jty)%feature_ptr_ang(ity))
+         associate(ang => fp%models(jty)%ang(ity), &
+                   ptr_ang => fp%models(jty)%feature_ptr_ang(ity), &
+                   feats => fp%models(jty)%features )
+
+           l1_stride = ang%modes*size(ang%eta)*size(ang%zeta)*size(ang%lambda)
+           l2_stride = ang%modes*size(ang%eta)*size(ang%zeta)
+           l3_stride = ang%modes*size(ang%eta)
+           l4_stride = ang%modes
   
            fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/ang%rdamp) ) 
   
@@ -781,11 +789,6 @@ do j=1, num_atoms
   
                        G3_mu_eta = eta_ij*eta_kj
 
-                       l1_stride = ang%modes*size(ang%lambda)*size(ang%zeta)*size(ang%eta)
-                       l2_stride = ang%modes*size(ang%zeta)*size(ang%eta)
-                       l3_stride = ang%modes*size(ang%eta)
-                       l4_stride = ang%modes
-  
                        idx = ptr_ang + &
                            (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
   
@@ -804,7 +807,7 @@ do j=1, num_atoms
 enddo
 
 do i=1, num_atoms
-   ity = int(atype(i))
+   ity = nint(atype(i))
    do j = 1, 3 ! xyz-loop
       fp%models(ity)%features(j,:,i)=(fp%models(ity)%features(j,:,i)-fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
    enddo 
