@@ -10,11 +10,8 @@ module fnnin_parser
 
   implicit none
 
-  !integer,parameter :: rk = real64
-  integer,parameter :: rk = real32
-
-  !integer, parameter :: ik = int64
-  integer, parameter :: ik = int32
+  integer,parameter :: rk = real32 ! rk = real64
+  integer, parameter :: ik = int32 ! ik = int64
 
   type :: layer
     real(rk),allocatable :: b(:)
@@ -49,17 +46,15 @@ module fnnin_parser
     real(rk) :: mass
     real(rk) :: scaling_factor
 
-    real(rk),allocatable :: features(:,:,:) 
-
-    !integer(ik),allocatable :: hlayers(:)
     integer(ik),allocatable :: layersize(:)
-
     type(network),allocatable :: networks(:)
     type(feature_stat),allocatable :: fstat(:)
 
     type(rad_feature_type),allocatable :: rad(:) ! params for B in A-B
     type(ang_feature_type),allocatable :: ang(:) ! params for B in B-A-B
-    integer(ik),allocatable :: feature_ptr_rad(:), feature_ptr_ang(:), feature_ptr(:)
+
+    real(rk),allocatable :: features(:,:,:) 
+    integer(ik),allocatable :: feature_ptr_rad(:), feature_ptr_ang(:), num_features(:)
   end type
 
   type, extends(force_field_class) :: fnn_param
@@ -97,6 +92,8 @@ contains
           if(max_rc<fp%models(ia)%ang(ib)%rc) max_rc = fp%models(ia)%ang(ib)%rc
        enddo
     enddo
+
+    print*,'max_rc : ', max_rc
 
     return 
   end function
@@ -243,7 +240,8 @@ contains
     do ia=1,size(c%models)
        allocate(c%models(ia)%rad(num_models), c%models(ia)%ang(num_models))
        
-       ! initialize params for the pair and triples
+       ! initialize param arrays for the pair and triples. if the param exsits
+       ! in fnn.in, is_defined becomes .true.
        do ib=1,size(c%models)
           c%models(ia)%rad(ib)%is_defined=.false.
           c%models(ia)%ang(ib)%is_defined=.false.
@@ -277,12 +275,14 @@ contains
     end do
     20 close(iunit)
 
-
+    ! compute pointers to specify where feature vectors will be stored based on atom-types
+    ! the first array index for an ity-jty pair is models(ity)%feature_ptr_rad(jty). 
+    ! the first array index for an ity-jty-kty triplet is models(jty)%feature_ptr_ang(ity or kty). 
     do ia=1,size(c%models)
 
        associate(m=>c%models(ia)) 
 
-         allocate(m%feature_ptr_rad(0),m%feature_ptr_ang(0),m%feature_ptr(2))
+         allocate(m%feature_ptr_rad(0),m%feature_ptr_ang(0),m%num_features(2))
   
          feature_ptr = 1
 
@@ -296,7 +296,7 @@ contains
             !print'(a,100i5)','ia,ib,size(e,m),feature_ptr,m%feature_ptr_rad: ', &
             !    ia,ib,size(m%rad(ib)%eta),size(m%rad(ib)%mu),feature_ptr, m%feature_ptr_rad
          enddo
-         m%feature_ptr(1) = feature_ptr
+         m%num_features(1) = feature_ptr - 1
 
          do ib=1,size(m%ang)
             if(m%ang(ib)%is_defined) then
@@ -309,10 +309,10 @@ contains
             !print'(a,100i5)','ia,ib,size(l,z,m,e),feature_ptr,m%feature_ptr_ang: ', ia,ib,feature_ptr,  &
             !      size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%eta),size(m%ang(ib)%mu),m%feature_ptr_ang
          enddo
-         m%feature_ptr(2) = feature_ptr
+         m%num_features(2) = feature_ptr - 1 - m%num_features(1)
 
          !print'(a,5i6)','ia,size(rad),size(ang),m%feature_ptr(1:2): ', &
-         !        ia,size(m%feature_ptr_rad),size(m%feature_ptr_ang),m%feature_ptr(1:2)
+         !        ia,size(m%feature_ptr_rad),size(m%feature_ptr_ang),m%num_features(1:2)
        end associate
 
     enddo
@@ -324,75 +324,80 @@ contains
     integer :: ia,ib,ic
 
     do ia=1, size(this%models)
+
+       associate(m=>this%models(ia))
+
        write(*,*)
        write(*,fmt='(a)') repeat('=',60)
-       print'(a,2f8.3)','element,mass,scaling_factor : '//this%models(ia)%element, &
-                        this%models(ia)%mass, this%models(ia)%scaling_factor
-       print'(a,10i5)','layer size: ', this%models(ia)%layersize
-       print'(a,2i6)', 'rad&ang sizes: ', size(this%models(ia)%rad), size(this%models(ia)%ang)
+       print'(a,i3,2a,2f10.3)', 'element,mass,scaling_factor : ', & 
+            get_index_of_model(m%element,this%models),'-',m%element, m%mass, m%scaling_factor
+       print'(a,10i5)','layer size: ', m%layersize
+       print'(a,2i6)', 'rad&ang sizes: ', size(m%rad), size(m%ang)
+       write(*,fmt='(a,10i6)',advance='no') 'feature_ptr_(rad,ang): ', m%feature_ptr_rad
+       write(*,fmt='(a,10i6)') ', ', m%feature_ptr_ang
+       print'(a,3i6)', 'num_features(rad,ang),total: ', m%num_features, sum(m%num_features)
+
+       print'(a)',repeat('-',60)
+       do ib=1,size(m%rad)
+          if(.not.m%rad(ib)%is_defined) cycle
+
+          write(*,fmt='(a)',advance='no') m%element//' '//this%models(ib)%element
+          write(*,fmt='(a,2i3,i6)') '    size(mu,eta,total): ', &
+             size(m%rad(ib)%mu), size(m%rad(ib)%eta), size(m%rad(ib)%mu)*size(m%rad(ib)%eta)
+       enddo
+
+       do ib=1,size(m%rad)
+          if(.not.m%rad(ib)%is_defined) cycle
+          write(*,fmt='(a,2i2,1x,a,1x)',advance='no') 'rad_params: ', &
+             get_index_of_model(m%element,this%models), get_index_of_model(this%models(ib)%element,this%models), &
+             m%element//'-'//this%models(ib)%element
+
+          write(*,fmt='(a,2f6.2)', advance='no') repeat(' ',3), m%rad(ib)%rc, m%rad(ib)%rdamp 
+          write(*,fmt='(a,i6)',advance='no') repeat(' ',3)
+          do ic=1,size(m%rad(ib)%mu);  write(*,fmt='(f6.2)',advance='no') m%rad(ib)%mu(ic);  enddo
+          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          do ic=1,size(m%rad(ib)%eta);  write(*,fmt='(f6.2)',advance='no') m%rad(ib)%eta(ic);  enddo
+          write(*,*)
+       enddo
+
+       print'(a)',repeat('-',60)
+       do ib=1,size(m%ang)
+          if(.not.m%ang(ib)%is_defined) cycle
+          write(*,fmt='(a,a)', advance='no') this%models(ib)%element//' '//m%element//' '//this%models(ib)%element
+          write(*,fmt='(a,4i3,i6)') '   size(lambda,zeta,mu,eta,total): ', &
+                size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%mu),size(m%ang(ib)%eta), &
+                size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%mu)*size(m%ang(ib)%eta)
+       enddo
+       do ib=1,size(m%ang)
+          if(.not.m%ang(ib)%is_defined) cycle
+          write(*,fmt='(a,3i2,1x,a,1x)', advance='no') 'ang_params: ', &
+             get_index_of_model(this%models(ib)%element,this%models), &
+             get_index_of_model(m%element,this%models),&
+             get_index_of_model(this%models(ib)%element,this%models), &
+             this%models(ib)%element//'-'//m%element//'-'//this%models(ib)%element
+
+          write(*,fmt='(a,2f8.3)',advance='no') repeat(' ',3), m%ang(ib)%rc, m%ang(ib)%rdamp 
+          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          do ic=1,size(m%ang(ib)%lambda);  write(*,fmt='(i3)',advance='no') m%ang(ib)%lambda(ic);  enddo
+
+          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          do ic=1,size(m%ang(ib)%zeta);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%zeta(ic);  enddo
+
+          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          do ic=1,size(m%ang(ib)%mu);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%mu(ic);  enddo
+
+          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          do ic=1,size(m%ang(ib)%eta);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%eta(ic);  enddo
+
+          write(*,*)
+       enddo
+
        write(*,fmt='(a)') repeat('=',60)
 
-       do ib=1,size(this%models(ia)%rad)
-
-          if(.not.this%models(ia)%rad(ib)%is_defined) cycle
-
-          write(*,fmt='(a)') 'radial feature parameters: '//this%models(ia)%element//' - '//this%models(ib)%element
-          write(*,fmt='(a,2f8.3)') 'rc&rdamp: ', &
-               this%models(ia)%rad(ib)%rc, this%models(ia)%rad(ib)%rdamp 
-       
-          write(*,fmt='(a)',advance='no') 'mu: '
-          do ic=1,size(this%models(ia)%rad(ib)%mu)
-             write(*,fmt='(f8.3)',advance='no') this%models(ia)%rad(ib)%mu(ic)
-          enddo
-          write(*,*)
-
-          write(*,fmt='(a)',advance='no') 'eta: '
-          do ic=1,size(this%models(ia)%rad(ib)%eta)
-             write(*,fmt='(f8.3)',advance='no') this%models(ia)%rad(ib)%eta(ic)
-          enddo
-          write(*,*)
-
-          write(*,'(a)') repeat('-',60)
-       enddo
-
-       do ib=1,size(this%models(ia)%ang)
-
-          if(.not.this%models(ia)%ang(ib)%is_defined) cycle
-
-          write(*,fmt='(a,a)') 'angular feature parameters: ', &
-                this%models(ib)%element//' - '//this%models(ia)%element//' - '//this%models(ib)%element
-       
-          write(*,fmt='(a,2f8.3)') 'rc&rdamp: ', &
-               this%models(ia)%ang(ib)%rc, this%models(ia)%ang(ib)%rdamp 
-
-          write(*,fmt='(a)',advance='no') 'lambda: '
-          do ic=1,size(this%models(ia)%ang(ib)%lambda)
-             write(*,fmt='(i3)',advance='no') this%models(ia)%ang(ib)%lambda(ic)
-          enddo
-          write(*,*)
-
-          write(*,fmt='(a)',advance='no') 'zeta: '
-          do ic=1,size(this%models(ia)%ang(ib)%zeta)
-             write(*,fmt='(f8.3)',advance='no') this%models(ia)%ang(ib)%zeta(ic)
-          enddo
-          write(*,*)
-
-          write(*,fmt='(a)',advance='no') 'mu: '
-          do ic=1,size(this%models(ia)%ang(ib)%mu)
-             write(*,fmt='(f8.3)',advance='no') this%models(ia)%ang(ib)%mu(ic)
-          enddo
-          write(*,*)
-
-          write(*,fmt='(a)',advance='no') 'eta: '
-          do ic=1,size(this%models(ia)%ang(ib)%eta)
-             write(*,fmt='(f8.3)',advance='no') this%models(ia)%ang(ib)%eta(ic)
-          enddo
-          write(*,*)
-
-          write(*,'(a)') repeat('-',60)
-       enddo
+       end associate
       
     enddo
+    write(*,*) 
 
   end subroutine
 
@@ -428,6 +433,40 @@ module fnn
 contains
 
 !------------------------------------------------------------------------------
+subroutine save_features_and_terminate(num_atoms, atype, pos, f, fp, filename) 
+!------------------------------------------------------------------------------
+integer,intent(in) :: num_atoms 
+real(8),intent(in),allocatable :: atype(:), pos(:,:), f(:,:)
+type(fnn_param),intent(in) :: fp
+character(len=:),allocatable,intent(in) :: filename
+
+integer :: i, ity, iunit
+
+open(newunit=iunit,file=filename//"_feature.xyz",form='formatted')
+write(iunit,'(i6)') num_atoms
+write(iunit,'(6f12.5)') HH(1,1,0),HH(2,2,0),HH(3,3,0),HH(2,3,0),HH(3,1,0),HH(1,2,0)
+do i=1, num_atoms
+   ity=atype(i)
+   write(iunit,fmt='(a,6f12.5,3x)') fp%models(ity)%element,pos(i,1:3),f(i,1:3)
+enddo
+close(iunit)
+
+open(newunit=iunit,file=filename//"_feature.bin",access='stream',form='unformatted')
+do i=1, num_atoms
+   ity=atype(i)
+   write(iunit) fp%models(ity)%features(1,:,i)
+   write(iunit) fp%models(ity)%features(2,:,i)
+   write(iunit) fp%models(ity)%features(3,:,i)
+enddo
+close(iunit)
+
+if(myid==0) print'(a)','saved feature vectors in '//filename
+call MPI_FINALIZE(ierr)
+stop 
+
+end subroutine
+
+!------------------------------------------------------------------------------
 subroutine set_potentialtables_fnn()
 !------------------------------------------------------------------------------
 ! TODO: implement 
@@ -455,6 +494,8 @@ call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_features_fnn(num_atoms, atype, pos, fp) 
+if(isRunFromXYZ) &
+  call save_features_and_terminate(num_atoms,atype,pos,f,fp,RunFromXYZPath) 
 
 do i=1, num_atoms 
   
@@ -755,10 +796,8 @@ do i=1, num_atoms
    ity = int(atype(i))
    do j = 1, 3 ! xyz-loop
       fp%models(ity)%features(j,:,i)=(fp%models(ity)%features(j,:,i)-fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
-      print*,i,ity,size(fp%models(ity)%features(j,:,i))
    enddo 
 enddo
-
 
 return
 end subroutine
@@ -827,6 +866,7 @@ character(len=:),allocatable :: arow, acol, alayer
 
 integer(ik) :: i, nrow, ncol, fileunit
 integer(ik) :: num_layers
+logical :: has_model
 
 net%dims = dims
 num_layers = size(net%dims)
@@ -846,16 +886,28 @@ do i=1, num_layers-1
   acol = int_to_str(ncol)
 
   filename_b = trim(path)//'b_'//alayer//'_'//acol//'.'//suffix
-  open(newunit=fileunit, file=filename_b, access='stream', form='formatted', status='old')
-  if(myid==0) read(fileunit,*) net%layers(i)%b
-  call MPI_BCAST(net%layers(i)%b, size(net%layers(i)%b), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
-  close(fileunit)
+  inquire(file=filename_b, exist=has_model)
+  if(has_model) then
+    open(newunit=fileunit, file=filename_b, access='stream', form='formatted', status='old')
+    if(myid==0) read(fileunit,*) net%layers(i)%b
+    call MPI_BCAST(net%layers(i)%b, size(net%layers(i)%b), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
+    close(fileunit)
+  else
+    if(myid==0) print'(a)', 'ERROR: '//filename_b//' does not exist. continue with zero-valued bias.' 
+    net%layers(i)%b=0.0
+  endif
 
   filename_w = trim(path)//'w_'//alayer//'_'//arow//'_'//acol//'.'//suffix
-  open(newunit=fileunit, file=filename_w, access='stream', form='formatted', status='old')
-  if(myid==0) read(fileunit,*) net%layers(i)%w
-  call MPI_BCAST(net%layers(i)%w, size(net%layers(i)%w), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
-  close(fileunit)
+  inquire(file=filename_w, exist=has_model)
+  if(has_model) then
+     open(newunit=fileunit, file=filename_w, access='stream', form='formatted', status='old')
+     if(myid==0) read(fileunit,*) net%layers(i)%w
+     call MPI_BCAST(net%layers(i)%w, size(net%layers(i)%w), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
+     close(fileunit)
+  else
+    if(myid==0) print'(a)', 'ERROR: '//filename_w//' does not exist. continue with zero-valued weight.' 
+    net%layers(i)%w=0.0
+  endif
 
   if(present(verbose) .and. verbose) &
      write(*, fmt='(a30,2i6,a30,i6)') &
