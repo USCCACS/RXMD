@@ -11,7 +11,9 @@ module fnnin_parser
   implicit none
 
   integer,parameter :: rk = real32 ! rk = real64
-  integer, parameter :: ik = int32 ! ik = int64
+  integer,parameter :: ik = int32 ! ik = int64
+
+  integer,parameter :: NUM_ANG_MODES=2
 
   type :: layer
     real(rk),allocatable :: b(:)
@@ -39,6 +41,7 @@ module fnnin_parser
     real(rk),allocatable,dimension(:) :: mu, eta, zeta
     integer(ik),allocatable,dimension(:) :: lambda
     real(rk) :: rc, rdamp
+    integer(ik) :: modes
   end type
 
   type :: model_params
@@ -88,9 +91,9 @@ contains
        do ib=1,size(fp%models(ia)%rad)
           if(max_rc<fp%models(ia)%rad(ib)%rc) max_rc = fp%models(ia)%rad(ib)%rc
        enddo
-       do ib=1,size(fp%models(ia)%ang)
-          if(max_rc<fp%models(ia)%ang(ib)%rc) max_rc = fp%models(ia)%ang(ib)%rc
-       enddo
+       !do ib=1,size(fp%models(ia)%ang)
+       !   if(max_rc<fp%models(ia)%ang(ib)%rc) max_rc = fp%models(ia)%ang(ib)%rc
+       !enddo
     enddo
 
     print*,'max_rc : ', max_rc
@@ -245,6 +248,7 @@ contains
        do ib=1,size(c%models)
           c%models(ia)%rad(ib)%is_defined=.false.
           c%models(ia)%ang(ib)%is_defined=.false.
+          c%models(ia)%ang(ib)%modes=NUM_ANG_MODES
 
           allocate(c%models(ia)%rad(ib)%mu(0),c%models(ia)%rad(ib)%eta(0))
 
@@ -301,7 +305,7 @@ contains
          do ib=1,size(m%ang)
             if(m%ang(ib)%is_defined) then
                m%feature_ptr_ang = [m%feature_ptr_ang, feature_ptr]
-               feature_ptr = feature_ptr + &
+               feature_ptr = feature_ptr + m%ang(ib)%modes * &
                   size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%eta)*size(m%ang(ib)%mu)
             else
                m%feature_ptr_ang = [m%feature_ptr_ang, -1]
@@ -364,9 +368,10 @@ contains
        do ib=1,size(m%ang)
           if(.not.m%ang(ib)%is_defined) cycle
           write(*,fmt='(a,a)', advance='no') this%models(ib)%element//' '//m%element//' '//this%models(ib)%element
+          write(*,fmt='(a,i3)', advance='no') '  ang_modes: ', m%ang(ib)%modes
           write(*,fmt='(a,4i3,i6)') '   size(lambda,zeta,mu,eta,total): ', &
                 size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%mu),size(m%ang(ib)%eta), &
-                size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%mu)*size(m%ang(ib)%eta)
+                m%ang(ib)%modes*size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%mu)*size(m%ang(ib)%eta)
        enddo
        do ib=1,size(m%ang)
           if(.not.m%ang(ib)%is_defined) cycle
@@ -452,15 +457,19 @@ enddo
 close(iunit)
 
 open(newunit=iunit,file=filename//"_feature.bin",access='stream',form='unformatted')
+!open(newunit=iunit,file=filename//"_feature.bin",access='stream',form='formatted')
 do i=1, num_atoms
    ity=atype(i)
+   !write(iunit,*) fp%models(ity)%features(1,:,i)
+   !write(iunit,*) fp%models(ity)%features(2,:,i)
+   !write(iunit,*) fp%models(ity)%features(3,:,i)
    write(iunit) fp%models(ity)%features(1,:,i)
    write(iunit) fp%models(ity)%features(2,:,i)
    write(iunit) fp%models(ity)%features(3,:,i)
 enddo
 close(iunit)
 
-if(myid==0) print'(a)','saved feature vectors in '//filename
+if(myid==0) print'(a)','saved feature vectors in '//filename//'_feature.bin'
 call MPI_FINALIZE(ierr)
 stop 
 
@@ -772,16 +781,18 @@ do j=1, num_atoms
   
                        G3_mu_eta = eta_ij*eta_kj
 
-                       l1_stride = size(ang%lambda)*size(ang%zeta)*size(ang%eta)
-                       l2_stride = size(ang%zeta)*size(ang%eta)
-                       l3_stride = size(ang%eta)
-                       l4_stride = 1
+                       l1_stride = ang%modes*size(ang%lambda)*size(ang%zeta)*size(ang%eta)
+                       l2_stride = ang%modes*size(ang%zeta)*size(ang%eta)
+                       l3_stride = ang%modes*size(ang%eta)
+                       l4_stride = ang%modes
   
                        idx = ptr_ang + &
                            (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
   
-                       feats(1:3,idx,j) = feats(1:3,idx,j) + &
-                           G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
+                       !feats(1:3,idx,j) = feats(1:3,idx,j) + &
+                       !    G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
+                       feats(1:3,idx,j) = feats(1:3,idx,j) + G3a_xyz(1:3)*zeta_G3a*G3_mu_eta
+                       feats(1:3,idx+1,j) = feats(1:3,idx+1,j) + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
   
            enddo; enddo; enddo; enddo
 
