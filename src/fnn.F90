@@ -31,17 +31,20 @@ module fnnin_parser
   end type
 
   type :: rad_feature_type
-    logical :: is_defined
     real(rk),allocatable,dimension(:) :: mu, eta
     real(rk) :: rc, rdamp
+
+    integer(ik),allocatable :: indices(:)
+    integer(ik) :: total
   end type
 
   type :: ang_feature_type
-    logical :: is_defined
     real(rk),allocatable,dimension(:) :: mu, eta, zeta
     integer(ik),allocatable,dimension(:) :: lambda
     real(rk) :: rc, rdamp
-    integer(ik) :: modes
+
+    integer(ik),allocatable :: indices(:)
+    integer(ik) :: total
   end type
 
   type :: model_params
@@ -53,11 +56,17 @@ module fnnin_parser
     type(network),allocatable :: networks(:)
     type(feature_stat),allocatable :: fstat(:)
 
-    type(rad_feature_type),allocatable :: rad(:) ! params for B in A-B
-    type(ang_feature_type),allocatable :: ang(:) ! params for B in B-A-B
+    type(rad_feature_type),allocatable :: rad(:) ! radial feature params 
+    type(ang_feature_type),allocatable :: ang(:) ! angular feature params
+
+    integer(ik),allocatable :: map_rad(:) ! map from (jty) to feature array index
+    integer(ik),allocatable :: map_ang(:,:) ! map from (ity,kty) to feature array index
 
     real(rk),allocatable :: features(:,:,:) 
     integer(ik),allocatable :: feature_ptr_rad(:), feature_ptr_ang(:), num_features(:)
+
+    ! maximum angular cutoff within a model for neighborlist construction
+    real(rk) :: max_ang_rc
   end type
 
   type, extends(force_field_class) :: fnn_param
@@ -68,11 +77,6 @@ module fnnin_parser
 
   type(fnn_param),target :: fnn_param_obj
 
-  interface get_tokens_and_append
-      module procedure get_tokens_and_append_model, &
-                       get_tokens_and_append_rad, get_tokens_and_append_ang
-  end interface
-
   character(len=:),allocatable,private :: sbuf
   integer,private :: ibuf
   real(rk),private :: rbuf
@@ -80,7 +84,9 @@ module fnnin_parser
 
 contains
 
+!------------------------------------------------------------------------------
   function get_max_cutoff(fp) result(max_rc)
+!------------------------------------------------------------------------------
     type(fnn_param),intent(in) :: fp 
     real(rk) :: max_rc
     integer :: ia, ib
@@ -101,14 +107,18 @@ contains
     return 
   end function
 
-  subroutine get_tokens_and_append_rad(linein, rad)
+!------------------------------------------------------------------------------
+  function rad_ctor_from_line(linein,indices) result(rad)
+!------------------------------------------------------------------------------
     character(len=:),allocatable,intent(in out) :: linein
-    type(rad_feature_type),intent(in out) :: rad
+    integer(ik),allocatable,intent(in) :: indices(:)
+    type(rad_feature_type) :: rad
     integer :: num_fields
 
-    rad%is_defined = .true.
     if(.not.allocated(rad%mu)) allocate(rad%mu(0))
     if(.not.allocated(rad%eta)) allocate(rad%eta(0))
+    if(.not.allocated(rad%indices)) allocate(rad%indices(0))
+    rad%indices = indices;  rad%total = 0
 
     num_fields = 0
     do while (getstr(linein, token) > 0)
@@ -127,24 +137,32 @@ contains
                read(token,*) rbuf
                rad%eta = [rad%eta, rbuf]
              case default
-               print'(a)', 'WARNING: unknown field in get_tokens_and_append_rad(): '//linein
+               print'(a)', 'WARNING: unknown field in rad_ctor_from_line(): '//linein
           end select
        endif
     enddo
 
-    return
-  end subroutine
+    rad%total = 1
+    if(size(rad%eta)>0) rad%total = rad%total*size(rad%eta)
+    if(size(rad%mu)>0) rad%total = rad%total*size(rad%mu)
 
-  subroutine get_tokens_and_append_ang(linein, ang)
-    character(len=:),allocatable,intent(in out) :: linein
-    type(ang_feature_type),intent(in out) :: ang
+    return
+  end function
+
+!------------------------------------------------------------------------------
+  function ang_ctor_from_line(linein,indices) result(ang)
+!------------------------------------------------------------------------------
+    character(len=:),allocatable,intent(in out) :: linein 
+    integer(ik),allocatable,value,intent(in) :: indices(:)
+    type(ang_feature_type) :: ang
     integer :: num_fields
 
-    ang%is_defined = .true.
     if(.not.allocated(ang%lambda)) allocate(ang%lambda(0))
     if(.not.allocated(ang%zeta)) allocate(ang%zeta(0))
     if(.not.allocated(ang%eta)) allocate(ang%eta(0))
     if(.not.allocated(ang%mu)) allocate(ang%mu(0))
+    if(.not.allocated(ang%indices)) allocate(ang%indices(0))
+    ang%indices = indices;  ang%total = 0
 
     num_fields = 0
     do while (getstr(linein, token) > 0)
@@ -169,16 +187,23 @@ contains
                read(token,*) rbuf
                ang%mu = [ang%mu, rbuf]
              case default
-               print'(a)', 'WARNING: unknown field in get_tokens_and_append_ang(): '//linein
+               print'(a)', 'WARNING: unknown field in ang_ctor_from_line(): '//linein
           end select
        endif
     enddo
 
+    ang%total = NUM_ANG_MODES  ! vibration & stretch
+    if(size(ang%lambda)>0) ang%total = ang%total*size(ang%lambda)
+    if(size(ang%zeta)>0) ang%total = ang%total*size(ang%zeta)
+    if(size(ang%eta)>0) ang%total = ang%total*size(ang%eta)
+    if(size(ang%mu)>0) ang%total = ang%total*size(ang%mu)
 
     return
-  end subroutine
+  end function
 
+!------------------------------------------------------------------------------
   subroutine get_tokens_and_append_model(linein, models)
+!------------------------------------------------------------------------------
     character(len=:),allocatable,intent(in out) :: linein
     type(model_params),allocatable,intent(in out) :: models(:)
     type(model_params) :: mbuf
@@ -215,13 +240,16 @@ contains
     return
   end function
 
+!------------------------------------------------------------------------------
   function fnn_param_ctor(path) result(c)
+!------------------------------------------------------------------------------
     character(len=:),allocatable,intent(in) :: path
     character(256) :: linein0
-    character(len=:),allocatable :: linein
+    character(len=:),allocatable :: linein 
 
     type(fnn_param) :: c 
-    integer :: iunit, num_models, feature_ptr, ia,ib,ic
+    integer(ik) :: iunit, num_models, feature_ptr, ia,ib,ic, ang_index
+    integer(ik),allocatable :: indices(:)
 
     open(newunit=iunit, file=path, status='old', form='formatted')
 
@@ -231,7 +259,7 @@ contains
       linein = trim(adjustl(linein0))
 
       if(getstr(linein, token) > 0) then
-         if(token=='model') call get_tokens_and_append(linein, c%models)
+         if(token=='model') call get_tokens_and_append_model(linein, c%models)
       endif
     end do
     10 rewind(iunit)
@@ -240,46 +268,58 @@ contains
 
     ! radial and angular parameters are defined for atomic pairs & triplets
     num_models = size(c%models)
+
     do ia=1,size(c%models)
-       allocate(c%models(ia)%rad(num_models), c%models(ia)%ang(num_models))
-       
-       ! initialize param arrays for the pairs and triples. if the param exsits
-       ! in fnn.in, is_defined becomes .true.
-       do ib=1,size(c%models)
-          c%models(ia)%rad(ib)%is_defined=.false.
-          c%models(ia)%ang(ib)%is_defined=.false.
-          c%models(ia)%ang(ib)%modes=NUM_ANG_MODES
-
-          allocate(c%models(ia)%rad(ib)%mu(0),c%models(ia)%rad(ib)%eta(0))
-
-          allocate(c%models(ia)%ang(ib)%mu(0),c%models(ia)%ang(ib)%eta(0))
-          allocate(c%models(ia)%ang(ib)%zeta(0),c%models(ia)%ang(ib)%lambda(0))
-       enddo
-
+       allocate(c%models(ia)%rad(0), c%models(ia)%ang(0))
+       allocate(c%models(ia)%map_rad(num_models))
+       allocate(c%models(ia)%map_ang(num_models,num_models))
+       c%models(ia)%map_rad=0; c%models(ia)%map_ang=0
+       c%models(ia)%max_ang_rc=-1.d0
     enddo
 
     do while (.true.)
-      read(iunit,'(a)',end=20) linein0
+      read(iunit,'(a)',end=11) linein0
       linein = trim(adjustl(linein0))
 
       if(getstr(linein, token) > 0) then
-        select case (token)
-           case ('rad')
-             if(getstr(linein,token)>0) ia = get_index_of_model(token,c%models)
+        select case(token)
+
+           case('rad')
+             if(getstr(linein,token)>0) ia = get_index_of_model(token,c%models) !<- center atom
              if(getstr(linein,token)>0) ib = get_index_of_model(token,c%models)
-             call get_tokens_and_append(linein, c%models(ia)%rad(ib))
-           case ('ang')
+             if(c%models(ia)%map_rad(ib)==0) then
+               indices = [ia,ib]
+               c%models(ia)%rad = [c%models(ia)%rad, rad_ctor_from_line(linein,indices)]
+               c%models(ia)%map_rad(ib) = size(c%models(ia)%rad)
+             endif
+
+           case('ang')
              if(getstr(linein,token)>0) ia = get_index_of_model(token,c%models)
-             if(getstr(linein,token)>0) ib = get_index_of_model(token,c%models)
-             call get_tokens_and_append(linein, c%models(ia)%ang(ib))
+             if(getstr(linein,token)>0) ib = get_index_of_model(token,c%models) !<- center atom
+             if(getstr(linein,token)>0) ic = get_index_of_model(token,c%models)
+
+             if(c%models(ib)%map_ang(ia,ic)==0) then
+               indices = [ia,ib,ic]
+               c%models(ib)%ang = [c%models(ib)%ang, ang_ctor_from_line(linein,indices)]
+               ang_index = size(c%models(ib)%ang)
+               c%models(ib)%map_ang(ia,ic) = ang_index
+               c%models(ib)%map_ang(ic,ia) = ang_index
+
+               ! keep the max angular cutoff for neighborlist construction
+               ! during feature calculation
+               if(c%models(ib)%max_ang_rc < c%models(ib)%ang(ang_index)%rc) &
+                   c%models(ib)%max_ang_rc = c%models(ib)%ang(ang_index)%rc 
+             endif
+
            case default
         end select
       endif
 
     end do
-    20 close(iunit)
+    11 close(iunit)
 
-! compute pointers to specify where feature vectors will be stored based on atom-types.
+
+! store the first array index after packing feature values:
 !   radial: the first array index for an ity-jty pair is models(ity)%feature_ptr_rad(jty). 
 !   angular: the first array index for an ity-jty-kty triplet is models(jty)%feature_ptr_ang(ity or kty). 
     do ia=1,size(c%models)
@@ -291,27 +331,14 @@ contains
          feature_ptr = 1
 
          do ib=1,size(m%rad)
-            if(m%rad(ib)%is_defined) then
-               m%feature_ptr_rad = [m%feature_ptr_rad, feature_ptr]
-               feature_ptr = feature_ptr + size(m%rad(ib)%eta)*size(m%rad(ib)%mu)
-            else
-               m%feature_ptr_rad = [m%feature_ptr_rad, -1]
-            endif
-            !print'(a,100i5)','ia,ib,size(e,m),feature_ptr,m%feature_ptr_rad: ', &
-            !    ia,ib,size(m%rad(ib)%eta),size(m%rad(ib)%mu),feature_ptr, m%feature_ptr_rad
+            m%feature_ptr_rad = [m%feature_ptr_rad, feature_ptr]
+            feature_ptr = feature_ptr + m%rad(ib)%total
          enddo
          m%num_features(1) = feature_ptr - 1
 
          do ib=1,size(m%ang)
-            if(m%ang(ib)%is_defined) then
-               m%feature_ptr_ang = [m%feature_ptr_ang, feature_ptr]
-               feature_ptr = feature_ptr + m%ang(ib)%modes * &
-                  size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%eta)*size(m%ang(ib)%mu)
-            else
-               m%feature_ptr_ang = [m%feature_ptr_ang, -1]
-            endif
-            !print'(a,100i5)','ia,ib,size(l,z,m,e),feature_ptr,m%feature_ptr_ang: ', ia,ib,feature_ptr,  &
-            !      size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%eta),size(m%ang(ib)%mu),m%feature_ptr_ang
+            m%feature_ptr_ang = [m%feature_ptr_ang, feature_ptr]
+            feature_ptr = feature_ptr + m%ang(ib)%total
          enddo
          m%num_features(2) = feature_ptr - 1 - m%num_features(1)
 
@@ -323,9 +350,11 @@ contains
 
   end function
 
+!------------------------------------------------------------------------------
   subroutine fnn_param_print(this)
+!------------------------------------------------------------------------------
     class(fnn_param), intent(in) :: this
-    integer :: ia,ib,ic
+    integer(ik) :: ia,ib,ic,i1,i2,i3
 
     do ia=1, size(this%models)
 
@@ -343,18 +372,16 @@ contains
 
        print'(a)',repeat('-',60)
        do ib=1,size(m%rad)
-          if(.not.m%rad(ib)%is_defined) cycle
-
           write(*,fmt='(a)',advance='no') m%element//' '//this%models(ib)%element
           write(*,fmt='(a,2i3,i6)') '    size(mu,eta,total): ', &
-             size(m%rad(ib)%mu), size(m%rad(ib)%eta), size(m%rad(ib)%mu)*size(m%rad(ib)%eta)
+             size(m%rad(ib)%mu), size(m%rad(ib)%eta), m%rad(ib)%total
        enddo
 
        do ib=1,size(m%rad)
-          if(.not.m%rad(ib)%is_defined) cycle
+          i1 = m%rad(ib)%indices(1)
+          i2 = m%rad(ib)%indices(2)
           write(*,fmt='(a,2i2,1x,a,1x)',advance='no') 'rad_params: ', &
-             get_index_of_model(m%element,this%models), get_index_of_model(this%models(ib)%element,this%models), &
-             m%element//'-'//this%models(ib)%element
+             i1,i2,this%models(i1)%element//'-'//this%models(i2)%element
 
           write(*,fmt='(a,2f6.2)', advance='no') repeat(' ',3), m%rad(ib)%rc, m%rad(ib)%rdamp 
           write(*,fmt='(a,i6)',advance='no') repeat(' ',3)
@@ -366,20 +393,16 @@ contains
 
        print'(a)',repeat('-',60)
        do ib=1,size(m%ang)
-          if(.not.m%ang(ib)%is_defined) cycle
-          write(*,fmt='(a,a)', advance='no') this%models(ib)%element//' '//m%element//' '//this%models(ib)%element
-          write(*,fmt='(a,i3)', advance='no') '  ang_modes: ', m%ang(ib)%modes
+          i1 = m%ang(ib)%indices(1);  i2 = m%ang(ib)%indices(2);  i3 = m%ang(ib)%indices(3)
+          write(*,fmt='(a,a)', advance='no') this%models(i1)%element//' '//m%element//' '//this%models(i2)%element
+          write(*,fmt='(a,i3)', advance='no') '  ang_modes: ', NUM_ANG_MODES 
           write(*,fmt='(a,4i3,i6)') '   size(lambda,zeta,mu,eta,total): ', &
-                size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%mu),size(m%ang(ib)%eta), &
-                m%ang(ib)%modes*size(m%ang(ib)%lambda)*size(m%ang(ib)%zeta)*size(m%ang(ib)%mu)*size(m%ang(ib)%eta)
+                size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%mu),size(m%ang(ib)%eta), m%ang(ib)%total
        enddo
        do ib=1,size(m%ang)
-          if(.not.m%ang(ib)%is_defined) cycle
-          write(*,fmt='(a,3i2,1x,a,1x)', advance='no') 'ang_params: ', &
-             get_index_of_model(this%models(ib)%element,this%models), &
-             get_index_of_model(m%element,this%models),&
-             get_index_of_model(this%models(ib)%element,this%models), &
-             this%models(ib)%element//'-'//m%element//'-'//this%models(ib)%element
+          i1 = m%ang(ib)%indices(1);  i2 = m%ang(ib)%indices(2);  i3 = m%ang(ib)%indices(3)
+          write(*,fmt='(a,3i2,1x,a,1x)', advance='no') 'ang_params: ',i1,i2,i3,&
+             this%models(i1)%element//'-'//m%element//'-'//this%models(i3)%element
 
           write(*,fmt='(a,2f8.3)',advance='no') repeat(' ',3), m%ang(ib)%rc, m%ang(ib)%rdamp 
           write(*,fmt='(a)',advance='no') repeat(' ',3)
@@ -396,6 +419,13 @@ contains
 
           write(*,*)
        enddo
+
+       if(m%layersize(1) /= sum(m%num_features)) then
+          write(*,fmt='(a)') repeat('!',80)
+          write(*,fmt='(a,i5,a,i5)') 'ERROR: the size of input layer in fnn.in should be ',sum(m%num_features),'   but ', m%layersize(1)
+          write(*,fmt='(a)') repeat('!',80)
+          stop
+       endif
 
        write(*,fmt='(a)') repeat('=',60)
 
@@ -666,16 +696,19 @@ do c3=0, cc(3)-1
              rr2 = sum(rr(1:3)*rr(1:3))
              rij = sqrt(rr2)
 
-             associate( rad => fp%models(ity)%rad(jty), &
-                        ang => fp%models(ity)%ang(jty), &
-                        ptr_rad => fp%models(ity)%feature_ptr_rad(jty), &
+             ! lookup table. should be ii == jty
+             ii = fp%models(ity)%map_rad(jty) 
+
+             associate( rad => fp%models(ity)%rad(ii), &
+                        ptr => fp%models(ity)%feature_ptr_rad(ii), &
+                        max_ang_rc => fp%models(ity)%max_ang_rc, &
                         feats => fp%models(ity)%features ) 
 
                 if(rij<rad%rc) then
   
-                  if(rij<ang%rc) then
-                     nbrlist(i, 0) = nbrlist(i, 0) + 1
-                     nbrlist(i, nbrlist(i, 0)) = j
+                  if(rij<max_ang_rc) then
+                    nbrlist(i, 0) = nbrlist(i, 0) + 1
+                    nbrlist(i, nbrlist(i, 0)) = j
                   endif
   
                   rr(1:3) = rr(1:3)/rij
@@ -691,7 +724,7 @@ do c3=0, cc(3)-1
                         !eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
                         eta_ij = exp( -rad%eta(l2) * rij_mu * rij_mu )
   
-                        idx = ptr_rad + (l1-1)*size(rad%mu) + l2
+                        idx = ptr + (l1-1)*size(rad%eta) + l2
                         feats(1:3,idx,i) = feats(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
                      enddo
   
@@ -717,27 +750,22 @@ do j=1, num_atoms
 
    jty = nint(atype(j))
 
-   do i1=1, nbrlist(j,0)
+   do i1=1, nbrlist(j,0)-1
 
       i = nbrlist(j,i1)
       ity = nint(atype(i))
-
-      if(.not. fp%models(jty)%ang(ity)%is_defined) cycle
 
       r_ij(1:3) = pos(j,1:3) - pos(i,1:3)
       r_ij(0) = sqrt( sum(r_ij(1:3)*r_ij(1:3)) )
       r_ij_norm(1:3) = r_ij(1:3)/r_ij(0)
 
-      fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/fp%models(jty)%ang(ity)%rdamp) ) 
 
-      do k1=i1, nbrlist(j,0)
+      do k1=i1+1, nbrlist(j,0)
 
          k = nbrlist(j,k1)
          kty = nint(atype(k))
 
-         ! NOTE: from here on, assuming (ity==kty) and (i!=j) and &
-         ! angular-features parameters for ity & kty are defined.
-         if(ity/=kty .or. i==k) cycle
+         if(i==k) cycle
 
          r_kj(1:3) = pos(j,1:3) - pos(k,1:3)
          r_kj(0) = sqrt( sum(r_kj(1:3)*r_kj(1:3)) )
@@ -745,15 +773,21 @@ do j=1, num_atoms
 
          rijk_inv = 1.0/(r_ij(0) * r_kj(0))
 
-         associate(ang => fp%models(jty)%ang(ity), &
-                   ptr_ang => fp%models(jty)%feature_ptr_ang(ity), &
+         ii = fp%models(jty)%map_ang(ity,kty) 
+         if(ii<1) cycle
+
+         associate(ang => fp%models(jty)%ang(ii), &
+                   ptr_ang => fp%models(jty)%feature_ptr_ang(ii), &
                    feats => fp%models(jty)%features )
 
-           l1_stride = ang%modes*size(ang%eta)*size(ang%zeta)*size(ang%lambda)
-           l2_stride = ang%modes*size(ang%eta)*size(ang%zeta)
-           l3_stride = ang%modes*size(ang%eta)
-           l4_stride = ang%modes
+           if(r_ij(0)>ang%rc .or. r_kj(0)>ang%rc) cycle
+
+           l1_stride = NUM_ANG_MODES*size(ang%eta)*size(ang%zeta)*size(ang%lambda)
+           l2_stride = NUM_ANG_MODES*size(ang%eta)*size(ang%zeta)
+           l3_stride = NUM_ANG_MODES*size(ang%eta)
+           l4_stride = NUM_ANG_MODES
   
+           fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/ang%rdamp) ) 
            fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/ang%rdamp) ) 
   
            cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) * rijk_inv
@@ -853,10 +887,14 @@ if(exist_m .and. exist_s) then
 
   if(present(verbose) .and. verbose) &
      write(*,fmt='(a15,a30,a15,a30)') 'mean: ', filename_m, ', stddev: ', filename_s
+
 else
+
   if(present(verbose) .and. verbose) then
      print'(a)', repeat('-',60)
-     print'(a)', 'INFO: '//filename_m//' & '//filename_s//' not be used.'
+     if(.not. exist_m) print'(a)', 'WARNING: missing '//filename_m
+     if(.not. exist_s) print'(a)', 'WARNING: missing '//filename_s
+     print'(a)', 'WARNING: incomplete mean & stddev data. continue with mean=0.0 & stddev=1.0'
      print'(a)', repeat('-',60)
   endif
 
@@ -907,7 +945,11 @@ do i=1, num_layers-1
     call MPI_BCAST(net%layers(i)%b, size(net%layers(i)%b), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
     close(fileunit)
   else
-    if(myid==0) print'(a)', 'ERROR: '//filename_b//' does not exist. continue with zero-valued bias.' 
+    if(myid==0) then
+      print'(a)',repeat('-',60)
+      print'(a)', 'ERROR: '//filename_b//' does not exist. continue with zero-valued bias.' 
+      print'(a)',repeat('-',60)
+    endif
     net%layers(i)%b=0.0
   endif
 
@@ -919,7 +961,12 @@ do i=1, num_layers-1
      call MPI_BCAST(net%layers(i)%w, size(net%layers(i)%w), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
      close(fileunit)
   else
-    if(myid==0) print'(a)', 'ERROR: '//filename_w//' does not exist. continue with zero-valued weight.' 
+     
+    if(myid==0) then
+      print'(a)',repeat('-',60)
+      print'(a)', 'ERROR: '//filename_w//' does not exist. continue with zero-valued weight.' 
+      print'(a)',repeat('-',60)
+    endif
     net%layers(i)%w=0.0
   endif
 
