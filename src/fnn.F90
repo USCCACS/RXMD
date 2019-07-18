@@ -394,7 +394,7 @@ contains
        print'(a)',repeat('-',60)
        do ib=1,size(m%ang)
           i1 = m%ang(ib)%indices(1);  i2 = m%ang(ib)%indices(2);  i3 = m%ang(ib)%indices(3)
-          write(*,fmt='(a,a)', advance='no') this%models(i1)%element//' '//m%element//' '//this%models(i2)%element
+          write(*,fmt='(a,a)', advance='no') this%models(i1)%element//' '//m%element//' '//this%models(i3)%element
           write(*,fmt='(a,i3)', advance='no') '  ang_modes: ', NUM_ANG_MODES 
           write(*,fmt='(a,4i3,i6)') '   size(lambda,zeta,mu,eta,total): ', &
                 size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%mu),size(m%ang(ib)%eta), m%ang(ib)%total
@@ -774,12 +774,14 @@ do j=1, num_atoms
          rijk_inv = 1.0/(r_ij(0) * r_kj(0))
 
          ii = fp%models(jty)%map_ang(ity,kty) 
-         if(ii<1) cycle
+         if(ii<1) cycle ! no triplet param exists if map_ang < 1. go to next iteration.
 
          associate(ang => fp%models(jty)%ang(ii), &
                    ptr_ang => fp%models(jty)%feature_ptr_ang(ii), &
                    feats => fp%models(jty)%features )
 
+           ! the neighborlist is constructed with the max_ang_rc. 
+           ! need to check the angular cutoff again.
            if(r_ij(0)>ang%rc .or. r_kj(0)>ang%rc) cycle
 
            l1_stride = NUM_ANG_MODES*size(ang%eta)*size(ang%zeta)*size(ang%lambda)
