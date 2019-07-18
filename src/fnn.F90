@@ -361,16 +361,16 @@ contains
        associate(m=>this%models(ia))
 
        write(*,*)
-       write(*,fmt='(a)') repeat('=',60)
+       write(*,fmt='(a)') repeat('=',80)
        print'(a,i3,2a,2f10.3)', 'element,mass,scaling_factor : ', & 
             get_index_of_model(m%element,this%models),'-',m%element, m%mass, m%scaling_factor
        print'(a,10i5)','layer size: ', m%layersize
-       print'(a,2i6)', 'rad&ang sizes: ', size(m%rad), size(m%ang)
+       print'(a,2i6)', 'rad&ang feature types: ', size(m%rad), size(m%ang)
        write(*,fmt='(a,10i6)',advance='no') 'feature_ptr_(rad,ang): ', m%feature_ptr_rad
        write(*,fmt='(a,10i6)') ', ', m%feature_ptr_ang
        print'(a,3i6)', 'num_features(rad,ang),total: ', m%num_features, sum(m%num_features)
 
-       print'(a)',repeat('-',60)
+       print'(a)',repeat('-',80)
        do ib=1,size(m%rad)
           write(*,fmt='(a)',advance='no') m%element//' '//this%models(ib)%element
           write(*,fmt='(a,2i3,i6)') '    size(mu,eta,total): ', &
@@ -427,7 +427,7 @@ contains
           stop
        endif
 
-       write(*,fmt='(a)') repeat('=',60)
+       write(*,fmt='(a)') repeat('=',80)
 
        end associate
       
@@ -470,36 +470,67 @@ contains
 !------------------------------------------------------------------------------
 subroutine save_features_and_terminate(num_atoms, atype, pos, f, fp, filename) 
 !------------------------------------------------------------------------------
+implicit none
 integer,intent(in) :: num_atoms 
 real(8),intent(in),allocatable :: atype(:), pos(:,:), f(:,:)
 type(fnn_param),intent(in) :: fp
 character(len=:),allocatable,intent(in) :: filename
 
-integer :: i, ity, iunit
+integer(ik) :: i, ity, gid, iunit, num_models
+integer(ik),allocatable :: num_features(:)
+integer(ik) :: rad_types, ang_types
+integer(ik) :: num_features_rad, num_features_ang, num_features_total
 
 open(newunit=iunit,file=filename//"_feature.xyz",form='formatted')
 write(iunit,'(i6)') num_atoms
 write(iunit,'(6f12.5)') lata,latb,latc,lalpha,lbeta,lgamma
 do i=1, num_atoms
-   ity=nint(atype(i))
+   ity = nint(atype(i))
    write(iunit,fmt='(a,6f12.5,3x)') fp%models(ity)%element,pos(i,1:3),f(i,1:3)
 enddo
 close(iunit)
 
+num_models = size(fp%models)
+allocate(num_features(num_models))
+
 open(newunit=iunit,file=filename//"_feature.bin",access='stream',form='unformatted')
-!open(newunit=iunit,file=filename//"_feature.bin",access='stream',form='formatted')
+write(iunit) num_atoms, num_models
+
+do ity = 1, num_models
+
+   num_features(ity) = size(fp%models(ity)%features,dim=2)
+
+   rad_types = size(fp%models(ity)%rad)
+   ang_types = size(fp%models(ity)%ang)
+   num_features_rad = fp%models(ity)%num_features(1)
+   num_features_ang = fp%models(ity)%num_features(2)
+   num_features_total = sum(fp%models(ity)%num_features)
+
+   if(num_features(ity) /= num_features_total) stop
+
+   write(iunit) rad_types, ang_types
+   write(iunit) num_features_rad, num_features_ang, num_features_total
+
+   do i=1,rad_types; write(iunit) fp%models(ity)%feature_ptr_rad(i); enddo
+   do i=1,ang_types; write(iunit) fp%models(ity)%feature_ptr_ang(i); enddo
+
+enddo
+
 do i=1, num_atoms
-   ity=atype(i)
-   !write(iunit,*) fp%models(ity)%features(1,:,i)
-   !write(iunit,*) fp%models(ity)%features(2,:,i)
-   !write(iunit,*) fp%models(ity)%features(3,:,i)
-   write(iunit) fp%models(ity)%features(1,:,i)
-   write(iunit) fp%models(ity)%features(2,:,i)
-   write(iunit) fp%models(ity)%features(3,:,i)
+   ity = nint(atype(i))
+   gid = l2g(atype(i))
+   write(iunit) gid, ity
+   write(iunit) fp%models(ity)%features(1,1:num_features(ity),i)
+   write(iunit) fp%models(ity)%features(2,1:num_features(ity),i)
+   write(iunit) fp%models(ity)%features(3,1:num_features(ity),i)
 enddo
 close(iunit)
 
-if(myid==0) print'(a)','saved feature vectors in '//filename//'_feature.bin'
+if(myid==0) then
+  print'(a)',repeat('=',80)
+  print'(a)','INFO: saved feature vectors in '//filename//'_feature.bin'
+  print'(a)',repeat('=',80)
+endif
 call MPI_FINALIZE(ierr)
 stop 
 
@@ -669,7 +700,7 @@ real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 nbrlist(:,0) = 0
 
 !$omp parallel do default(shared) collapse(3) & 
-!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
+!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
 do c1=0, cc(1)-1
 do c2=0, cc(2)-1
 do c3=0, cc(3)-1
@@ -690,7 +721,6 @@ do c3=0, cc(3)-1
 
            if(i/=j) then
              jty = nint(atype(j))
-             !inxn = pair_types(ity, jty)
 
              rr(1:3) = pos(i,1:3) - pos(j,1:3)
              rr2 = sum(rr(1:3)*rr(1:3))
@@ -893,11 +923,11 @@ if(exist_m .and. exist_s) then
 else
 
   if(present(verbose) .and. verbose) then
-     print'(a)', repeat('-',60)
+     print'(a)', repeat('- ',40)
      if(.not. exist_m) print'(a)', 'WARNING: missing '//filename_m
      if(.not. exist_s) print'(a)', 'WARNING: missing '//filename_s
      print'(a)', 'WARNING: incomplete mean & stddev data. continue with mean=0.0 & stddev=1.0'
-     print'(a)', repeat('-',60)
+     print'(a)', repeat('- ',40)
   endif
 
   mean=0.0
@@ -948,9 +978,9 @@ do i=1, num_layers-1
     close(fileunit)
   else
     if(myid==0) then
-      print'(a)',repeat('-',60)
+      print'(a)',repeat('-',80)
       print'(a)', 'ERROR: '//filename_b//' does not exist. continue with zero-valued bias.' 
-      print'(a)',repeat('-',60)
+      print'(a)',repeat('-',80)
     endif
     net%layers(i)%b=0.0
   endif
@@ -965,9 +995,9 @@ do i=1, num_layers-1
   else
      
     if(myid==0) then
-      print'(a)',repeat('-',60)
+      print'(a)',repeat('-',80)
       print'(a)', 'ERROR: '//filename_w//' does not exist. continue with zero-valued weight.' 
-      print'(a)',repeat('-',60)
+      print'(a)',repeat('-',80)
     endif
     net%layers(i)%w=0.0
   endif
