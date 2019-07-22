@@ -429,19 +429,24 @@ integer :: l2g
 real(8) :: dr(3), dr2
 
 integer :: ti,tj,tk
+
+integer :: tt,max_pack=256,m_size=0
+integer :: temp_array(1:256)
+
 call system_clock(ti,tk)
 
 ! reset non-bonding pair list
 nbplist(0,:)=0
 
-!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
+!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2,m_size,temp_array,tt)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
 
    i = nbheader(c1,c2,c3)
    do m = 1, nbnacell(c1,c2,c3)
-
+      
+      m_size = 0
       do mn = 1, nbnmesh
          c4 = c1 + nbmesh(1,mn)
          c5 = c2 + nbmesh(2,mn)
@@ -449,23 +454,35 @@ do c3=0, nbcc(3)-1
 
          j = nbheader(c4,c5,c6)
          do n=1, nbnacell(c4,c5,c6)
-
-            !if(i<j .or. NATOMS<j) then
             if(i/=j) then
-               dr(1:3) = pos(i,1:3) - pos(j,1:3)
-               dr2 = sum(dr(1:3)*dr(1:3))
-
-               if(dr2<=rctap2) then
-                 nbplist(0,i)=nbplist(0,i)+1
-                 nbplist(nbplist(0,i),i)=j
-               endif
-
-            endif
-
+               m_size = m_size+1
+               temp_array(m_size) = j
+            end if
+            if (m_size == max_pack) then
+               do tt=1,max_pack
+                  j = temp_array(tt)
+                  dr(1:3) = pos(i,1:3) - pos(j,1:3)
+                  dr2 = sum(dr(1:3)*dr(1:3))
+                  if (dr2<=rctap2) then
+                     nbplist(0,i)=nbplist(0,i)+1
+                     nbplist(nbplist(0,i),i)=j
+                  end if
+               end do
+               m_size = 0
+            end if
             j=nbllist(j)
          enddo
        enddo
-
+       do tt=1,m_size
+          j = temp_array(tt)
+          dr(1:3) = pos(i,1:3) - pos(j,1:3)
+          dr2 = sum(dr(1:3)*dr(1:3))
+          if (dr2<=rctap2) then
+             nbplist(0,i)=nbplist(0,i)+1
+             nbplist(nbplist(0,i),i)=j
+          end if
+          m_size = 0
+       end do
       i=nbllist(i)
    enddo
 enddo; enddo; enddo
