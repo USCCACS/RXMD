@@ -311,6 +311,17 @@ if(getNorm .or. getReal) &
   call convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma, &
                                 mc,natoms,ctype0,pos0,fnote)
 
+
+!----error handling for negative values in scaled coordinated
+!----seems to appear in vasp POSCAR and other places
+do i =1, 3
+	do j =1 ,ntot
+	   pos0(i,j)= pos0(i,j)+1.0
+		 pos0(i,j)= mod(pos0(i,j), 1.0)
+	enddo 
+enddo 
+
+
 !--- repeat the unit cell
 ntot=0
 do ix=0, mc(1)-1
