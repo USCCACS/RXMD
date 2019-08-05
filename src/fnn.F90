@@ -754,7 +754,7 @@ do c3=0, cc(3)-1
                         !eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
                         eta_ij = exp( -rad%eta(l2) * rij_mu * rij_mu )
   
-                        idx = ptr + (l1-1)*size(rad%eta) + l2
+                        idx = ptr + (l1-1)*size(rad%eta) + (l2-1)
                         feats(1:3,idx,i) = feats(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
                      enddo
   
