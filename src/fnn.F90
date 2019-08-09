@@ -153,7 +153,7 @@ contains
   function ang_ctor_from_line(linein,indices) result(ang)
 !------------------------------------------------------------------------------
     character(len=:),allocatable,intent(in out) :: linein 
-    integer(ik),allocatable,value,intent(in) :: indices(:)
+    integer(ik),allocatable,intent(in) :: indices(:)
     type(ang_feature_type) :: ang
     integer :: num_fields
 
@@ -422,7 +422,8 @@ contains
 
        if(m%layersize(1) /= sum(m%num_features)) then
           write(*,fmt='(a)') repeat('!',80)
-          write(*,fmt='(a,i5,a,i5)') 'ERROR: the size of input layer in fnn.in should be ',sum(m%num_features),'   but ', m%layersize(1)
+          write(*,fmt='(a,i5,a,i5)') 'ERROR: the size of input layer in fnn.in should be ', &
+                                     sum(m%num_features),'   but ', m%layersize(1)
           write(*,fmt='(a)') repeat('!',80)
           stop
        endif
@@ -699,6 +700,10 @@ real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 
 nbrlist(:,0) = 0
 
+do ity = 1, size(fp%models)
+   fp%models(ity)%features = 0.0
+enddo
+
 !$omp parallel do default(shared) collapse(3) & 
 !$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
 do c1=0, cc(1)-1
@@ -875,7 +880,8 @@ enddo
 do i=1, num_atoms
    ity = nint(atype(i))
    do j = 1, 3 ! xyz-loop
-      fp%models(ity)%features(j,:,i)=(fp%models(ity)%features(j,:,i)-fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
+      fp%models(ity)%features(j,:,i) = &
+     (fp%models(ity)%features(j,:,i) - fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
    enddo 
 enddo
 
