@@ -463,14 +463,14 @@ do c3=0, nbcc(3)-1
                packed_coordinates(m_size,:) = pos(j,1:3)
             end if
             if (m_size == max_pack) then
-               call cal_packed_neighbor(m_size,max_pack,pos(i,1:3),packed_coordinates,packed_indices)
+               call cal_packed_neighbor(m_size,max_pack,pos(i,1:3),i,packed_coordinates,packed_indices)
                m_size = 0
             end if
             j=nbllist(j)
          enddo
        enddo
        if (m_size > 0) then
-          call cal_packed_neighbor(m_size,max_pack,pos,packed_coordinates,packed_indices)
+          call cal_packed_neighbor(m_size,max_pack,pos(i,1:3),i,packed_coordinates,packed_indices)
           m_size = 0
        end if
       i=nbllist(i)
@@ -484,12 +484,13 @@ it_timer(15)=it_timer(15)+(tj-ti)
 end subroutine
 
 !----------------------------------------------------------------------
-subroutine  cal_packed_neighbor(m_size,max_pack,posi,packed_coordinates,packed_indices)
+subroutine  cal_packed_neighbor(m_size,max_pack,posi,ival,packed_coordinates,packed_indices)
 use atoms; use parameters
 !----------------------------------------------------------------------
 
+implicit None
 real(8),intent(in) :: posi(3)
-integer,intent(in) :: m_size,max_pack
+integer,intent(in) :: m_size,max_pack,ival
 real(8),intent(in) :: packed_coordinates(1:max_pack,3)  ! contains the atomic coordinates of the packed neighbor
 integer,intent(in) :: packed_indices(1:max_pack)
 real(8) :: dpr(1:max_pack,3),dr                 ! contanins distance for the entire batch of packed atoms
@@ -504,8 +505,8 @@ do i_pack=1,m_size
    dr = sum(dpr(i_pack,1:3)*dpr(i_pack,1:3))
    ! neighbor_index = pack(packed_indices,mask=(dpr(i_pack,4) <=rctap2))
    if (dr <=rctap2) then
-       nbplist(0,i)=nbplist(0,i)+1
-       nbplist(nbplist(0,i),i)= packed_indices(i_pack)
+       nbplist(0,ival)=nbplist(0,ival)+1
+       nbplist(nbplist(0,ival),ival)= packed_indices(i_pack)
    end if
 end do
 
