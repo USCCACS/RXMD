@@ -494,22 +494,22 @@ integer, intent(in) :: m_size, max_pack
 real(8), intent(in) :: packed_coordinates(1:max_pack,3)  ! contains the atomic coordinates of the packed neighbor
 integer, intent(in) :: packed_indices(1:max_pack)
 integer, intent(inout) :: nbplist_i(0:MAXNEIGHBS10)
-real(8) :: dpr(1:max_pack,3),dr                 ! contanins distance for the entire batch of packed atoms
-integer :: i_pack
+real(8) :: dr2(1:max_pack), dr(3)                 ! contanins distance for the entire batch of packed atoms
+integer :: i_pack, i_counter
 
-do i_pack=1,m_size
-   dpr(i_pack,1:3) = posi(1:3) - packed_coordinates(i_pack,1:3)
-!   dpr(i_pack,4) = sum(dpr(i_pack,1:3)*dpr(i_pack,1:3))
+do i_pack = 1, m_size
+   dr(1:3) = posi(1:3) - packed_coordinates(i_pack,1:3)
+   dr2(i_pack) = sum(dr(1:3)*dr(1:3))
 end do
 
-do i_pack=1,m_size
-   dr = sum(dpr(i_pack,1:3)*dpr(i_pack,1:3))
-   ! neighbor_index = pack(packed_indices,mask=(dpr(i_pack,4) <=rctap2))
-   if (dr <=rctap2) then
-       nbplist_i(0)=nbplist_i(0)+1
-       nbplist_i(nbplist_i(0))= packed_indices(i_pack)
+i_counter = nbplist_i(0)
+do i_pack = 1, m_size
+   if (dr2(i_pack) <= rctap2) then
+       i_counter = i_counter + 1
+       nbplist_i(i_counter) = packed_indices(i_pack)
    end if
 end do
+nbplist_i(0) = i_counter
 
 end subroutine
 
