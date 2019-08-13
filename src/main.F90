@@ -431,20 +431,19 @@ real(8) :: dr(3), dr2
 integer :: ti,tj,tk
 
 integer :: m_size=0                ! keep track of the size of the packed_indices and packed_coordinates
-integer,parameter :: max_pack=256  ! maximum packing size for packing neighborlist
+integer, parameter :: max_pack = 256  ! maximum packing size for packing neighborlist
 integer :: packed_indices(1:max_pack)   ! contains the indicies of the neighbor for each atom
-!integer :: neighbor_index(1:max_pack)   !  contains the indicies of the neighbor with greater then cutoff distance
 real(8) :: packed_coordinates(1:max_pack,3)  ! contains the atomic coordinates og the packed neighbor
 
 call system_clock(ti,tk)
 
 ! reset non-bonding pair list
-nbplist(0,:)=0
+nbplist(0,:) = 0
 
 !$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,m_size,packed_indices,packed_coordinates)
-do c1=0, nbcc(1)-1
-do c2=0, nbcc(2)-1
-do c3=0, nbcc(3)-1
+do c1 = 0, nbcc(1)-1
+do c2 = 0, nbcc(2)-1
+do c3 = 0, nbcc(3)-1
 
    i = nbheader(c1,c2,c3)
    do m = 1, nbnacell(c1,c2,c3)
@@ -456,24 +455,24 @@ do c3=0, nbcc(3)-1
          c6 = c3 + nbmesh(3,mn)
 
          j = nbheader(c4,c5,c6)
-         do n=1, nbnacell(c4,c5,c6)
-            if(i/=j) then
-               m_size = m_size+1
+         do n = 1, nbnacell(c4,c5,c6)
+            if (i /= j) then
+               m_size = m_size + 1
                packed_indices(m_size) = j
-               packed_coordinates(m_size,:) = pos(j,1:3)
+               packed_coordinates(m_size,:) = pos(j, 1:3)
             end if
             if (m_size == max_pack) then
-               call calc_packed_neighbor(m_size,max_pack,pos(i,1:3),packed_coordinates,packed_indices, nbplist(:,i))
+               call calc_packed_neighbor(m_size, max_pack, pos(i,1:3), packed_coordinates, packed_indices, nbplist(:,i))
                m_size = 0
             end if
-            j=nbllist(j)
+            j = nbllist(j)
          enddo
        enddo
        if (m_size > 0) then
-          call calc_packed_neighbor(m_size,max_pack,pos(i,1:3),packed_coordinates,packed_indices, nbplist(:,i))
+          call calc_packed_neighbor(m_size, max_pack, pos(i,1:3), packed_coordinates, packed_indices, nbplist(:,i))
           m_size = 0
        end if
-      i=nbllist(i)
+      i = nbllist(i)
    enddo
 enddo; enddo; enddo
 !$omp end parallel do
