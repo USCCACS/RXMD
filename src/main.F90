@@ -424,7 +424,7 @@ implicit none
 
 real(8),intent(in) :: pos(NBUFFER,3)
 
-integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid
+integer :: c1,c2,c3,c4,c5,c6,i,j,m,n,mn
 integer :: l2g
 real(8) :: dr(3), dr2
 
@@ -440,7 +440,7 @@ call system_clock(ti,tk)
 ! reset non-bonding pair list
 nbplist(0,:) = 0
 
-!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,m_size,packed_indices,packed_coordinates)
+!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,m_size,packed_indices,packed_coordinates)
 do c1 = 0, nbcc(1)-1
 do c2 = 0, nbcc(2)-1
 do c3 = 0, nbcc(3)-1
