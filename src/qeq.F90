@@ -186,7 +186,7 @@ use atoms; use parameters; use MemoryAllocator
 ! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
-integer :: i,j, ity, jty, n, m, mn, nn
+integer :: i,j, ity, jty, n, m, mn, nn,h_ind
 integer :: c1,c2,c3, c4,c5,c6
 real(4) :: dr2
 real(8) :: dr(3), drtb
@@ -203,7 +203,7 @@ call system_clock(ti,tk)
 
 
 !$omp parallel do schedule(runtime), default(shared), &
-!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn,m_size,packed_indices,packed_coordinates)
+!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn,m_size,packed_indices,packed_coordinates,h_ind)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -213,8 +213,7 @@ do c3=0, nbcc(3)-1
 
    ity=nint(atype(i))
    nbplist(0,i) = 0
-   
-   m_size = 0
+
    do mn = 1, nbnmesh
       c4 = c1 + nbmesh(1,mn)
       c5 = c2 + nbmesh(2,mn)
@@ -223,22 +222,34 @@ do c3=0, nbcc(3)-1
       j = nbheader(c4,c5,c6)
       do n=1, nbnacell(c4,c5,c6)
 
-         if (i/=j) then
+         if(i/=j) then
             m_size = m_size + 1
             packed_indices(m_size) = j
             packed_coordinates(m_size,:) = pos(j, 1:3)
          end if
          if (m_size == max_pack) then
-            call calc_packed_neighbor_qeq(ity,i,m_size, max_pack, pos(i,1:3), packed_coordinates, packed_indices, nbplist(:,i))
+            call calc_packed_neighbor(m_size, max_pack, pos(i,1:3),packed_coordinates, packed_indices, nbplist(:,i))
             m_size = 0
-         end if
+         end if 
          j=nbllist(j)
       enddo
    enddo !   do mn = 1, nbnmesh
    if (m_size > 0) then
-      call calc_packed_neighbor_qeq(ity,i,m_size, max_pack, pos(i,1:3), packed_coordinates, packed_indices, nbplist(:,i))
+      call calc_packed_neighbor(m_size, max_pack, pos(i,1:3),packed_coordinates, packed_indices, nbplist(:,i))
       m_size = 0
    end if
+    
+   do h_ind=1,nbplist(0,i)
+      j = nbplist(h_ind,i)
+      jty = nint(atype(j))
+      dr(1:3) = pos(i,1:3) - pos(j,1:3)
+      dr2 = sum(dr(1:3)*dr(1:3))
+      itb = int(dr2*UDRi)
+      drtb = dr2 - itb*UDR
+      drtb = drtb*UDRi
+      inxn = inxn2(ity, jty)
+      hessian(h_ind,i) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
+   end do
    if (nbplist(0,i) > MAXNEIGHBS10) then
       write(6,*) "ERROR: In qeq.F90 inside qeq_initialize, nbplist greater then MAXNEIGHBS10 on mpirank",myid, &
                  "with value",nbplist(0,i)
@@ -260,50 +271,6 @@ call system_clock(tj,tk)
 it_timer(16)=it_timer(16)+(tj-ti)
 
 end subroutine 
-
-
-!----------------------------------------------------------------------
-subroutine  calc_packed_neighbor_qeq(ity,i_val,m_size, max_pack, posi, packed_coordinates, packed_indices, nbplist_i)
-use atoms; use parameters
-!----------------------------------------------------------------------
-
-implicit None
-real(8), intent(in) :: posi(3)
-integer, intent(in) :: m_size, max_pack
-real(8), intent(in) :: packed_coordinates(1:max_pack,3)  ! contains the atomic coordinates of the packed neighbor
-integer, intent(in) :: packed_indices(1:max_pack)
-integer, intent(inout) :: nbplist_i(0:MAXNEIGHBS10)
-real(8) :: dr2(1:max_pack), dr(3)  ! contanins distance square for the entire batch of packed atoms to the reference atom
-real(8) ::  drtb
-integer :: i_pack, i_counter
-
-integer, intent(in) :: ity,i_val
-integer :: jty,itb, inxn
-
-! compute distance square
-do i_pack = 1, m_size
-   dr(1:3) = posi(1:3) - packed_coordinates(i_pack,1:3)
-   dr2(i_pack) = sum(dr(1:3)*dr(1:3))
-end do
-
-! construct neighbour list
-i_counter = nbplist_i(0)
-do i_pack = 1, m_size
-   if (dr2(i_pack) <= rctap2) then
-       i_counter = i_counter + 1
-       nbplist_i(i_counter) = packed_indices(i_pack)
-       !--- get table index and residual value
-       jty = nint(atype(packed_indices(i_pack)))
-       itb = int(dr2(i_pack)*UDRi)
-       drtb = dr2(i_pack) - itb*UDR
-       drtb = drtb*UDRi
-       inxn = inxn2(ity, jty)
-       hessian(packed_indices(i_pack),i_val) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
-   end if
-end do
-nbplist_i(0) = i_counter
-
-end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_hsh(Est,hshs_sum,hsht_sum)
