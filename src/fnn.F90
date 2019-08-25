@@ -616,7 +616,7 @@ do i=1, num_atoms
 
 ! TODO: obtained force is scaled by the scaling_factor assuming that the trained
 ! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
-   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor
+   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor*Eev_kcal
 
 enddo
 
