@@ -290,6 +290,44 @@ enddo
 
 end subroutine
 
+!-----------------------------------------------------------------------
+subroutine maximally_preserving_BD(atype, v, scaling_factor)
+!-----------------------------------------------------------------------
+implicit none
+real(8),allocatable,intent(in) :: atype(:)
+real(8),allocatable,intent(in out):: v(:,:)
+real(8),intent(in) :: scaling_factor
+
+integer :: i,ity
+real(8) :: Ekinetic, kin, ctmp
+
+Ekinetic = 0.d0
+do i=1, NATOMS
+   ity = nint(atype(i))
+   kin = hmas(ity)*sum(v(i,1:3)*v(i,1:3))
+   ctmp = sqrt( (kin*UTEMP)/(treq*UTEMP0) )
+
+   if(ctmp>scaling_factor) v(i,1:3)=v(i,1:3)/scaling_factor 
+
+   ! compute system temperature after the scaling check above. 
+   Ekinetic = Ekinetic + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Ekinetic = Ekinetic/GNATOMS
+
+ctmp = sqrt( (treq*UTEMP0)/(Ekinetic*UTEMP) )
+if(myid==0) print'(a,3f10.3)','treq,Ekinetic,ctmp: ', (treq*UTEMP0),(Ekinetic*UTEMP),ctmp
+do i=1, NATOMS
+   v(i,1:3)=v(i,1:3)*ctmp
+enddo
+
+call linear_momentum(atype, v)
+
+return
+end
+
+
 
 !------------------------------------------------------------------------------
 subroutine vkick(dtf, atype, v, f)

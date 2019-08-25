@@ -1,10 +1,11 @@
 module fnnin_parser
 
-  use utils, only : getstr, getfilenamebase, l2g
+  use utils, only : getstr, getfilenamebase, l2g, Eev_kcal
   use base, only : force_field_class
   use fileio, only : output, writebin
   use velocity_modifiers_mod, only : vkick, linear_momentum, &
-                                     scale_to_target_temperature
+                                     scale_to_target_temperature, &
+                                     maximally_preserving_bd
 
   use iso_fortran_env, only: int32, int64, real32, real64 
 
@@ -101,8 +102,6 @@ contains
        !   if(max_rc<fp%models(ia)%ang(ib)%rc) max_rc = fp%models(ia)%ang(ib)%rc
        !enddo
     enddo
-
-    print*,'max_rc : ', max_rc
 
     return 
   end function
@@ -466,6 +465,9 @@ module fnn
 
   integer,allocatable :: pair_types(:,:)
 
+  ! timing for 1-feature calc & 2-force inference
+  real(rk),save,private :: tstart(0:3)=0.0, tfinish(0:3)=0.0
+
 contains
 
 !------------------------------------------------------------------------------
@@ -568,6 +570,7 @@ call get_features_fnn(num_atoms, atype, pos, fp)
 if(isRunFromXYZ) &
   call save_features_and_terminate(num_atoms,atype,pos,f,fp,RunFromXYZPath) 
 
+call cpu_time(tstart(1))
 do i=1, num_atoms 
   
    ity = atype(i)
@@ -592,9 +595,10 @@ do i=1, num_atoms
 
 ! TODO: obtained force is scaled by the scaling_factor assuming that the trained
 ! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
-   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor
+   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor*Eev_kcal
 
 enddo
+call cpu_time(tfinish(1))
 
 end subroutine
 
@@ -618,6 +622,8 @@ do nstep=0, num_mdsteps-1
 
   if(mod(nstep,pstep)==0) call print_e_fnn(atype, v, q)
 
+  call cpu_time(tstart(0))
+
   if(mod(nstep,fstep)==0) &
         call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
 
@@ -637,20 +643,11 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,sstep)==0.and.mdmode==8) &
       call adjust_temperature(atype, v)
 
+   if(mod(nstep,sstep)==0.and.mdmode==9) &
+      call maximally_preserving_BD(atype, v, vsfact) 
+
 !--- update velocity & position
    call vkick(1.d0, atype, v, f)
-
-   if(mod(nstep,pstep)==0) then
-      do i=1, natoms
-         ity = nint(atype(i))
-         ctmp = hmas(ity)*dot_product(v(i,1:3),v(i,1:3))/(GKE*1.2d0)
-         if(ctmp > 1d0) then 
-            v(i,1:3)=v(i,1:3)/sqrt(ctmp)
-            !print'(a,3i6,3f12.5)','hotatom: ', nstep, myid, i, ctmp, GKE*UTEMP, GKE*UTEMP*1.2d0
-         endif
-      enddo
-   endif
-   call linear_momentum(atype, v)
 
    pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
 
@@ -665,6 +662,7 @@ do nstep=0, num_mdsteps-1
 !--- update velocity
    call vkick(1.d0, atype, v, f)
 
+  call cpu_time(tfinish(0))
 enddo
 
 !--- save the final configurations
@@ -698,6 +696,7 @@ real(rk) :: cos_ijk, lambda_ijk, rijk_inv, zeta_G3a, zeta_G3b, zeta_G3b_0, zeta_
 
 real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 
+call cpu_time(tstart(2))
 nbrlist(:,0) = 0
 
 do ity = 1, size(fp%models)
@@ -779,8 +778,9 @@ do c3=0, cc(3)-1
   enddo
 enddo; enddo; enddo
 !$omp end parallel do 
+call cpu_time(tfinish(2))
 
-
+call cpu_time(tstart(3))
 do j=1, num_atoms
 
    jty = nint(atype(j))
@@ -884,6 +884,7 @@ do i=1, num_atoms
      (fp%models(ity)%features(j,:,i) - fp%models(ity)%fstat(j)%mean(:))/fp%models(ity)%fstat(j)%stddev(:)
    enddo 
 enddo
+call cpu_time(tfinish(3))
 
 return
 end subroutine
@@ -1079,8 +1080,8 @@ if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(a,i9,es13.5,2f8.2)') 'MDstep: ', cstep,ke, tt,GetTotalMemory()*1e-9
-
+   write(6,'(a,i9,es13.5,f10.3,3x,4f10.5)') &
+        'MDstep,KE,T(K)   onestep(sec),finf,feat2b,feat3b: ', cstep, ke, tt, tfinish(0:3)-tstart(0:3)
 endif
 
 end subroutine
