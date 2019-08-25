@@ -1,6 +1,6 @@
 module fnnin_parser
 
-  use utils, only : getstr, getfilenamebase, l2g
+  use utils, only : assert, getstr, getfilenamebase, l2g
   use base, only : force_field_class
   use fileio, only : output, writebin
   use velocity_modifiers_mod, only : vkick, linear_momentum, &
@@ -113,33 +113,42 @@ contains
     character(len=:),allocatable,intent(in out) :: linein
     integer(ik),allocatable,intent(in) :: indices(:)
     type(rad_feature_type) :: rad
-    integer :: num_fields
 
     if(.not.allocated(rad%mu)) allocate(rad%mu(0))
     if(.not.allocated(rad%eta)) allocate(rad%eta(0))
     if(.not.allocated(rad%indices)) allocate(rad%indices(0))
     rad%indices = indices;  rad%total = 0
 
-    num_fields = 0
     do while (getstr(linein, token) > 0)
-       if(token==':') then
-          num_fields = num_fields + 1
-       else
-          select case(num_fields)
-             case(1)
-               read(token,*) rad%rc
-             case(2)
-               read(token,*) rad%rdamp
-             case(3)
-               read(token,*) rbuf
-               rad%mu = [rad%mu, rbuf]
-             case(4)
-               read(token,*) rbuf
-               rad%eta = [rad%eta, rbuf]
-             case default
-               print'(a)', 'WARNING: unknown field in rad_ctor_from_line(): '//linein
-          end select
-       endif
+
+99     select case(token)
+
+         case('rc')
+           call assert(getstr(linein, token)>0, &
+                        'ERROR: rc in rad_ctor_from_line(): '//token)
+           read(token,*) rad%rc
+
+         case('rdamp')
+           call assert(getstr(linein, token)>0, &
+                        'ERROR: rdamp in rad_ctor_from_line(): '//token)
+           read(token,*) rad%rdamp
+
+         case('mu')
+           do while (getstr(linein, token) > 0)
+             read(token,*,err=99) rbuf
+             rad%mu = [rad%mu, rbuf]
+           enddo
+
+         case('eta')
+           do while (getstr(linein, token) > 0)
+             read(token,*,err=99) rbuf
+             rad%eta = [rad%eta, rbuf]
+           enddo
+
+         case default
+           print'(a)', 'WARNING: unknown field in rad_ctor_from_line(): '//linein
+
+       end select
     enddo
 
     rad%total = 1
@@ -155,7 +164,6 @@ contains
     character(len=:),allocatable,intent(in out) :: linein 
     integer(ik),allocatable,intent(in) :: indices(:)
     type(ang_feature_type) :: ang
-    integer :: num_fields
 
     if(.not.allocated(ang%lambda)) allocate(ang%lambda(0))
     if(.not.allocated(ang%zeta)) allocate(ang%zeta(0))
@@ -164,32 +172,48 @@ contains
     if(.not.allocated(ang%indices)) allocate(ang%indices(0))
     ang%indices = indices;  ang%total = 0
 
-    num_fields = 0
     do while (getstr(linein, token) > 0)
-       if(token==':') then
-          num_fields = num_fields + 1
-       else
-          select case(num_fields)
-             case(1)
-               read(token,*) ang%rc
-             case(2)
-               read(token,*) ang%rdamp
-             case(3)
-               read(token,*) ibuf
-               ang%lambda = [ang%lambda, ibuf]
-             case(4)
-               read(token,*) rbuf
-               ang%zeta = [ang%zeta, rbuf]
-             case(5)
-               read(token,*) rbuf
-               ang%eta = [ang%eta, rbuf]
-             case(6)
-               read(token,*) rbuf
-               ang%mu = [ang%mu, rbuf]
-             case default
-               print'(a)', 'WARNING: unknown field in ang_ctor_from_line(): '//linein
-          end select
-       endif
+
+99    select case(token)
+
+         case('rc')
+           call assert(getstr(linein, token)>0, &
+                       'ERROR: rc in ang_ctor_from_line(): '//token)
+           read(token,*) ang%rc
+
+         case('rdamp')
+           call assert(getstr(linein, token)>0, &
+                       'ERROR: rdamp in ang_ctor_from_line(): '//token)
+           read(token,*) ang%rdamp
+
+         case('lambda')
+           do while (getstr(linein, token) > 0)
+             read(token,*,err=99) ibuf
+             ang%lambda = [ang%lambda, ibuf]
+           enddo
+
+         case('zeta')
+           do while (getstr(linein, token) > 0)
+             read(token,*,err=99) rbuf
+             ang%zeta = [ang%zeta, rbuf]
+           enddo
+
+         case('eta')
+           do while (getstr(linein, token) > 0)
+             read(token,*,err=99) rbuf
+             ang%eta = [ang%eta, rbuf]
+           enddo
+
+         case('mu')
+           do while (getstr(linein, token) > 0)
+             read(token,*,err=99) rbuf
+             ang%mu = [ang%mu, rbuf]
+           enddo
+
+         case default
+           print'(a)', 'WARNING: unknown field in ang_ctor_from_line(): '//linein
+
+      end select
     enddo
 
     ang%total = NUM_ANG_MODES  ! vibration & stretch
