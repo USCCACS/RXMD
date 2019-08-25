@@ -1,6 +1,6 @@
 module fnnin_parser
 
-  use utils, only : assert, getstr, getfilenamebase, l2g
+  use utils, only : assert, getstr, getfilenamebase, l2g, Eev_kcal
   use base, only : force_field_class
   use fileio, only : output, writebin
   use velocity_modifiers_mod, only : vkick, linear_momentum, &
