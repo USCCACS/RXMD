@@ -115,10 +115,12 @@ real(8),allocatable :: dthm(:), hmas(:)
 real(8) :: astr(6) = 0.d0
 
 !--- from cmdline_args
+logical :: has_initial_pos=.false.
+real(8),allocatable,target :: ipos(:,:)
+
 logical :: isSpring=.false.
 real(8) :: springConst=0.d0
 logical :: hasSpringForce(16)
-real(8),allocatable :: ipos(:,:)
 
 logical :: isFF=.false., isData=.false., isMDparm=.false., isRunFromXYZ=.false.
 character(MAXSTRLENGTH) :: FFPath0="ffield", DataDir0="DAT", ParmPath0="rxmd.in"

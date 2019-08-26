@@ -1,7 +1,7 @@
 module force_mod
 
   use base, only : header, lcsize, llist, nacell, &
-                   ipos, springconst, hasspringforce
+                   ipos, isSpring, springconst, hasspringforce
   use reaxff_param_mod
   use bo_mod
 

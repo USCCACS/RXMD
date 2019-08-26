@@ -6,6 +6,7 @@ use base, only : atmname, mass, NBUFFER, MAXNEIGHBS, it_timer, &
 
 use memory_allocator_mod
 use utils
+use msd_mod, only : msd_data
 
 real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
 real(8),parameter :: MINBO0 = 1d-4       !<minBO0>: cutoff bond order 
@@ -172,6 +173,9 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,sstep)==0.and.mdmode==8) &
       call adjust_temperature(atype, v)
 
+   if(msd_data%is_msd .and. mod(nstep,pstep)==0) &
+      call msd_data%measure(NATOMS, atype, pos, ipos, msd_time=nstep/pstep)
+
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
 
@@ -210,6 +214,8 @@ call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+
+if(msd_data%is_msd) call msd_data%save()
 
 call finalize_reaxff()
 

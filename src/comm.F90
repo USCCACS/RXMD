@@ -2,7 +2,7 @@ module communication_mod
 
   use mpi_mod
   use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr, target_node, &
-                   copyptr, frcindx, nstep, pstep, it_timer, isSpring,  na, ne, ns, nr, &
+                   copyptr, frcindx, nstep, pstep, it_timer, has_initial_pos,  na, ne, ns, nr, &
                    MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, &
                    MODE_COPY_FNN, MODE_MOVE_FNN
 
@@ -11,7 +11,7 @@ module communication_mod
 
 contains
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
+subroutine COPYATOMS(imode, dr, atype, pos, v, f, q, ipos)
 !
 ! TODO: update notes here
 !
@@ -54,9 +54,7 @@ end type
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
 real(8),allocatable,target,intent(in out) :: atype(:),pos(:,:)
-real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:)
-
-real(8),allocatable,target :: nipos(:,:)  
+real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:),ipos(:,:)
 
 logical,allocatable :: commflag(:)
 type(pack1darray),allocatable :: pack1d(:)
@@ -78,7 +76,6 @@ real(8),allocatable :: sbuffer(:), rbuffer(:)
 call system_clock(tti,tk)
 
 if(.not.allocated(commflag)) allocate(commflag(size(atype)))
-if(.not.allocated(nipos)) call allocator(nipos,1, size(atype), 1, 3)
 if(.not.allocated(sbuffer)) call allocator(sbuffer, 1, size(atype))
 if(.not.allocated(rbuffer)) call allocator(rbuffer, 1, size(atype))
 
@@ -103,8 +100,6 @@ do dflag=1, 6
    call append_atoms(dflag, imode)
 
 enddo
-
-call deallocator(nipos)
 
 call finalize(imode)
 
@@ -142,6 +137,10 @@ select case(imode)
    case(MODE_MOVE_FNN)
 
       np2d=2; np1d=2; nn2d=1
+      if(has_initial_pos) then
+         np2d=np2d+1 ! for ipos
+         nn2d=nn2d+1 ! for ipos
+      endif
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
@@ -149,6 +148,9 @@ select case(imode)
       a=1
       pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
       pack2d(a)%ptr=>v; a=a+1 
+      if(has_initial_pos) then
+         pack2d(a)%ptr=>ipos; pack2d(a)%shift=.true.; a=a+1
+      endif
 
       a=1
       pack1d(a)%ptr=>atype; a=a+1
@@ -156,6 +158,9 @@ select case(imode)
 
       a=1
       norm2d(a)%ptr=>pos;  a=a+1
+      if(has_initial_pos) then
+         norm2d(a)%ptr=>ipos; a=a+1
+      endif
 
    case(MODE_COPY_FNN)
 
@@ -213,9 +218,9 @@ select case(imode)
       np2d=2; np1d=6; nn2d=1
 
       if(isPQEq) np2d=np2d+1 ! for spos
-      if(isSpring) then
-         np2d=np2d+1 ! for nipos
-         nn2d=nn2d+1 ! for nipos
+      if(has_initial_pos) then
+         np2d=np2d+1 ! for ipos
+         nn2d=nn2d+1 ! for ipos
       endif
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
@@ -227,8 +232,8 @@ select case(imode)
       if(isPQEq) then
          pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
       endif
-      if(isSpring) then
-         pack2d(a)%ptr=>nipos; pack2d(a)%shift=.true.; a=a+1
+      if(has_initial_pos) then
+         pack2d(a)%ptr=>ipos; pack2d(a)%shift=.true.; a=a+1
       endif
 
       a=1
@@ -242,8 +247,8 @@ select case(imode)
       a=1
       norm2d(a)%ptr=>pos;  a=a+1
 
-      if(isSpring) then
-         norm2d(a)%ptr=>nipos; a=a+1
+      if(has_initial_pos) then
+         norm2d(a)%ptr=>ipos; a=a+1
       endif
 
    case(MODE_QCOPY1)

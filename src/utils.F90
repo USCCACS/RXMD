@@ -35,6 +35,10 @@ module utils
   real(8),parameter :: UDENS = 1.66053886d0     ! [g/cc]
   real(8),parameter :: UTIME = 1.d3/20.455d0    ! 1 = 1/20.445[ps] = 48.88780[fs]
 
+  type string_array
+    character(len=:),allocatable :: str
+  end type
+
 contains
 
 !-------------------------------------------------------------------------------------------
@@ -316,6 +320,29 @@ getstr=len(lineout)
 return
 end
 
+!-------------------------------------------------------------------------------------------
+logical function find_cmdline_argc(key,idx)
+implicit none
+!-------------------------------------------------------------------------------------------
+integer,intent(inout) :: idx
+character(*) :: key
+
+integer :: i
+character(MAXSTRLENGTH) :: argv
+
+do i=1, command_argument_count()
+   call get_command_argument(i,argv)
+   if(index(argv,trim(adjustl(key))//' ')/=0) then ! trailing zero to distinguish '-foo ' and '-fooo'
+      idx=i
+      find_cmdline_argc=.true.
+      return
+   endif
+enddo
+
+idx=-1
+find_cmdline_argc=.false.
+
+return
+end function
 
 end module
-

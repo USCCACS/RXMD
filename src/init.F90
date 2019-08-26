@@ -22,6 +22,9 @@ module init
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
+  use msd_mod, only : msd_data, msd_type_ctor
+
+
 contains
 
 !------------------------------------------------------------------------------------------
@@ -108,8 +111,6 @@ GNATOMS = sum(natoms_per_type)
 !--- TODO where to put the spring force extention? 
 !--- for spring force
 if (isSpring) then
-  call allocator(ipos,1,NBUFFER,1,3)
-  ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
   write(6,'(a)') repeat('-',60)
   write(6,'(a,f8.2, $)') 'springConst [kcal/mol] ', springConst 
@@ -194,6 +195,29 @@ if(myid==0) then
    write(6,'(a)') repeat('-',60)
 endif
 
+! MSD constractor
+msd_data = msd_type_ctor(atmname, msd_size=(ntime_step/pstep), unit_time=(pstep*dt*UTIME))
+if(msd_data%is_msd) then
+  if(myid==0) then
+     write(6,fmt='(a)') 'start MSD measurement.'
+     write(6,fmt='(a,i6,f8.3)') 'msd_size, unit_time: ', &
+                         size(msd_data%dat,dim=2), msd_data%unit_time
+  endif
+endif
+
+!--- keep initial position
+if(isSpring .or. msd_data%is_msd) then
+
+  has_initial_pos = .true.
+
+  call allocator(ipos,1,NBUFFER,1,3)
+  ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
+
+  if(myid==0) then
+     write(6,fmt='(a,l3)') 'has_initial_pos:', has_initial_pos
+  endif
+
+endif
 
 end subroutine
 

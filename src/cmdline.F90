@@ -2,7 +2,7 @@
 module cmdline_args
 !-------------------------------------------------------------------------------------------
 use mpi_mod
-use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH 
+use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, &
@@ -413,30 +413,5 @@ treq = treq/UTEMP0
 Lex_w2=2.d0*Lex_k/dt/dt
 
 end subroutine
-
-!-------------------------------------------------------------------------------------------
-logical function find_cmdline_argc(key,idx)
-implicit none
-!-------------------------------------------------------------------------------------------
-integer,intent(inout) :: idx
-character(*) :: key
-
-integer :: i
-character(MAXSTRLENGTH) :: argv
-
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-   if(index(argv,trim(adjustl(key))//' ')/=0) then ! trailing zero to distinguish '-foo ' and '-fooo'
-      idx=i
-      find_cmdline_argc=.true.
-      return
-   endif
-enddo
-
-idx=-1
-find_cmdline_argc=.false.
-
-return
-end function
 
 end module

@@ -452,6 +452,7 @@ module fnn
   use base
   use lists_mod, only : getnonbondingmesh, linkedlist
   use communication_mod, only : copyatoms
+  use msd_mod, only : msd_data
 
   implicit none
 
@@ -563,10 +564,11 @@ select type(ff); type is (fnn_param)
    fp => ff
 end select
 
-call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos)
+call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_features_fnn(num_atoms, atype, pos, fp) 
+
 if(isRunFromXYZ) &
   call save_features_and_terminate(num_atoms,atype,pos,f,fp,RunFromXYZPath) 
 
@@ -646,13 +648,17 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,sstep)==0.and.mdmode==9) &
       call maximally_preserving_BD(atype, v, vsfact) 
 
+   if(msd_data%is_msd .and. mod(nstep,pstep)==0) & 
+      call msd_data%measure(NATOMS, atype, pos, ipos, msd_time=nstep/pstep)
+
 !--- update velocity & position
    call vkick(1.d0, atype, v, f)
 
    pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
 
 !--- migrate atoms after positions are updated
-   call COPYATOMS(imode=MODE_MOVE_FNN,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q)
+   call COPYATOMS(imode=MODE_MOVE_FNN,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos, &
+                  v=v,f=f,q=q,ipos=ipos)
 
    call cpu_time(cpu1)
    call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
@@ -662,7 +668,8 @@ do nstep=0, num_mdsteps-1
 !--- update velocity
    call vkick(1.d0, atype, v, f)
 
-  call cpu_time(tfinish(0))
+   call cpu_time(tfinish(0))
+
 enddo
 
 !--- save the final configurations
@@ -670,6 +677,8 @@ call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
 
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+
+if(msd_data%is_msd) call msd_data%save()
 
 
 call cpu_time(cpu2)
