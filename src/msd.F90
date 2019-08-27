@@ -47,7 +47,7 @@ contains
      m%unit_time = unit_time
      
      allocate(m%msd_atom_name(size(atom_name)))
-     allocate(m%dat(size(atom_name),0:msd_size), m%num_samples(size(atom_name),0:msd_size))
+     allocate(m%dat(size(atom_name),msd_size), m%num_samples(size(atom_name),msd_size))
 
      do i=1, size(atom_name)
         m%msd_atom_name(i)%str = atom_name(i)
@@ -57,20 +57,24 @@ contains
 
   end function
 
-  subroutine measure_msd(this, num_atoms, atype, pos, pos0, msd_time)
+  subroutine measure_msd(this, num_atoms, atype, pos, pos0)
      class(msd_type),intent(in out) :: this 
-     integer,intent(in) :: num_atoms, msd_time
+     integer,intent(in) :: num_atoms 
      real(8),allocatable,intent(in) :: atype(:), pos(:,:), pos0(:,:) 
+
+     integer,save :: counter = 0
 
      integer :: i, ity
      real(8) :: dr(3), dr2
+
+     counter = counter + 1
 
      do i=1, num_atoms
         dr(1:3) = pos(i,1:3) - pos0(i,1:3)
         ity = nint(atype(i)) 
         dr2 = sum(dr(1:3)*dr(1:3))
-        this%dat(ity,msd_time) = this%dat(ity,msd_time) + dr2
-        this%num_samples(ity,msd_time) = this%num_samples(ity,msd_time) + 1
+        this%dat(ity,counter) = this%dat(ity,counter) + dr2
+        this%num_samples(ity,counter) = this%num_samples(ity,counter) + 1
      enddo
 
   end subroutine
@@ -105,18 +109,22 @@ contains
     enddo
     write(iunit,fmt=*)
 
-    do t=0, num_msdsize-2
-       write(iunit,fmt='(f8.3)',advance='no') t*this%unit_time
+    do t=1, num_msdsize-1
+       write(iunit,fmt='(f10.2)',advance='no') t*this%unit_time
        do i=1, num_type
           if(this%num_samples(i,t)>0) then
-             write(iunit,fmt='(es15.5)',advance='no') &
+             write(iunit,fmt='(es18.5)',advance='no') &
                    this%dat(i,t)/this%num_samples(i,t)
           else
-             write(iunit,fmt='(es15.5)',advance='no') 0.d0
+             write(iunit,fmt='(es18.5)',advance='no') 0.d0
           endif
        enddo
        do i=1, num_type
-          write(iunit,fmt='(i9)',advance='no') this%num_samples(i,t)
+          if(this%num_samples(i,t)>0) then
+             write(iunit,fmt='(i12)',advance='no') this%num_samples(i,t)
+          else
+             write(iunit,fmt='(i12)',advance='no') 0
+          endif
        enddo
        write(iunit,fmt=*)
     enddo

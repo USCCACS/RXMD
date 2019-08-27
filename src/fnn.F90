@@ -655,7 +655,7 @@ do nstep=0, num_mdsteps-1
       call maximally_preserving_BD(atype, v, vsfact) 
 
    if(msd_data%is_msd .and. mod(nstep,pstep)==0) & 
-      call msd_data%measure(NATOMS, atype, pos, ipos, msd_time=nstep/pstep)
+      call msd_data%measure(NATOMS, atype, pos, ipos)
 
 !--- total force may not be zero with FNN. fix linear momentum every pstep.
    if(mod(nstep,pstep)==0) call linear_momentum(atype, v)

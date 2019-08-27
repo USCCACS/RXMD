@@ -174,7 +174,7 @@ do nstep=0, num_mdsteps-1
       call adjust_temperature(atype, v)
 
    if(msd_data%is_msd .and. mod(nstep,pstep)==0) &
-      call msd_data%measure(NATOMS, atype, pos, ipos, msd_time=nstep/pstep)
+      call msd_data%measure(NATOMS, atype, pos, ipos)
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 

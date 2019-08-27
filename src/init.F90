@@ -195,7 +195,7 @@ if(myid==0) then
    write(6,'(a)') repeat('-',60)
 endif
 
-! MSD constractor
+!--- MSD constractor
 msd_data = msd_type_ctor(atmname, msd_size=(ntime_step/pstep), unit_time=(pstep*dt*UTIME))
 if(msd_data%is_msd) then
   if(myid==0) then
@@ -213,9 +213,7 @@ if(isSpring .or. msd_data%is_msd) then
   call allocator(ipos,1,NBUFFER,1,3)
   ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
 
-  if(myid==0) then
-     write(6,fmt='(a,l3)') 'has_initial_pos:', has_initial_pos
-  endif
+  if(myid==0) write(6,fmt='(a,l3)') 'has_initial_pos:', has_initial_pos
 
 endif
 
