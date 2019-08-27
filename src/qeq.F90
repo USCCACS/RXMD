@@ -298,7 +298,7 @@ do i_pack = 1, m_size
        drtb = dr2(i_pack) - itb*UDR
        drtb = drtb*UDRi
        inxn = inxn2(ity, jty)
-       hessian(packed_indices(i_pack),i_val) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
+       hessian(i_counter,i_val) = (1.d0-drtb)*TBL_Eclmb_QEq(itb,inxn) + drtb*TBL_Eclmb_QEq(itb+1,inxn)
    end if
 end do
 nbplist_i(0) = i_counter
