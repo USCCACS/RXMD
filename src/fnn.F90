@@ -602,6 +602,12 @@ do i=1, num_atoms
 enddo
 call cpu_time(tfinish(1))
 
+!do i=1, num_atoms
+!   ity=nint(atype(i))
+!   print'(2i6,6f10.5)',i,ity,pos(i,1:3),f(i,1:3)*fp%models(ity)%scaling_factor/Eev_kcal
+!enddo
+!stop 
+
 end subroutine
 
 !------------------------------------------------------------------------------
@@ -650,6 +656,9 @@ do nstep=0, num_mdsteps-1
 
    if(msd_data%is_msd .and. mod(nstep,pstep)==0) & 
       call msd_data%measure(NATOMS, atype, pos, ipos, msd_time=nstep/pstep)
+
+!--- total force may not be zero with FNN. fix linear momentum every pstep.
+   if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
 
 !--- update velocity & position
    call vkick(1.d0, atype, v, f)
