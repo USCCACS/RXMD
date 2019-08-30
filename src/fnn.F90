@@ -1,6 +1,6 @@
 module fnnin_parser
 
-  use utils, only : getstr, getfilenamebase, l2g, Eev_kcal
+  use utils, only : pi, getstr, getfilenamebase, l2g, Eev_kcal
   use base, only : force_field_class
   use fileio, only : output, writebin
   use velocity_modifiers_mod, only : vkick, linear_momentum, &
@@ -15,6 +15,8 @@ module fnnin_parser
   integer,parameter :: ik = int32 ! ik = int64
 
   integer,parameter :: NUM_ANG_MODES=2 ! number of modes in a triplet
+
+  integer,parameter :: SIZE_FEATURE_TABLE=20000
 
   type :: layer
     real(rk),allocatable :: b(:)
@@ -37,6 +39,9 @@ module fnnin_parser
 
     integer(ik),allocatable :: indices(:)
     integer(ik) :: total
+
+    real(rk),allocatable :: ftab(:,:) ! feature calc table
+    real(rk) :: ftab_dr 
   end type
 
   type :: ang_feature_type
@@ -84,6 +89,58 @@ module fnnin_parser
   character(len=:),allocatable,private :: token
 
 contains
+
+!------------------------------------------------------------------------------
+subroutine set_feature_tables_fnn(fp)
+!------------------------------------------------------------------------------
+type(fnn_param),intent(in out) :: fp
+
+real(rk) :: rij, fc_ij, rij_mu, eta_ij
+integer(ik) :: t, ity, jty, ii, l1, l2, idx, num_mu, num_eta
+ 
+
+do ity=1, size(fp%models)
+
+   do jty=1, size(fp%models)
+
+      ! lookup table. should be ii == jty
+     ii = fp%models(ity)%map_rad(jty)
+
+     associate(rad=>fp%models(ity)%rad(ii)) ! rad for (ity,jty) pair
+  
+     num_mu = size(rad%mu)
+     num_eta = size(rad%eta)
+  
+     if(allocated(rad%ftab)) deallocate(rad%ftab)
+     allocate(rad%ftab(SIZE_FEATURE_TABLE,num_mu*num_eta))
+  
+     rad%ftab_dr = rad%rc/SIZE_FEATURE_TABLE
+  
+     do t=1, SIZE_FEATURE_TABLE
+
+       rij = rad%ftab_dr*(t-0.5)
+       fc_ij = 0.5*(1.0+cos(pi*rij/rad%rdamp))
+  
+       do l1=1, size(rad%mu)
+         rij_mu = rij - rad%mu(l1)
+  
+         do l2=1, size(rad%eta) 
+           eta_ij = exp( -rad%eta(l2) * rij_mu * rij_mu )
+           idx = (l1-1)*size(rad%eta) + (l2-1) + 1
+           rad%ftab(t,idx) = eta_ij*fc_ij
+
+         enddo
+  
+       enddo
+     enddo
+  
+     end associate
+
+  enddo
+enddo
+
+end subroutine
+
 
 !------------------------------------------------------------------------------
   function get_max_cutoff(fp) result(max_rc)
@@ -540,12 +597,6 @@ stop
 
 end subroutine
 
-!------------------------------------------------------------------------------
-subroutine set_potentialtables_fnn()
-!------------------------------------------------------------------------------
-! TODO: implement 
-
-end subroutine
 
 !------------------------------------------------------------------------------
 subroutine get_force_fnn(ff, num_atoms, atype, pos, f, q)
@@ -602,11 +653,13 @@ do i=1, num_atoms
 enddo
 call cpu_time(tfinish(1))
 
-!do i=1, num_atoms
-!   ity=nint(atype(i))
-!   print'(2i6,6f10.5)',i,ity,pos(i,1:3),f(i,1:3)*fp%models(ity)%scaling_factor/Eev_kcal
-!enddo
-!stop 
+#ifdef FORCEDUMP
+do i=1, num_atoms
+   ity=nint(atype(i))
+   print'(2i6,6f12.5)',i,ity,pos(i,1:3),f(i,1:3)*fp%models(ity)%scaling_factor/Eev_kcal
+enddo
+stop 
+#endif
 
 end subroutine
 
@@ -714,11 +767,14 @@ real(rk) :: cos_ijk, lambda_ijk, rijk_inv, zeta_G3a, zeta_G3b, zeta_G3b_0, zeta_
 
 real(rk) :: G3_mu_eta, G3a_xyz(3), G3a_c1, G3a_c2, G3a, G3b_xyz(3), G3b
 
-call cpu_time(tstart(2))
+real(rk) :: fdr, frac
+integer :: size_etamu, ia
+
 nbrlist(:,0) = 0
 
+call cpu_time(tstart(2))
 do ity = 1, size(fp%models)
-   fp%models(ity)%features = 0.0
+   fp%models(ity)%features(:,:,1:num_atoms) = 0.0
 enddo
 
 !$omp parallel do default(shared) collapse(3) & 
@@ -762,25 +818,34 @@ do c3=0, cc(3)-1
                     nbrlist(i, 0) = nbrlist(i, 0) + 1
                     nbrlist(i, nbrlist(i, 0)) = j
                   endif
-  
+
                   rr(1:3) = rr(1:3)/rij
+
+                  size_etamu = size(rad%mu)*size(rad%eta)
+
+#ifndef NOTABLE
+                  fdr = rij/rad%ftab_dr
+                  idx = int(fdr)
+                  frac = fdr - idx
+
+                  do ia=1,3
+                    feats(ia,ptr:ptr+size_etamu-1,i) = &
+                    feats(ia,ptr:ptr+size_etamu-1,i) + rad%ftab(idx,1:size_etamu)*rr(ia)
+                  enddo
+#else
                   fc_ij = 0.5*( 1.0 + cos(pi*rij/rad%rdamp) ) 
-  
+
                   do l1 = 1, size(rad%mu)
-  
-                     !rij_mu = rij - fp%rad_mu(l1)
                      rij_mu = rij - rad%mu(l1)
-  
+
                      do l2 = 1, size(rad%eta)
-  
-                        !eta_ij = exp( -fp%rad_eta(l2) * rij_mu * rij_mu )
                         eta_ij = exp( -rad%eta(l2) * rij_mu * rij_mu )
-  
                         idx = ptr + (l1-1)*size(rad%eta) + (l2-1)
                         feats(1:3,idx,i) = feats(1:3,idx,i) + eta_ij*fc_ij*rr(1:3)
                      enddo
   
                   enddo
+#endif
 
                 endif
 

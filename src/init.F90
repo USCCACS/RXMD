@@ -13,11 +13,11 @@ module init
 
   use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, num_networks_per_atom, &
                   network_ctor, mean_stddev_loader, num_forcecomps, num_pairs, num_types, & 
-                  mddriver_fnn, set_potentialtables_fnn, get_max_cutoff
+                  mddriver_fnn, get_max_cutoff
 
   use lists_mod, only: getnonbondingmesh 
 
-  use fnnin_parser
+  use fnnin_parser, only : fnn_param_ctor, set_feature_tables_fnn
 
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
@@ -237,6 +237,9 @@ if(myid==0) verbose=.true.
 
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
+
+!--- setup feature calculation tables
+call set_feature_tables_fnn(fp)
 
 !--- FNN specific output 
 if(myid==0) call fp%print()
