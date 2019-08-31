@@ -368,13 +368,14 @@ character(*),intent(in) :: fileName
 real(8),allocatable,dimension(:),intent(inout) :: atype,q
 real(8),allocatable,dimension(:,:),intent(inout) :: rreal,v,f
 
-real(8) :: dbuf6(6), mat(3,3)
+real(8) :: dbuf6(6), mat(3,3), mati(3,3)
 
 integer :: ti,tj,tk
 
 integer :: i,j,i1, ntot, iigd, num_unit, funit
 real(8),allocatable :: pos0(:)
 integer,allocatable :: atype0(:)
+character(2) :: c2
 
 call system_clock(ti,tk)
 
@@ -382,13 +383,19 @@ if(myid==0) then
   open(newunit=funit, file=trim(filename), status='old', form='formatted')
 
   read(funit,fmt=*) num_unit
-  allocate(pos0(3*num_unit), atype0(num_unit))
+  allocate(atype0(num_unit), pos0(3*num_unit))
 
   read(funit,fmt=*) dbuf6(1:6)
 
   do i = 1, num_unit
-!FIXME: here, user needs to convert element name to cooresponding integer beforehand. a better way to handle this? 
-     read(funit,fmt=*) atype0(i),pos0(i*3-2:i*3) 
+     read(funit,fmt=*) c2,pos0(i*3-2:i*3) 
+
+!TODO: use atmname to get the element-to-integer mapping.
+!      atmname has to be set based on the input files, e.g. ffield or ffn.in.
+     do i1=1, size(atmname)
+       if(c2(1:2) == atmname(i1)) exit
+     enddo
+     atype0(i)=i1
   enddo
 
   close(funit)
@@ -401,8 +408,8 @@ call MPI_Bcast(dbuf6,size(dbuf6),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 lata=dbuf6(1); latb=dbuf6(2); latc=dbuf6(3)
 lalpha=dbuf6(4); lbeta=dbuf6(5); lgamma=dbuf6(6)
 
-call MPI_Bcast(atype0,num_unit,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(pos0,3*num_unit,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(atype0,size(atype0),MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(pos0,size(pos0),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 
 !--- allocate arrays
 if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
@@ -415,14 +422,19 @@ if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
 f(:,:)=0.0
 
 iigd = num_unit*myid ! for global ID
-ntot=0
 do i=1,num_unit
-   ntot=ntot+1
-   rreal(ntot,1:3) = pos0(3*i-2:3*i) + vID(1:3) ! adding the box origin
-   rreal(ntot,1:3) = rreal(ntot,1:3)*(/lata,latb,latc/) ! real coords
-   atype(ntot) = dble(atype0(i)) + (iigd+ntot)*1d-13
+   pos(i,1:3) = pos0(i*3-2:i*3)
+   atype(i) = dble(atype0(i)) + (iigd+i)*1d-13
 enddo 
-NATOMS=ntot
+
+!--- assuming XYZ format is in the real coordinates given for one domain. 
+!    To run multiple domain job, normalize the coords, update H-matrix, 
+!    update the box origin, then scale back to the real coords. 
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call matinv(mat,mati)
+call xu2xs_inplace(mati,[0.d0,0.d0,0.d0],num_unit,pos)
+
+NATOMS=num_unit
 
 !--- update to glocal cell parameters
 lata=lata*vprocs(1)
@@ -436,6 +448,8 @@ do j=1, 3
 enddo; enddo
 call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
                        cc, lcsize, hhi, mdbox, lbox, obox)
+
+call xs2xu_inplace(hh,obox,num_unit,pos)
 
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
