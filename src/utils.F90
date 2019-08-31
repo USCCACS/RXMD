@@ -345,4 +345,20 @@ find_cmdline_argc=.false.
 return
 end function
 
+!-------------------------------------------------------------------------------------------
+subroutine assert(logical, message)
+!-------------------------------------------------------------------------------------------
+logical,intent(in) :: logical
+character(*),intent(in) :: message
+
+#ifdef DEBUG
+if(.not. logical) then
+   print'(a)',message
+   stop
+endif
+#endif
+
+return
+end subroutine
+
 end module
