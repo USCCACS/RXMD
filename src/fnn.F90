@@ -463,10 +463,11 @@ end subroutine
           write(*,fmt='(a,2i2,1x,a,1x)',advance='no') 'rad_params: ', &
              i1,i2,this%models(i1)%element//'-'//this%models(i2)%element
 
-          write(*,fmt='(a,2f6.2)', advance='no') repeat(' ',3), m%rad(ib)%rc, m%rad(ib)%rdamp 
-          write(*,fmt='(a,i6)',advance='no') repeat(' ',3)
+          write(*,fmt='(a,2(a,f8.3))', advance='no') &
+               repeat(' ',3), ' rc ', m%rad(ib)%rc, ' rdamp ', m%rad(ib)%rdamp 
+          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' mu '
           do ic=1,size(m%rad(ib)%mu);  write(*,fmt='(f6.2)',advance='no') m%rad(ib)%mu(ic);  enddo
-          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' eta '
           do ic=1,size(m%rad(ib)%eta);  write(*,fmt='(f6.2)',advance='no') m%rad(ib)%eta(ic);  enddo
           write(*,*)
        enddo
@@ -484,17 +485,18 @@ end subroutine
           write(*,fmt='(a,3i2,1x,a,1x)', advance='no') 'ang_params: ',i1,i2,i3,&
              this%models(i1)%element//'-'//m%element//'-'//this%models(i3)%element
 
-          write(*,fmt='(a,2f8.3)',advance='no') repeat(' ',3), m%ang(ib)%rc, m%ang(ib)%rdamp 
-          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          write(*,fmt='(a,2(a,f8.3))',advance='no') &
+               repeat(' ',3), ' rc ', m%ang(ib)%rc, ' rdamp ', m%ang(ib)%rdamp 
+          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' lambda '
           do ic=1,size(m%ang(ib)%lambda);  write(*,fmt='(i3)',advance='no') m%ang(ib)%lambda(ic);  enddo
 
-          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' zeta '
           do ic=1,size(m%ang(ib)%zeta);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%zeta(ic);  enddo
 
-          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' mu '
           do ic=1,size(m%ang(ib)%mu);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%mu(ic);  enddo
 
-          write(*,fmt='(a)',advance='no') repeat(' ',3)
+          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' eta '
           do ic=1,size(m%ang(ib)%eta);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%eta(ic);  enddo
 
           write(*,*)
