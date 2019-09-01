@@ -328,7 +328,7 @@ end subroutine
     character(len=:),allocatable :: linein 
 
     type(fnn_param) :: c 
-    integer(ik) :: iunit, num_models, feature_ptr, ia,ib,ic, ang_index
+    integer(ik) :: iunit, num_models, feature_ptr, ii, ia,ib,ic, ang_index
     integer(ik),allocatable :: indices(:)
 
     open(newunit=iunit, file=path, status='old', form='formatted')
@@ -367,6 +367,12 @@ end subroutine
            case('rad')
              if(getstr(linein,token)>0) ia = get_index_of_model(token,c%models) !<- center atom
              if(getstr(linein,token)>0) ib = get_index_of_model(token,c%models)
+             do while(.true.)
+               read(iunit,'(a)') linein0
+               if(linein0(1:1)=='#') cycle ! skip comment
+               if(index(linein0,'end')>0) exit 
+               linein = linein//' '//trim(adjustl(linein0))
+             enddo
              if(c%models(ia)%map_rad(ib)==0) then
                indices = [ia,ib]
                c%models(ia)%rad = [c%models(ia)%rad, rad_ctor_from_line(linein,indices)]
@@ -380,6 +386,12 @@ end subroutine
 
              if(c%models(ib)%map_ang(ia,ic)==0) then
                indices = [ia,ib,ic]
+               do while(.true.)
+                 read(iunit,'(a)') linein0
+                 if(linein0(1:1)=='#') cycle ! skip comment 
+                 if(index(linein0,'end')>0) exit
+                 linein = linein//' '//trim(adjustl(linein0))
+               enddo
                c%models(ib)%ang = [c%models(ib)%ang, ang_ctor_from_line(linein,indices)]
                ang_index = size(c%models(ib)%ang)
                c%models(ib)%map_ang(ia,ic) = ang_index
