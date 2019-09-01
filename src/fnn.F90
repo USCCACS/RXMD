@@ -861,7 +861,7 @@ do c3=0, cc(3)-1
 
                   size_etamu = size(rad%mu)*size(rad%eta)
 
-#ifndef NOTABLE
+#ifdef TABLE
                   fdr = rij/rad%ftab_dr
                   idx = int(fdr)
                   frac = fdr - idx

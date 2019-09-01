@@ -80,6 +80,7 @@ do i=1,3
                    
 enddo    
 
+
 if(is_fnn) then
   fnn_param_obj = mdcontext_fnn()
   mdbase%ff => fnn_param_obj
@@ -90,14 +91,6 @@ else
   if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 endif
 
-!--- read atom and MD box data
-call allocator(atype,1,NBUFFER)
-call allocator(q,1,NBUFFER)
-call allocator(pos,1,NBUFFER,1,3)
-call allocator(v,1,NBUFFER,1,3)
-call allocator(f,1,NBUFFER,1,3)
-!--- index array for returning reaction force
-call allocator(frcindx,1,NBUFFER)
 
 if(isRunFromXYZ) then
   call ReadXYZ(atype, pos, v, q, f, RunFromXYZPath)
@@ -116,6 +109,20 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
 
 GNATOMS = sum(natoms_per_type)
 
+
+!--- determine cutoff distances
+if(is_fnn) then
+!--- set cutoff distance
+  call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fnn_param_obj))
+else
+!--- get cutoff distance based on the bond-order
+  call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
+!--- setup 10[A] radius mesh to avoid visiting unecessary cells 
+  call GetNonbondingMesh()
+endif
+
+!--- index array for returning reaction force
+call allocator(frcindx,1,NBUFFER)
 
 !--- TODO where to put the spring force extention? 
 !--- for spring force
@@ -281,8 +288,6 @@ enddo
 !--- set md dirver function 
 mddriver_func => mddriver_fnn
 
-!--- set cutoff distance
-call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fp))
 
 end function
 
@@ -329,12 +334,6 @@ mddriver_func => mddriver_reaxff
 
 !--- set force field parameters
 call get_forcefield_params_reaxff(FFPath)
-
-!--- get cutoff distance based on the bond-order
-call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
-
-!--- setup 10[A] radius mesh to avoid visiting unecessary cells 
-call GetNonbondingMesh()
 
 !--- ReaxFF specific output 
 if(myid==0) then
