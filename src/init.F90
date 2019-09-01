@@ -80,7 +80,6 @@ do i=1,3
                    
 enddo    
 
-
 if(is_fnn) then
   fnn_param_obj = mdcontext_fnn()
   mdbase%ff => fnn_param_obj
@@ -90,7 +89,6 @@ else
   call set_potentialtables_reaxff()
   if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
 endif
-
 
 if(isRunFromXYZ) then
   call ReadXYZ(atype, pos, v, q, f, RunFromXYZPath)
@@ -108,7 +106,6 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
                    MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
 
 GNATOMS = sum(natoms_per_type)
-
 
 !--- determine cutoff distances
 if(is_fnn) then
