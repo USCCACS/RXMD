@@ -80,16 +80,6 @@ do i=1,3
                    
 enddo    
 
-if(is_fnn) then
-  fnn_param_obj = mdcontext_fnn()
-  mdbase%ff => fnn_param_obj
-  if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
-else
-  call mdcontext_reaxff()
-  call set_potentialtables_reaxff()
-  if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
-endif
-
 !--- read atom and MD box data
 call allocator(atype,1,NBUFFER)
 call allocator(q,1,NBUFFER)
@@ -116,6 +106,15 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
 
 GNATOMS = sum(natoms_per_type)
 
+if(is_fnn) then
+  fnn_param_obj = mdcontext_fnn()
+  mdbase%ff => fnn_param_obj
+  if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
+else
+  call mdcontext_reaxff()
+  call set_potentialtables_reaxff()
+  if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
+endif
 
 !--- TODO where to put the spring force extention? 
 !--- for spring force
