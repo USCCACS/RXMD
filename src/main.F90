@@ -438,7 +438,7 @@ real(8) :: packed_coordinates(1:max_pack,3)  ! contains the atomic coordinates o
 call system_clock(ti,tk)
 
 ! reset non-bonding pair list
-nbplist(0,:) = 0
+!nbplist(0,:) = 0
 
 !$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,m_size,packed_indices,packed_coordinates)
 do c1 = 0, nbcc(1)-1
@@ -449,6 +449,7 @@ do c3 = 0, nbcc(3)-1
    do m = 1, nbnacell(c1,c2,c3)
       
       m_size = 0
+      nbplist(0,i) = 0
       do mn = 1, nbnmesh
          c4 = c1 + nbmesh(1,mn)
          c5 = c2 + nbmesh(2,mn)
