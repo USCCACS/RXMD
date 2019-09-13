@@ -297,10 +297,15 @@ end subroutine
 
     ! allocate zero-sized array
     if(.not.allocated(mbuf%layersize)) allocate(mbuf%layersize(0))
+
+    ! reserve the input layer size for feature vector and output layer size with -1.
+    ! they will be updated in fnn_param_ctor() after processing all parameters.
+    mbuf%layersize= [mbuf%layersize, -1]
     do while( getstr(linein, token) > 0 )
        read(token, *) ibuf
        mbuf%layersize= [mbuf%layersize, ibuf]
     enddo
+    mbuf%layersize= [mbuf%layersize, -1]
 
     ! allocate zero-sized array
     if(.not.allocated(models)) allocate(models(0)) 
@@ -436,6 +441,11 @@ end subroutine
 
          !print'(a,5i6)','ia,size(rad),size(ang),m%feature_ptr(1:2): ', &
          !        ia,size(m%feature_ptr_rad),size(m%feature_ptr_ang),m%num_features(1:2)
+
+         ! update input layer size with the total number of features
+         m%layersize(1) = m%num_features(1) + m%num_features(2)
+         ! update output layer size with 1 
+         m%layersize(size(m%layersize)) = 1
        end associate
 
     enddo
