@@ -138,9 +138,9 @@ endif
 if(myid==0) then
    write(6,'(a)') repeat('-',60)
    write(6,'(a30,i9,a3,i9)') "req/alloc # of procs:", vprocs(1)*vprocs(2)*vprocs(3), "  /",nprocs
-   write(6,'(a30,3i9)')      "req proc arrengement:", vprocs(1),vprocs(2),vprocs(3)
+   write(6,'(a30,3i9)')      "req proc arrangement:", vprocs(1),vprocs(2),vprocs(3)
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
-   write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTPE:", &
+   write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTEP:", &
                                   mdmode, current_step, ntime_step
    write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
    write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep

@@ -307,7 +307,7 @@ do i=1, NATOMS
    kin = hmas(ity)*sum(v(i,1:3)*v(i,1:3))
    ctmp = sqrt( (kin*UTEMP)/(treq*UTEMP0) )
 
-   if(ctmp>scaling_factor) v(i,1:3)=v(i,1:3)/scaling_factor 
+   if(ctmp>scaling_factor) v(i,1:3)=v(i,1:3)/ctmp
 
    ! compute system temperature after the scaling check above. 
    Ekinetic = Ekinetic + hmas(ity)*sum(v(i,1:3)*v(i,1:3))

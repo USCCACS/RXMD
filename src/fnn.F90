@@ -288,11 +288,11 @@ end subroutine
     type(model_params),allocatable,intent(in out) :: models(:)
     type(model_params) :: mbuf
 
-    if (getstr(linein, token) < 0) stop 'erro while reading element name'
+    if (getstr(linein, token) < 0) stop 'error while reading element name'
     mbuf%element = trim(adjustl(token))
-    if (getstr(linein, token) < 0) stop 'erro while reading element mass'
+    if (getstr(linein, token) < 0) stop 'error while reading element mass'
     read(token, *) mbuf%mass
-    if (getstr(linein, token) < 0) stop 'erro while reading scaling factor'
+    if (getstr(linein, token) < 0) stop 'error while reading scaling factor'
     read(token, *) mbuf%scaling_factor
 
     ! allocate zero-sized array
