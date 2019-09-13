@@ -1115,7 +1115,7 @@ do i=1, num_layers-1
     call MPI_BCAST(net%layers(i)%b, size(net%layers(i)%b), MPI_FLOAT, 0, MPI_COMM_WORLD, ierr) ! TODO: support only MPI_FLOAT for now
     close(fileunit)
   else
-    if(myid==0) then
+    if(present(verbose) .and. verbose .and. myid==0) then
       print'(a)',repeat('-',80)
       print'(a)', 'ERROR: '//filename_b//' does not exist. continue with zero-valued bias.' 
       print'(a)',repeat('-',80)
@@ -1132,12 +1132,13 @@ do i=1, num_layers-1
      close(fileunit)
   else
      
-    if(myid==0) then
+    if(present(verbose) .and. verbose .and. myid==0) then
       print'(a)',repeat('-',80)
       print'(a)', 'ERROR: '//filename_w//' does not exist. continue with zero-valued weight.' 
       print'(a)',repeat('-',80)
     endif
     net%layers(i)%w=0.0
+
   endif
 
   if(present(verbose) .and. verbose) &

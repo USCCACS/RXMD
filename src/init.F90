@@ -236,7 +236,7 @@ logical :: verbose=.false.
 
 type(fnn_param) :: fp
 
-if(myid==0) verbose=.true.
+if((.not.isRunFromXYZ) .and. (myid==0)) verbose=.true.
 
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
