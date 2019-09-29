@@ -722,6 +722,12 @@ real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 
 integer :: i,ity
 
+if(mdmode==0) then
+  call gaussian_dist_velocity(atype, v)
+  call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+  return
+endif
+
 call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
 
 call cpu_time(cpu0)
