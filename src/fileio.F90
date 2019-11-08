@@ -390,6 +390,10 @@ if(myid==0) then
   do i = 1, num_unit
      read(funit,fmt=*) c2,pos0(i*3-2:i*3) 
 
+     do j=1, 3
+        call assert( pos0((i-1)*3+j)>0.d0, 'ERROR: negative coordinate found in ReaxXYZ(): '//trim(filename))
+     enddo
+
 !TODO: use atmname to get the element-to-integer mapping.
 !      atmname has to be set based on the input files, e.g. ffield or ffn.in.
      do i1=1, size(atmname)

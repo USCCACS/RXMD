@@ -351,12 +351,14 @@ subroutine assert(logical, message)
 logical,intent(in) :: logical
 character(*),intent(in) :: message
 
-#ifdef DEBUG
-if(.not. logical) then
+if(logical) then
+   return
+else
+   print'(a)',repeat('!',60)
    print'(a)',message
+   print'(a)',repeat('!',60)
    stop
 endif
-#endif
 
 return
 end subroutine
