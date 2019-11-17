@@ -3,10 +3,10 @@ module stat_mod
   implicit none
   real(8),parameter :: pi = 4.d0*datan(1.d0)
   integer,parameter :: NTABLES = 2000, NTABLES_BA=180
-  real(8),parameter :: RCUT = 20d0, DRI = NTABLES/RCUT
+  real(8),parameter :: RCUT = 60d0, DRI = NTABLES/RCUT
   !real(8),parameter :: RCUT = 15d0, DRI = NTABLES/RCUT
   real(8),parameter :: QCUT = 10d0, DQ = QCUT/NTABLES
-  integer,parameter :: MAXNEIGHBS = 5000 
+  integer,parameter :: MAXNEIGHBS = 50000
 
   type NSD_type ! Neutron Scattering Data type
      character(len=2) :: name
@@ -118,14 +118,14 @@ contains
      print'(a $)', 'elements: '
      do i = 1, size(this%elems)
         name = this%elems(i)%str
-        print'(i1, a1, a, a $)',get_index(this%elems, name),'-',adjustl(name), '   '
+        write(6, fmt='(i3, a)', advance='no') get_index(this%elems, name),'-'//adjustl(name)//'   '
      enddo
      print*
      print'(a,10i6)', 'num_atoms_per_type: ', this%num_atoms_per_type
      print'(a,10f8.5)', 'concentration: ', this%concentration
      print'(a $)', 'neutron scattering: '
      do i=1, size(this%NSD)
-         print'(i1,a1,a2,es10.3,a $)', i, '-', this%NSD(i)%name, this%NSD(i)%length, ', '
+         write(6,fmt='(i3,a3,es10.3,a2)', advance='no')  i, '-'//this%NSD(i)%name, this%NSD(i)%length, ', '
      enddo
      print*
      print'(a)',repeat('-',60)
@@ -301,7 +301,7 @@ contains
      allocate(c%elems(0))
      do i=1, size(oneframe%elems)
         if( get_index(c%elems,oneframe%elems(i)%str) < 0 ) &
-            c%elems = [c%elems, oneframe%elems(i)]
+            c%elems = [c%elems, string_array(oneframe%elems(i)%str)]
      enddo
 
      ! setup neutron scattering length data for existing atom types
@@ -339,7 +339,7 @@ contains
      do i=1, NUM_BA
        c%rc_ba(i)=BA_CUTOFF*dble(i)/NUM_BA
      enddo
-     print*,'c%rc_ba: ', c%rc_ba
+     print'(a,20f8.3)','c%rc_ba: ', c%rc_ba
 
      call c%print()
   end function

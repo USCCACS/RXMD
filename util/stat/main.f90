@@ -11,7 +11,7 @@ program main
   real(8) :: cell_size(3)
   integer :: num_cells(3)
 
-  integer :: n, i,j,k,l, i1,j1,k1, ity,jty,kty, idx, idx2
+  integer :: n, i,j,k,l, i1,j1,k1, ity,jty,kty, idx, idx2, ii(3), jj(3)
   real(8) :: rr(0:3), rr1(0:3), rr2(0:3), cosine, theta
   character(len=256) :: argv
   character(len=:),allocatable :: dirpath
@@ -23,8 +23,10 @@ program main
   call getarg(1,argv)
   dirpath = trim(adjustl(argv))
   print'(a)', 'input data path: '//dirpath
-  inquire(file=dirpath, exist=is_there) 
-  if(.not. is_there) stop 'ERROR: input dir does not exist.'
+
+  !inquire(directory=dirpath, exist=is_there)  ! for ifort
+  !inquire(file=dirpath, exist=is_there)  ! for gfortran
+  !if(.not. is_there) stop 'ERROR: input dir does not exist.'
 
   filenames = get_filelist_xyz(dirpath)
 
@@ -32,39 +34,35 @@ program main
   oneframe = get_mdframe_from_xyzfile(filenames(1)%str)
   ac = get_analysis_context_from_mdframe(oneframe)
 
-  ! load all mdframes
-  allocate(mdframes(0))
-  do i=1, size(filenames)
-     mdframes = [mdframes, get_mdframe_from_xyzfile(filenames(i)%str, ac=ac)]
-  enddo
-
   call get_voxel_params_from_mdframe(oneframe, num_cells, cell_size)
 
-  !voxels = get_voxels_from_mdcontext(oneframe, num_cells, ac%elems)
-  !call save_voxels_into_xyz(voxels,ac%elems,'foo.xyz')
-
-  ! receiver needs to be indexed with the same range as passer
-  allocate(voxels(DIMS(1):DIMS(4),DIMS(2):DIMS(5),DIMS(3):DIMS(6)))
-
-  do n=1, size(mdframes)
-     print*,'filename: ', mdframes(n)%filename
+  do n=1, size(filenames)
+     print*,'filename: ', filenames(n)%str
 
      ! increment the number of sampled mdframes
      ac%num_sample_frames = ac%num_sample_frames + 1
 
-     nbrlist = nbrlist_ctor_from_mdframe(mdframes(n))
+     oneframe = get_mdframe_from_xyzfile(filenames(n)%str, ac=ac)
+     nbrlist = nbrlist_ctor_from_mdframe(oneframe)
 
-     voxels = get_voxels_from_mdcontext(mdframes(n), num_cells, ac%elems)
+     voxels = get_voxels_from_mdcontext(oneframe, num_cells, ac%elems)
     
      ! reset neighbor list
      do i=DIMS0(1), DIMS0(4)
      do j=DIMS0(2), DIMS0(5)
      do k=DIMS0(3), DIMS0(6)
+
+        ii(1:3) = [i,j,k] + 1 + OFFSET
+
         do i1=-1, 1
         do j1=-1, 1
         do k1=-1, 1
+           jj(1:3) = ii(1:3) + [i1,j1,k1]
+
            !print'(6i4,3x,3i4)',i,j,k, i1,j1,k1, i+i1,j+j1,k+k1
-           call compute_interatomic_distance(nbrlist, voxels(i,j,k), voxels(i+i1,j+j1,k+k1))
+           call compute_interatomic_distance(nbrlist,  & 
+                                             voxels(ii(1),ii(2),ii(3)), &
+                                             voxels(jj(1),jj(2),jj(3)))
         enddo; enddo; enddo
      enddo; enddo; enddo
 
