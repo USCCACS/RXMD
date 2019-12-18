@@ -3,10 +3,10 @@ module stat_mod
   implicit none
   real(8),parameter :: pi = 4.d0*datan(1.d0)
   integer,parameter :: NTABLES = 2000, NTABLES_BA=180
-  real(8),parameter :: RCUT = 60d0, DRI = NTABLES/RCUT
+  real(8),parameter :: RCUT = 9d0, DRI = NTABLES/RCUT
   !real(8),parameter :: RCUT = 15d0, DRI = NTABLES/RCUT
   real(8),parameter :: QCUT = 10d0, DQ = QCUT/NTABLES
-  integer,parameter :: MAXNEIGHBS = 50000
+  integer,parameter :: MAXNEIGHBS = 1000
 
   type NSD_type ! Neutron Scattering Data type
      character(len=2) :: name
@@ -51,8 +51,8 @@ module stat_mod
      integer :: num_atoms
   end type
 
-  integer,parameter :: NUM_BA=3
-  real(8),parameter :: BA_CUTOFF=6d0
+  integer,parameter :: NUM_BA=1
+  real(8),parameter :: BA_CUTOFF=2.0d0
   type analysis_context
 
      type(string_array),allocatable :: elems(:)
@@ -146,18 +146,18 @@ contains
      open(newunit=iunit,file='gr.dat',form='formatted')
 
      ! g(r) header part
-     write(unit=iunit,fmt='(a $)') ' distance'
+     write(unit=iunit,fmt='(a $)') ' 1-distance,'
      do ity=1,size(this%elems); 
      do jty=1,size(this%elems)
         write(unit=iunit,fmt='(a12, 1x)', advance='no') & 
-           this%elems(ity)%str//'-'//this%elems(jty)%str//'(gr)'
+           this%elems(ity)%str//'-'//this%elems(jty)%str//'(gr),'
      enddo; enddo
      do ity=1,size(this%elems);
      do jty=1,size(this%elems)
         write(unit=iunit,fmt='(a12, 1x)', advance='no') & 
-           this%elems(ity)%str//'-'//this%elems(jty)%str//'(nr)'
+           this%elems(ity)%str//'-'//this%elems(jty)%str//'(nr),'
      enddo; enddo
-     write(unit=iunit,fmt='(a)') '  Gnr'
+     write(unit=iunit,fmt='(a)') ' neutron_gr'
 
      Gnr_denom = sum(this%NSD(:)%length * this%concentration(:))
      Gnr_denom = Gnr_denom**2
@@ -174,7 +174,7 @@ contains
 
         dr = k/DRI
         prefactor = 4.d0*pi*dr*dr*rho/DRI
-        write(unit=iunit,fmt='(f12.5)',advance='no') dr
+        write(unit=iunit,fmt='(f12.5,1x,a1)',advance='no') dr,','
 
         Gnr = 0.d0
         do ity=1,size(this%elems)
@@ -182,7 +182,7 @@ contains
 
           prefactor2 = this%concentration(jty) * this%num_atoms_per_type(ity) * this%num_sample_frames
           this%gr(ity,jty,k) = this%gr(ity,jty,k)/(prefactor*prefactor2)
-          write(iunit, fmt='(f12.5,1x)',advance='no') this%gr(ity,jty,k)
+          write(iunit, fmt='(f12.5,1x,1a)',advance='no') this%gr(ity,jty,k),','
 
           Gnr = Gnr + this%gr(ity,jty,k) * &
                       this%concentration(ity) * this%concentration(jty) * & 
@@ -191,9 +191,8 @@ contains
 
         do ity=1,size(this%elems)
         do jty=1,size(this%elems)
-          write(iunit, fmt='(f12.5,1x)',advance='no') this%nr(ity,jty,k)
+           write(iunit, fmt='(f12.5,1x,a1)',advance='no') this%nr(ity,jty,k),','
         enddo; enddo
-
         write(iunit, fmt='(f12.5)') Gnr/Gnr_denom
      enddo
 
@@ -201,11 +200,11 @@ contains
 
 
      open(newunit=iunit,file='sq.dat',form='formatted')
-     write(unit=iunit,fmt='(a $)') ' wave_number '
+     write(unit=iunit,fmt='(a)',advance='no') ' wave_number,'
      do ity=1,size(this%elems)
      do jty=1,size(this%elems)
-        write(unit=iunit,fmt='(a5,a5 $)') & 
-           '     ',this%elems(ity)%str//'-'//this%elems(jty)%str
+        write(unit=iunit,fmt='(a5,a5,a1)',advance='no') & 
+           '     ',this%elems(ity)%str//'-'//this%elems(jty)%str,','
      enddo; enddo
      write(unit=iunit,fmt='(a)') '  Snq'
 
@@ -216,7 +215,7 @@ contains
      do kk=1, size(this%sq,dim=3)
 
         dqk = DQ*kk
-        write(unit=iunit,fmt='(f12.5 $)') dqk
+        write(unit=iunit,fmt='(f12.5,a1)',advance='no') dqk,','
 
         Snq = 0.d0
         do ity=1,size(this%elems)
@@ -239,7 +238,7 @@ contains
 
            ! add delta function if ity==jty
            if(ity==jty) this%sq(ity,jty,kk) = this%sq(ity,jty,kk) + 1.d0
-           write(iunit, fmt='(f12.5,3x $)') this%sq(ity,jty,kk)
+           write(iunit, fmt='(f12.5,a1,1x)',advance='no') this%sq(ity,jty,kk)
 
            Snq = Snq + this%sq(ity,jty,kk) * &
                        sqrt(this%concentration(ity) * this%concentration(jty)) * & 
@@ -252,33 +251,33 @@ contains
 
      do ity=1,size(this%elems)
         open(newunit=iunit,file='ba-'//this%elems(ity)%str//'.dat',form='formatted')
-        write(unit=iunit,fmt='(a8,1x)', advance='no') 'angle'
+
+        write(unit=iunit,fmt='(a,1x)',advance='no') '1-angle,'
         do jty=1,size(this%elems)
         do kty=1,size(this%elems)
            do l=1,size(this%ba,dim=4)
              write(a1,'(i1)') l
-               write(unit=iunit,fmt='(a12,1x)',advance='no') & 
-                 this%elems(jty)%str//'-'//this%elems(ity)%str//'-'//this%elems(kty)%str//'_'//a1
+               write(unit=iunit,fmt='(a12,a1,1x)',advance='no') & 
+                 this%elems(jty)%str//'-'//this%elems(ity)%str//'-'//this%elems(kty)%str//'_'//a1,','
            enddo
         enddo; enddo
-        write(unit=iunit,fmt=*) 
+        write(unit=iunit,fmt=*)
 
         do k=1,size(this%ba,dim=5)
-           write(unit=iunit,fmt='(i8,1x)', advance='no') k
+           write(unit=iunit,fmt='(i8,a1)',advance='no') k,','
            do jty=1,size(this%elems)
            do kty=1,size(this%elems)
               do l=1,size(this%ba,dim=4)
                  bavalue = sum(this%ba(jty,ity,kty,l,:))
                  if(bavalue>0.d0) then
-                   write(unit=iunit,fmt='(es12.5,1x)',advance='no') &
-                     this%ba(jty,ity,kty,l,k)/(bavalue*this%num_atoms_per_type(ity)*this%num_sample_frames)
+                   write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') &
+                     this%ba(jty,ity,kty,l,k)/(bavalue*this%num_atoms_per_type(ity)*this%num_sample_frames),','
                  else
-                   write(unit=iunit,fmt='(es12.5,1x)',advance='no') 0.d0
+                   write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') 0.d0,','
                  endif
               enddo
-
            enddo; enddo
-           write(unit=iunit,fmt=*) 
+           write(unit=iunit,fmt=*)
         enddo
 
         close(iunit)

@@ -272,6 +272,8 @@ contains
      character(len=*),intent(in) :: xyzpath
      character(len=3) :: cbuf
 
+     real(8) :: lattice(9)
+
      integer :: i,iunit
 
      ! save original filename
@@ -280,6 +282,12 @@ contains
      open(newunit=iunit,file=xyzpath,status='old',form='formatted')
      read(unit=iunit,fmt=*) c%num_atoms
      read(unit=iunit,fmt=*) c%lattice(1:6)
+
+     !read(unit=iunit,fmt=*) lattice(1:9)
+     !c%lattice(1)=lattice(1)
+     !c%lattice(2)=lattice(5)
+     !c%lattice(3)=lattice(9)
+     !c%lattice(4:6)=90d0
 
      allocate(c%pos(c%num_atoms,3),c%v(c%num_atoms,3),c%f(c%num_atoms,3))
      allocate(c%elems(c%num_atoms),c%q(c%num_atoms), c%itype(c%num_atoms))
