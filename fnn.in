@@ -1,51 +1,43 @@
-### SiO2 system ###
+### H2O system ###
 ## model data: element name, AMU, scaling factor, hidden layer dimensions 
-model  O    15.99   10.0   512 1024 512
-model  Si   28.08   10.0   512 1024 512
+model  O   15.99  20 20
+model  H   1.00   20 20
 
 # radial feature parameters; rc, rdamp, mu, eta
-rad Si Si
-  rc 8.0
-  rdamp 12.0
-  mu 1.0 1.5 2.0 2.5 3.0 3.25 3.5 3.75 4.0 4.5 5.0 5.5 6.0 6.5 7.0 7.5
-  eta 0.5 1.0 2.0 3.0 8.0
+rad O O
+  rc 7.0
+  mu 1.0 2.0 3.0 4.0
+  eta 0.5 1.0 3.0
 end 
 
-rad Si O
-  rc 8.0
-  rdamp 12.0
-  mu 1.0 1.5 1.8 2.0 2.3 2.50 3.0 3.50 4.0 4.5 5.0 5.5 6.0 6.5 7.0 7.5
-  eta 0.5 1.0 2.0 3.0 8.0
+rad O H
+  rc 7.0
+  mu 1.0 2.0 3.0 4.0
+  eta 0.5 1.0 3.0
 end
 
-rad O Si
-  rc 8.0
-  rdamp 12.0
-  mu 1.0 1.5 1.8 2.0 2.3 2.5 3.0 3.5 4.0 4.5 5.0 5.5 6.0 6.5 7.0 7.5
-  eta 0.5 1.0 2.0 3.0 8.0
+rad H O
+  rc 7.0
+  mu 1.0 2.0 3.0 4.0
+  eta 0.5 1.0 3.0
 end
 
-rad O O
-  rc 8.0
-  rdamp 12.0
-  mu 1.0 1.5 2.0 2.5 2.8 3.0 3.3 3.5 4.0 4.5 5.0 5.5 6.0 6.5 7.0 7.5
-  eta 0.5 1.0 2.0 3.0 8.0
+rad H H
+  rc 7.0
+  mu 1.0 2.0 3.0 4.0
+  eta 0.5 1.0 3.0
 end
 
-ang  O Si O
-  rc 3.0
-  rdamp 8.0
+ang  O H O
+  rc 4.0
   lambda 1 -1
-  zeta 2.0 4.0 6.0
-  mu 2.0 0.5 0.2 0.05
-  eta 2.5 3.0 3.5 4.0
+  zeta 1.0 2.0 4.0
+  eta 0.002 0.05 2.0
 end
 
-ang Si O Si
-  rc 3.0
-  rdamp 8.0
+ang H O H
+  rc 4.0
   lambda 1 -1
-  zeta 2.0 4.0 6.0
-  mu 2.0 0.5 0.2 0.05
-  eta 2.5 3.0 3.5 4.0
+  zeta 1.0 2.0 4.0
+  eta 0.002 0.05 2.0
 end 

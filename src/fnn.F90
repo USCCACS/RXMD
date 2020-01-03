@@ -14,8 +14,6 @@ module fnnin_parser
   integer,parameter :: rk = real32 ! rk = real64
   integer,parameter :: ik = int32 ! ik = int64
 
-  integer,parameter :: NUM_ANG_MODES=2 ! number of modes in a triplet
-
   integer,parameter :: SIZE_FEATURE_TABLE=20000
 
   type :: layer
@@ -35,7 +33,7 @@ module fnnin_parser
 
   type :: rad_feature_type
     real(rk),allocatable,dimension(:) :: mu, eta
-    real(rk) :: rc, rdamp
+    real(rk) :: rc
 
     integer(ik),allocatable :: indices(:)
     integer(ik) :: total
@@ -45,9 +43,9 @@ module fnnin_parser
   end type
 
   type :: ang_feature_type
-    real(rk),allocatable,dimension(:) :: mu, eta, zeta
+    real(rk),allocatable,dimension(:) :: eta, zeta
     integer(ik),allocatable,dimension(:) :: lambda
-    real(rk) :: rc, rdamp
+    real(rk) :: rc
 
     integer(ik),allocatable :: indices(:)
     integer(ik) :: total
@@ -56,7 +54,6 @@ module fnnin_parser
   type :: model_params
     character(len=:),allocatable :: element
     real(rk) :: mass
-    real(rk) :: scaling_factor
 
     integer(ik),allocatable :: layersize(:)
     type(network),allocatable :: networks(:)
@@ -119,7 +116,7 @@ do ity=1, size(fp%models)
      do t=1, SIZE_FEATURE_TABLE
 
        rij = rad%ftab_dr*(t-0.5)
-       fc_ij = 0.5*(1.0+cos(pi*rij/rad%rdamp))
+       fc_ij = 0.5*(1.0+cos(pi*rij/rad%rc))
   
        do l1=1, size(rad%mu)
          rij_mu = rij - rad%mu(l1)
@@ -184,11 +181,6 @@ end subroutine
                         'ERROR: rc in rad_ctor_from_line(): '//token)
            read(token,*) rad%rc
 
-         case('rdamp')
-           call assert(getstr(linein, token)>0, &
-                        'ERROR: rdamp in rad_ctor_from_line(): '//token)
-           read(token,*) rad%rdamp
-
          case('mu')
            do while (getstr(linein, token) > 0)
              read(token,*,err=99) rbuf
@@ -224,7 +216,6 @@ end subroutine
     if(.not.allocated(ang%lambda)) allocate(ang%lambda(0))
     if(.not.allocated(ang%zeta)) allocate(ang%zeta(0))
     if(.not.allocated(ang%eta)) allocate(ang%eta(0))
-    if(.not.allocated(ang%mu)) allocate(ang%mu(0))
     if(.not.allocated(ang%indices)) allocate(ang%indices(0))
     ang%indices = indices;  ang%total = 0
 
@@ -236,11 +227,6 @@ end subroutine
            call assert(getstr(linein, token)>0, &
                        'ERROR: rc in ang_ctor_from_line(): '//token)
            read(token,*) ang%rc
-
-         case('rdamp')
-           call assert(getstr(linein, token)>0, &
-                       'ERROR: rdamp in ang_ctor_from_line(): '//token)
-           read(token,*) ang%rdamp
 
          case('lambda')
            do while (getstr(linein, token) > 0)
@@ -260,23 +246,16 @@ end subroutine
              ang%eta = [ang%eta, rbuf]
            enddo
 
-         case('mu')
-           do while (getstr(linein, token) > 0)
-             read(token,*,err=99) rbuf
-             ang%mu = [ang%mu, rbuf]
-           enddo
-
          case default
            print'(a)', 'WARNING: unknown field in ang_ctor_from_line(): '//linein
 
       end select
     enddo
 
-    ang%total = NUM_ANG_MODES  ! vibration & stretch
+    ang%total = 1 ! vibration & stretch
     if(size(ang%lambda)>0) ang%total = ang%total*size(ang%lambda)
     if(size(ang%zeta)>0) ang%total = ang%total*size(ang%zeta)
     if(size(ang%eta)>0) ang%total = ang%total*size(ang%eta)
-    if(size(ang%mu)>0) ang%total = ang%total*size(ang%mu)
 
     return
   end function
@@ -292,8 +271,6 @@ end subroutine
     mbuf%element = trim(adjustl(token))
     if (getstr(linein, token) < 0) stop 'error while reading element mass'
     read(token, *) mbuf%mass
-    if (getstr(linein, token) < 0) stop 'error while reading scaling factor'
-    read(token, *) mbuf%scaling_factor
 
     ! allocate zero-sized array
     if(.not.allocated(mbuf%layersize)) allocate(mbuf%layersize(0))
@@ -464,8 +441,8 @@ end subroutine
 
        write(*,*)
        write(*,fmt='(a)') repeat('=',80)
-       print'(a,i3,2a,2f10.3)', 'element,mass,scaling_factor : ', & 
-            get_index_of_model(m%element,this%models),'-',m%element, m%mass, m%scaling_factor
+       print'(a,i3,2a,f10.3)', 'element,mass: ', & 
+            get_index_of_model(m%element,this%models),'-',m%element, m%mass
        print'(a,10i5)','layer size: ', m%layersize
        print'(a,2i6)', 'rad&ang feature types: ', size(m%rad), size(m%ang)
        write(*,fmt='(a,10i6)',advance='no') 'feature_ptr_(rad,ang): ', m%feature_ptr_rad
@@ -485,8 +462,6 @@ end subroutine
           write(*,fmt='(a,2i2,1x,a,1x)',advance='no') 'rad_params: ', &
              i1,i2,this%models(i1)%element//'-'//this%models(i2)%element
 
-          write(*,fmt='(a,2(a,f8.3))', advance='no') &
-               repeat(' ',3), ' rc ', m%rad(ib)%rc, ' rdamp ', m%rad(ib)%rdamp 
           write(*,fmt='(2a)',advance='no') repeat(' ',3), ' mu '
           do ic=1,size(m%rad(ib)%mu);  write(*,fmt='(f6.2)',advance='no') m%rad(ib)%mu(ic);  enddo
           write(*,fmt='(2a)',advance='no') repeat(' ',3), ' eta '
@@ -498,25 +473,19 @@ end subroutine
        do ib=1,size(m%ang)
           i1 = m%ang(ib)%indices(1);  i2 = m%ang(ib)%indices(2);  i3 = m%ang(ib)%indices(3)
           write(*,fmt='(a,a)', advance='no') this%models(i1)%element//' '//m%element//' '//this%models(i3)%element
-          write(*,fmt='(a,i3)', advance='no') '  ang_modes: ', NUM_ANG_MODES 
-          write(*,fmt='(a,4i3,i6)') '   size(lambda,zeta,mu,eta,total): ', &
-                size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%mu),size(m%ang(ib)%eta), m%ang(ib)%total
+          write(*,fmt='(a,4i3,i6)') '   size(lambda,zeta,eta,total): ', &
+                size(m%ang(ib)%lambda),size(m%ang(ib)%zeta),size(m%ang(ib)%eta), m%ang(ib)%total
        enddo
        do ib=1,size(m%ang)
           i1 = m%ang(ib)%indices(1);  i2 = m%ang(ib)%indices(2);  i3 = m%ang(ib)%indices(3)
           write(*,fmt='(a,3i2,1x,a,1x)', advance='no') 'ang_params: ',i1,i2,i3,&
              this%models(i1)%element//'-'//m%element//'-'//this%models(i3)%element
 
-          write(*,fmt='(a,2(a,f8.3))',advance='no') &
-               repeat(' ',3), ' rc ', m%ang(ib)%rc, ' rdamp ', m%ang(ib)%rdamp 
           write(*,fmt='(2a)',advance='no') repeat(' ',3), ' lambda '
           do ic=1,size(m%ang(ib)%lambda);  write(*,fmt='(i3)',advance='no') m%ang(ib)%lambda(ic);  enddo
 
           write(*,fmt='(2a)',advance='no') repeat(' ',3), ' zeta '
           do ic=1,size(m%ang(ib)%zeta);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%zeta(ic);  enddo
-
-          write(*,fmt='(2a)',advance='no') repeat(' ',3), ' mu '
-          do ic=1,size(m%ang(ib)%mu);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%mu(ic);  enddo
 
           write(*,fmt='(2a)',advance='no') repeat(' ',3), ' eta '
           do ic=1,size(m%ang(ib)%eta);  write(*,fmt='(f6.2)',advance='no') m%ang(ib)%eta(ic);  enddo
@@ -656,7 +625,7 @@ real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
 integer(ik) :: i, ity, nn, nl, ncol, nrow
 
-real(rk),allocatable :: x(:),y(:)
+real(rk),allocatable :: x(:),y(:),ene(:)
 
 ! not sure if this is the best way, but binding force_field_class to fnn_parm
 select type(ff); type is (fnn_param) 
@@ -676,27 +645,33 @@ do i=1, num_atoms
   
    ity = atype(i)
 
+   y = fp%models(ity)%features(0,1:fp%models(ity)%layersize(1),i)
+   associate(m=>fp%models(ity), n=>fp%models(ity)%networks(1)) 
+      do nl=1, size(n%dims)-1
+         x = matmul(n%layers(nl)%w,y) + n%layers(nl)%b
+         ene = tanh(x) ! tanh
+      enddo 
+   end associate
+ 
+   f(i,nn) = ene(1) ! update force
+
    do nn=1, num_networks_per_atom  ! fx,fy,fz loop
  
      y = fp%models(ity)%features(nn,1:fp%models(ity)%layersize(1),i)
- 
-     associate(m=>fp%models(ity), n=>fp%models(ity)%networks(nn)) 
+     associate(m=>fp%models(ity), n=>fp%models(ity)%networks(1)) 
         do nl=1, size(n%dims)-1
            x = matmul(n%layers(nl)%w,y) + n%layers(nl)%b
-
            !print'(a,3i4,4i6)','i,ity,nn,shape(w),shape(b),shape(x): ', &
            !        i,ity,nn,shape(n%layers(nl)%w),shape(n%layers(nl)%b),shape(x)
-
-           y = max(x,0.0) ! relu
+           y = 1d0 - tanh(x)**2 ! tanh derivative
         enddo 
      end associate
  
      f(i,nn) = x(1) ! update force
    enddo
 
-! TODO: obtained force is scaled by the scaling_factor assuming that the trained
-! weight matrix & biased are also scaled.  better to have a check mechanism on their consistency. 
-   f(i,1:3)=f(i,1:3)/fp%models(ity)%scaling_factor*Eev_kcal
+! change unit
+   f(i,1:3)=f(i,1:3)*Eev_kcal
 
 enddo
 call cpu_time(tfinish(1))
@@ -704,7 +679,7 @@ call cpu_time(tfinish(1))
 #ifdef FORCEDUMP
 do i=1, num_atoms
    ity=nint(atype(i))
-   print'(2i6,6f12.5)',i,ity,pos(i,1:3),f(i,1:3)*fp%models(ity)%scaling_factor/Eev_kcal
+   print'(2i6,6f12.5)',i,ity,pos(i,1:3),f(i,1:3)/Eev_kcal
 enddo
 stop 
 #endif
@@ -878,16 +853,16 @@ do c3=0, cc(3)-1
                   size_etamu = size(rad%mu)*size(rad%eta)
 
 #ifdef TABLE
-                  fdr = rij/rad%ftab_dr
-                  idx = int(fdr)
-                  frac = fdr - idx
+                  !fdr = rij/rad%ftab_dr
+                  !idx = int(fdr)
+                  !frac = fdr - idx
 
-                  do ia=1,3
-                    feats(ia,ptr:ptr+size_etamu-1,i) = &
-                    feats(ia,ptr:ptr+size_etamu-1,i) + rad%ftab(idx,1:size_etamu)*rr(ia)
-                  enddo
+                  !do ia=1,3
+                  !  feats(ia,ptr:ptr+size_etamu-1,i) = &
+                  !  feats(ia,ptr:ptr+size_etamu-1,i) + rad%ftab(idx,1:size_etamu)*rr(ia)
+                  !enddo
 #else
-                  fc_ij = 0.5*( 1.0 + cos(pi*rij/rad%rdamp) ) 
+                  fc_ij = 0.5*( 1.0 + cos(pi*rij/rad%rc) ) 
 
                   do l1 = 1, size(rad%mu)
                      rij_mu = rij - rad%mu(l1)
@@ -956,13 +931,13 @@ do j=1, num_atoms
            ! need to check the angular cutoff again.
            if(r_ij(0)>ang%rc .or. r_kj(0)>ang%rc) cycle
 
-           l1_stride = NUM_ANG_MODES*size(ang%eta)*size(ang%zeta)*size(ang%lambda)
-           l2_stride = NUM_ANG_MODES*size(ang%eta)*size(ang%zeta)
-           l3_stride = NUM_ANG_MODES*size(ang%eta)
-           l4_stride = NUM_ANG_MODES
+           l1_stride = size(ang%eta)*size(ang%zeta)*size(ang%lambda)
+           l2_stride = size(ang%eta)*size(ang%zeta)
+           l3_stride = size(ang%eta)
+           l4_stride = 1
   
-           fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/ang%rdamp) ) 
-           fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/ang%rdamp) ) 
+           fc_ij = 0.5*( 1.0 + cos(pi*r_ij(0)/ang%rc) ) 
+           fc_kj = 0.5*( 1.0 + cos(pi*r_kj(0)/ang%rc) ) 
   
            cos_ijk = sum( r_ij(1:3)*r_kj(1:3) ) * rijk_inv
   
@@ -972,40 +947,38 @@ do j=1, num_atoms
            G3a_xyz(1:3) = (r_ij_norm(1:3)*G3a_c1 + r_kj_norm(1:3)*G3a_c2)*rijk_inv*fc_ij*fc_kj
            G3b_xyz(1:3) = (r_ij_norm(1:3) + r_kj_norm(1:3))*fc_ij*fc_kj
   
-  ! l1: mu, l2:lambda, l3:zeta, l4:eta
-           do l1=1, size(ang%mu)
-  
-              rij_mu = r_ij(0) - ang%mu(l1)
-              rkj_mu = r_kj(0) - ang%mu(l1)
-  
-              do l2=1, size(ang%lambda)
-  
-                 lambda_ijk = 1.0 + ang%lambda(l2)*cos_ijk 
-  
-                 do l3=1, size(ang%zeta)
-  
-                    zeta_const = 2.0**(1.0-ang%zeta(l3))
-                    zeta_G3a = ang%zeta(l3) * ang%lambda(l2) * zeta_const * (lambda_ijk**(ang%zeta(l3)-1))
-                    zeta_G3b_0 = zeta_const * (lambda_ijk**ang%zeta(l3))
-  
-                    do l4=1, size(ang%eta)
-  
-                       zeta_G3b = - 2.0*ang%eta(l4) * zeta_G3b_0
-  
-                       eta_ij = exp( -ang%eta(l4) * rij_mu * rij_mu )
-                       eta_kj = exp( -ang%eta(l4) * rkj_mu * rkj_mu )
-  
-                       G3_mu_eta = eta_ij*eta_kj
+           rij_mu = r_ij(0) 
+           rkj_mu = r_kj(0)
 
-                       idx = ptr_ang + &
-                           (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
+  ! l1:lambda, l2:zeta, l3:eta
+           do l2=1, size(ang%lambda)
   
-                       !feats(1:3,idx,j) = feats(1:3,idx,j) + &
-                       !    G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
-                       feats(1:3,idx,j) = feats(1:3,idx,j) + G3a_xyz(1:3)*zeta_G3a*G3_mu_eta
-                       feats(1:3,idx+1,j) = feats(1:3,idx+1,j) + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
+              lambda_ijk = 1.0 + ang%lambda(l2)*cos_ijk 
   
-           enddo; enddo; enddo; enddo
+              do l3=1, size(ang%zeta)
+  
+                 zeta_const = 2.0**(1.0-ang%zeta(l3))
+                 zeta_G3a = ang%zeta(l3) * ang%lambda(l2) * zeta_const * (lambda_ijk**(ang%zeta(l3)-1))
+                 zeta_G3b_0 = zeta_const * (lambda_ijk**ang%zeta(l3))
+  
+                 do l4=1, size(ang%eta)
+  
+                    zeta_G3b = - 2.0*ang%eta(l4) * zeta_G3b_0
+  
+                    eta_ij = exp( -ang%eta(l4) * rij_mu * rij_mu )
+                    eta_kj = exp( -ang%eta(l4) * rkj_mu * rkj_mu )
+  
+                    G3_mu_eta = eta_ij*eta_kj
+
+                    idx = ptr_ang + &
+                        (l1-1)*l1_stride + (l2-1)*l2_stride + (l3-1)*l3_stride + (l4-1)*l4_stride 
+  
+                    !feats(1:3,idx,j) = feats(1:3,idx,j) + &
+                    !    G3a_xyz(1:3)*zeta_G3a*G3_mu_eta + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
+                    feats(1:3,idx,j) = feats(1:3,idx,j) + G3a_xyz(1:3)*zeta_G3a*G3_mu_eta
+                    feats(1:3,idx+1,j) = feats(1:3,idx+1,j) + G3b_xyz(1:3)*zeta_G3b*G3_mu_eta
+  
+           enddo; enddo; enddo
 
          end associate
           
