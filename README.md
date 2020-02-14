@@ -172,23 +172,43 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 This project is licensed under the GPU 3.0 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
 
-## 5. Publications
-* Mechanochemistry of shock-induced nanobubble collapse near silica in water
+## 5. Selected Publications
+* RXMD: a scalable reactive molecular dynamics simulator for optimized time-to-solution, 
+K. Nomura, R. K. Kalia, A. Nakano, P. Rajak, and P. Vashishta, 
+[SoftwareX 11, 100389:1-6  (2020)](https://www.sciencedirect.com/science/article/pii/S2352711019300342)
+
+* Scalable reactive molecular dynamics simulations for computational synthesis, 
+Y. Li, K. Nomura, J. Insley, V. Morozov, K. Kumaran, N. A. Romero, W. A. Goddard III, R. K. Kalia, A. Nakano, and P. Vashishta
+[IEEE Computing in Science and Engineering 21(5), 64-75  (2019)](https://ieeexplore.ieee.org/document/8254322)
+
+* Defect healing in layered materials: a machine learning-assisted characterization of MoS2 crystal-phases, 
+S. Hong, K. Nomura, A. Krishnamoorthy, P. Rajak, C. Sheng, R. K. Kalia, A. Nakano, and P. Vashishta,
+[Journal of Physical Chemistry Letters 10, 2739-2744  (2019)](https://pubs.acs.org/doi/10.1021/acs.jpclett.9b00425)
+
+* Multiobjective genetic training and uncertainty quantification of reactive force fields, 
+A. Mishra, S. Hong, P. Rajak, C. Sheng, K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta
+[npj Computational Materials 4, 42: 1-7  (2018)](https://www.nature.com/articles/s41524-018-0098-3)
+
+* Nanocarbon synthesis by high-temperature oxidation of nanoparticles, 
+K. Nomura, R. K. Kalia, Y. Li, A. Nakano, P. Rajak, C. Sheng, K. Shimamura, F. Shimojo, and P. Vashishta
+[Scientific Reports 6, 24109: 1-7  (2016)](https://www.nature.com/articles/srep24109)
+
+* Mechanochemistry of shock-induced nanobubble collapse near silica in water, 
 K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Applied Physics Letters 101, 073108: 1-4  (2012)](http://aip.scitation.org/doi/10.1063/1.4746270)
 
-* Structure and dynamics of shock-induced nanobubble collapse in water
+* Structure and dynamics of shock-induced nanobubble collapse in water, 
 M. Vedadi, A. Choubey, K. Nomura, R. K. Kalia, A. Nakano, P. Vashishta, and A. C. T. van Duin,
 [Physical Review Letters 105, 014503: 1-4  (2010)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.105.014503)
 
-* Embrittlement of metal by solute segregation-induced amorphization
+* Embrittlement of metal by solute segregation-induced amorphization, 
 H. Chen,R. K. Kalia, E. Kaxiras, G. Lu, A. Nakano, K. Nomura, A. C. T. van Duin, P. Vashishta, and Z. Yuan,
 [Physical Review Letters 104, 155502: 1-4  (2010)](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.104.155502)
 
-* Metascalable molecular dynamics simulation of nano-mechano-chemistry
+* Metascalable molecular dynamics simulation of nano-mechano-chemistry, 
 F. Shimojo, R. K. Kalia, A. Nakano, K. Nomura, and P. Vashishta,
 [Journal of Physics: Condensed Matter 20, 294204: 1-9  (2008)](http://iopscience.iop.org/article/10.1088/0953-8984/20/29/294204)
 
-* A scalable parallel algorithm for large-scale reactive force-field molecular dynamics simulations
+* A scalable parallel algorithm for large-scale reactive force-field molecular dynamics simulations, 
 K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Computer Physics Communications 178, 73-87  (2008)](http://www.sciencedirect.com/science/article/pii/S0010465507003748)
