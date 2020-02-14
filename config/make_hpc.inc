@@ -9,8 +9,10 @@
 MPIF90 = mpif90
 FC = ifort
 
+MPIF90_FLAGS = -O3 
+
 # gfortran
-MPIF90_FLAGS = -O3 -ffast-math
+#MPIF90_FLAGS = -O3 -ffast-math
 #MPIF90_FLAGS = -fopenmp -O3 -ffast-math
 #MPIF90_FLAGS = -fcheck=all -g
 
