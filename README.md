@@ -26,7 +26,7 @@ Cray Mpich 7.6.0
 
 To get started,  clone this repository to your computer. 
 ```
-~$ git clone https://github.com/USCCACS/rxmd.git
+~$ git clone https://github.com/USCCACS/rxmd.git rxmd
 ```
 
 ## 2. How to build RXMD
@@ -34,14 +34,15 @@ To get started,  clone this repository to your computer.
 ### 2.1 Working Directory
 Frist, change working directory to **rxmd/**
 ```
-~$ cd rxmd-master
+~$ cd rxmd
 ```
 you will see following files and directories.
 
 ```
 rxmd $ ls
-DAT/          conf/         config/         ffield        regtests/     src/          util/
-make.inc      Makefile      doc/          init/         rxmd.in       unittests/
+DAT/        Makefile    conf/       docs/       ffield      regtests/   src/        util/
+LICENSE.md  README.md   config/     examples/   init/       rxmd.in     unittests/
+
 ```
 
 Here, two directories, **src/** and **init/**, are especially important for you. **src/** contains all rxmd source codes and **init/** has a program and input files to generate an initial configurations for simulation. 
@@ -93,9 +94,8 @@ Check to see if you the **rxmd** executable and the initial geomerty input **DAT
 
 ```
 rxmd $ ls
-DAT/          conf/         ffield        regtests/     rxmd.in       unittests/
-Makefile.inc  doc/          init/         rxmd*         src/          util/
-```
+DAT/        Makefile    conf/       docs/       ffield      make.inc    rxmd*       src/        util/
+LICENSE.md  README.md   config/     examples/   init/       regtests/   rxmd.in     unittests/
 ```
 rxmd $ ls DAT/
 rxff.bin
@@ -107,7 +107,7 @@ Default input parameters are set to run a single process job. In **rxmd.in**, th
 
 ```
 rxmd $ grep vprocs rxmd.in 
-1 1 1                <vprocs>
+processors   1 1 1                  <vprocs>
 ```
 
 To run single MPI rank job on a typical Linux computer, you can simply type
