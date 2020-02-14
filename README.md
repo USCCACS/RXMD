@@ -96,7 +96,7 @@ Check to see if you the **rxmd** executable and the initial geomerty input **DAT
 rxmd $ ls
 DAT/        Makefile    conf/       docs/       ffield      make.inc    rxmd*       src/        util/
 LICENSE.md  README.md   config/     examples/   init/       regtests/   rxmd.in     unittests/
-```
+
 rxmd $ ls DAT/
 rxff.bin
 ```
