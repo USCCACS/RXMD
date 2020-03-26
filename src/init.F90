@@ -11,19 +11,20 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN, ReadXYZ
 
-  use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, num_networks_per_atom, &
-                  network_ctor, mean_stddev_loader, num_forcecomps, num_pairs, num_types, & 
-                  mddriver_fnn, get_max_cutoff
+  use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, &
+                  num_pairs, num_types, mddriver_fnn, get_max_cutoff
 
   use lists_mod, only: getnonbondingmesh 
 
-  use fnnin_parser, only : fnn_param_ctor, set_feature_tables_fnn
+  use fnnin_parser, only : fnn_param_ctor 
 
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
   use msd_mod, only : msd_data, msd_type_ctor
 
+  use aenet, only : aenet_init, aenet_load_potential, aenet_print_info
+  use symmfunc, only : sf_set_table
 
 contains
 
@@ -236,13 +237,14 @@ logical :: verbose=.false.
 
 type(fnn_param) :: fp
 
+character(len=2), dimension(:), allocatable  :: atom_types
+character(len=:), allocatable :: filename
+integer :: stat
+
 if((.not.isRunFromXYZ) .and. (myid==0)) verbose=.true.
 
 !FIXME path needs to given from cmdline
 fp = fnn_param_ctor(str_gen('fnn.in'))
-
-!--- setup feature calculation tables
-call set_feature_tables_fnn(fp)
 
 !--- FNN specific output 
 if(myid==0) call fp%print()
@@ -258,33 +260,19 @@ do i=1, num_models
    mass(i) = fp%models(i)%mass
 enddo
 
-!print'(a,a3,f8.3,2i6)','atmname, mass: ', &
-!       atmname, mass, size(atmname), size(mass)
-
-do i=1, num_models
-   associate ( m => fp%models(i) )
-      allocate(m%networks(num_networks_per_atom))
-      allocate(m%fstat(num_networks_per_atom))
-   
-      path = str_gen('FNN/'//m%element//'/')
-      dims = m%layersize
-
-      do j=1, num_networks_per_atom
-         m%networks(j)  = network_ctor(dims, path, xyz_suffix(j), verbose)
-         call mean_stddev_loader(m%fstat(j)%mean, m%fstat(j)%stddev, &
-                                 dims(1), path, xyz_suffix(j), verbose)
-      enddo
-
-!--- features(3, num_features, natoms)
-     call allocator(m%features, 1,3, 1,dims(1), 1,NBUFFER) 
-
-   end associate
-   !print*,i, ' : ', atmname(i), mass(i), size(fp%models(i)%networks)
+call aenet_init(atmname, stat)
+do i = 1, size(atmname)
+   call aenet_load_potential(i, fp%models(i)%filename, .false., .false., stat)
+   !print*,i, atmname, fp%models(i)%filename
 enddo
+
+if(myid==0) call aenet_print_info()
+
+!---set function tables
+call sf_set_table()
 
 !--- set md dirver function 
 mddriver_func => mddriver_fnn
-
 
 end function
 

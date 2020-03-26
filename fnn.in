@@ -1,43 +1,4 @@
 ### H2O system ###
-## model data: element name, AMU, scaling factor, hidden layer dimensions 
-model  O   15.99  20 20
-model  H   1.00   20 20
-
-# radial feature parameters; rc, rdamp, mu, eta
-rad O O
-  rc 7.0
-  mu 1.0 2.0 3.0 4.0
-  eta 0.5 1.0 3.0
-end 
-
-rad O H
-  rc 7.0
-  mu 1.0 2.0 3.0 4.0
-  eta 0.5 1.0 3.0
-end
-
-rad H O
-  rc 7.0
-  mu 1.0 2.0 3.0 4.0
-  eta 0.5 1.0 3.0
-end
-
-rad H H
-  rc 7.0
-  mu 1.0 2.0 3.0 4.0
-  eta 0.5 1.0 3.0
-end
-
-ang  O H O
-  rc 4.0
-  lambda 1 -1
-  zeta 1.0 2.0 4.0
-  eta 0.002 0.05 2.0
-end
-
-ang H O H
-  rc 4.0
-  lambda 1 -1
-  zeta 1.0 2.0 4.0
-  eta 0.002 0.05 2.0
-end 
+## model data: element name, AMU, aenet model, cutoff distance
+model  Ti   15.99  O.10tw-10tw.ann    7.0
+model  O     1.00  Ti.10tw-10tw.ann   7.0

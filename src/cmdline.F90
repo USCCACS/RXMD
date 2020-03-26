@@ -95,17 +95,18 @@ if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
     stop
 endif
 
-if(find_cmdline_argc('--rxmdin',idx).or.find_cmdline_argc('-in',idx)) then
+inquire(file='fnn.in', exist=is_fnn)
+if(is_fnn) then
+  ParmPath='fnn.in'
+  FFPath=""
+endif
 
+inquire(file='ffield', exist=is_reaxff)
+if(is_reaxff) ParmPath='ffield'
+
+if(find_cmdline_argc('--rxmdin',idx).or.find_cmdline_argc('-in',idx)) then
     call get_command_argument(idx+1,argv)
     ParmPath=trim(adjustl(argv))
-
-    inquire(file=ParmPath, exist=is_reaxff)
-
-    if(.not. is_reaxff) then
-       write(6,fmt='(a)') 'ERROR: missing rxmd.in'
-       stop
-    endif
 else
     ParmPath=trim(adjustl(ParmPath0))
 endif
@@ -119,22 +120,10 @@ else
 endif
 
 if(find_cmdline_argc('--fnn',idx).or.find_cmdline_argc('-fnn',idx)) then
-
+    is_fnn=.true.
     call get_command_argument(idx+1,argv)
-    FFPath=trim(adjustl(argv))
-
-    inquire(file=FFPath, exist=is_fnn)
-
-    if(.not. is_fnn) then 
-       inquire(file='fnn.in', exist=is_fnn)
-       if(is_fnn) then
-          FFPath='fnn.in' ! default path to fnn.in
-       else
-          write(6,fmt='(a)') 'ERROR: missing '//trim(FFPath)//' for ANN-MD'
-          stop
-       endif
-    endif
-
+    ParmPath=trim(adjustl(argv))
+    FFPath=""
 endif
 
 if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
@@ -287,7 +276,6 @@ character(len=:),allocatable :: linein, token
 integer :: idx
 
 open(1, file=trim(ParmPath), status="old")
-print*,'ParmPath: ', ParmPath
 
 do while (.true.)
   read(1,'(a)',end=10) linein0
