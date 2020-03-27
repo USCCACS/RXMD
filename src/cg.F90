@@ -64,7 +64,7 @@ do cgLoop = 0, CG_MaxMinLoop-1
    call QEq(atype, pos, q)
    call FORCE(atype, pos, gnew, q)
 
-   call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,cgLoop))
+   call OUTPUT(GetFileNameBase(DataDir,cgLoop), atype, pos, v, q)
 
    GPEold=GPEnew
    PE(0)=sum(PE(1:13))
@@ -75,7 +75,7 @@ do cgLoop = 0, CG_MaxMinLoop-1
    if(abs(GPEnew-GPEold)<=CG_tol*GNATOMS) then
       if(myid==0) print'(a30,i6)','Energy converged.', cgLoop
 
-      call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,cgLoop))
+      call OUTPUT(GetFileNameBase(DataDir,cgLoop), atype, pos, v, q)
       exit
    endif
 
@@ -134,7 +134,7 @@ enddo
 
 if(myid==0) print'(a)', &
 'bracket was not found. saving the last configuration and terminating structural optimization'
-call OUTPUT(atype, pos, vdummy, qdummy, "nobracket")
+call OUTPUT("nobracket", atype, pos, vdummy, qdummy)
 
 stop
 

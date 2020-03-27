@@ -153,7 +153,7 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,pstep)==0) call print_e_reaxff(atype, v, q)
 
    if(mod(nstep,fstep)==0) &
-        call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
+        call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q)
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
@@ -210,7 +210,7 @@ do nstep=0, num_mdsteps-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
+call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q)
 
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))

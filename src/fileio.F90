@@ -9,13 +9,14 @@ module fileio
 contains
 
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(atype, pos, v, q, fileNameBase)
+subroutine OUTPUT(fileNameBase, atype, pos, v, q, f)
 !----------------------------------------------------------------------------------------
 implicit none
 
+character(len=:),allocatable,intent(in) :: fileNameBase
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
-character(len=:),allocatable,intent(in) :: fileNameBase
+real(8),allocatable,intent(in),optional :: f(:,:)
 
 if(isBinary) then
   call WriteBIN(atype,pos,v,q,fileNameBase)
@@ -270,6 +271,9 @@ write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
 if(isPQEq) then
   ! name + pos(i,1:3) + q(i) + gid + spos(i,1:3) + newline
   OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
+else if(present(f)) then
+  ! name + pos(i,1:3) + q(i) + gid + f(i,1:3) + newline
+  OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
 else
   ! name + pos(i,1:3) + q(i) + gid + newline
   OneLineSize = 3 + 36 + 8 + 9 + 1 
@@ -320,8 +324,8 @@ do i=1, NATOMS
   write(OneLine(idx1:idx1+2),'(a3)') atmname(ity); idx1=idx1+3
 
 ! atom positions. with high precision for dielectric calculation
-  if(isPQEq) then
-     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1:3); idx1=idx1+60
+  if(isPQEq.or.present(f)) then
+     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1),pos(i,2),pos(i,3); idx1=idx1+60
      write(OneLine(idx1:idx1+19),'(es20.12)') q(i); idx1=idx1+20
   else
      write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
@@ -334,7 +338,10 @@ do i=1, NATOMS
 ! shell charge positions with high precision for dielectric calculation
   if(isPQEq) then
      write(OneLine(idx1:idx1+59),'(3es20.12)') spos(i,1:3); idx1=idx1+60
+  else if(present(f)) then
+     write(OneLine(idx1:idx1+59),'(3es20.12)') f(i,1),f(i,2),f(i,3); idx1=idx1+60
   endif
+
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 
   write(AllLines(idx0:idx0+OneLineSize-1),'(a)') OneLine; idx0=idx0+OneLineSize

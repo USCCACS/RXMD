@@ -174,40 +174,36 @@ type(fnn_param),pointer :: fp => null()
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
-integer(ik) :: i, ity, nn, nl, ncol, nrow
-
-real(rk),allocatable :: x(:),y(:)
-
-real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, num_atoms), F_i(3, NBUFFER), Etotal
+real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, NBUFFER), F_i(3, num_atoms), Etotal
 integer :: type_i, index_i, type_j(MAXNEIGHBS), index_j(MAXNEIGHBS)
-integer :: n_j
+integer :: i,j,j1,ity,n_j,stat
 
-integer :: j, j1, stat
 
 ! not sure if this is the best way, but binding force_field_class to fnn_parm
 select type(ff); type is (fnn_param) 
    fp => ff
 end select
 
-call COPYATOMS(imode=MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
+call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_fnn(num_atoms, atype, pos, fp) 
 
-F_i = 0.d0; Etotal = 0.d0
+F_i = 0.d0; Etotal = 0.d0; f3r = 0.d0;
 do i = 1, num_atoms
    coo_i(1:3) = pos(i,1:3)
    type_i = nint(atype(i))
    index_i = i
    n_j = nbrlist(i,0)
 
-   !print'(3f8.3,3i6)',coo_i, type_i, index_i, n_j
+   !print'(a,3f8.3,3i6)',atmname(type_i),coo_i, type_i, index_i, n_j
    do j1 = 1, nbrlist(i,0)
       j = nbrlist(i,j1)
       coo_j(1:3,j1) = pos(j,1:3)
       type_j(j1) = nint(atype(j))
       index_j(j1) = j
-      !print'(a3,3f8.3,3i6)','j: ',coo_j(1:3,j1), type_j(j1), index_j(j1)
+
+      !print'(a3,3f8.3,2i6,f8.3)','j: ',coo_j(1:3,j1), type_j(j1), index_j(j1)
    enddo
 
    call aenet_atomic_energy_and_forces( &
@@ -219,18 +215,25 @@ do i = 1, num_atoms
    !print'(a,i5,4es15.5)','i,E_i, F_i: ', i, E_i*Eev_kcal, F_i(1:3,i)*Eev_kcal
 enddo
 
-do i = 1, num_atoms
-   f(i,1:3)=F_i(1:3,i)*Eev_kcal
-enddo
 Etotal = Etotal*Eev_kcal
 
-#ifdef FORCEDUMP
+!omp simd
+do i = 1, num_atoms
+   f(i,1:3) =f (i,1:3) + F_i(1:3,i)*Eev_kcal
+enddo
+!omp simd
+do i = 1, NBUFFER
+   f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
+enddo
+
+CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+
 do i=1, num_atoms
    ity=nint(atype(i))
-   print'(2i6,6f12.5)',i,ity,pos(i,1:3),f(i,1:3)*fp%models(ity)%scaling_factor/Eev_kcal
+   print'(a,a,6f12.5)','force: ', atmname(ity),&
+      pos(i,1),pos(i,2),pos(i,3),f(i,1),f(i,2),f(i,3)
 enddo
-stop 
-#endif
+stop 'foo'
 
 end subroutine
 
@@ -263,7 +266,7 @@ do nstep=0, num_mdsteps-1
   call cpu_time(tstart(0))
 
   if(mod(nstep,fstep)==0) &
-        call OUTPUT(atype, pos, v, q, GetFileNameBase(DataDir,current_step+nstep))
+        call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
 
   if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
@@ -296,7 +299,7 @@ do nstep=0, num_mdsteps-1
    pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
 
 !--- migrate atoms after positions are updated
-   call COPYATOMS(imode=MODE_MOVE_FNN,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos, &
+   call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
                   v=v,f=f,q=q,ipos=ipos)
 
    call cpu_time(cpu1)
@@ -312,7 +315,7 @@ do nstep=0, num_mdsteps-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(atype, pos, v, q,  GetFileNameBase(DataDir,current_step+nstep))
+call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
 
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))

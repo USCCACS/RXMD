@@ -37,6 +37,8 @@ integer,parameter :: MODE_COPY_FNN=11, MODE_MOVE_FNN=12
 
 integer,parameter :: NE_CPBK = 4
 
+real(8),parameter :: dr_zero(3) = [0.d0, 0.d0, 0.d0]
+
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
 
