@@ -3922,6 +3922,12 @@ contains
     ! max number of atoms in interaction range
     nnb_max = N_nb_max
 
+    ! knomura
+    if(N_nb_max > 2000) then
+       print*,'INFO : N_nb_max is too large. setting it to 2000.', nnb_max
+       nnb_max = 2000
+    endif
+
     ! allocate workspace for basis function evaluation:
     allocate(sfval(nsf_max), sfderiv_i(3,nsf_max), sfderiv_j(3,nsf_max,nnb_max),  &
 &            sfstrs(6,nsf_max))
@@ -5155,7 +5161,8 @@ contains
            F(1:3, index_j(j)) = F(1:3, index_j(j)) - aenet_pot(type_i)%E_scale &
                           * matmul(sfderiv_j(1:3,1:nsf,j), aenet_dE_dG(1:nsf))
        else
-           kz = index_j(j) - natoms
+           !kz = index_j(j) - natoms
+           kz = index_j(j)  !knomura
            f3r(1:3,kz) = f3r(1:3,kz) - aenet_pot(type_i)%E_scale &
                           * matmul(sfderiv_j(1:3,1:nsf,j), aenet_dE_dG(1:nsf))
        end if

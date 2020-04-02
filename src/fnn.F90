@@ -163,6 +163,7 @@ module fnn
 
   ! timing for 1-feature calc & 2-force inference
   real(rk),save,private :: tstart(0:3)=0.0, tfinish(0:3)=0.0
+  real(8) :: Epot
 
 contains
 
@@ -174,7 +175,7 @@ type(fnn_param),pointer :: fp => null()
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
-real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, NBUFFER), F_i(3, num_atoms), Etotal
+real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, NBUFFER), F_i(3, num_atoms)
 integer :: type_i, index_i, type_j(MAXNEIGHBS), index_j(MAXNEIGHBS)
 integer :: i,j,j1,ity,n_j,stat
 
@@ -189,7 +190,9 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_fnn(num_atoms, atype, pos, fp) 
 
-F_i = 0.d0; Etotal = 0.d0; f3r = 0.d0;
+call cpu_time(tstart(1))
+f = 0.d0; F_i = 0.d0; f3r = 0.d0;
+Epot = 0.d0
 do i = 1, num_atoms
    coo_i(1:3) = pos(i,1:3)
    type_i = nint(atype(i))
@@ -210,12 +213,13 @@ do i = 1, num_atoms
         coo_i, type_i, index_i, n_j, coo_j, type_j, index_j, num_atoms, &
         E_i, F_i, f3r, NBUFFER, stat) 
 
-   Etotal = Etotal + E_i
+   Epot = Epot + E_i
 
    !print'(a,i5,4es15.5)','i,E_i, F_i: ', i, E_i*Eev_kcal, F_i(1:3,i)*Eev_kcal
 enddo
+call cpu_time(tfinish(1))
 
-Etotal = Etotal*Eev_kcal
+Epot = Epot*Eev_kcal
 
 !omp simd
 do i = 1, num_atoms
@@ -227,13 +231,6 @@ do i = 1, NBUFFER
 enddo
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
-
-do i=1, num_atoms
-   ity=nint(atype(i))
-   print'(a,a,6f12.5)','force: ', atmname(ity),&
-      pos(i,1),pos(i,2),pos(i,3),f(i,1),f(i,2),f(i,3)
-enddo
-stop 'foo'
 
 end subroutine
 
@@ -438,7 +435,7 @@ real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: v(:,:)
 
 integer :: i,ity,cstep
-real(8) :: tt=0.d0
+real(8) :: tt=0.d0, Etotal
 
 ke=0.d0
 do i=1, NATOMS
@@ -451,12 +448,16 @@ ke = ke/GNATOMS
 tt = ke*UTEMP
 GKE = ke ! FIXME for ctmp = (treq*UTEMP0)/( GKE*UTEMP )
 
+call MPI_ALLREDUCE (MPI_IN_PLACE, Epot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Epot = Epot/GNATOMS
+Etotal = Epot + ke
+
 if(myid==0) then
    
    cstep = nstep + current_step 
 
    write(6,'(a,i9,es13.5,f10.3,3x,4f10.5)') &
-        'MDstep,KE,T(K)   onestep(sec),finf,feat2b,feat3b: ', cstep, ke, tt, tfinish(0:3)-tstart(0:3)
+        'MDstep,Etotal,T(K),onestep(sec),force_calc,nbr_calc: ', cstep, Epot + ke, tt, tfinish(0:3)-tstart(0:3)
 endif
 
 end subroutine
