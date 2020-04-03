@@ -45,7 +45,60 @@ def ba_plot(dirs, num_ba=2):
             plt.savefig(outfile,bbox_inches='tight')
             print('------ %s -----'%(outfile))
     return
-                
+
+def sq_plot(dirs, num_sq=2):
+
+    num_cols = num_sq*num_sq + 1
+    num_pairs = num_sq*num_sq
+    print('num_sq,num_cols,num_pairs: ', num_sq,num_cols,num_pairs)
+
+    for dir in dirs:
+        for infile in glob.glob(dir+'/sq.dat.csv'):
+            
+            
+            print('===== %s ===='%(infile))
+            
+            dat = pd.read_csv(infile)
+            
+            columns = dat.columns
+            names = []
+            for c in columns:
+                names.append(c.lstrip())
+            print('name: ', names)
+
+            dat.columns = names
+            dat = dat.iloc[:,0:num_cols+1]
+            dat = dat.reindex(sorted(dat.columns), axis=1)
+            print('dat.columns: ', dat.columns)
+            
+            columns = dat.columns
+            print(columns)
+
+            # Sn(q)
+            fig = plt.figure(figsize=(10*num_sq, 8*num_sq))
+            subplots = fig.add_subplot(1,1,1)
+            subplots.plot(dat[columns[-1]], dat[columns[-2]], \
+                label=columns[-2].lstrip(), linewidth=3)
+            outfile = os.path.join(dir,'snq.png')
+            subplots.legend()
+            subplots.grid()
+            plt.savefig(outfile,bbox_inches='tight')
+
+            # S(q) partials
+            fig = plt.figure(figsize=(10*num_sq, 8*num_sq))
+            for c in range(num_pairs):
+                subplots = fig.add_subplot(num_sq,num_sq,c+1)
+                #subplots.set_ylim([0,6])
+                subplots.plot(dat[columns[-1]], dat[columns[c]], 
+                              label=columns[c].lstrip(), linewidth=3)
+                subplots.legend()
+                subplots.grid()
+            outfile = os.path.join(dir,'sq.png')
+            plt.savefig(outfile,bbox_inches='tight')
+    
+            print('------ %s -----'%(outfile))
+            
+    return 
                 
 def gr_plot(dirs, num_gr=2):
 
@@ -94,5 +147,6 @@ def gr_plot(dirs, num_gr=2):
 
 
 dirs=['.']
-#gr_plot(dirs)
-ba_plot(dirs,1)
+gr_plot(dirs)
+ba_plot(dirs,2)
+sq_plot(dirs)
