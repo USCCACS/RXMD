@@ -40,17 +40,16 @@ init.o : reaxff.o fileio.o pot.o fnn.o
 qeq.o : reaxff.o comm.o lists.o
 pqeq.o : reaxff.o comm.o lists.o
 
-main.o : init.o
+main.o : init.o module.o
 
 
-nompi: nompi.f90
-	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90
+nompi: nompi.f90 
+	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90 memory.F90
 	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
 
-librxmd: nompi.f90
-	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90
-	$(FC) $(FC_FLAGS) -DNOMPI -DLIBRXMD -c main.F90 
-	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" 
+librxmd: 
+	make nompi
+	$(FC) $(FC_FLAGS) -DLIBRXMD -DNOMPI -c main.F90
 	ar crv librxmd.a *.o
 
 clean:
