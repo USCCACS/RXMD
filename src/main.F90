@@ -1,5 +1,9 @@
 !------------------------------------------------------------------------------
+#ifdef LIBRXMD
+subroutine rxmd()
+#else
 program rxmd
+#endif
 !------------------------------------------------------------------------------
 use base, only : mdbase_class, atype, f, pos, q, v 
 use init
@@ -35,4 +39,4 @@ it_timer(MAXTIMERS)=(it2-it1)
 if(myid==0)  print'(a30)', 'rxmd has finished successfully'
 
 call MPI_FINALIZE(ierr)
-end program
+end 

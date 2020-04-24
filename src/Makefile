@@ -47,8 +47,14 @@ nompi: nompi.f90
 	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90
 	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
 
+librxmd: nompi.f90
+	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90
+	$(FC) $(FC_FLAGS) -DNOMPI -DLIBRXMD -c main.F90 
+	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" 
+	ar crv librxmd.a *.o
+
 clean:
-	rm -f PI* *.o *.mod *.MOD mpif.h ../rxmd
+	rm -f PI* *.o *.mod *.MOD mpif.h *.a ../rxmd
 
 rebuild:
 	make clean

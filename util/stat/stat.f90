@@ -238,7 +238,7 @@ contains
 
            ! add delta function if ity==jty
            if(ity==jty) this%sq(ity,jty,kk) = this%sq(ity,jty,kk) + 1.d0
-           write(iunit, fmt='(f12.5,a1,1x)',advance='no') this%sq(ity,jty,kk)
+           write(iunit, fmt='(f12.5,1x,a1)',advance='no') this%sq(ity,jty,kk), ','
 
            Snq = Snq + this%sq(ity,jty,kk) * &
                        sqrt(this%concentration(ity) * this%concentration(jty)) * & 

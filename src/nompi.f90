@@ -40,6 +40,10 @@ module nompi
       module procedure mpi_file_read_r8, mpi_file_read_i4
    end interface
 
+   interface mpi_bcast
+      module procedure mpi_bcast_scalar_i4, mpi_bcast_scalar_r8, mpi_bcast_i4, mpi_bcast_r8
+   end interface
+
    interface mpi_send
       module procedure mpi_send_vector_i4, mpi_send_scalar_i4
       module procedure mpi_send_vector_r8, mpi_send_scalar_r8
@@ -246,8 +250,29 @@ contains
      integer :: status(mpi_status_size), datatype, icount, ierror
    end subroutine
 
-   subroutine mpi_bcast(buffer, icount, datatype, root, comm, ierror)
+   subroutine mpi_bcast_scalar_i4(buffer, icount, datatype, root, comm, ierror)
      integer, intent(in) :: buffer
+     integer, intent(in) :: icount, root
+     integer, intent(in) :: comm, datatype
+     integer, optional, intent(out) :: ierror
+   end subroutine
+
+   subroutine mpi_bcast_scalar_r8(buffer, icount, datatype, root, comm, ierror)
+     real(8), intent(in) :: buffer
+     integer, intent(in) :: icount, root
+     integer, intent(in) :: comm, datatype
+     integer, optional, intent(out) :: ierror
+   end subroutine
+
+   subroutine mpi_bcast_i4(buffer, icount, datatype, root, comm, ierror)
+     integer, intent(in) :: buffer(*)
+     integer, intent(in) :: icount, root
+     integer, intent(in) :: comm, datatype
+     integer, optional, intent(out) :: ierror
+   end subroutine
+
+   subroutine mpi_bcast_r8(buffer, icount, datatype, root, comm, ierror)
+     real(8), intent(in) :: buffer(*)
      integer, intent(in) :: icount, root
      integer, intent(in) :: comm, datatype
      integer, optional, intent(out) :: ierror
