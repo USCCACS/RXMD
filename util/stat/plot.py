@@ -53,8 +53,7 @@ def sq_plot(dirs, num_sq=2):
     print('num_sq,num_cols,num_pairs: ', num_sq,num_cols,num_pairs)
 
     for dir in dirs:
-        for infile in glob.glob(dir+'/sq.dat.csv'):
-            
+        for infile in glob.glob(dir+'/sq.dat'):
             
             print('===== %s ===='%(infile))
             
