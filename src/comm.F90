@@ -54,7 +54,7 @@ end type
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
 real(8),allocatable,target,intent(in out) :: atype(:),pos(:,:)
-real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:),ipos(:,:)
+real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:),ipos(:,:,:)
 
 logical,allocatable :: commflag(:)
 type(pack1darray),allocatable :: pack1d(:)
@@ -122,7 +122,7 @@ subroutine initialize(imode)
 implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: imode
-integer :: a, np2d, np1d, nn2d
+integer :: i, a, np2d, np1d, nn2d
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -138,8 +138,8 @@ select case(imode)
 
       np2d=2; np1d=2; nn2d=1
       if(has_initial_pos) then
-         np2d=np2d+1 ! for ipos
-         nn2d=nn2d+1 ! for ipos
+         np2d=np2d+size(ipos,dim=1) ! for multi init MSD
+         nn2d=nn2d+size(ipos,dim=1) ! for multi init MSD
       endif
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
@@ -148,8 +148,11 @@ select case(imode)
       a=1
       pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
       pack2d(a)%ptr=>v; a=a+1 
+
       if(has_initial_pos) then
-         pack2d(a)%ptr=>ipos; pack2d(a)%shift=.true.; a=a+1
+         do i=1, size(ipos,dim=1)
+            pack2d(a)%ptr=>ipos(i,:,:); pack2d(a)%shift=.true.; a=a+1
+         enddo
       endif
 
       a=1
@@ -159,7 +162,9 @@ select case(imode)
       a=1
       norm2d(a)%ptr=>pos;  a=a+1
       if(has_initial_pos) then
-         norm2d(a)%ptr=>ipos; a=a+1
+         do i=1, size(ipos,dim=1)
+            norm2d(a)%ptr=>ipos(i,:,:); a=a+1
+         enddo
       endif
 
    case(MODE_COPY_FNN)
@@ -219,8 +224,8 @@ select case(imode)
 
       if(isPQEq) np2d=np2d+1 ! for spos
       if(has_initial_pos) then
-         np2d=np2d+1 ! for ipos
-         nn2d=nn2d+1 ! for ipos
+         np2d=np2d+size(ipos,dim=1) ! for multi init MSD
+         nn2d=nn2d+size(ipos,dim=1) ! for multi init MSD
       endif
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
@@ -233,7 +238,9 @@ select case(imode)
          pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
       endif
       if(has_initial_pos) then
-         pack2d(a)%ptr=>ipos; pack2d(a)%shift=.true.; a=a+1
+         do i=1, size(ipos,dim=1)
+            pack2d(a)%ptr=>ipos(i,:,:); pack2d(a)%shift=.true.; a=a+1
+         enddo
       endif
 
       a=1
@@ -248,7 +255,9 @@ select case(imode)
       norm2d(a)%ptr=>pos;  a=a+1
 
       if(has_initial_pos) then
-         norm2d(a)%ptr=>ipos; a=a+1
+         do i=1, size(ipos,dim=1)
+            norm2d(a)%ptr=>ipos(i,:,:); a=a+1
+         enddo
       endif
 
    case(MODE_QCOPY1)

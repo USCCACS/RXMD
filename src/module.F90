@@ -42,7 +42,6 @@ real(8),parameter :: dr_zero(3) = [0.d0, 0.d0, 0.d0]
 !<MAXLAYERS> MAXimum # of linkedlist cell LAYERS.
 integer,parameter :: MAXLAYERS=5
 
-
 ! position, atom type, velocity, force & charge
 real(8),allocatable,dimension(:),target :: atype, q
 real(8),allocatable,dimension(:,:),target :: pos, v, f
@@ -118,7 +117,7 @@ real(8) :: astr(6) = 0.d0
 
 !--- from cmdline_args
 logical :: has_initial_pos=.false.
-real(8),allocatable,target :: ipos(:,:)
+real(8),allocatable,target :: ipos(:,:,:)
 
 logical :: isSpring=.false.
 real(8) :: springConst=0.d0

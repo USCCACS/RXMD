@@ -63,7 +63,7 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
-if(isSpring) call SpringForce()
+if(isSpring) call SpringForce(ipos(1,:,:))
 if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
 
 CALL ForceBondedTerms(NMINCELL)
@@ -98,11 +98,11 @@ return
 CONTAINS 
 
 !----------------------------------------------------------------------
-subroutine SpringForce()
+subroutine SpringForce(ipos)
 implicit none
 !----------------------------------------------------------------------
 integer :: i,ity
-real(8) :: rr(3),dr
+real(8) :: rr(3),dr, ipos(:,:)
 
 do i=1, NATOMS
    ity=nint(atype(i))

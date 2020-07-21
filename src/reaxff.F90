@@ -6,7 +6,7 @@ use base, only : atmname, mass, NBUFFER, MAXNEIGHBS, it_timer, &
 
 use memory_allocator_mod
 use utils
-use msd_mod, only : msd_data
+use msd_mod, only : msd_data, msd_add_initial_pos, msd_measure, msd_save
 
 real(8),parameter :: MINBOSIG = 1d-3      !<minBOsig>: criterion to decide <rc> 
 real(8),parameter :: MINBO0 = 1d-4       !<minBO0>: cutoff bond order 
@@ -173,8 +173,9 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,sstep)==0.and.mdmode==8) &
       call adjust_temperature(atype, v)
 
-   if(msd_data%is_msd .and. mod(nstep,pstep)==0) &
-      call msd_data%measure(NATOMS, atype, pos, ipos)
+!--- MSD measurements
+   call msd_add_initial_pos(msd_data, nstep, NATOMS, pos, ipos)
+   call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
 
 !--- update velocity
    call vkick(1.d0, atype, v, f) 
@@ -188,7 +189,7 @@ do nstep=0, num_mdsteps-1
    pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+dt*v(1:NATOMS,1:3)
 
 !--- migrate atoms after positions are updated
-   call COPYATOMS(imode=MODE_MOVE,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q)
+   call COPYATOMS(imode=MODE_MOVE,dr=[0.d0, 0.d0, 0.d0],atype=atype,pos=pos,v=v,f=f,q=q, ipos=ipos)
    
    if(mod(nstep,qstep)==0) call charge_model_func(atype, pos, q)
    call force_model_func(natoms, atype, pos, f, q)
@@ -215,7 +216,8 @@ call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q)
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
 
-if(msd_data%is_msd) call msd_data%save()
+!--- save result if msd_data%is_msd == true
+call msd_save(msd_data)
 
 call finalize_reaxff()
 
@@ -898,8 +900,6 @@ if(myid==0) then
                                                dble(it_timer_min(MAXTIMERS))/irt
 
    print'(a)','----------------------------------------------'
-
-   print'(a30)', 'rxmd successfully finished'
 endif
 
 end subroutine

@@ -21,10 +21,12 @@ module init
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
-  use msd_mod, only : msd_data, msd_type_ctor
+  use msd_mod, only : msd_data, msd_initialize
 
   use aenet, only : aenet_init, aenet_load_potential, aenet_print_info
   use symmfunc, only : sf_set_table
+
+  use mod_short_repulsion, only : initialize_short_repulsion, short_rep
 
 contains
 
@@ -48,6 +50,8 @@ if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
   call MPI_FINALIZE(ierr)
   stop
 endif
+
+call initialize_short_repulsion(short_rep)
 
 !--- TODO make this stat a class
 !--- allocate & initialize Array size Stat variables
@@ -200,22 +204,16 @@ if(myid==0) then
 endif
 
 !--- MSD constractor
-msd_data = msd_type_ctor(atmname, msd_size=(ntime_step/pstep), unit_time=(pstep*dt*UTIME))
-if(msd_data%is_msd) then
-  if(myid==0) then
-     write(6,fmt='(a)') 'start MSD measurement.'
-     write(6,fmt='(a,i6,f8.3)') 'msd_size, unit_time: ', &
-                         size(msd_data%dat,dim=2), msd_data%unit_time
-  endif
-endif
+call msd_initialize(m=msd_data, atom_name=atmname, total_steps=ntime_step, onestep_fs = dt*UTIME)
 
 !--- keep initial position
 if(isSpring .or. msd_data%is_msd) then
 
   has_initial_pos = .true.
 
-  call allocator(ipos,1,NBUFFER,1,3)
-  ipos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)
+  ! ipos is used as the spring position with isSpring, or, initial positions in MSD calc.
+  call allocator(ipos, 1,max(1,msd_data%num_init_pos), 1,NBUFFER, 1,3)
+  ipos(1,1:NATOMS,1:3) = pos(1:NATOMS,1:3)
 
   if(myid==0) write(6,fmt='(a,l3)') 'has_initial_pos:', has_initial_pos
 

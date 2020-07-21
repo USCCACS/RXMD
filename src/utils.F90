@@ -321,6 +321,20 @@ return
 end
 
 !-------------------------------------------------------------------------------------------
+function get_command_argument_str(idx) result(string)
+implicit none
+!-------------------------------------------------------------------------------------------
+integer,intent(in) :: idx
+character(len=:),allocatable :: string
+character(MAXSTRLENGTH) :: argv
+
+call get_command_argument(idx,argv)
+string = trim(adjustl(argv))
+
+return
+end function
+
+!-------------------------------------------------------------------------------------------
 logical function find_cmdline_argc(key,idx)
 implicit none
 !-------------------------------------------------------------------------------------------
@@ -351,14 +365,12 @@ subroutine assert(logical, message)
 logical,intent(in) :: logical
 character(*),intent(in) :: message
 
-if(logical) then
-   return
-else
-   print'(a)',repeat('!',60)
-   print'(a)',message
-   print'(a)',repeat('!',60)
-   stop
-endif
+if(logical) return
+
+print'(a)',repeat('!',60)
+print'(a)',message
+print'(a)',repeat('!',60)
+stop
 
 return
 end subroutine

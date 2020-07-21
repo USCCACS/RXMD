@@ -1,6 +1,6 @@
 module fnnin_parser
 
-  use utils, only : assert, pi, getstr, getfilenamebase, l2g, Eev_kcal
+  use utils, only : assert, pi, getstr, getfilenamebase, l2g, Eev_kcal, Ekcal_j
   use base, only : force_field_class
   use fileio, only : output, writebin
   use velocity_modifiers_mod, only : vkick, linear_momentum, &
@@ -149,10 +149,12 @@ module fnn
   use base
   use lists_mod, only : getnonbondingmesh, linkedlist
   use communication_mod, only : copyatoms
-  use msd_mod, only : msd_data
+  use msd_mod, only : msd_data, msd_measure, msd_save
 
   use aenet
 
+  use mod_short_repulsion, only : short_repulsion, short_rep
+ 
   implicit none
 
   integer(ik) :: num_types = 0, num_pairs = 0
@@ -223,12 +225,14 @@ Epot = Epot*Eev_kcal
 
 !omp simd
 do i = 1, num_atoms
-   f(i,1:3) =f (i,1:3) + F_i(1:3,i)*Eev_kcal
+   f(i,1:3) = f (i,1:3) + F_i(1:3,i)*Eev_kcal
 enddo
 !omp simd
 do i = 1, NBUFFER
    f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
 enddo
+
+call short_repulsion(short_rep)
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
@@ -284,8 +288,7 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,sstep)==0.and.mdmode==9) &
       call maximally_preserving_BD(atype, v, vsfact) 
 
-   if(msd_data%is_msd .and. mod(nstep,pstep)==0) & 
-      call msd_data%measure(NATOMS, atype, pos, ipos)
+   call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
 
 !--- total force may not be zero with FNN. fix linear momentum every pstep.
    if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
@@ -317,8 +320,8 @@ call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
 
-if(msd_data%is_msd) call msd_data%save()
-
+!--- save result if msd_data%is_msd == true
+call msd_save(msd_data)
 
 call cpu_time(cpu2)
 if(myid==0) print'(a,2f12.5)','comp, total (sec): ', comp, cpu2-cpu0
