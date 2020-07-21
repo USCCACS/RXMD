@@ -91,11 +91,11 @@ contains
        print'(a)', repeat('-',60)
        if(m%is_msd) write(6,fmt='(a)') 'start MSD measurement'
        print'(a,l3)', 'is_msd: ', m%is_msd
-       print'(a,f9.3, i9)', 'length    [fs] [MDstep]: ', m%length_fs, m%length_step
-       print'(a,f9.3, i9)', 'interval  [fs] [MDstep]: ', m%interval_fs, m%interval_step
-       print'(a,f9.3, i9)', 'frequency [fs] [MDstep]: ', m%freq_fs, m%freq_step
-       print'(a,i6)', '# of initial pos: ', m%num_init_pos
-       print'(a,i9)', '# of data per initial pos: ', m%num_data_points
+       print'(a,f9.3,a,i9,a)', 'length   : ', m%length_fs,  ' [fs] ', m%length_step,   ' [MDstep]'
+       print'(a,f9.3,a,i9,a)', 'interval : ', m%interval_fs,' [fs] ', m%interval_step, ' [MDstep]'
+       print'(a,f9.3,a,i9,a)', 'frequency: ', m%freq_fs,    ' [fs] ', m%freq_step,     ' [MDstep]'
+       print'(a,i6)', '# of initial positions: ', m%num_init_pos
+       print'(a,i9)', '# of data per initial positions: ', m%num_data_points
        print'(a)', repeat('-',60)
      endif
 
@@ -132,7 +132,7 @@ contains
      integer,intent(in) :: num_atoms 
      real(8),allocatable,intent(in) :: atype(:), pos(:,:), pos0(:,:,:) 
 
-     integer :: i, ia, ity, idx, idx1
+     integer :: i, ia, ity, idx 
      real(8) :: dr(3), dr2
 
      if (.not. m%is_msd) return
@@ -144,7 +144,6 @@ contains
         if(.not. m%has_init_pos(ia)) cycle
 
         idx = (current_step - (ia-1)*m%interval_step)/m%freq_step + 1
-        idx1 = idx+1
 
         if(0<idx .and. idx <= m%num_data_points) then 
 
@@ -195,40 +194,42 @@ contains
      enddo; enddo
  
      if(myid==0) then
-     write(iunit,fmt='(a)',advance='no') ' time(fs) '
-     do i=1, size(m%msd_atom_name)
-        write(iunit,fmt='(a15)',advance='no') m%msd_atom_name(i)%str
-     enddo
-     do i=1, size(m%msd_atom_name)
-        write(iunit,fmt='(a9)',advance='no') 'Num_'//m%msd_atom_name(i)%str
-     enddo
-     write(iunit,fmt=*)
- 
-     do t=1, num_msdsize
 
-        write(iunit,fmt='(f10.2)',advance='no') (t-1)*m%freq_fs
-
-        do i=1, num_types
-           if(m%num_samples(1,i,t)>0) then
-              write(iunit,fmt='(es18.5)',advance='no') &
-                    m%dat(1,i,t)/m%num_samples(1,i,t)
-           else
-              write(iunit,fmt='(es18.5)',advance='no') 0.d0
-           endif
+        write(iunit,fmt='(a)',advance='no') ' time(fs) '
+        do i=1, size(m%msd_atom_name)
+           write(iunit,fmt='(a15)',advance='no') m%msd_atom_name(i)%str
         enddo
-
-        do i=1, num_types
-           if(m%num_samples(1,i,t)>0) then
-              write(iunit,fmt='(i12)',advance='no') m%num_samples(1,i,t)
-           else
-              write(iunit,fmt='(i12)',advance='no') 0
-           endif
+        do i=1, size(m%msd_atom_name)
+           write(iunit,fmt='(a9)',advance='no') 'Num_'//m%msd_atom_name(i)%str
         enddo
-
         write(iunit,fmt=*)
+    
+        do t=1, num_msdsize
+   
+           write(iunit,fmt='(f10.2)',advance='no') (t-1)*m%freq_fs
+   
+           do i=1, num_types
+              if(m%num_samples(1,i,t)>0) then
+                 write(iunit,fmt='(es18.5)',advance='no') &
+                       m%dat(1,i,t)/m%num_samples(1,i,t)
+              else
+                 write(iunit,fmt='(es18.5)',advance='no') 0.d0
+              endif
+           enddo
+   
+           do i=1, num_types
+              if(m%num_samples(1,i,t)>0) then
+                 write(iunit,fmt='(i12)',advance='no') m%num_samples(1,i,t)
+              else
+                 write(iunit,fmt='(i12)',advance='no') 0
+              endif
+           enddo
+   
+           write(iunit,fmt=*)
+   
+        enddo
 
-     enddo
-     close(iunit)
+        close(iunit)
 
      endif
 

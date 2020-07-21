@@ -149,7 +149,7 @@ module fnn
   use base
   use lists_mod, only : getnonbondingmesh, linkedlist
   use communication_mod, only : copyatoms
-  use msd_mod, only : msd_data, msd_measure, msd_save
+  use msd_mod, only : msd_data, msd_add_initial_pos, msd_measure, msd_save
 
   use aenet
 
@@ -288,6 +288,8 @@ do nstep=0, num_mdsteps-1
    if(mod(nstep,sstep)==0.and.mdmode==9) &
       call maximally_preserving_BD(atype, v, vsfact) 
 
+!--- MSD measurements
+   call msd_add_initial_pos(msd_data, nstep, NATOMS, pos, ipos)
    call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
 
 !--- total force may not be zero with FNN. fix linear momentum every pstep.
