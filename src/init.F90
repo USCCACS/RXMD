@@ -51,7 +51,6 @@ if(vprocs(1)*vprocs(2)*vprocs(3) /= nprocs ) then
   stop
 endif
 
-call initialize_short_repulsion(short_rep)
 
 !--- TODO make this stat a class
 !--- allocate & initialize Array size Stat variables
@@ -205,6 +204,9 @@ endif
 
 !--- MSD constractor
 call msd_initialize(m=msd_data, atom_name=atmname, total_steps=ntime_step, onestep_fs = dt*UTIME)
+
+!--- intialize short repulsion for neuralnet MD 
+call initialize_short_repulsion(short_rep, atmname)
 
 !--- keep initial position
 if(isSpring .or. msd_data%is_msd) then
