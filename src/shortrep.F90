@@ -1,6 +1,7 @@
 module mod_short_repulsion
+
 use base
-use utils
+use utils, only : l2g, find_cmdline_argc, get_command_argument_str, Ekcal_j, assert
 
 implicit none
 
@@ -44,6 +45,7 @@ type short_repulsion_type2_params
     procedure :: read => read_type2_params
     procedure :: print => print_type2_params
     procedure :: apply => apply_type2_short_repulsion
+    procedure :: apply2 => apply_type3_short_repulsion
 end type
 
 type short_repulsion_type
@@ -59,7 +61,6 @@ end type
 type(short_repulsion_type) short_rep
 
 contains
-
 
 !-----------------------------------------------------------------------------
 subroutine initialize_short_repulsion(sr, atom_name)
@@ -100,16 +101,25 @@ open(newunit=funit, file=filename, form='formatted')
 
 read(funit,*) sr%potential_type
 
+if(myid==0) then
+  print'(a)', repeat('-',60)
+  print'(a)', 'parameters for short repulsion: '
+  print'(a,i3)', 'potential type: ', sr%potential_type
+  print'(a)', repeat('-',60)
+endif
+
 if(sr%potential_type==1) then
    call sr%p1%read(funit)
    call sr%p1%print()
-else if(sr%potential_type==2) then
+else if(sr%potential_type==2.or.sr%potential_type==3) then
    call sr%p2%read(funit, atom_name)
    call sr%p2%print()
 else
    print'(a)', 'ERROR: unsupported potential type. Exiting the code', sr%potential_type
    stop
 endif
+
+if(myid==0) print'(a)', repeat('-',60)
 
 close(funit)
 
@@ -145,16 +155,13 @@ subroutine print_type2_params(this)
   class(short_repulsion_type2_params) :: this
 
   if(myid==0) then
-    print'(a)', repeat('-',60)
     print'(a30,a7,i3,1x,a7,i3)', "atom types: ", "H -", this%htype, "O -", this%otype
     print'(a30,2f10.3)', 'alpha, rc_oh: ', this%alpha, this%rc_oh
     print'(a30,2f10.3)', 'Kr, Kq: ', this%Kr, this%Kq
     print'(a30,2f10.3)', 'r0, q0: ', this%r0, this%q0
-    print'(a)', repeat('-',60)
   endif
 
 end subroutine
-
 
 !-----------------------------------------------------------------------------
 subroutine read_type1_params(this, funit)
@@ -195,7 +202,6 @@ subroutine read_type1_params(this, funit)
   this%is_initialized = .true.
 end subroutine
 
-
 !-----------------------------------------------------------------------------
 subroutine print_type1_params(this)
 !-----------------------------------------------------------------------------
@@ -204,9 +210,6 @@ class (short_repulsion_type1_params),intent(in) :: this
 integer :: ity,jty
 
 if(myid==0) then
-   print'(a)', repeat('-',60)
-   print'(a)', 'parameters for short repulsion: '
-   print'(a)', repeat('-',60)
    print'(a,i9)', 'num_types : ', this%num_types
 
    print*
@@ -233,6 +236,137 @@ if(myid==0) then
    enddo
    print'(a)', repeat('-',60)
 endif
+
+end subroutine
+
+!-----------------------------------------------------------------------
+subroutine ForceA3(coeff,i,j,k,da0, da1)
+! derivative of <cos_ijk>
+!-----------------------------------------------------------------------
+implicit none
+! Caa(0,0)=Caa, Caa(0,-1)=Caa-1, Caa(-1,0)=Ca-1a, Caa(-1,-1)=Ca-1a-1
+
+real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3)
+integer,INTENT(IN) :: i,j,k
+real(8) :: Caa(-2:0,-2:0), Ci(3), Ck(3)
+real(8) :: fij(3), fjk(3), fijjk(3), rij(3), rjk(3)
+real(8) :: CCisqr, coCC
+
+Caa( 0,0) = da0(0)**2; Caa( 0,-1) = sum(da0(1:3)*da1(1:3))
+Caa(-1,0) = Caa(0,-1); Caa(-1,-1) = da1(0)**2
+
+CCisqr = 1.d0/( da0(0)*da1(0) )
+coCC = coeff*CCisqr
+
+!--- Some of calculations are unnecessary due to the action-reaction relation.
+Ci(1) = -( Caa(0,-1)/Caa(0,0) )
+Ci(2) =  1.d0
+!Cj(1) =  Caa( 0,-1)/Caa( 0, 0) + 1.d0 
+!Cj(2) = -( Caa(0,-1)/Caa(-1,-1) + 1.d0 ) 
+Ck(1) = -1.d0
+Ck(2) =  Caa(0,-1)/Caa(-1,-1)
+
+rij(1:3) = da0(1:3)
+rjk(1:3) = da1(1:3)
+
+fij(1:3) = coCC*(Ci(1)*rij(1:3) + Ci(2)*rjk(1:3))
+fjk(1:3) =-coCC*(Ck(1)*rij(1:3) + Ck(2)*rjk(1:3))
+fijjk(1:3) =  -fij(1:3) + fjk(1:3) 
+
+!$omp atomic
+f(i,1) = f(i,1) + fij(1)
+!$omp atomic
+f(i,2) = f(i,2) + fij(2)
+!$omp atomic
+f(i,3) = f(i,3) + fij(3)
+
+!$omp atomic
+f(j,1) = f(j,1) + fijjk(1)
+!$omp atomic
+f(j,2) = f(j,2) + fijjk(2)
+!$omp atomic
+f(j,3) = f(j,3) + fijjk(3)
+
+!$omp atomic
+f(k,1) = f(k,1) - fjk(1)
+!$omp atomic
+f(k,2) = f(k,2) - fjk(2)
+!$omp atomic
+f(k,3) = f(k,3) - fjk(3)
+
+!--- Check N3rd ---
+!print'(a,6f20.13)','N3rd: ', &
+!Ci(1)-Ci(2), -Cj(1), Ci(2), -Ck(1), Cj(2), Ck(1)-Ck(2)
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine apply_type3_short_repulsion(this)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type2_params),intent(in) :: this
+
+real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
+integer :: i, j, k, l, l1, ity, jty, lty, igid
+
+real(8) :: rij(0:3), rik(0:3)
+real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3)
+
+real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
+
+do i=1, NATOMS                           ! O
+
+   ity = nint(atype(i))
+
+   if(ity/=this%otype) cycle
+
+   !if(myid==0) print'(a,2i6)','ity, this%otype:',ity,this%otype
+
+   igid = l2g(atype(i))
+
+   do l1 = 1, nbrlist(i,0)
+
+      l = nbrlist(i,l1)
+      lty = nint(atype(l))
+
+      if(lty/=this%htype) cycle
+
+      if(l2g(atype(l))==igid+1) j = l   !H1
+      if(l2g(atype(l))==igid+2) k = l   !H2
+   enddo
+
+   rij(1:3) = pos(i,1:3)-pos(j,1:3)
+   rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+   rij(1:3) = rij(1:3)/rij(0)
+
+   rik(1:3) = pos(i,1:3)-pos(k,1:3)
+   rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+   rik(1:3) = rik(1:3)/rik(0)
+
+   cosine = sum(rij(1:3)*rik(1:3))
+   theta = acos(cosine)
+   sine = sin(theta)
+
+   call assert(abs(sine)>1d-9, 'ERROR: too small H-O-H angle', myid)
+
+   Krcoef = this%alpha * this%Kr*(rij(0)-this%r0) ! ij
+   ff(1:3) = Krcoef*rij(1:3)
+   f(i,1:3) = f(i,1:3) - ff(1:3)
+   f(j,1:3) = f(j,1:3) + ff(1:3)
+   !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
+
+   Krcoef = this%alpha * this%Kr*(rik(0)-this%r0) ! ik
+   ff(1:3) = Krcoef*rik(1:3)
+   f(i,1:3) = f(i,1:3) - ff(1:3)
+   f(k,1:3) = f(k,1:3) + ff(1:3)
+   !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
+
+   Kqcoef = this%alpha * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
+
+   rij(1:3)=-rij(1:3)
+   !print*,Kqcoef, theta*180d0/pi, this%q0
+   call ForceA3(Kqcoef,j,i,k,rij,rik)
+
+enddo
 
 end subroutine
 
@@ -298,6 +432,11 @@ do i=1, NATOMS
       print'(a,2i6)', 'ERROR: more than two neighbor hydrogen found : ', myid, nbr_count
       print'(a)',repeat('-=',30)
    endif
+   if(nbr_count < 2) then
+      print'(a)',repeat('-=',30)
+      print'(a,2i6)', 'ERROR: less than two neighbor hydrogen found : ', myid, nbr_count
+      print'(a)',repeat('-=',30)
+   endif
 
    rij(1:3) = pos(i,1:3)-pos(j,1:3)
    rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
@@ -310,7 +449,6 @@ do i=1, NATOMS
    cosine = sum(rij(1:3)*rik(1:3))
    theta = acos(cosine)
    sine = sin(theta)
-  
 
    Krcoef = this%alpha * this%Kr*(rij(0)-this%r0) ! ij
    ff(1:3) = Krcoef*rij(1:3)
@@ -324,6 +462,8 @@ do i=1, NATOMS
    f(k,1:3) = f(k,1:3) + ff(1:3)
    !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
 
+   call assert(abs(sine)>1d-9, 'ERROR: too small H-O-H angle', myid)
+
    Kqcoef = this%alpha * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
 
    rij(1:3)=-rij(1:3)
@@ -335,91 +475,6 @@ do i=1, NATOMS
 
 
 enddo
-
-contains
-
-!-----------------------------------------------------------------------
-subroutine cross_product(dr1, dr2, crs)
-! Calculate a cross product <dr1(1:3)> x <dr2(1:3)> = <crs(1:3)>
-! <dr1> and <dr2> must have thier norm in 0th element.
-!-----------------------------------------------------------------------
-   implicit none
-   real(8),INTENT(IN) :: dr1(0:3), dr2(0:3)
-   real(8),INTENT(OUT) :: crs(0:3)
-   real(8) :: ndr1(1:3), ndr2(1:3)
-   real(8),parameter :: NSMALL = 1d-6
-
-   ndr1(1:3) = dr1(1:3)/dr1(0)
-   ndr2(1:3) = dr2(1:3)/dr2(0)
-
-   crs(1) = ndr1(2)*ndr2(3) - ndr1(3)*ndr2(2)
-   crs(2) = ndr1(3)*ndr2(1) - ndr1(1)*ndr2(3)
-   crs(3) = ndr1(1)*ndr2(2) - ndr1(2)*ndr2(1)
-   crs(0) = sqrt( sum(crs(1:3)*crs(1:3)) )
-   if(crs(0)<NSMALL) crs(0) = NSMALL
-
-end subroutine
-
-!-----------------------------------------------------------------------
-subroutine ForceA3(coeff,i,j,k,da0, da1)
-! derivative of <cos_ijk>
-!-----------------------------------------------------------------------
-implicit none
-! Caa(0,0)=Caa, Caa(0,-1)=Caa-1, Caa(-1,0)=Ca-1a, Caa(-1,-1)=Ca-1a-1
-
-real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3)
-integer,INTENT(IN) :: i,j,k
-real(8) :: Caa(-2:0,-2:0), Ci(3), Ck(3)
-real(8) :: fij(3), fjk(3), fijjk(3), rij(3), rjk(3)
-real(8) :: CCisqr, coCC
-
-Caa( 0,0) = da0(0)**2; Caa( 0,-1) = sum(da0(1:3)*da1(1:3))
-Caa(-1,0) = Caa(0,-1); Caa(-1,-1) = da1(0)**2
-
-CCisqr = 1.d0/( da0(0)*da1(0) )
-coCC = coeff*CCisqr
-
-!--- Some of calculations are unnecessary due to the action-reaction relation.
-Ci(1) = -( Caa(0,-1)/Caa(0,0) )
-Ci(2) =  1.d0
-!Cj(1) =  Caa( 0,-1)/Caa( 0, 0) + 1.d0 
-!Cj(2) = -( Caa(0,-1)/Caa(-1,-1) + 1.d0 ) 
-Ck(1) = -1.d0
-Ck(2) =  Caa(0,-1)/Caa(-1,-1)
-
-rij(1:3) = da0(1:3)
-rjk(1:3) = da1(1:3)
-
-fij(1:3) = coCC*(Ci(1)*rij(1:3) + Ci(2)*rjk(1:3))
-fjk(1:3) =-coCC*(Ck(1)*rij(1:3) + Ck(2)*rjk(1:3))
-fijjk(1:3) =  -fij(1:3) + fjk(1:3) 
-
-!$omp atomic
-f(i,1) = f(i,1) + fij(1)
-!$omp atomic
-f(i,2) = f(i,2) + fij(2)
-!$omp atomic
-f(i,3) = f(i,3) + fij(3)
-
-!$omp atomic
-f(j,1) = f(j,1) + fijjk(1)
-!$omp atomic
-f(j,2) = f(j,2) + fijjk(2)
-!$omp atomic
-f(j,3) = f(j,3) + fijjk(3)
-
-!$omp atomic
-f(k,1) = f(k,1) - fjk(1)
-!$omp atomic
-f(k,2) = f(k,2) - fjk(2)
-!$omp atomic
-f(k,3) = f(k,3) - fjk(3)
-
-!--- Check N3rd ---
-!print'(a,6f20.13)','N3rd: ', &
-!Ci(1)-Ci(2), -Cj(1), Ci(2), -Ck(1), Cj(2), Ck(1)-Ck(2)
-
-end subroutine
 
 end subroutine
 
@@ -467,11 +522,12 @@ if (sr%potential_type==1) then
   call sr%p1%apply()
 else if (sr%potential_type==2) then
   call sr%p2%apply()
+else if (sr%potential_type==3) then
+  call sr%p2%apply2()
 else
   print*,'To be implemented'
 
 endif
-
 
 end subroutine
 

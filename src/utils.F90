@@ -360,14 +360,18 @@ return
 end function
 
 !-------------------------------------------------------------------------------------------
-subroutine assert(logical, message)
+subroutine assert(condition, message, myrank, val)
 !-------------------------------------------------------------------------------------------
-logical,intent(in) :: logical
+logical,intent(in) :: condition
 character(*),intent(in) :: message
+integer,optional,intent(in) :: myrank
+real(8),optional,intent(in) :: val
 
-if(logical) return
+if(condition) return
 
 print'(a)',repeat('!',60)
+
+if(present(myrank)) write(6,fmt='(a)', advance='no') 'myrank '//int_to_str(myrank)//' :'
 print'(a)',message
 print'(a)',repeat('!',60)
 stop
