@@ -1,7 +1,7 @@
 module mod_short_repulsion
 
 use base
-use utils, only : l2g, find_cmdline_argc, get_command_argument_str, Ekcal_j, assert
+use utils, only : l2g, find_cmdline_argc, get_command_argument_str, Ekcal_j, assert, int_to_str
 
 implicit none
 
@@ -306,12 +306,15 @@ subroutine apply_type3_short_repulsion(this)
 class (short_repulsion_type2_params),intent(in) :: this
 
 real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
-integer :: i, j, k, l, l1, ity, jty, lty, igid
+integer :: i, j, k, l, l1, ity, jty, lty, igid, jgid, kgid
 
 real(8) :: rij(0:3), rik(0:3)
 real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3)
 
 real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
+
+logical :: is_found_k, is_found_j
+real(8) :: dr_k, dr_j
 
 do i=1, NATOMS                           ! O
 
@@ -323,6 +326,8 @@ do i=1, NATOMS                           ! O
 
    igid = l2g(atype(i))
 
+   is_found_j=.false.; jgid=-1; dr_j=0d0
+   is_found_k=.false.; kgid=-1; dr_k=0d0
    do l1 = 1, nbrlist(i,0)
 
       l = nbrlist(i,l1)
@@ -330,9 +335,20 @@ do i=1, NATOMS                           ! O
 
       if(lty/=this%htype) cycle
 
-      if(l2g(atype(l))==igid+1) j = l   !H1
-      if(l2g(atype(l))==igid+2) k = l   !H2
+      if(l2g(atype(l))==igid+1) then
+        j = l   !H1
+        is_found_j = .true.
+        jgid = l2g(atype(l))
+      endif
+      if(l2g(atype(l))==igid+2) then
+        k = l   !H2
+        is_found_k = .true.
+        kgid = l2g(atype(l))
+      endif
    enddo
+
+   if(.not.is_found_j) call assert(is_found_j, 'ERROR: wrong global ID for j '//int_to_str(igid)//' '//int_to_str(jgid), myid)
+   if(.not.is_found_k) call assert(is_found_k, 'ERROR: wrong global ID for k '//int_to_str(igid)//' '//int_to_str(kgid), myid)
 
    rij(1:3) = pos(i,1:3)-pos(j,1:3)
    rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))

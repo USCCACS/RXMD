@@ -10,7 +10,7 @@ real(8) :: lbox(3),obox(3), dtype
 real(8) :: H(3,3), Hi(3,3), rr(3),rr1(3),vv(3),qq,rmin(3), rmax(3)
 real(8) :: qfsp0=0.d0, qfsv0=0.d0
 integer :: natoms,  ntot, ix,iy,iz
-real(8),allocatable :: pos0(:,:), pos1(:,:)
+real(8),allocatable :: pos0(:,:), vel0(:,:), pos1(:,:), vel1(:,:)
 character(3),allocatable :: ctype0(:), ctype1(:)
 integer,allocatable :: itype0(:)
 real(8),allocatable :: itype1(:)
@@ -19,14 +19,14 @@ character(256) :: inputFileName="input.xyz"
 character(256) :: ffieldFileName="../ffield"
 character(256) :: outputDirName="."
 
-character(256) :: fnote
+character(len=:),allocatable :: fnote
 
 character(len=3),allocatable :: atomNames(:)
 integer :: numParams, numAtomNames
 
 logical :: getReal=.false., getNorm=.false., noCoordinateShift=.false.
 
-logical :: isLG, is_fnn, is_reaxff
+logical :: isLG, is_fnn, is_reaxff, is_vread
 
 contains
 
@@ -64,19 +64,20 @@ getstr=len(lineout)
 end function
 
 !----------------------------------------------------------------
-subroutine convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma,mc,natoms,ctype,pos,note)
+subroutine convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma,mc,natoms,ctype,pos,vel,note)
 implicit none
 !----------------------------------------------------------------
 real(8),intent(in) :: L1,L2,L3,lalpha,lbeta,lgamma
 integer,intent(in) :: mc(3)
 integer,intent(in) :: natoms
-real(8),intent(inout) :: pos(3,natoms)
+real(8),intent(inout) :: pos(3,natoms), vel(3,natoms)
 character(3),intent(in) :: ctype(natoms)
-character(256),intent(in) :: note
+character(len=:),allocatable,intent(in) :: note
 
 integer :: i,j,k,n
 real(8) :: hh(3,3), rr(3)
 character(8) :: outFile
+character(len=:),allocatable :: note1
 
 call getBox(L1,L2,L3,lalpha,lbeta,lgamma)
 
@@ -95,10 +96,17 @@ endif
 open(40,file=outFile,form="formatted")
 
 !--- write header part
-write(40,'(i12,3x,a)') natoms*mc(1)*mc(2)*mc(3),'"'//trim(adjustl(note))//'"'
+note1 = trim(adjustl(note))
+if (len(note1)>0) then
+   note1='"'//note1//'"'
+else
+   note1=""
+endif
+
+write(40,'(i12,3x,a)') natoms*mc(1)*mc(2)*mc(3),note1
 write(40,'(3f10.5, 3f10.3)') L1*mc(1),L2*mc(2),L3*mc(3),lalpha,lbeta,lgamma
 write(6,'(a)') "header after conversion :"
-write(6,'(i12,3x,a)') natoms*mc(1)*mc(2)*mc(3),'"'//trim(adjustl(note))//'"'
+write(6,'(i12,3x,a)') natoms*mc(1)*mc(2)*mc(3),note1
 write(6,'(3f10.5, 3f10.3)') L1*mc(1),L2*mc(2),L3*mc(3),lalpha,lbeta,lgamma
 
 write(6,'(a)') '------------------------------------------------------------'
@@ -118,7 +126,7 @@ if(getReal) then !--- from normalized to real coordinates
         rr(2)=sum(h(2,1:3)*rr(1:3))
         rr(3)=sum(h(3,1:3)*rr(1:3))
 
-        write(40,'(a3,1x,3f15.9)') ctype(n),rr(1:3)
+        write(40,'(a3,1x,6f15.9)') ctype(n),rr(1:3),vel(1:3,n)
      enddo
   enddo; enddo; enddo
 
@@ -136,7 +144,7 @@ else if(getNorm) then !--- from real to normalized coordinates
         rr(1:3)=rr(1:3)+(/i,j,k/)
         rr(1:3)=rr(1:3)/mc(1:3)
 
-        write(40,'(a3,1x,3f15.9)') ctype(n),rr(1:3)
+        write(40,'(a3,1x,6es15.6)') ctype(n),rr(1:3),vel(1:3,n)
      enddo
   enddo; enddo; enddo
 
@@ -304,6 +312,7 @@ integer :: i, j, k, n, ia, myid, sID
 integer(8) :: ii=0
 character(6) :: a6
 character(64) :: argv
+character(len=:),allocatable :: buf1, buf2
 
 !--- get input parameters
 do i=1, command_argument_count()
@@ -333,6 +342,8 @@ do i=1, command_argument_count()
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
        is_fnn = .true.
+     case("-vread")
+       is_vread = .true.
      case("-lg")
        isLG = .true. 
      case("-getreal","-r")
@@ -364,7 +375,6 @@ if(is_reaxff) then
    print'(a)',repeat('-',60)
 endif
 
-
 mctot=mc(1)*mc(2)*mc(3)
 nprocs=vprocs(1)*vprocs(2)*vprocs(3)
 allocate(lnatoms(0:nprocs-1),lnatoms1(0:nprocs-1), lnatoms2(0:nprocs-1))
@@ -385,9 +395,19 @@ else
 endif
 
 !--- read # of atoms and file description
-read(1,*) natoms, fnote
+!--- read first line then remove preceeding whitespaces
+read(1,fmt='(a)') argv          
+argv=adjustl(argv)
+
+!--- natoms should be stored in the first line
+read(argv, *) natoms
+
+!--- find next whitespace point (ia) after natoms, then remove chars to ia.
+ia=index(argv,' ')              
+fnote=trim(adjustl(argv(ia:)))
+
 !--- read lattice parameters
-read(1,*) L1, L2, L3, Lalpha, Lbeta, Lgamma
+111 read(1,*) L1, L2, L3, Lalpha, Lbeta, Lgamma
 print'(a60)',repeat('-',60)
 print'(a)', '** UNIT CELL PROFIEL **'
 print'(a)', trim(fnote)
@@ -396,10 +416,17 @@ print'(a,3x,6f12.3)','1, L2, L3, Lalpha, Lbeta, Lgamma: ', &
 print'(a60)',repeat('-',60)
 
 !--- allocate arrays for atom position and type
-allocate(ctype0(natoms),pos0(3,natoms),itype0(natoms))
-allocate(ctype1(natoms*mctot),pos1(3,natoms*mctot),itype1(natoms*mctot))
+allocate(ctype0(natoms),pos0(3,natoms),vel0(3,natoms),itype0(natoms))
+allocate(ctype1(natoms*mctot),pos1(3,natoms*mctot),vel1(3,natoms*mctot),itype1(natoms*mctot))
+
+vel0 = 0.d0
 do i=1, natoms
-   read(1,*) ctype0(i),pos0(1:3,i)
+   if(is_vread) then
+      read(1,*) ctype0(i),pos0(1:3,i),vel0(1:3,i)
+   else
+      read(1,*) ctype0(i),pos0(1:3,i)
+   endif 
+
    ctype0(i)=adjustl(ctype0(i))
 
    do j=1, numAtomNames
@@ -413,8 +440,7 @@ enddo
 close(1)
 
 if(getNorm .or. getReal) & 
-  call convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma, &
-                                mc,natoms,ctype0,pos0,fnote)
+  call convertAndDumpCoordinate(L1,L2,L3,lalpha,lbeta,lgamma,mc,natoms,ctype0,pos0,vel0,fnote)
 
 !--- repeat the unit cell
 ntot=0
@@ -428,6 +454,7 @@ do i=1, natoms
    rr(2)=(rr(2)+iy)/mc(2)
    rr(3)=(rr(3)+iz)/mc(3)
    pos1(1:3,ntot)=rr(1:3)
+   vel1(1:3,ntot)=vel0(1:3,i)
    ctype1(ntot)=ctype0(i)
    itype1(ntot)=itype0(i)+ntot*1d-13+1d-14
    !print'(a3,1x,i3,3f8.3,3f)',ctype0(i),itype0(i),pos0(1:3,i), rr(1:3)
@@ -435,7 +462,7 @@ enddo
 enddo; enddo; enddo
 
 !--- shift coordinates, then shift a bit to avoid zero coordinates
-if (noCoordinateShift) then
+if (.not. noCoordinateShift) then
    do i=1, 3
       rmin(i)=minval(pos1(i,:))
       pos1(i,:)=pos1(i,:)-rmin(i)
@@ -492,9 +519,9 @@ do n=1,natoms
    pos1(1:3,n)=pos1(1:3,n)-obox(1:3)
 
 !--- total number of atoms before n-th atom, 
-!--- each atom has 32 (=3*8 + 8) bytes data
+!--- each atom has 56 (=3*8 + 3*8 + 8) bytes data
    ii=lnatoms1(sID)+lnatoms2(sID) 
-   write(1,pos=ii*32+1) pos1(1:3,n),itype1(n)
+   write(1,pos=ii*56+1) pos1(1:3,n),vel1(1:3,n),itype1(n)
 
    lnatoms2(sID)=lnatoms2(sID)+1
 enddo
@@ -528,7 +555,7 @@ do myid=0,nprocs-1
    obox(1:3)=lbox(1:3)*(/i,j,k/)
 
    do n=1,lnatoms(myid)
-      read(1) rr(1:3),dtype
+      read(1) rr(1:3),vv(1:3),dtype
 
       write(30)rr(1:3)
       write(30)vv(1:3)
@@ -542,8 +569,7 @@ do myid=0,nprocs-1
       rr(2)=sum(H(2,1:3)*rr1(1:3))
       rr(3)=sum(H(3,1:3)*rr1(1:3))
 
-      write(20,'(a3, $)') atomNames(nint(dtype))
-      write(20,'(3f12.5)') rr(1:3)
+      write(20,'(a3, 6f12.5)') atomNames(nint(dtype)), rr(1:3), vv(1:3)
    enddo
 
 enddo
