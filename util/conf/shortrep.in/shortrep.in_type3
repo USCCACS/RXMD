@@ -1,0 +1,6 @@
+3                    ! potential_type
+0.10  0.01     1.24  ! alpha_bond, alpha_angle, rc_oh
+353.720  84.367      ! Kr, Kq   (kcal/mol/A^2), (kcal/mol/degree^2)
+0.9611   109.4712    ! r0, q0
+1.12                 ! rc_freeze
+0.1                  ! vscale

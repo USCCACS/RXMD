@@ -1,0 +1,9 @@
+2                    ! num_types
+0.1                  ! alpha
+0.73   2.00          ! sig(Ge), sig(Se)
+11   9               ! eta(Ge-Ge), eta(Ge-Se)
+9    7               ! eta(Se-Ge), eta(Se-Se)
+3.5d-20  3.5d-20     ! Aij(Ge-Ge), Aij(Ge-Se)
+3.5d-20  3.5d-20     ! Aij(Se-Ge), Aij(Se-Se)
+0.0  0.0             ! x(Ge-Ge), x(Ge-Se) 
+0.0  0.1             ! x(Se-Ge), x(Se-Se) 

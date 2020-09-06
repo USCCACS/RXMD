@@ -29,11 +29,13 @@ end type
 
 type short_repulsion_type2_params
 
-  real(8) :: alpha
+  real(8) :: alpha_bond, alpha_angle, vscale
   real(8) :: rc_oh
 
   real(8) :: Kr, Kq
   real(8) :: r0, q0
+
+  real(8) :: rc_freeze
 
   integer :: htype, otype
 
@@ -41,17 +43,23 @@ type short_repulsion_type2_params
 
   logical :: is_initialized = .false.
 
+  logical,allocatable :: frozen_atom_flag(:)
+  real(8),allocatable :: r_oh(:,:)
+
   contains 
     procedure :: read => read_type2_params
     procedure :: print => print_type2_params
     procedure :: apply => apply_type2_short_repulsion
     procedure :: apply2 => apply_type3_short_repulsion
+    procedure :: flipv => flip_frozenh_velocity
+    procedure :: freezex => freeze_h_in_overstreched_bond
 end type
 
 type short_repulsion_type
+
   logical :: has_short_repulsion=.false.
 
-  integer :: potential_type = 2
+  integer :: potential_type = 0 
 
   type(short_repulsion_type1_params) :: p1
   type(short_repulsion_type2_params) :: p2
@@ -85,7 +93,7 @@ if(find_cmdline_argc('--short_rep',idx)) then
 
      if(.not. sr%has_short_repulsion) then
        if(myid==0) then
-          print'(a)', 'ERROR: short_rep flag is given but could not find shortrep.in file. Existing rxmd.'
+          print'(a)', 'ERROR: short_rep flag is given but could not find shortrep.in file. Exiting rxmd.'
           call MPI_FINALIZE(ierr)
           stop
        endif
@@ -141,11 +149,17 @@ subroutine read_type2_params(this, funit, atom_name)
      if(index(atom_name(ity),"O") /=0) this%otype=ity
   enddo
 
-  read(funit,*) this%alpha, this%rc_oh
+  read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
   read(funit,*) this%Kr, this%Kq
   read(funit,*) this%r0, this%q0
+  read(funit,*) this%rc_freeze
+  read(funit,*) this%vscale
 
   this%is_initialized = .true.
+
+  allocate(this%frozen_atom_flag(NBUFFER))
+  allocate(this%r_oh(NBUFFER,0:3))
+
 end subroutine
 
 !-----------------------------------------------------------------------------
@@ -156,9 +170,11 @@ subroutine print_type2_params(this)
 
   if(myid==0) then
     print'(a30,a7,i3,1x,a7,i3)', "atom types: ", "H -", this%htype, "O -", this%otype
-    print'(a30,2f10.3)', 'alpha, rc_oh: ', this%alpha, this%rc_oh
+    print'(a30,3f10.3)', 'alpha_bond, alpha_angle, rc_oh: ', this%alpha_bond, this%alpha_angle, this%rc_oh
     print'(a30,2f10.3)', 'Kr, Kq: ', this%Kr, this%Kq
     print'(a30,2f10.3)', 'r0, q0: ', this%r0, this%q0
+    print'(a30,f10.3)',  'rc_freeze: ', this%rc_freeze
+    print'(a30,f10.3)',  'vscale: ', this%vscale
   endif
 
 end subroutine
@@ -306,7 +322,7 @@ subroutine apply_type3_short_repulsion(this)
 class (short_repulsion_type2_params),intent(in) :: this
 
 real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
-integer :: i, j, k, l, l1, ity, jty, lty, igid, jgid, kgid
+integer :: i, j, k, l, l1, ity, jty, kty, lty, igid, jgid, kgid
 
 real(8) :: rij(0:3), rik(0:3)
 real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3)
@@ -326,8 +342,9 @@ do i=1, NATOMS                           ! O
 
    igid = l2g(atype(i))
 
-   is_found_j=.false.; jgid=-1; dr_j=0d0
-   is_found_k=.false.; kgid=-1; dr_k=0d0
+   is_found_j=.false.; jgid=-1; dr_j=0d0; jty=-1
+   is_found_k=.false.; kgid=-1; dr_k=0d0; kty=-1
+
    do l1 = 1, nbrlist(i,0)
 
       l = nbrlist(i,l1)
@@ -338,49 +355,189 @@ do i=1, NATOMS                           ! O
       if(l2g(atype(l))==igid+1) then
         j = l   !H1
         is_found_j = .true.
-        jgid = l2g(atype(l))
+        jgid = l2g(atype(j))
+        jty = nint(atype(j))
       endif
       if(l2g(atype(l))==igid+2) then
         k = l   !H2
         is_found_k = .true.
-        kgid = l2g(atype(l))
+        kgid = l2g(atype(k))
+        kty = nint(atype(k))
       endif
    enddo
 
-   if(.not.is_found_j) call assert(is_found_j, 'ERROR: wrong global ID for j '//int_to_str(igid)//' '//int_to_str(jgid), myid)
-   if(.not.is_found_k) call assert(is_found_k, 'ERROR: wrong global ID for k '//int_to_str(igid)//' '//int_to_str(kgid), myid)
+   call assert(is_found_j, 'ERROR: wrong global ID for j '//int_to_str(igid)//' '//int_to_str(jgid), myid)
+   call assert(is_found_k, 'ERROR: wrong global ID for k '//int_to_str(igid)//' '//int_to_str(kgid), myid)
+
+   call assert(jty==this%htype, 'ERROR: j-atom type is not H '//int_to_str(ity)//' '//int_to_str(jty), myid)
+   call assert(kty==this%htype, 'ERROR: k-atom type is not H '//int_to_str(ity)//' '//int_to_str(kty), myid)
 
    rij(1:3) = pos(i,1:3)-pos(j,1:3)
    rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
    rij(1:3) = rij(1:3)/rij(0)
 
+   call assert(rij(0)>0.8d0, 'WARNINIG: j-atom type is too close '//int_to_str(ity)//' '//int_to_str(jty), myid, rij(0))
+   call assert(rij(0)<1.2d0, 'WARNINIG: j-atom type is too far '//int_to_str(ity)//' '//int_to_str(jty), myid, rij(0))
+
    rik(1:3) = pos(i,1:3)-pos(k,1:3)
    rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
    rik(1:3) = rik(1:3)/rik(0)
+
+   call assert(rik(0)>0.8d0, 'WARNINIG: k-atom type is too close '//int_to_str(ity)//' '//int_to_str(kty), myid, rik(0))
+   call assert(rik(0)<1.2d0, 'WARNINIG: k-atom type is too far '//int_to_str(ity)//' '//int_to_str(kty), myid, rik(0))
 
    cosine = sum(rij(1:3)*rik(1:3))
    theta = acos(cosine)
    sine = sin(theta)
 
-   call assert(abs(sine)>1d-9, 'ERROR: too small H-O-H angle', myid)
+   call assert(abs(sine)>1d-9, 'ERROR: too small H-O-H angle ', myid)
 
-   Krcoef = this%alpha * this%Kr*(rij(0)-this%r0) ! ij
+   Krcoef = this%alpha_bond * this%Kr*(rij(0)-this%r0) ! ij
    ff(1:3) = Krcoef*rij(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
    f(j,1:3) = f(j,1:3) + ff(1:3)
    !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
 
-   Krcoef = this%alpha * this%Kr*(rik(0)-this%r0) ! ik
+   Krcoef = this%alpha_bond * this%Kr*(rik(0)-this%r0) ! ik
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
    f(k,1:3) = f(k,1:3) + ff(1:3)
    !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
 
-   Kqcoef = this%alpha * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
+   Kqcoef = this%alpha_angle * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
 
    rij(1:3)=-rij(1:3)
    !print*,Kqcoef, theta*180d0/pi, this%q0
    call ForceA3(Kqcoef,j,i,k,rij,rik)
+
+enddo
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine flip_frozenh_velocity(this)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type2_params),intent(in out) :: this
+
+integer :: i, ity
+real(8) :: vv
+
+call update_frozen_atom_flag(this)
+
+do i=1, NATOMS
+   if(this%frozen_atom_flag(i)) then
+     ity = nint(atype(i))
+     call assert(ity==this%htype, 'wrong atom type to flip velocity '//int_to_str(ity)//' '//int_to_str(i), myid)
+     vv = sqrt(sum(v(i,1:3)*v(i,1:3)))
+     !v(i,1:3) = vv*this%r_oh(i,1:3)
+     v(i,1:3) = this%vscale*vv*this%r_oh(i,1:3)
+     print'(a,3i6,4f8.3,1x,3(3f8.3,1x))','V: myid,i,ity,this%r_oh(0:3): ', &
+        myid,l2g(atype(i)),ity,this%r_oh(i,0:3), pos(i,1:3),v(i,1:3),f(i,1:3)
+   endif
+enddo
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine freeze_h_in_overstreched_bond(this)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type2_params),intent(in out) :: this
+
+integer :: i, ity
+
+return
+
+call update_frozen_atom_flag(this)
+
+do i=1, NATOMS
+   if(this%frozen_atom_flag(i)) then
+
+     ity = nint(atype(i))
+     call assert(ity==this%htype, 'wrong atom type to freeze position '//int_to_str(ity)//' '//int_to_str(i), myid)
+
+     pos(i,1:3) = pos(i,1:3)-dt*v(i,1:3)
+
+     print'(a,3i6,4f8.3,1x,3(3f8.3,1x))','X: myid,i,ity,this%r_oh(0:3): ', &
+        myid,l2g(atype(i)),ity,this%r_oh(i,0:3),pos(i,1:3),v(i,1:3),f(i,1:3)
+   endif
+enddo
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine update_frozen_atom_flag(this)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type2_params),intent(in out) :: this
+
+real(8) :: ff0(0:3), fr, rij(0:3), rik(0:3)
+integer :: i, j, k, l, ity, lty, l1, igid, jgid
+
+this%frozen_atom_flag = .false.
+
+do i=1, NATOMS                           ! O
+
+   ity = nint(atype(i))
+
+   igid = l2g(atype(i))
+
+   if(ity==this%otype) then
+   
+      do l1 = 1, nbrlist(i,0)
+   
+         l = nbrlist(i,l1)
+         lty = nint(atype(l))
+   
+         if(lty/=this%htype) cycle
+   
+         if(l2g(atype(l))==igid+1) j = l   !H1
+         if(l2g(atype(l))==igid+2) k = l   !H2
+      enddo
+   
+      rij(1:3) = pos(i,1:3)-pos(j,1:3)
+      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+      rij(1:3) = rij(1:3)/rij(0)
+      if(rij(0) > this%rc_freeze) then
+         this%frozen_atom_flag(j) = .true.
+         this%r_oh(j,0:3) = rij(0:3)
+         print'(a,3i6,4f8.3,2(3f8.3,1x))','o->h1:myid,i,j,rij(0:3),pos(i,1:3),pos(j,1:3) ', &
+            myid,l2g(atype(i)),l2g(atype(j)),rij(0:3),pos(i,1:3),pos(j,1:3)
+      endif
+   
+      rik(1:3) = pos(i,1:3)-pos(k,1:3)
+      rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+      rik(1:3) = rik(1:3)/rik(0)
+      if(rik(0) > this%rc_freeze) then
+         this%frozen_atom_flag(k) = .true.
+         this%r_oh(k,0:3) = rik(0:3)
+         print'(a,3i6,4f8.3,1x,2(3f8.3,1x))','o->h2:myid,i,k,rik(0:3),pos(i,1:3),pos(k,1:3) ', &
+            myid,l2g(atype(i)),l2g(atype(k)),rik(0:3),pos(i,1:3),pos(k,1:3)
+      endif
+   
+   else if(ity==this%htype) then
+   
+      do l1 = 1, nbrlist(i,0)
+         l = nbrlist(i,l1)
+         lty = nint(atype(l))
+   
+         if(lty/=this%otype) cycle
+         jgid = l2g(atype(l))
+   
+         if(mod(igid,3)==2 .and. jgid == igid - 1) j = l ! O for H1
+         if(mod(igid,3)==0 .and. jgid == igid - 2) j = l ! O for H2
+      enddo
+   
+      rij(1:3) = pos(j,1:3)-pos(i,1:3)        ! r_O - r_H
+      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+      rij(1:3) = rij(1:3)/rij(0)
+
+      if(rij(0) > this%rc_freeze) then
+         this%frozen_atom_flag(i) = .true.    ! freeze H
+         this%r_oh(i,0:3) = rij(0:3)          ! r_OH
+         print'(a,3i6,4f8.3,2(3f8.3,1x))','h->o:myid,i,j,rij(0:3),pos(i,1:3),pos(j,1:3) ', &
+            myid,l2g(atype(i)),l2g(atype(j)),rij(0:3),pos(j,1:3),pos(i,1:3)
+      endif
+   
+   endif
 
 enddo
 
@@ -466,13 +623,13 @@ do i=1, NATOMS
    theta = acos(cosine)
    sine = sin(theta)
 
-   Krcoef = this%alpha * this%Kr*(rij(0)-this%r0) ! ij
+   Krcoef = this%alpha_bond * this%Kr*(rij(0)-this%r0) ! ij
    ff(1:3) = Krcoef*rij(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
    f(j,1:3) = f(j,1:3) + ff(1:3)
    !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
 
-   Krcoef = this%alpha * this%Kr*(rik(0)-this%r0) ! ik
+   Krcoef = this%alpha_bond * this%Kr*(rik(0)-this%r0) ! ik
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
    f(k,1:3) = f(k,1:3) + ff(1:3)
@@ -480,7 +637,7 @@ do i=1, NATOMS
 
    call assert(abs(sine)>1d-9, 'ERROR: too small H-O-H angle', myid)
 
-   Kqcoef = this%alpha * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
+   Kqcoef = this%alpha_angle * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
 
    rij(1:3)=-rij(1:3)
    !print*,Kqcoef, theta*180d0/pi, this%q0
