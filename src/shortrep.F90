@@ -37,11 +37,18 @@ type short_repulsion_type2_params
 
   real(8) :: rc_freeze
 
+  real(8) :: beta_1, beta_2
+  real(8) :: beta_s1, beta_l1, beta_s2, beta_l2
+  real(8) :: u_A, u_b
+
   integer :: htype, otype
 
   character(2),allocatable :: atom_name(:)
 
   logical :: is_initialized = .false.
+
+  logical :: does_freeze_atoms = .false.
+  logical :: does_flip_velocity = .false.
 
   logical,allocatable :: frozen_atom_flag(:)
   real(8),allocatable :: r_oh(:,:)
@@ -49,8 +56,8 @@ type short_repulsion_type2_params
   contains 
     procedure :: read => read_type2_params
     procedure :: print => print_type2_params
-    procedure :: apply => apply_type2_short_repulsion
-    procedure :: apply2 => apply_type3_short_repulsion
+    procedure :: apply2 => apply_type2_short_repulsion
+    procedure :: apply3or4 => apply_type3or4_short_repulsion
     procedure :: flipv => flip_frozenh_velocity
     procedure :: freezex => freeze_h_in_overstreched_bond
 end type
@@ -119,9 +126,9 @@ endif
 if(sr%potential_type==1) then
    call sr%p1%read(funit)
    call sr%p1%print()
-else if(sr%potential_type==2.or.sr%potential_type==3) then
-   call sr%p2%read(funit, atom_name)
-   call sr%p2%print()
+else if(sr%potential_type==2.or.sr%potential_type==3.or.sr%potential_type==4) then
+   call sr%p2%read(funit, atom_name, sr%potential_type) 
+   call sr%p2%print(sr%potential_type)
 else
    print'(a)', 'ERROR: unsupported potential type. Exiting the code', sr%potential_type
    stop
@@ -134,15 +141,19 @@ close(funit)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine read_type2_params(this, funit, atom_name)
+subroutine read_type2_params(this, funit, atom_name, potential_type)
 !-----------------------------------------------------------------------------
   implicit none
   class(short_repulsion_type2_params) :: this
   character(2),allocatable,intent(in) :: atom_name(:)
+  integer,intent(in) :: potential_type
 
   integer,intent(in) :: funit 
   integer :: ity, jty
   real(8) :: sigma_sum
+
+  call assert(2<=potential_type .and. potential_type<=4, &
+     'unsupported potential type in read_type2_params(). Exiting rxmd.', myid)
 
   do ity=1, size(atom_name)
      if(index(atom_name(ity),"H") /=0) this%htype=ity
@@ -152,29 +163,44 @@ subroutine read_type2_params(this, funit, atom_name)
   read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
   read(funit,*) this%Kr, this%Kq
   read(funit,*) this%r0, this%q0
-  read(funit,*) this%rc_freeze
-  read(funit,*) this%vscale
+
+  if(potential_type == 3) then
+     read(funit,*) this%does_freeze_atoms, this%rc_freeze
+     read(funit,*) this%does_flip_velocity, this%vscale
+
+     allocate(this%frozen_atom_flag(NBUFFER))
+     allocate(this%r_oh(NBUFFER,0:3))
+  else if(potential_type == 4) then
+     read(funit,*) this%beta_1, this%beta_s1, this%beta_l1
+     read(funit,*) this%beta_2, this%beta_s2, this%beta_l2
+     read(funit,*) this%u_A, this%u_B
+  endif
 
   this%is_initialized = .true.
-
-  allocate(this%frozen_atom_flag(NBUFFER))
-  allocate(this%r_oh(NBUFFER,0:3))
 
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine print_type2_params(this)
+subroutine print_type2_params(this, potential_type)
 !-----------------------------------------------------------------------------
   implicit none
   class(short_repulsion_type2_params) :: this
+  integer,intent(in) :: potential_type
 
   if(myid==0) then
     print'(a30,a7,i3,1x,a7,i3)', "atom types: ", "H -", this%htype, "O -", this%otype
     print'(a30,3f10.3)', 'alpha_bond, alpha_angle, rc_oh: ', this%alpha_bond, this%alpha_angle, this%rc_oh
     print'(a30,2f10.3)', 'Kr, Kq: ', this%Kr, this%Kq
     print'(a30,2f10.3)', 'r0, q0: ', this%r0, this%q0
-    print'(a30,f10.3)',  'rc_freeze: ', this%rc_freeze
-    print'(a30,f10.3)',  'vscale: ', this%vscale
+    if(potential_type==3) then 
+       print'(a30,l6,f10.3)',  'rc_freeze: ', this%does_freeze_atoms, this%rc_freeze
+       print'(a30,l6,f10.3)',  'vscale: ', this%does_flip_velocity, this%vscale
+    endif
+    if(potential_type==4) then
+       print'(a30,3f10.3)','beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
+       print'(a30,3f10.3)','beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
+       print'(a30,2f10.3)','u_A, u_B: ', this%u_A, this%u_B
+    endif
   endif
 
 end subroutine
@@ -317,9 +343,10 @@ f(k,3) = f(k,3) - fjk(3)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine apply_type3_short_repulsion(this)
+subroutine apply_type3or4_short_repulsion(this, potential_type)
 !-----------------------------------------------------------------------------
 class (short_repulsion_type2_params),intent(in) :: this
+integer,intent(in) :: potential_type
 
 real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
 integer :: i, j, k, l, l1, ity, jty, kty, lty, igid, jgid, kgid
@@ -331,6 +358,8 @@ real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
 
 logical :: is_found_k, is_found_j
 real(8) :: dr_k, dr_j
+
+real(8) :: bond_coeff
 
 do i=1, NATOMS                           ! O
 
@@ -392,13 +421,39 @@ do i=1, NATOMS                           ! O
 
    call assert(abs(sine)>1d-9, 'ERROR: too small H-O-H angle ', myid)
 
-   Krcoef = this%alpha_bond * this%Kr*(rij(0)-this%r0) ! ij
+   bond_coeff = this%alpha_bond
+   if(potential_type==4) then
+     if(rij(0)<this%beta_s1.or.this%beta_l1<rij(0)) bond_coeff = bond_coeff + this%beta_1
+     if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) bond_coeff = bond_coeff + this%beta_2
+
+     if(rij(0)<this%beta_s1.or.this%beta_l1<rij(0)) print'(a,5i6,f8.3,f8.3)', &
+       'beta1: myid,i,j,ity,jty: ', myid,l2g(atype(i)),l2g(atype(j)),ity,nint(atype(j)),bond_coeff,rij(0)
+     if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) print'(a,5i6,f8.3,f8.3)', &
+       'beta2: myid,i,j,ity,jty: ', myid,l2g(atype(i)),l2g(atype(j)),ity,nint(atype(j)),bond_coeff,rij(0)
+   endif
+
+   !Krcoef = bond_coeff * this%Kr*(rij(0)-this%r0) ! ij
+   Krcoef = bond_coeff * apply_spring_and_u_potentials(this%u_A,this%u_B,rij(0),this%Kr,this%r0) ! ij
+
    ff(1:3) = Krcoef*rij(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
    f(j,1:3) = f(j,1:3) + ff(1:3)
    !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
 
-   Krcoef = this%alpha_bond * this%Kr*(rik(0)-this%r0) ! ik
+   bond_coeff = this%alpha_bond
+   if(potential_type==4) then
+     if(rik(0)<this%beta_s1.or.this%beta_l1<rik(0)) bond_coeff = bond_coeff + this%beta_1
+     if(rik(0)<this%beta_s2.or.this%beta_l2<rik(0)) bond_coeff = bond_coeff + this%beta_2
+
+     if(rik(0)<this%beta_s1.or.this%beta_l1<rik(0)) print'(a,5i6,f8.3,f8.3)', &
+       'beta1: myid,i,k,ity,kty: ', myid,l2g(atype(i)),l2g(atype(k)),ity,nint(atype(k)),bond_coeff,rik(0)
+     if(rik(0)<this%beta_s2.or.this%beta_l2<rik(0)) print'(a,5i6,f8.3,f8.3)', &
+       'beta2: myid,i,k,ity,kty: ', myid,l2g(atype(i)),l2g(atype(k)),ity,nint(atype(k)),bond_coeff,rik(0)
+   endif
+
+   !Krcoef = bond_coeff * this%Kr*(rik(0)-this%r0) ! ik
+   Krcoef = bond_coeff * apply_spring_and_u_potentials(this%u_A,this%u_B,rik(0),this%Kr,this%r0) ! ik
+
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
    f(k,1:3) = f(k,1:3) + ff(1:3)
@@ -412,6 +467,30 @@ do i=1, NATOMS                           ! O
 
 enddo
 
+contains 
+
+!-----------------------------------------------------------------------------
+function apply_spring_and_u_potentials(A, B, r, Kr, r0_oh) result(NewSp)
+!-----------------------------------------------------------------------------
+real(8),intent(in) :: A, B
+real(8),intent(in) :: r, Kr, r0_oh
+
+real(8) :: S, Sp, F, Fp, NewSp
+
+!Energy = S*F
+
+F = A*(r - r0_oh - B)**4
+Fp = 4d0*A*(r - r0_oh - B)**3
+
+S = 0.5d0*Kr*(r - r0_oh)**2
+Sp = Kr*(r - r0_oh)
+
+NewSp = S*Fp + Sp*F
+
+return
+
+end function
+
 end subroutine
 
 !-----------------------------------------------------------------------------
@@ -421,6 +500,8 @@ class (short_repulsion_type2_params),intent(in out) :: this
 
 integer :: i, ity
 real(8) :: vv
+
+if(.not. this%does_flip_velocity) return
 
 call update_frozen_atom_flag(this)
 
@@ -445,7 +526,7 @@ class (short_repulsion_type2_params),intent(in out) :: this
 
 integer :: i, ity
 
-return
+if(.not. this%does_freeze_atoms) return
 
 call update_frozen_atom_flag(this)
 
@@ -694,9 +775,9 @@ if(.not. sr%has_short_repulsion) return
 if (sr%potential_type==1) then
   call sr%p1%apply()
 else if (sr%potential_type==2) then
-  call sr%p2%apply()
-else if (sr%potential_type==3) then
   call sr%p2%apply2()
+else if (sr%potential_type==3.or.sr%potential_type==4) then
+  call sr%p2%apply3or4(sr%potential_type)
 else
   print*,'To be implemented'
 
