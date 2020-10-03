@@ -26,7 +26,7 @@ end type
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
 
 
-integer :: NBUFFER=5000
+integer :: NBUFFER=50000
 integer,parameter :: MAXNEIGHBS=400  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
@@ -137,6 +137,10 @@ integer :: ns, nr, na, ne
 integer,parameter :: MAXTIMERS=30
 integer :: it_timer(MAXTIMERS)=0
 real(8) :: wt0=0.d0
+
+!--- random number seed
+integer :: rng_seed=42
+logical :: reset_velocity_random=.false.
 
 interface forcefield_param_interface
   subroutine forcefield_param(path)

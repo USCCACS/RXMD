@@ -1,6 +1,7 @@
 module mod_short_repulsion
 
 use base
+use fileio, only : output
 use utils, only : l2g, find_cmdline_argc, get_command_argument_str, Ekcal_j, assert, int_to_str
 
 implicit none
@@ -39,9 +40,10 @@ type short_repulsion_type2_params
 
   real(8) :: beta_1, beta_2
   real(8) :: beta_s1, beta_l1, beta_s2, beta_l2
-  real(8) :: u_A, u_b
 
   integer :: htype, otype
+
+  real(8) :: fcut_o, fcut_h, ffactor
 
   character(2),allocatable :: atom_name(:)
 
@@ -126,7 +128,7 @@ endif
 if(sr%potential_type==1) then
    call sr%p1%read(funit)
    call sr%p1%print()
-else if(sr%potential_type==2.or.sr%potential_type==3.or.sr%potential_type==4) then
+else if(sr%potential_type==2.or.sr%potential_type==3.or.sr%potential_type==4.or.sr%potential_type==5) then
    call sr%p2%read(funit, atom_name, sr%potential_type) 
    call sr%p2%print(sr%potential_type)
 else
@@ -152,13 +154,16 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
   integer :: ity, jty
   real(8) :: sigma_sum
 
-  call assert(2<=potential_type .and. potential_type<=4, &
+  call assert(2<=potential_type .and. potential_type<=5, &
      'unsupported potential type in read_type2_params(). Exiting rxmd.', myid)
 
+  this%htype=-1; this%otype=-1; 
   do ity=1, size(atom_name)
      if(index(atom_name(ity),"H") /=0) this%htype=ity
      if(index(atom_name(ity),"O") /=0) this%otype=ity
   enddo
+  call assert(this%htype==-1, 'could not find H type', myid)
+  call assert(this%htype==-1, 'could not find O type', myid)
 
   read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
   read(funit,*) this%Kr, this%Kq
@@ -170,10 +175,12 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
 
      allocate(this%frozen_atom_flag(NBUFFER))
      allocate(this%r_oh(NBUFFER,0:3))
-  else if(potential_type == 4) then
+  else if(potential_type == 4.or.potential_type == 5) then
      read(funit,*) this%beta_1, this%beta_s1, this%beta_l1
      read(funit,*) this%beta_2, this%beta_s2, this%beta_l2
-     read(funit,*) this%u_A, this%u_B
+  endif
+  if(potential_type==5) then
+     read(funit,*) this%fcut_o, this%fcut_h, this%ffactor
   endif
 
   this%is_initialized = .true.
@@ -196,10 +203,12 @@ subroutine print_type2_params(this, potential_type)
        print'(a30,l6,f10.3)',  'rc_freeze: ', this%does_freeze_atoms, this%rc_freeze
        print'(a30,l6,f10.3)',  'vscale: ', this%does_flip_velocity, this%vscale
     endif
-    if(potential_type==4) then
+    if(potential_type==4.or.potential_type==5) then
        print'(a30,3f10.3)','beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
        print'(a30,3f10.3)','beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
-       print'(a30,2f10.3)','u_A, u_B: ', this%u_A, this%u_B
+    endif
+    if(potential_type==5) then
+       print'(a30,3f10.3)','fcut_o, fcut_h, ffactor: ', this%fcut_o, this%fcut_h, this%ffactor
     endif
   endif
 
@@ -361,6 +370,13 @@ real(8) :: dr_k, dr_j
 
 real(8) :: bond_coeff
 
+real(8),parameter :: rc_inner=0.97d0, rc_outer=1.05d0
+
+character(len=:),allocatable :: info_ij, info_ik
+character(len=:),allocatable :: filebase
+
+!call set_force_zero(rc_inner,rc_outer)
+
 do i=1, NATOMS                           ! O
 
    ity = nint(atype(i))
@@ -395,25 +411,28 @@ do i=1, NATOMS                           ! O
       endif
    enddo
 
-   call assert(is_found_j, 'ERROR: wrong global ID for j '//int_to_str(igid)//' '//int_to_str(jgid), myid)
-   call assert(is_found_k, 'ERROR: wrong global ID for k '//int_to_str(igid)//' '//int_to_str(kgid), myid)
+   info_ij = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(jgid)//' '//int_to_str(ity)//' '//int_to_str(jty)
+   info_ik = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(kgid)//' '//int_to_str(ity)//' '//int_to_str(kty)
 
-   call assert(jty==this%htype, 'ERROR: j-atom type is not H '//int_to_str(ity)//' '//int_to_str(jty), myid)
-   call assert(kty==this%htype, 'ERROR: k-atom type is not H '//int_to_str(ity)//' '//int_to_str(kty), myid)
+   call assert(is_found_j, 'ERROR: wrong global ID for j '//info_ij)
+   call assert(is_found_k, 'ERROR: wrong global ID for k '//info_ik)
+
+   call assert(jty==this%htype, 'ERROR: j-atom type is not H '//info_ij)
+   call assert(kty==this%htype, 'ERROR: k-atom type is not H '//info_ik)
 
    rij(1:3) = pos(i,1:3)-pos(j,1:3)
    rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
    rij(1:3) = rij(1:3)/rij(0)
 
-   call assert(rij(0)>0.8d0, 'WARNINIG: j-atom type is too close '//int_to_str(ity)//' '//int_to_str(jty), myid, rij(0))
-   call assert(rij(0)<1.2d0, 'WARNINIG: j-atom type is too far '//int_to_str(ity)//' '//int_to_str(jty), myid, rij(0))
+   call assert(rij(0)>0.8d0, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
+   call assert(rij(0)<1.25d0, 'ERROR: j-atom is too far '//info_ik, val=rij(0))
 
    rik(1:3) = pos(i,1:3)-pos(k,1:3)
    rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
    rik(1:3) = rik(1:3)/rik(0)
 
-   call assert(rik(0)>0.8d0, 'WARNINIG: k-atom type is too close '//int_to_str(ity)//' '//int_to_str(kty), myid, rik(0))
-   call assert(rik(0)<1.2d0, 'WARNINIG: k-atom type is too far '//int_to_str(ity)//' '//int_to_str(kty), myid, rik(0))
+   call assert(rik(0)>0.8d0, 'ERROR: k-atom is too close '//info_ij, val=rik(0))
+   call assert(rik(0)<1.25d0, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
 
    cosine = sum(rij(1:3)*rik(1:3))
    theta = acos(cosine)
@@ -425,15 +444,16 @@ do i=1, NATOMS                           ! O
    if(potential_type==4) then
      if(rij(0)<this%beta_s1.or.this%beta_l1<rij(0)) bond_coeff = bond_coeff + this%beta_1
      if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) bond_coeff = bond_coeff + this%beta_2
-
-     if(rij(0)<this%beta_s1.or.this%beta_l1<rij(0)) print'(a,5i6,f8.3,f8.3)', &
-       'beta1: myid,i,j,ity,jty: ', myid,l2g(atype(i)),l2g(atype(j)),ity,nint(atype(j)),bond_coeff,rij(0)
-     if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) print'(a,5i6,f8.3,f8.3)', &
-       'beta2: myid,i,j,ity,jty: ', myid,l2g(atype(i)),l2g(atype(j)),ity,nint(atype(j)),bond_coeff,rij(0)
    endif
 
    !Krcoef = bond_coeff * this%Kr*(rij(0)-this%r0) ! ij
-   Krcoef = bond_coeff * apply_spring_and_u_potentials(this%u_A,this%u_B,rij(0),this%Kr,this%r0) ! ij
+   Krcoef = bond_coeff * get_smooth_spring_coeff(rij(0),this%Kr,this%r0) ! ij
+   if(potential_type==4) then
+     if(rij(0)<this%beta_s1.or.this%beta_l1<rij(0)) &
+       print'(a,f8.3,f8.3,e15.5)', 'beta1: myid,i,j,ity,jty: '//info_ij,bond_coeff,rij(0),Krcoef
+     if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) &
+       print'(a,f8.3,f8.3,e15.5)', 'beta2: myid,i,j,ity,jty: '//info_ij,bond_coeff,rij(0),Krcoef
+   endif
 
    ff(1:3) = Krcoef*rij(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
@@ -444,15 +464,16 @@ do i=1, NATOMS                           ! O
    if(potential_type==4) then
      if(rik(0)<this%beta_s1.or.this%beta_l1<rik(0)) bond_coeff = bond_coeff + this%beta_1
      if(rik(0)<this%beta_s2.or.this%beta_l2<rik(0)) bond_coeff = bond_coeff + this%beta_2
-
-     if(rik(0)<this%beta_s1.or.this%beta_l1<rik(0)) print'(a,5i6,f8.3,f8.3)', &
-       'beta1: myid,i,k,ity,kty: ', myid,l2g(atype(i)),l2g(atype(k)),ity,nint(atype(k)),bond_coeff,rik(0)
-     if(rik(0)<this%beta_s2.or.this%beta_l2<rik(0)) print'(a,5i6,f8.3,f8.3)', &
-       'beta2: myid,i,k,ity,kty: ', myid,l2g(atype(i)),l2g(atype(k)),ity,nint(atype(k)),bond_coeff,rik(0)
    endif
 
    !Krcoef = bond_coeff * this%Kr*(rik(0)-this%r0) ! ik
-   Krcoef = bond_coeff * apply_spring_and_u_potentials(this%u_A,this%u_B,rik(0),this%Kr,this%r0) ! ik
+   Krcoef = bond_coeff * get_smooth_spring_coeff(rik(0),this%Kr,this%r0) ! ik
+   if(potential_type==4) then
+     if(rik(0)<this%beta_s1.or.this%beta_l1<rik(0)) &
+        print'(a,f8.3,f8.3,e15.5)','beta1: myid,i,k,ity,kty: '//info_ij,bond_coeff,rik(0),Krcoef
+     if(rik(0)<this%beta_s2.or.this%beta_l2<rik(0)) &
+        print'(a,f8.3,f8.3,e15.5)','beta2: myid,i,k,ity,kty: '//info_ik,bond_coeff,rik(0),Krcoef
+   endif
 
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
@@ -470,9 +491,91 @@ enddo
 contains 
 
 !-----------------------------------------------------------------------------
-function apply_spring_and_u_potentials(A, B, r, Kr, r0_oh) result(NewSp)
+subroutine set_force_zero(rc_inner, rc_outer)
 !-----------------------------------------------------------------------------
-real(8),intent(in) :: A, B
+real(8),intent(in):: rc_inner, rc_outer
+character(len=:),allocatable :: info_ij, info_ik
+
+do i=1, NATOMS                           ! O
+
+   ity = nint(atype(i))
+
+   if(ity/=this%otype) cycle
+
+   !if(myid==0) print'(a,2i6)','ity, this%otype:',ity,this%otype
+
+   igid = l2g(atype(i))
+
+   is_found_j=.false.; jgid=-1; dr_j=0d0; jty=-1
+   is_found_k=.false.; kgid=-1; dr_k=0d0; kty=-1
+
+   do l1 = 1, nbrlist(i,0)
+
+      l = nbrlist(i,l1)
+      lty = nint(atype(l))
+
+      if(lty/=this%htype) cycle
+
+      if(l2g(atype(l))==igid+1) then
+        j = l   !H1
+        is_found_j = .true.
+        jgid = l2g(atype(j))
+        jty = nint(atype(j))
+      endif
+      if(l2g(atype(l))==igid+2) then
+        k = l   !H2
+        is_found_k = .true.
+        kgid = l2g(atype(k))
+        kty = nint(atype(k))
+      endif
+   enddo
+
+   info_ij = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(jgid)//' '//int_to_str(ity)//' '//int_to_str(jty)
+   info_ik = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(kgid)//' '//int_to_str(ity)//' '//int_to_str(kty)
+
+   call assert(is_found_j, 'ERROR(sfz): sfz wrong global ID for j '//info_ij)
+   call assert(is_found_k, 'ERROR(sfz): wrong global ID for k '//info_ij)
+
+   call assert(jty==this%htype, 'ERROR(sfz): j-atom type is not H '//info_ij)
+   call assert(kty==this%htype, 'ERROR(sfz): k-atom type is not H '//info_ij)
+
+   rij(1:3) = pos(i,1:3)-pos(j,1:3)
+   rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+
+   if(rij(0)<rc_inner.or.rc_outer<rij(0)) then
+     print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rij,fi,fj: '//info_ij,rij(0),f(i,1:3),f(j,1:3)
+     !f(i,1:3)=0.d0
+     f(j,1:3)=0.d0
+   endif
+
+   rik(1:3) = pos(i,1:3)-pos(k,1:3)
+   rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+
+   if(rik(0)<rc_inner.or.rc_outer<rik(0)) then
+     print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rik,fi,fk: '//info_ij,rik(0),f(i,1:3),f(k,1:3)
+     !f(i,1:3)=0.d0
+     f(k,1:3)=0.d0
+   endif
+
+   return
+enddo
+
+
+end subroutine
+
+
+!-----------------------------------------------------------------------------
+function get_smooth_spring_coeff(r, Kr, r0_oh) result(NewSp)
+!-----------------------------------------------------------------------------
+!real(8),parameter :: A=9580.16d0, B=0.0286d0 ! r0_oh = 0.971d0
+!real(8),parameter :: A=24520.6d0, B=0.049d0  ! r0_oh = 0.971d0
+!real(8),parameter :: A=92294.2d0, B=-0.02d0    ! r0_oh = 0.970d0
+!real(8),parameter :: A=92294.2d0, B=0.05d0    ! r0_oh = 0.970d0 !<- (9/11)
+!real(8),parameter :: A=92294.2d0, B=0.02d0    ! r0_oh = 0.970d0 !<- (9/12)
+!real(8),parameter :: A=92294.2d0, B=0.05d0    ! r0_oh = 0.970d0 !<- (9/13)
+!real(8),parameter :: A=92294.2d0, B=0.03d0    ! r0_oh = 0.970d0 !<- (9/21)
+real(8),parameter :: A=92294.2d0, B=0.05d0    ! r0_oh = 0.970d0 !<- (9/22)
+!real(8),parameter :: A=277.78d0, B=0.0d0    ! r0_oh = 0.970d0
 real(8),intent(in) :: r, Kr, r0_oh
 
 real(8) :: S, Sp, F, Fp, NewSp
@@ -481,6 +584,8 @@ real(8) :: S, Sp, F, Fp, NewSp
 
 F = A*(r - r0_oh - B)**4
 Fp = 4d0*A*(r - r0_oh - B)**3
+!F = A*(r - r0_oh)**2
+!Fp = 2d0*A*(r - r0_oh)
 
 S = 0.5d0*Kr*(r - r0_oh)**2
 Sp = Kr*(r - r0_oh)
@@ -769,6 +874,8 @@ end subroutine
 subroutine short_repulsion(sr)
 !-----------------------------------------------------------------------------
 type(short_repulsion_type),intent(in) :: sr
+character(len=:),allocatable :: filebase
+real(8),allocatable :: ftmp(:,:)
 
 if(.not. sr%has_short_repulsion) return
 
@@ -776,13 +883,51 @@ if (sr%potential_type==1) then
   call sr%p1%apply()
 else if (sr%potential_type==2) then
   call sr%p2%apply2()
-else if (sr%potential_type==3.or.sr%potential_type==4) then
+else if (sr%potential_type==3.or.sr%potential_type==4.or.sr%potential_type==5) then
   call sr%p2%apply3or4(sr%potential_type)
 else
   print*,'To be implemented'
-
 endif
 
 end subroutine
+
+subroutine force_cutoff(num_atoms, atype, f, myrank, sr)
+   implicit none
+   integer,intent(in) :: num_atoms, myrank
+   real(8),allocatable,intent(in) ::  atype(:)
+   real(8),allocatable,intent(in out) ::  f(:,:)
+   type(short_repulsion_type),intent(in) :: sr
+
+   integer :: i,ia,ity
+   real(8) :: fcut, fset
+
+   do i = 1, num_atoms
+      ity = nint(atype(i))
+
+      if(ity==sr%p2%htype) then
+          fcut = sr%p2%fcut_h
+          fset = fcut*sr%p2%ffactor
+      else if(ity==sr%p2%otype) then
+          fcut = sr%p2%fcut_o
+          fset = fcut*sr%p2%ffactor
+      else
+          print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
+          stop
+      endif
+
+      do ia=1,3
+         if(f(i,ia) > fcut) then
+           print'(a,5i9,es15.5,2f8.2)','max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+           f(i,ia) = fset
+         endif
+         if(f(i,ia) < -fcut) then
+           print'(a,5i9,es15.5,2f8.2)','min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+           f(i,ia) = -fset
+         endif
+      enddo
+
+   enddo
+end subroutine
+
 
 end module

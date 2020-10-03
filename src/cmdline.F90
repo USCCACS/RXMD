@@ -2,10 +2,10 @@
 module cmdline_args
 !-------------------------------------------------------------------------------------------
 use mpi_mod
-use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc
+use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc, put_rng_seed
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
-                 isSpring, springConst, forcefield_type, sstep, treq, vsfact, &
+                 isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
                  forcefield_type, is_fnn, is_reaxff
 
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
@@ -174,6 +174,17 @@ if(isEfield .and. myrank==0) then
    print'(a60)',repeat('-',60)
 endif
 
+if(find_cmdline_argc('--seed',idx)) then
+   call get_command_argument(idx+1,argv)
+   read(argv,'(i9)') rng_seed 
+   call put_rng_seed(rng_seed, myrank)
+   if(myrank==0) print*,'INFO: random number seed has been set.', rng_seed
+endif
+
+if(find_cmdline_argc('--random_velocity',idx).or.find_cmdline_argc('-randomv',idx)) then
+   reset_velocity_random = .true.
+   if(myrank==0) print*,'INFO: initialize random velocity before MD loop.', reset_velocity_random
+endif
 
 
 if(find_cmdline_argc('--lg',idx).or.find_cmdline_argc('-lg',idx)) then

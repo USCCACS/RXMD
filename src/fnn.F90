@@ -153,7 +153,7 @@ module fnn
 
   use aenet
 
-  use mod_short_repulsion, only : short_repulsion, short_rep
+  use mod_short_repulsion, only : force_cutoff, short_repulsion, short_rep
  
   implicit none
 
@@ -232,6 +232,7 @@ do i = 1, NBUFFER
    f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
 enddo
 
+call force_cutoff(NATOMS, atype, f, myid, short_rep)
 call short_repulsion(short_rep)
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
@@ -248,6 +249,8 @@ integer,intent(in) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 
 integer :: i,ity
+
+if(reset_velocity_random) call gaussian_dist_velocity(atype, v)
 
 if(mdmode==0) then
   call gaussian_dist_velocity(atype, v)
@@ -267,7 +270,8 @@ do nstep=0, num_mdsteps-1
   call cpu_time(tstart(0))
 
   if(mod(nstep,fstep)==0) &
-        call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
+        call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, v)
+        !call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
 
   if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
@@ -320,7 +324,8 @@ do nstep=0, num_mdsteps-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
+!call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
+call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, v)
 
 !--- update rxff.bin in working directory for continuation run
 call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))

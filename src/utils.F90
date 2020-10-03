@@ -380,4 +380,35 @@ stop
 return
 end subroutine
 
+!-------------------------------------------------------------------------------------------
+subroutine put_rng_seed(seed,myrank)
+!-------------------------------------------------------------------------------------------
+implicit none
+integer,intent(in) :: seed, myrank
+
+integer,allocatable :: seeds0(:), seeds(:)
+integer :: i,seed_size 
+
+ 
+call random_seed(size=seed_size)
+allocate(seeds(seed_size),seeds0(seed_size))
+seeds0=0; seeds=0
+
+call random_seed(get=seeds0)
+seeds = seeds0
+seeds(1) = seed
+
+if(myrank==0) then
+  print'(a)','INFO :resetting RNG seeds'
+  do i=1, seed_size
+     print'(a,i4,2i12)','seeds,seeds0 ', i, seeds0(i), seeds(i)
+  enddo
+endif
+
+call random_seed(put=seeds)
+
+deallocate(seeds)
+
+end subroutine
+
 end module
