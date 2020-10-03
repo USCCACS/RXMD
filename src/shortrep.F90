@@ -162,8 +162,8 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
      if(index(atom_name(ity),"H") /=0) this%htype=ity
      if(index(atom_name(ity),"O") /=0) this%otype=ity
   enddo
-  call assert(this%htype==-1, 'could not find H type', myid)
-  call assert(this%htype==-1, 'could not find O type', myid)
+  call assert(this%htype>0, 'could not find H type', myid)
+  call assert(this%htype>0, 'could not find O type', myid)
 
   read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
   read(funit,*) this%Kr, this%Kq
