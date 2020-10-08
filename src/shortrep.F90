@@ -6,6 +6,8 @@ use utils, only : l2g, find_cmdline_argc, get_command_argument_str, Ekcal_j, ass
 
 implicit none
 
+include 'mpif.h'
+
 type short_repulsion_type1_params
 
   !real(8),parameter :: alpha=0.1d0, GeGe_x=10d0, SeSe_x=1.11d0
@@ -75,9 +77,193 @@ type short_repulsion_type
 
 end type 
 
+type bond_stats
+
+  real(8) :: dHH_min = 1.35d0, dHH_max= 1.80d0
+  real(8) :: dOH_min = 0.92d0, dOH_max= 1.08d0
+  real(8) :: dOO_min = 2.20d0, dOO_max= 1d99
+
+  integer :: num_OH_max=0, num_HH_max=0, num_OO_max=0
+  integer :: num_OH_min=0, num_HH_min=0, num_OO_min=0
+
+  contains 
+    procedure :: reset => reset_bond_stats
+    procedure :: add => add_bond_stats
+    procedure :: print => print_bond_stats
+
+end type
+
+type lj_potential_type
+  real(8) :: sigma=2.5d0, epsiron=1.d0
+  real(8) :: rcutoff=2.7d0
+
+  contains 
+    procedure :: init => set_cutoff_lj_potential
+    procedure :: calc => calc_force_lj_potential
+    procedure :: save_table => save_table_lj_potential
+end type
+
+
 type(short_repulsion_type) short_rep
 
+type(bond_stats) bstat
+
+type(lj_potential_type) lj_pot
+
 contains
+
+!-----------------------------------------------------------------------------
+subroutine set_cutoff_lj_potential(this, rcutoff) 
+!-----------------------------------------------------------------------------
+   class(lj_potential_type),intent(in out) :: this
+   real(8),intent(in)  :: rcutoff
+
+   ! TODO the cutoff distance should be set from outside
+   this%rcutoff = rcutoff  
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine calc_force_lj_potential(this, dr, U, Up) 
+!-----------------------------------------------------------------------------
+   class(lj_potential_type),intent(in) :: this
+   real(8),intent(in) :: dr
+
+   !  force,enegry,force at cutoff, energy at cutoff
+   !real(8),parameter :: Kr=35.37d0, r0=2.7d0 ! changed October 7, 2:42pm
+   !real(8),parameter :: Kr=17.685d0, r0=2.7d0  ! changed October 7, 8:00pm
+   real(8),parameter :: Kr=35.37d0, r0=2.6d0
+   real(8),intent(in out) ::  U, Up
+   real(8) :: U_c, Up_c 
+
+   real(8) :: sigr, sigr12, sigr6
+
+   U = 0.5d0*Kr*(dr-r0)**2
+   Up = Kr*(dr-r0)
+
+   if(dr>this%rcutoff) then
+     Up=0.d0; U=0.d0
+     return 
+   endif
+
+   return
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine calc_force_lj_potential2(this, dr, U, Up) 
+!-----------------------------------------------------------------------------
+   class(lj_potential_type),intent(in) :: this
+   real(8),intent(in) :: dr
+
+   !  force,enegry,force at cutoff, energy at cutoff
+   real(8),intent(in out) ::  U, Up
+   real(8) :: U_c, Up_c 
+
+   real(8) :: sigr, sigr12, sigr6
+
+
+   if(dr>this%rcutoff) then
+     Up=0.d0; U=0.d0
+     return 
+   endif
+
+
+   sigr = this%sigma/this%rcutoff
+   sigr6 = sigr**6
+   sigr12 = sigr6*sigr6
+
+   U_c = 4.d0*this%epsiron*(sigr12-sigr6) ! energy at cutoff
+   Up_c = -48d0*this%epsiron*(sigr12-0.5d0*sigr6)/this%rcutoff ! force at cutoff
+
+
+   sigr = this%sigma/dr
+   sigr6 = sigr**6
+   sigr12 = sigr6*sigr6
+
+   U = 4.d0*this%epsiron*(sigr12-sigr6)-U_c - (dr-this%rcutoff)*Up_c
+   Up = -48d0*this%epsiron*(sigr12-0.5d0*sigr6)/dr - Up_c
+
+   return
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine save_table_lj_potential(this, myrank)
+!-----------------------------------------------------------------------------
+   class(lj_potential_type),intent(in) :: this
+   integer,intent(in) :: myrank
+
+   integer,parameter :: ntables = 100
+
+   integer :: i,iunit
+   real(8) :: dr, U, Up
+
+   if(myrank==0) then
+      open(newunit=iunit,file='lj_pot.dat')
+      do i=1, ntables
+         dr = dble(i)*this%rcutoff/ntables
+         call this%calc(dr, U, Up)
+         write(iunit,fmt='(3es15.5)') dr, U, Up
+      enddo
+      close(iunit)
+   endif
+
+end subroutine
+   
+
+!-----------------------------------------------------------------------------
+subroutine print_bond_stats(this, myrank)
+!-----------------------------------------------------------------------------
+  class(bond_stats),intent(in out) :: this
+  integer,intent(in) :: myrank
+
+  call this%add()
+
+  if(myrank==0) then
+     print'(a,3i18)','bstat: num_OH_min,num_HH_min,num_OO_min :', &
+        this%num_OH_min, this%num_HH_min, this%num_OO_min
+     print'(a,3i18)','bstat: num_OH_max,num_HH_max,num_OO_max :', &
+        this%num_OH_max, this%num_HH_max, this%num_OO_max
+  endif
+
+  call this%reset()
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine reset_bond_stats(this)
+!-----------------------------------------------------------------------------
+  class(bond_stats),intent(in out) :: this
+
+  this%num_oh_max=0; this%num_hh_max=0; this%num_oo_max=0
+  this%num_oh_min=0; this%num_hh_min=0; this%num_oo_min=0
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine add_bond_stats(this)
+!-----------------------------------------------------------------------------
+  class(bond_stats),intent(in out) :: this
+  integer :: array(6)
+
+  array(1)=this%num_hh_max
+  array(2)=this%num_oh_max
+  array(3)=this%num_oo_max
+
+  array(4)=this%num_hh_min
+  array(5)=this%num_oh_min
+  array(6)=this%num_oo_min
+
+  call MPI_ALLREDUCE(MPI_IN_PLACE, array, size(array), MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
+
+  this%num_hh_max=array(1)
+  this%num_oh_max=array(2)
+  this%num_oo_max=array(3)
+
+  this%num_hh_min=array(4)
+  this%num_oh_min=array(5)
+  this%num_oo_min=array(6)
+
+end subroutine
 
 !-----------------------------------------------------------------------------
 subroutine initialize_short_repulsion(sr, atom_name)
@@ -154,16 +340,13 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
   integer :: ity, jty
   real(8) :: sigma_sum
 
-  call assert(2<=potential_type .and. potential_type<=5, &
+  call assert(2<=potential_type .and. potential_type<=4, &
      'unsupported potential type in read_type2_params(). Exiting rxmd.', myid)
 
-  this%htype=-1; this%otype=-1; 
   do ity=1, size(atom_name)
      if(index(atom_name(ity),"H") /=0) this%htype=ity
      if(index(atom_name(ity),"O") /=0) this%otype=ity
   enddo
-  call assert(this%htype>0, 'could not find H type', myid)
-  call assert(this%htype>0, 'could not find O type', myid)
 
   read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
   read(funit,*) this%Kr, this%Kq
@@ -175,12 +358,9 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
 
      allocate(this%frozen_atom_flag(NBUFFER))
      allocate(this%r_oh(NBUFFER,0:3))
-  else if(potential_type == 4.or.potential_type == 5) then
+  else if(potential_type == 4) then
      read(funit,*) this%beta_1, this%beta_s1, this%beta_l1
      read(funit,*) this%beta_2, this%beta_s2, this%beta_l2
-  endif
-  if(potential_type==5) then
-     read(funit,*) this%fcut_o, this%fcut_h, this%ffactor
   endif
 
   this%is_initialized = .true.
@@ -352,10 +532,12 @@ f(k,3) = f(k,3) - fjk(3)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine apply_type3or4_short_repulsion(this, potential_type)
+subroutine apply_type3or4_short_repulsion(this, potential_type, bstat, lj_pot)
 !-----------------------------------------------------------------------------
 class (short_repulsion_type2_params),intent(in) :: this
 integer,intent(in) :: potential_type
+type(bond_stats) :: bstat
+type(lj_potential_type) :: lj_pot
 
 real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
 integer :: i, j, k, l, l1, ity, jty, kty, lty, igid, jgid, kgid
@@ -370,12 +552,47 @@ real(8) :: dr_k, dr_j
 
 real(8) :: bond_coeff
 
-real(8),parameter :: rc_inner=0.97d0, rc_outer=1.05d0
-
 character(len=:),allocatable :: info_ij, info_ik
 character(len=:),allocatable :: filebase
 
-!call set_force_zero(rc_inner,rc_outer)
+real(8) :: rhh(0:3), roo(0:3), roo_min
+real(8) :: U, Up
+
+integer,save :: step=0
+character(9) :: a9
+
+!real(8),parameter :: rc_inner=0.89d0, rc_outer=1.11d0  ! before October 06, 9:29pm
+real(8),parameter :: rc_inner=0.93d0, rc_outer=1.06d0   ! changed October 06, 9:29pm
+
+call set_force_zero(rc_inner,rc_outer)
+
+call bstat%reset()
+
+!O-O NN force screening
+do i=1, NATOMS                           ! O
+
+   ity = nint(atype(i))
+
+   if(ity/=this%otype) cycle
+
+   do l1 = 1, nbrlist(i,0)
+
+      l = nbrlist(i,l1)
+      lty = nint(atype(l))
+
+      if(lty==this%otype) then
+
+        roo(1:3) = pos(i,1:3) - pos(l,1:3)
+        roo(0) = sqrt(sum(roo(1:3)*roo(1:3)))
+
+        if(roo(0)<2.5d0) then
+           f(i,1:3)=0.d0
+           f(l,1:3)=0.d0
+        endif
+      endif
+   enddo
+enddo
+
 
 do i=1, NATOMS                           ! O
 
@@ -390,10 +607,24 @@ do i=1, NATOMS                           ! O
    is_found_j=.false.; jgid=-1; dr_j=0d0; jty=-1
    is_found_k=.false.; kgid=-1; dr_k=0d0; kty=-1
 
+   roo_min = 1d99
    do l1 = 1, nbrlist(i,0)
 
       l = nbrlist(i,l1)
       lty = nint(atype(l))
+
+      if(lty==this%otype) then
+        ! find minimum O-O distance
+        roo(1:3) = pos(i,1:3) - pos(l,1:3)
+        roo(0) = sqrt(sum(roo(1:3)*roo(1:3)))
+        if(roo_min>roo(0)) roo_min = roo(0)
+
+        ! apply LJ potential 
+        call lj_pot%calc(roo(0), U, Up)
+        !if(myid==0) print'(a,i2,2es15.5)','lj_pot: ', i,l,roo(0),Up
+        f(i,1:3) = f(i,1:3) - Up*roo(1:3)/roo(0)
+        f(l,1:3) = f(l,1:3) + Up*roo(1:3)/roo(0)
+      endif
 
       if(lty/=this%htype) cycle
 
@@ -409,6 +640,7 @@ do i=1, NATOMS                           ! O
         kgid = l2g(atype(k))
         kty = nint(atype(k))
       endif
+
    enddo
 
    info_ij = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(jgid)//' '//int_to_str(ity)//' '//int_to_str(jty)
@@ -424,15 +656,9 @@ do i=1, NATOMS                           ! O
    rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
    rij(1:3) = rij(1:3)/rij(0)
 
-   call assert(rij(0)>0.8d0, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
-   call assert(rij(0)<1.25d0, 'ERROR: j-atom is too far '//info_ik, val=rij(0))
-
    rik(1:3) = pos(i,1:3)-pos(k,1:3)
    rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
    rik(1:3) = rik(1:3)/rik(0)
-
-   call assert(rik(0)>0.8d0, 'ERROR: k-atom is too close '//info_ij, val=rik(0))
-   call assert(rik(0)<1.25d0, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
 
    cosine = sum(rij(1:3)*rik(1:3))
    theta = acos(cosine)
@@ -446,13 +672,17 @@ do i=1, NATOMS                           ! O
      if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) bond_coeff = bond_coeff + this%beta_2
    endif
 
+   ! H-H distance 
+   rhh(1:3) = pos(j,1:3) - pos(k,1:3)
+   rhh(0) = sqrt(sum(rhh(1:3)*rhh(1:3)))
+
    !Krcoef = bond_coeff * this%Kr*(rij(0)-this%r0) ! ij
    Krcoef = bond_coeff * get_smooth_spring_coeff(rij(0),this%Kr,this%r0) ! ij
    if(potential_type==4) then
      if(rij(0)<this%beta_s1.or.this%beta_l1<rij(0)) &
-       print'(a,f8.3,f8.3,e15.5)', 'beta1: myid,i,j,ity,jty: '//info_ij,bond_coeff,rij(0),Krcoef
+       print'(a,f8.3,f8.3,2es15.5)', 'beta1: myid,i,j,ity,jty: '//info_ij,bond_coeff,rij(0),Krcoef,rhh(0)
      if(rij(0)<this%beta_s2.or.this%beta_l2<rij(0)) &
-       print'(a,f8.3,f8.3,e15.5)', 'beta2: myid,i,j,ity,jty: '//info_ij,bond_coeff,rij(0),Krcoef
+       print'(a,f8.3,f8.3,2es15.5)', 'beta2: myid,i,j,ity,jty: '//info_ij,bond_coeff,rij(0),Krcoef,rhh(0)
    endif
 
    ff(1:3) = Krcoef*rij(1:3)
@@ -470,10 +700,38 @@ do i=1, NATOMS                           ! O
    Krcoef = bond_coeff * get_smooth_spring_coeff(rik(0),this%Kr,this%r0) ! ik
    if(potential_type==4) then
      if(rik(0)<this%beta_s1.or.this%beta_l1<rik(0)) &
-        print'(a,f8.3,f8.3,e15.5)','beta1: myid,i,k,ity,kty: '//info_ij,bond_coeff,rik(0),Krcoef
+        print'(a,f8.3,f8.3,2es15.5)','beta1: myid,i,k,ity,kty: '//info_ij,bond_coeff,rik(0),Krcoef,rhh(0)
      if(rik(0)<this%beta_s2.or.this%beta_l2<rik(0)) &
-        print'(a,f8.3,f8.3,e15.5)','beta2: myid,i,k,ity,kty: '//info_ik,bond_coeff,rik(0),Krcoef
+        print'(a,f8.3,f8.3,2es15.5)','beta2: myid,i,k,ity,kty: '//info_ik,bond_coeff,rik(0),Krcoef,rhh(0)
    endif
+
+   if(rij(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+
+   if(rij(0)<0.65d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)>1.35d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+
+   if(rik(0)<0.65d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)>1.35d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+
+   if(rij(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
+   if(rik(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
+
+   if(rij(0)<bstat%dOH_min) bstat%num_oh_min = bstat%num_oh_min + 1
+   if(rik(0)<bstat%dOH_min) bstat%num_oh_min = bstat%num_oh_min + 1
+
+   if(rhh(0)>bstat%dHH_max) bstat%num_hh_max = bstat%num_hh_max + 1
+   if(rhh(0)<bstat%dHH_min) bstat%num_hh_min = bstat%num_hh_min + 1
+
+   if(roo_min<bstat%dOO_min) bstat%num_oo_min = bstat%num_oo_min + 1
+
+   call assert(rij(0)>0.65d0, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
+   call assert(rij(0)<1.35d0, 'ERROR: j-atom is too far '//info_ij, val=rij(0))
+
+   call assert(rik(0)>0.65d0, 'ERROR: k-atom is too close '//info_ik, val=rik(0))
+   call assert(rik(0)<1.35d0, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
 
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
@@ -486,7 +744,10 @@ do i=1, NATOMS                           ! O
    !print*,Kqcoef, theta*180d0/pi, this%q0
    call ForceA3(Kqcoef,j,i,k,rij,rik)
 
+
 enddo
+
+call bstat%print(myid)
 
 contains 
 
@@ -495,6 +756,8 @@ subroutine set_force_zero(rc_inner, rc_outer)
 !-----------------------------------------------------------------------------
 real(8),intent(in):: rc_inner, rc_outer
 character(len=:),allocatable :: info_ij, info_ik
+
+real(8) :: rhh(0:3)
 
 do i=1, NATOMS                           ! O
 
@@ -542,6 +805,7 @@ do i=1, NATOMS                           ! O
    rij(1:3) = pos(i,1:3)-pos(j,1:3)
    rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
 
+   ! setting ML force zero beyond ranges rc_inner and rc_outer for O-H1
    if(rij(0)<rc_inner.or.rc_outer<rij(0)) then
      print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rij,fi,fj: '//info_ij,rij(0),f(i,1:3),f(j,1:3)
      !f(i,1:3)=0.d0
@@ -551,10 +815,19 @@ do i=1, NATOMS                           ! O
    rik(1:3) = pos(i,1:3)-pos(k,1:3)
    rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
 
+   ! setting ML force zero beyond ranges rc_inner and rc_outer for O-H2
    if(rik(0)<rc_inner.or.rc_outer<rik(0)) then
      print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rik,fi,fk: '//info_ij,rik(0),f(i,1:3),f(k,1:3)
      !f(i,1:3)=0.d0
      f(k,1:3)=0.d0
+   endif
+
+   ! setting ML force zero if H-H bond is below cutoff
+   rhh(1:3)=pos(j,1:3)-pos(k,1:3)
+   rhh(0) = sqrt(sum(rhh(1:3)*rhh(1:3)))
+   if(rhh(0) < 1.44d0) then
+     f(j,1:3)=0d0
+     f(k,1:3)=0d0
    endif
 
    return
@@ -562,6 +835,46 @@ enddo
 
 
 end subroutine
+
+!!-----------------------------------------------------------------------------
+!subroutine force_cutoff(num_atoms, atype, f, myrank, sr)
+!!-----------------------------------------------------------------------------
+!   implicit none
+!   integer,intent(in) :: num_atoms, myrank
+!   real(8),allocatable,intent(in) ::  atype(:)
+!   real(8),allocatable,intent(in out) ::  f(:,:)
+!   type(short_repulsion_type),intent(in) :: sr
+!
+!   integer :: i,ia,ity
+!   real(8) :: fcut, fset
+!
+!   do i = 1, num_atoms
+!      ity = nint(atype(i))
+!
+!      if(ity==sr%p2%htype) then
+!          fcut = sr%p2%fcut_h
+!          fset = fcut*sr%p2%ffactor
+!      else if(ity==sr%p2%otype) then
+!          fcut = sr%p2%fcut_o
+!          fset = fcut*sr%p2%ffactor
+!      else
+!          print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
+!          stop
+!      endif
+!
+!      do ia=1,3
+!         if(f(i,ia) > fcut) then
+!           print'(a,5i9,es15.5,2f8.2)','INFO: max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+!           f(i,ia) = fset
+!         endif
+!         if(f(i,ia) < -fcut) then
+!           print'(a,5i9,es15.5,2f8.2)','INFO: min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+!           f(i,ia) = -fset
+!         endif
+!      enddo
+!
+!   enddo
+!end subroutine
 
 
 !-----------------------------------------------------------------------------
@@ -586,6 +899,8 @@ F = A*(r - r0_oh - B)**4
 Fp = 4d0*A*(r - r0_oh - B)**3
 !F = A*(r - r0_oh)**2
 !Fp = 2d0*A*(r - r0_oh)
+F = 1.d0
+Fp = 0.d0
 
 S = 0.5d0*Kr*(r - r0_oh)**2
 Sp = Kr*(r - r0_oh)
@@ -883,51 +1198,13 @@ if (sr%potential_type==1) then
   call sr%p1%apply()
 else if (sr%potential_type==2) then
   call sr%p2%apply2()
-else if (sr%potential_type==3.or.sr%potential_type==4.or.sr%potential_type==5) then
-  call sr%p2%apply3or4(sr%potential_type)
+else if (sr%potential_type==3.or.sr%potential_type==4) then
+  call sr%p2%apply3or4(sr%potential_type, bstat, lj_pot)
 else
   print*,'To be implemented'
+
 endif
 
 end subroutine
-
-subroutine force_cutoff(num_atoms, atype, f, myrank, sr)
-   implicit none
-   integer,intent(in) :: num_atoms, myrank
-   real(8),allocatable,intent(in) ::  atype(:)
-   real(8),allocatable,intent(in out) ::  f(:,:)
-   type(short_repulsion_type),intent(in) :: sr
-
-   integer :: i,ia,ity
-   real(8) :: fcut, fset
-
-   do i = 1, num_atoms
-      ity = nint(atype(i))
-
-      if(ity==sr%p2%htype) then
-          fcut = sr%p2%fcut_h
-          fset = fcut*sr%p2%ffactor
-      else if(ity==sr%p2%otype) then
-          fcut = sr%p2%fcut_o
-          fset = fcut*sr%p2%ffactor
-      else
-          print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
-          stop
-      endif
-
-      do ia=1,3
-         if(f(i,ia) > fcut) then
-           print'(a,5i9,es15.5,2f8.2)','max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
-           f(i,ia) = fset
-         endif
-         if(f(i,ia) < -fcut) then
-           print'(a,5i9,es15.5,2f8.2)','min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
-           f(i,ia) = -fset
-         endif
-      enddo
-
-   enddo
-end subroutine
-
 
 end module
