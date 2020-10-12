@@ -153,7 +153,7 @@ module fnn
 
   use aenet
 
-  use mod_short_repulsion, only : short_repulsion, short_rep, lj_pot
+  use mod_short_repulsion, only : short_repulsion, short_rep 
  
   implicit none
 
@@ -232,11 +232,10 @@ do i = 1, NBUFFER
    f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
 enddo
 
-call lj_pot%save_table(myid)
-
 !call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0) ! before October 06, 9:45pm
 !call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.0d0) ! before October 09, 12:04pm
-call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0)
+!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0)
+call force_cutoff(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
 call short_repulsion(short_rep)
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)

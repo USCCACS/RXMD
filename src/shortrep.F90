@@ -8,6 +8,23 @@ implicit none
 
 include 'mpif.h'
 
+type bond_stats
+
+  real(8) :: dHH_min = 1.35d0, dHH_max= 1.80d0
+  real(8) :: dOH_min = 0.92d0, dOH_max= 1.08d0
+  real(8) :: dOO_min = 2.20d0, dOO_max= 1d99
+
+  integer :: num_OH_max=0, num_HH_max=0, num_OO_max=0
+  integer :: num_OH_min=0, num_HH_min=0, num_OO_min=0
+
+  contains 
+    procedure :: set_param => set_param_bond_stats
+    procedure :: reset => reset_bond_stats
+    procedure :: add => add_bond_stats
+    procedure :: print => print_bond_stats
+
+end type
+
 type short_repulsion_type1_params
 
   !real(8),parameter :: alpha=0.1d0, GeGe_x=10d0, SeSe_x=1.11d0
@@ -57,6 +74,9 @@ type short_repulsion_type2_params
   logical,allocatable :: frozen_atom_flag(:)
   real(8),allocatable :: r_oh(:,:)
 
+  type(bond_stats) :: bstat
+  real(8) :: dHH_min, dHH_max, dOH_min, dOH_max, dOO_min, dOO_max ! bond_stats parameters
+
   contains 
     procedure :: read => read_type2_params
     procedure :: print => print_type2_params
@@ -64,6 +84,7 @@ type short_repulsion_type2_params
     procedure :: apply3or4 => apply_type3or4_short_repulsion
     procedure :: flipv => flip_frozenh_velocity
     procedure :: freezex => freeze_h_in_overstreched_bond
+    procedure :: oo_spring => spring_potential_for_OObond
 end type
 
 type short_repulsion_type
@@ -77,21 +98,6 @@ type short_repulsion_type
 
 end type 
 
-type bond_stats
-
-  real(8) :: dHH_min = 1.35d0, dHH_max= 1.80d0
-  real(8) :: dOH_min = 0.92d0, dOH_max= 1.08d0
-  real(8) :: dOO_min = 2.20d0, dOO_max= 1d99
-
-  integer :: num_OH_max=0, num_HH_max=0, num_OO_max=0
-  integer :: num_OH_min=0, num_HH_min=0, num_OO_min=0
-
-  contains 
-    procedure :: reset => reset_bond_stats
-    procedure :: add => add_bond_stats
-    procedure :: print => print_bond_stats
-
-end type
 
 type lj_potential_type
   real(8) :: sigma=2.5d0, epsiron=1.d0
@@ -113,6 +119,21 @@ type(lj_potential_type) lj_pot
 contains
 
 !-----------------------------------------------------------------------------
+subroutine set_param_bond_stats(this, dHH_min, dHH_max, dOH_min, dOH_max, dOO_min, dOO_max)
+!-----------------------------------------------------------------------------
+   class(bond_stats),intent(in out) :: this
+   real(8),intent(in) :: dHH_min, dHH_max, dOH_min, dOH_max, dOO_min, dOO_max
+
+   this%dHH_min = dHH_min 
+   this%dHH_max = dHH_max 
+   this%dOH_min = dOH_min 
+   this%dOH_max = dOH_max 
+   this%dOO_min = dOO_min
+   this%dOO_max = dOO_max
+    
+end subroutine
+
+!-----------------------------------------------------------------------------
 subroutine set_cutoff_lj_potential(this, rcutoff) 
 !-----------------------------------------------------------------------------
    class(lj_potential_type),intent(in out) :: this
@@ -124,9 +145,9 @@ subroutine set_cutoff_lj_potential(this, rcutoff)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine calc_force_lj_potential(this, dr, U, Up) 
+subroutine spring_potential_for_OObond(this, dr, U, Up) 
 !-----------------------------------------------------------------------------
-   class(lj_potential_type),intent(in) :: this
+   class(short_repulsion_type2_params),intent(in) :: this
    real(8),intent(in) :: dr
 
    !  force,enegry,force at cutoff, energy at cutoff
@@ -141,7 +162,8 @@ subroutine calc_force_lj_potential(this, dr, U, Up)
    U = 0.5d0*Kr*(dr-r0)**2
    Up = Kr*(dr-r0)
 
-   if(dr>this%rcutoff) then
+   !if(dr>this%rcutoff) then
+   if(dr>r0) then
      Up=0.d0; U=0.d0
      return 
    endif
@@ -150,7 +172,7 @@ subroutine calc_force_lj_potential(this, dr, U, Up)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine calc_force_lj_potential2(this, dr, U, Up) 
+subroutine calc_force_lj_potential(this, dr, U, Up) 
 !-----------------------------------------------------------------------------
    class(lj_potential_type),intent(in) :: this
    real(8),intent(in) :: dr
@@ -361,6 +383,7 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
   else if(potential_type == 4) then
      read(funit,*) this%beta_1, this%beta_s1, this%beta_l1
      read(funit,*) this%beta_2, this%beta_s2, this%beta_l2
+     read(funit,*) this%fcut_o, this%fcut_h, this%ffactor
   endif
 
   this%is_initialized = .true.
@@ -564,8 +587,10 @@ character(9) :: a9
 !real(8),parameter :: rc_inner=0.89d0, rc_outer=1.11d0  ! before October 06, 9:29pm
 !real(8),parameter :: rc_inner=0.93d0, rc_outer=1.06d0   ! changed October 06, 9:29pm
 real(8),parameter :: rc_inner=0.92d0, rc_outer=1.07d0   ! changed October 08, 9:04pm
+real(8),parameter :: rc_hh_min = 1.44d0, rc_oo_min=2.5d0
+real(8),parameter :: stop_OH_min = 0.5d0, stop_OH_max = 1.5d0
 
-call set_force_zero(rc_inner,rc_outer)
+call set_force_zero(rc_inner,rc_outer, rc_hh_min)
 
 call bstat%reset()
 
@@ -586,7 +611,8 @@ do i=1, NATOMS                           ! O
         roo(1:3) = pos(i,1:3) - pos(l,1:3)
         roo(0) = sqrt(sum(roo(1:3)*roo(1:3)))
 
-        if(roo(0)<2.5d0) then
+        !if(roo(0)<2.5d0) then
+        if(roo(0)<rc_oo_min) then
            f(i,1:3)=0.d0
            f(l,1:3)=0.d0
         endif
@@ -621,7 +647,7 @@ do i=1, NATOMS                           ! O
         if(roo_min>roo(0)) roo_min = roo(0)
 
         ! apply LJ potential 
-        call lj_pot%calc(roo(0), U, Up)
+        call this%oo_spring(roo(0), U, Up)
         !if(myid==0) print'(a,i2,2es15.5)','lj_pot: ', i,l,roo(0),Up
         f(i,1:3) = f(i,1:3) - Up*roo(1:3)/roo(0)
         f(l,1:3) = f(l,1:3) + Up*roo(1:3)/roo(0)
@@ -706,16 +732,14 @@ do i=1, NATOMS                           ! O
         print'(a,f8.3,f8.3,2es15.5)','beta2: myid,i,k,ity,kty: '//info_ik,bond_coeff,rik(0),Krcoef,rhh(0)
    endif
 
-   if(rij(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rij(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rik(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rik(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-
-   if(rij(0)<0.5d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rij(0)>1.5d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-
-   if(rik(0)<0.5d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rik(0)>1.5d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   !if(rij(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   !if(rij(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   !if(rik(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   !if(rik(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)<bstat%dOH_min) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)>bstat%dOH_max) print'(a,3i9,3f8.3)','OUTLIER: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)<bstat%dOH_min) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)>bstat%dOH_max) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
 
    if(rij(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
    if(rik(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
@@ -728,11 +752,17 @@ do i=1, NATOMS                           ! O
 
    if(roo_min<bstat%dOO_min) bstat%num_oo_min = bstat%num_oo_min + 1
 
-   call assert(rij(0)>0.5d0, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
-   call assert(rij(0)<1.50d0, 'ERROR: j-atom is too far '//info_ij, val=rij(0))
+   if(rij(0)<stop_OH_min) print'(a,3i9,3f8.3)','ERROR: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)>stop_OH_max) print'(a,3i9,3f8.3)','ERROR: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
 
-   call assert(rik(0)>0.5d0, 'ERROR: k-atom is too close '//info_ik, val=rik(0))
-   call assert(rik(0)<1.50d0, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
+   if(rik(0)<stop_OH_min) print'(a,3i9,3f8.3)','ERROR: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)>stop_OH_max) print'(a,3i9,3f8.3)','ERROR: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+
+   call assert(rij(0)>stop_OH_min, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
+   call assert(rij(0)<stop_OH_max, 'ERROR: j-atom is too far '//info_ij, val=rij(0))
+
+   call assert(rik(0)>stop_OH_min, 'ERROR: k-atom is too close '//info_ik, val=rik(0))
+   call assert(rik(0)<stop_OH_max, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
 
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
@@ -753,9 +783,9 @@ call bstat%print(myid)
 contains 
 
 !-----------------------------------------------------------------------------
-subroutine set_force_zero(rc_inner, rc_outer)
+subroutine set_force_zero(rc_inner, rc_outer, rc_hh_min)
 !-----------------------------------------------------------------------------
-real(8),intent(in):: rc_inner, rc_outer
+real(8),intent(in):: rc_inner, rc_outer, rc_hh_min
 character(len=:),allocatable :: info_ij, info_ik
 
 real(8) :: rhh(0:3)
@@ -826,7 +856,8 @@ do i=1, NATOMS                           ! O
    ! setting ML force zero if H-H bond is below cutoff
    rhh(1:3)=pos(j,1:3)-pos(k,1:3)
    rhh(0) = sqrt(sum(rhh(1:3)*rhh(1:3)))
-   if(rhh(0) < 1.44d0) then
+   !if(rhh(0) < 1.44d0) then
+   if(rhh(0) < rc_hh_min) then
      f(j,1:3)=0d0
      f(k,1:3)=0d0
    endif
