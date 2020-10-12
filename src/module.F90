@@ -92,6 +92,8 @@ integer :: mdmode
 integer :: nstep=0, ntime_step, current_step
 !<vsfact> velocity scaling factor, <dt> one time step
 real(8) :: treq, vsfact, dt, dmt
+real(8) :: vmag_factor  ! October 09, 5:24pm
+
 integer :: sstep
 !--- output file format 
 logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.

@@ -2,7 +2,7 @@ module velocity_modifiers_mod
 
   use mpi_mod
   use utils, only : UTEMP0, UTEMP, matinv
-  use base, only : NATOMS, GNATOMS, mass, treq, KE, GKE, myid, ierr, dthm, hmas, atmname
+  use base, only : NATOMS, GNATOMS, mass, treq, KE, GKE, myid, ierr, dthm, hmas, atmname, vmag_factor
 
 contains
 
@@ -149,6 +149,10 @@ integer :: i,ity
 integer,parameter :: MAX_ELEMENT=20
 real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
 
+! October 8th, 2020
+real(8) :: AverageVelocity(2), vmag
+integer :: vcounter
+
 Ekinetic(:,:)=0.d0
 
 do i=1, NATOMS
@@ -158,6 +162,10 @@ do i=1, NATOMS
 enddo
 
 call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, size(Ekinetic), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+
+! October 8th, 2020
+AverageVelocity(1) = sqrt(2.d0*Ekinetic(2,1)/( Ekinetic(1,1)*mass(1) ) )
+AverageVelocity(2) = sqrt(2.d0*Ekinetic(2,2)/( Ekinetic(1,2)*mass(2) ) )
 
 do ity=1, MAX_ELEMENT
    if(Ekinetic(1,ity)>1.d0) then
@@ -171,10 +179,20 @@ do ity=1, MAX_ELEMENT
    endif
 enddo
 
+! October 8th, 2020
+vcounter=0
 do i=1, NATOMS
    ity=nint(atype(i))
    v(i,1:3)=ctmp(ity)*v(i,1:3)
+   vmag = sqrt(sum(v(i,1:3)*v(i,1:3)))
+   if(vmag > vmag_factor*AverageVelocity(ity)) then
+      v(i,1:3) = v(i,1:3)*vmag_factor*AverageVelocity(ity)/vmag
+      vcounter = vcounter + 1
+   endif
 enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, vcounter, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
+if(myid==0) print'(a,i)', 'INFO: vcounter: ', vcounter
 
 call linear_momentum(atype, v)
 

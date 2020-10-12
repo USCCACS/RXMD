@@ -146,7 +146,7 @@ if(myid==0) then
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTEP:", &
                                   mdmode, current_step, ntime_step
-   write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
+   write(6,'(a30,f12.3,f8.3,i9,f8.3)') 'treq,vsfact,sstep,vmag_factor:',treq*UTEMP0, vsfact, sstep, vmag_factor
    write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
    write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
    write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)

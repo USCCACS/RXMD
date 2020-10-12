@@ -235,7 +235,8 @@ enddo
 call lj_pot%save_table(myid)
 
 !call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0) ! before October 06, 9:45pm
-call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.0d0)
+!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.0d0) ! before October 09, 12:04pm
+call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0)
 call short_repulsion(short_rep)
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)

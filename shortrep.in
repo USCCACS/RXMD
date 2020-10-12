@@ -1,0 +1,6 @@
+4                    ! potential_type
+1.0  0.006    1.24   ! alpha_bond, alpha_angle, rc_oh
+353.720  84.367      ! Kr, Kq   (kcal/mol/A^2), (kcal/mol/degree^2)
+1.0    105.00       ! r0, q0
+0.0  0.94  1.08      ! beta_1 beta_s1, beta_l1
+0.0  0.90  1.12      ! beta_2 beta_s2, beta_l2

@@ -120,9 +120,8 @@ contains
      pos0(ia,1:num_atoms,1:3) = pos(1:num_atoms,1:3)
 
      if(myid==0) then
-       print'(a,i4,a1,i4,a,i9)', & 
-           'INFO: A new initial position has been added. ia & current_step = ', &
-           ia, '/', m%num_init_pos, ' current_step = ', current_step 
+       print'(a,i4,a1,i4,a,i9)', 'INFO: A new initial position has been added. ia & current_step = ', \
+                                  ia, '/', m%num_init_pos, ' current_step = ', current_step 
      endif
 
   end subroutine

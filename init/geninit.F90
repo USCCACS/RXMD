@@ -457,7 +457,7 @@ do i=1, natoms
    vel1(1:3,ntot)=vel0(1:3,i)
    ctype1(ntot)=ctype0(i)
    itype1(ntot)=itype0(i)+ntot*1d-13+1d-14
-   !print'(a3,1x,i3,3f8.3,3f)',ctype0(i),itype0(i),pos0(1:3,i), rr(1:3)
+   !print'(i9,1x,a,1x,i3,3f8.3,3f8.3)',ntot, ctype0(i),itype0(i),pos0(1:3,i), rr(1:3)
 enddo 
 enddo; enddo; enddo
 

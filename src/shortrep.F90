@@ -95,7 +95,7 @@ end type
 
 type lj_potential_type
   real(8) :: sigma=2.5d0, epsiron=1.d0
-  real(8) :: rcutoff=2.7d0
+  real(8) :: rcutoff=2.6d0
 
   contains 
     procedure :: init => set_cutoff_lj_potential
@@ -562,7 +562,8 @@ integer,save :: step=0
 character(9) :: a9
 
 !real(8),parameter :: rc_inner=0.89d0, rc_outer=1.11d0  ! before October 06, 9:29pm
-real(8),parameter :: rc_inner=0.93d0, rc_outer=1.06d0   ! changed October 06, 9:29pm
+!real(8),parameter :: rc_inner=0.93d0, rc_outer=1.06d0   ! changed October 06, 9:29pm
+real(8),parameter :: rc_inner=0.92d0, rc_outer=1.07d0   ! changed October 08, 9:04pm
 
 call set_force_zero(rc_inner,rc_outer)
 
@@ -710,11 +711,11 @@ do i=1, NATOMS                           ! O
    if(rik(0)<0.85d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
    if(rik(0)>1.15d0) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
 
-   if(rij(0)<0.65d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rij(0)>1.35d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)<0.5d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rij(0)>1.5d0) print'(a,3i9,3f8.3)','ERROR: j-atom is too far',igid,jgid,kgid,rij(0),rik(0),rhh(0)
 
-   if(rik(0)<0.65d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
-   if(rik(0)>1.35d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)<0.5d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+   if(rik(0)>1.5d0) print'(a,3i9,3f8.3)','ERROR: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
 
    if(rij(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
    if(rik(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
@@ -727,11 +728,11 @@ do i=1, NATOMS                           ! O
 
    if(roo_min<bstat%dOO_min) bstat%num_oo_min = bstat%num_oo_min + 1
 
-   call assert(rij(0)>0.65d0, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
-   call assert(rij(0)<1.35d0, 'ERROR: j-atom is too far '//info_ij, val=rij(0))
+   call assert(rij(0)>0.5d0, 'ERROR: j-atom is too close '//info_ij, val=rij(0))
+   call assert(rij(0)<1.50d0, 'ERROR: j-atom is too far '//info_ij, val=rij(0))
 
-   call assert(rik(0)>0.65d0, 'ERROR: k-atom is too close '//info_ik, val=rik(0))
-   call assert(rik(0)<1.35d0, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
+   call assert(rik(0)>0.5d0, 'ERROR: k-atom is too close '//info_ik, val=rik(0))
+   call assert(rik(0)<1.50d0, 'ERROR: k-atom is too far '//info_ik, val=rik(0))
 
    ff(1:3) = Krcoef*rik(1:3)
    f(i,1:3) = f(i,1:3) - ff(1:3)
@@ -807,7 +808,7 @@ do i=1, NATOMS                           ! O
 
    ! setting ML force zero beyond ranges rc_inner and rc_outer for O-H1
    if(rij(0)<rc_inner.or.rc_outer<rij(0)) then
-     print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rij,fi,fj: '//info_ij,rij(0),f(i,1:3),f(j,1:3)
+     print'(a,f6.3,7e11.3)','fzero: myid,i,j,ity,jty,rij,fi,fj: '//info_ij,rij(0),f(i,1:3),f(j,1:3)
      !f(i,1:3)=0.d0
      f(j,1:3)=0.d0
    endif
@@ -817,7 +818,7 @@ do i=1, NATOMS                           ! O
 
    ! setting ML force zero beyond ranges rc_inner and rc_outer for O-H2
    if(rik(0)<rc_inner.or.rc_outer<rik(0)) then
-     print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rik,fi,fk: '//info_ij,rik(0),f(i,1:3),f(k,1:3)
+     print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rik,fi,fk: '//info_ik,rik(0),f(i,1:3),f(k,1:3)
      !f(i,1:3)=0.d0
      f(k,1:3)=0.d0
    endif
@@ -830,7 +831,6 @@ do i=1, NATOMS                           ! O
      f(k,1:3)=0d0
    endif
 
-   return
 enddo
 
 
