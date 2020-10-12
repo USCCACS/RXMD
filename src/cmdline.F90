@@ -5,7 +5,7 @@ use mpi_mod
 use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc, put_rng_seed
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
-                 isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
+                 isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, vmag_factor, &
                  forcefield_type, is_fnn, is_reaxff
 
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 

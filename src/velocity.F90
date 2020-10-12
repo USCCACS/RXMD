@@ -192,7 +192,7 @@ do i=1, NATOMS
 enddo
 
 call MPI_ALLREDUCE(MPI_IN_PLACE, vcounter, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
-if(myid==0) print'(a,i)', 'INFO: vcounter: ', vcounter
+if(myid==0) print'(a,i12)', 'INFO: vcounter: ', vcounter
 
 call linear_momentum(atype, v)
 
