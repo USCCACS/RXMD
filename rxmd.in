@@ -1,9 +1,9 @@
 # RXMD params 
-mdmode       1                      <mdmode>
-time         0.25    100            <dt> <ntime_step> 
-temperature  300  1.0   100         <treq> <vsfact> <sstep>
-io_step      100   10               <fstep>  <pstep>
-io_type      .false. .false. .false. .false. <isBinary> <isBondFile> <isPDB> <isXYZ>
+mdmode       7                      <mdmode>
+time         0.2    500000            <dt> <ntime_step> 
+temperature  363  0.1   4   2.0        <treq> <vsfact> <sstep> <vmag_factor>
+io_step      100   1               <fstep>  <pstep>
+io_type      .true. .false. .false. .true. <isBinary> <isBondFile> <isPDB> <isXYZ>
 processors   1 1 1                  <vprocs>
 CG_tol       1.d-6                  <ftol> 
  
