@@ -304,6 +304,7 @@ do while (.true.)
          call get_token_and_set_value(linein, treq)
          call get_token_and_set_value(linein, vsfact)
          call get_token_and_set_value(linein, sstep)
+         call get_token_and_set_value(linein, vmag_factor)
       case ('io_step')
          call get_token_and_set_value(linein, fstep)
          call get_token_and_set_value(linein, pstep)
@@ -406,6 +407,16 @@ endif
 if(find_cmdline_argc('--qstep',idx)) then
     call get_command_argument(idx+1,argv)
     read(argv,*) qstep
+endif
+
+if(find_cmdline_argc('--vmag_factor',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) vmag_factor
+endif
+
+if(find_cmdline_argc('--xyz_num_stack',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) xyz_num_stack
 endif
 
 if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 
