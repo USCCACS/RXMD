@@ -71,8 +71,10 @@ subroutine xyz_aggregator_gather_atom_data(this,num_atoms,atype,pos)
      this%buf_pos(ii3-2:ii3) = pos(i,1:3)
   enddo
 
-  call mpi_allreduce(mpi_in_place, this%buf_pos(3*offset+1), 3*this%num_total_atoms, mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
-  call mpi_allreduce(mpi_in_place, this%buf_type(offset+1), this%num_total_atoms, mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+  call mpi_allreduce(mpi_in_place, this%buf_pos(3*offset+1), 3*this%num_total_atoms, &
+                     mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+  call mpi_allreduce(mpi_in_place, this%buf_type(offset+1), this%num_total_atoms, &
+                     mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
 
   this%stack_counter = this%stack_counter + 1
 

@@ -18,7 +18,7 @@ $(EXE): $(OBJS)
 #cg.o : fileio.o
 #main.F90 : cg.o
 
-shortrep.o : module.o fileio.o
+shortrep.o : module.o fileio.o utils.o
 
 remd_pot_ANN_original.o : constant.o
 

@@ -1,4 +1,4 @@
 ### H2O system ###
 ## model data: element name, AMU, aenet model, cutoff distance
-model  Ti   15.99  O.10tw-10tw.ann    7.0
-model  O     1.00  Ti.10tw-10tw.ann   7.0
+model  H     6.00  H.20t-20t.nn 7.0
+model  O    15.99  O.20t-20t.nn 7.0
