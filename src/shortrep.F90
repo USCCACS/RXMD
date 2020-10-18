@@ -62,7 +62,7 @@ type short_repulsion_type2_params
 
   integer :: htype, otype
 
-  real(8) :: fcut_o, fcut_h, ffactor
+  real(8) :: fcut_o=75d0, fcut_h=50d0, ffactor=0.7d0
 
   real(8) :: rc_inner, rc_outer, rc_hh_min, rc_oo_min
 
@@ -414,8 +414,8 @@ subroutine print_type2_params(this, potential_type)
     print'(a30,3f10.3)','beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
 
     print'(a30,3f10.3)','fcut_o, fcut_h, ffactor: ', this%fcut_o, this%fcut_h, this%ffactor
-    print'(a30,3f10.3)','dHH_min, dOH_max, dOO_min: ',this%dHH_min, this%dOH_max, this%dOO_min
-    print'(a30,2f10.3,es10.1)','dHH_max, dOH_min, dOO_max: ',this%dHH_max, this%dOH_min, this%dOO_max
+    print'(a30,3f10.3)','dHH_min, dOH_min, dOO_min: ',this%dHH_min, this%dOH_max, this%dOO_min
+    print'(a30,2f10.3,es10.1)','dHH_max, dOH_max, dOO_max: ',this%dHH_max, this%dOH_min, this%dOO_max
     print'(a30,4f10.3)','rc_inner, rc_outer: ', this%rc_inner, this%rc_outer
     print'(a30,4f10.3)','rc_hh_min, rc_oo_min: ', this%rc_hh_min, this%rc_oo_min
     print'(a30,2f10.3)','stop_OH_min, stop_OH_max: ',this%stop_OH_min, this%stop_OH_max
@@ -846,6 +846,7 @@ do i=1, NATOMS                           ! O
         kgid = l2g(atype(k))
         kty = nint(atype(k))
       endif
+      print*,myid,igid,l2g(atype(l)),is_found_j,is_found_k
    enddo
 
    info_ij = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(jgid)//' '//int_to_str(ity)//' '//int_to_str(jty)
