@@ -380,23 +380,16 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
   read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
   read(funit,*) this%Kr, this%Kq
   read(funit,*) this%r0, this%q0
+  read(funit,*) this%Kr_O, this%r0_O
 
-  if(potential_type == 3) then
-     read(funit,*) this%does_freeze_atoms, this%rc_freeze
-     read(funit,*) this%does_flip_velocity, this%vscale
-
-     allocate(this%frozen_atom_flag(NBUFFER))
-     allocate(this%r_oh(NBUFFER,0:3))
-  else if(potential_type == 4) then
-     read(funit,*) this%beta_1, this%beta_s1, this%beta_l1
-     read(funit,*) this%beta_2, this%beta_s2, this%beta_l2
-     read(funit,*) this%fcut_o, this%fcut_h, this%ffactor
-     read(funit,*) this%dHH_min, this%dHH_max, this%dOH_min
-     read(funit,*) this%dOH_max, this%dOO_min, this%dOO_max 
-     read(funit,*) this%rc_inner, this%rc_outer, this%rc_hh_min, this%rc_oo_min
-     read(funit,*) this%stop_OH_min, this%stop_OH_max
-     read(funit,*) this%Kr_O, this%r0_O
-  endif
+  read(funit,*) this%beta_1, this%beta_s1, this%beta_l1
+  read(funit,*) this%beta_2, this%beta_s2, this%beta_l2
+  read(funit,*) this%fcut_o, this%fcut_h, this%ffactor
+  read(funit,*) this%dHH_min, this%dOH_max, this%dOO_min
+  read(funit,*) this%dHH_max, this%dOH_min, this%dOO_max 
+  read(funit,*) this%rc_inner, this%rc_outer
+  read(funit,*) this%rc_hh_min, this%rc_oo_min
+  read(funit,*) this%stop_OH_min, this%stop_OH_max
 
   this%is_initialized = .true.
 
@@ -408,27 +401,42 @@ subroutine print_type2_params(this, potential_type)
   implicit none
   class(short_repulsion_type2_params) :: this
   integer,intent(in) :: potential_type
+  integer :: iunit
 
   if(myid==0) then
     print'(a30,a7,i3,1x,a7,i3)', "atom types: ", "H -", this%htype, "O -", this%otype
-    print'(a30,3f10.3)', 'alpha_bond, alpha_angle, rc_oh: ', this%alpha_bond, this%alpha_angle, this%rc_oh
+    print'(a35,3f10.3)', 'alpha_bond, alpha_angle, rc_oh: ', this%alpha_bond, this%alpha_angle, this%rc_oh
     print'(a30,2f10.3)', 'Kr, Kq: ', this%Kr, this%Kq
     print'(a30,2f10.3)', 'r0, q0: ', this%r0, this%q0
-    if(potential_type==3) then 
-       print'(a30,l6,f10.3)',  'rc_freeze: ', this%does_freeze_atoms, this%rc_freeze
-       print'(a30,l6,f10.3)',  'vscale: ', this%does_flip_velocity, this%vscale
-    endif
-    if(potential_type==4) then
-       print'(a30,3f10.3)','beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
-       print'(a30,3f10.3)','beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
-       print'(a30,3f10.3)','fcut_o, fcut_h, ffactor: ', this%fcut_o, this%fcut_h, this%ffactor
-       print'(a30,3f10.3)','dHH_min, dHH_max, dOH_min: ',this%dHH_min, this%dHH_max, this%dOH_min
-       print'(a30,3f10.3)','dOH_max, dOO_min, dOO_max: ',this%dOH_max, this%dOO_min, this%dOO_max
-       print'(a30,4f10.3)','rc_inner, rc_outer, rc_hh_min, rc_oo_min: ', &
-                            this%rc_inner, this%rc_outer, this%rc_hh_min, this%rc_oo_min
-       print'(a30,2f10.3)','stop_OH_min, stop_OH_max: ',this%stop_OH_min, this%stop_OH_max
-       print'(a30,2f10.3)','Kr_O, r0_O: ', this%Kr_O, this%r0_O
-    endif
+    print'(a30,2f10.3)','Kr_O, r0_O: ', this%Kr_O, this%r0_O
+
+    print'(a30,3f10.3)','beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
+    print'(a30,3f10.3)','beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
+
+    print'(a30,3f10.3)','fcut_o, fcut_h, ffactor: ', this%fcut_o, this%fcut_h, this%ffactor
+    print'(a30,3f10.3)','dHH_min, dOH_max, dOO_min: ',this%dHH_min, this%dOH_max, this%dOO_min
+    print'(a30,2f10.3,es10.1)','dHH_max, dOH_min, dOO_max: ',this%dHH_max, this%dOH_min, this%dOO_max
+    print'(a30,4f10.3)','rc_inner, rc_outer: ', this%rc_inner, this%rc_outer
+    print'(a30,4f10.3)','rc_hh_min, rc_oo_min: ', this%rc_hh_min, this%rc_oo_min
+    print'(a30,2f10.3)','stop_OH_min, stop_OH_max: ',this%stop_OH_min, this%stop_OH_max
+
+    open(newunit=iunit, file='shortrep.in.current',form='formatted')
+    write(iunit,*) potential_type
+    write(iunit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
+    write(iunit,*) this%Kr, this%Kq
+    write(iunit,*) this%r0, this%q0
+    write(iunit,*) this%Kr_O, this%r0_O
+    
+    write(iunit,*) this%beta_1, this%beta_s1, this%beta_l1
+    write(iunit,*) this%beta_2, this%beta_s2, this%beta_l2
+    write(iunit,*) this%fcut_o, this%fcut_h, this%ffactor
+    write(iunit,*) this%dHH_min, this%dOH_min, this%dOO_min
+    write(iunit,*) this%dHH_max, this%dOH_max, this%dOO_max 
+    write(iunit,*) this%rc_inner, this%rc_outer
+    write(iunit,*) this%rc_hh_min, this%rc_oo_min
+    write(iunit,*) this%stop_OH_min, this%stop_OH_max
+    close(iunit)
+
   endif
 
 end subroutine
