@@ -6,7 +6,128 @@ module fileio
   use atoms
   use memory_allocator_mod
 
+type :: xyz_aggregator
+  logical :: use_aggregator = .false.
+  integer :: num_stack, num_total_atoms
+  integer :: stack_counter = 0
+  real(8),allocatable :: buf_pos(:), buf_type(:)
+  contains
+    procedure :: init => xyz_aggregator_init 
+    procedure :: gather => xyz_aggregator_gather_atom_data
+    procedure :: save => xyz_aggregator_save_into_file
+    procedure :: reset => xyz_aggregator_reset
+end type
+
+type(xyz_aggregator) :: xyz_agg
+
 contains
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_init(this, num_total_atoms, num_stack)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+  integer,intent(in) :: num_stack
+  integer(8),intent(in) :: num_total_atoms
+
+  this%stack_counter = 0
+
+  this%use_aggregator = .true.
+  this%num_stack = num_stack
+  this%num_total_atoms = num_total_atoms
+
+  allocate(this%buf_pos(3*this%num_total_atoms*this%num_stack))
+  allocate(this%buf_type(this%num_total_atoms*this%num_stack))
+  this%buf_pos=0.d0; this%buf_type=0.d0
+
+  if(myid==0) then
+    print*,'stack_counter,use_aggregator,num_stack,num_total_atoms: ', &
+          this%stack_counter,this%use_aggregator,this%num_stack,this%num_total_atoms
+    print*,'shape(buf_pos), shape(buf_type): ',shape(this%buf_pos), shape(this%buf_type)
+  endif
+
+  return
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_gather_atom_data(this,num_atoms,atype,pos)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+  integer,intent(in) :: num_atoms
+  real(8),allocatable,intent(in) :: atype(:)
+  real(8),allocatable,intent(in) :: pos(:,:)
+
+  integer :: i,ii,ii3,igid,offset 
+
+  offset = this%stack_counter*this%num_total_atoms
+
+  print*,'entering gather(): ', this%stack_counter,offset, size(this%buf_type)
+
+  do i=1, num_atoms
+     igid = l2g(atype(i))
+     ii = offset+igid  ! offset is zero-indexed, but igid is 1-indexed
+     this%buf_type(ii) = atype(i)
+
+     ii3 = ii*3 ! 1-indexed multiplied by 3, so the 1st element is ii3-2
+     this%buf_pos(ii3-2:ii3) = pos(i,1:3)
+  enddo
+
+  call mpi_allreduce(mpi_in_place, this%buf_pos(3*offset+1), 3*this%num_total_atoms, &
+                     mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+  call mpi_allreduce(mpi_in_place, this%buf_type(offset+1), this%num_total_atoms, &
+                     mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+
+  this%stack_counter = this%stack_counter + 1
+
+  return
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_save_into_file(this,myrank,filename)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+  character(len=:),allocatable,intent(in) :: filename
+  integer,intent(in) :: myrank
+
+  integer :: i,ii,ii3, istack, iunit, offset
+
+  if(myrank/=0) return  ! only master rank save data
+
+  open(newunit=iunit,file=filename,form='formatted')
+
+  do istack=0, this%num_stack-1
+
+    write(iunit,'(i9)') this%num_total_atoms
+    write(iunit,'(3f12.5,3f8.3,a,i5)')  lata,latb,latc,lalpha,lbeta,lgamma, ' stack ', istack
+
+    offset = istack*this%num_total_atoms
+
+    do i=1, this%num_total_atoms
+      ii = offset + i
+      ii3 = ii*3
+       
+      ity = nint(this%buf_type(ii))
+      !print*,'i,ity,atmname(ity),buf_pos(ii3-2:ii)',istack,i,ity,atmname(ity),this%buf_type(ii),this%buf_pos(ii3-2:ii3)
+
+      write(iunit,'(a,3f10.5,i6)') atmname(ity), this%buf_pos(ii3-2:ii3), l2g(this%buf_type(ii))
+    enddo
+
+  enddo
+
+  close(iunit)
+
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_reset(this)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+
+  ! reset everything
+  this%stack_counter = 0
+  this%buf_pos = 0.d0
+  this%buf_type = 0.d0
+
+end subroutine
 
 !----------------------------------------------------------------------------------------
 subroutine OUTPUT(fileNameBase, atype, pos, v, q, f)
@@ -18,13 +139,30 @@ real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
 real(8),allocatable,intent(in),optional :: f(:,:)
 
-if(isBinary) then
-  call WriteBIN(atype,pos,v,q,fileNameBase)
-endif
+character(len=:),allocatable :: filename
 
-if(isBondFile) call WriteBND(fileNameBase)
-if(isPDB) call WritePDB(fileNameBase)
-if(isXYZ) call WriteXYZ(fileNameBase)
+if(xyz_num_stack>1) then
+
+  call xyz_agg%gather(NATOMS,atype,pos)
+
+  if(xyz_agg%stack_counter == xyz_agg%num_stack) then
+
+    if(isBinary) call WriteBIN(atype,pos,v,q,fileNameBase)
+
+    filename = fileNameBase//"-agg.xyz" 
+    call xyz_agg%save(myid, filename)
+    call xyz_agg%reset()
+
+  endif
+
+else
+
+  if(isBinary) call WriteBIN(atype,pos,v,q,fileNameBase)
+  if(isBondFile) call WriteBND(fileNameBase)
+  if(isPDB) call WritePDB(fileNameBase)
+  if(isXYZ) call WriteXYZ(fileNameBase, atype, pos, v, q, f)
+
+endif
 
 return
 
@@ -243,9 +381,12 @@ it_timer(21)=it_timer(21)+(tj-ti)
 end subroutine
 
 !--------------------------------------------------------------------------
-subroutine WriteXYZ(fileNameBase)
+subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f)
 !--------------------------------------------------------------------------
 implicit none
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
+real(8),allocatable,intent(in),optional :: f(:,:)
 
 character(*),intent(in) :: fileNameBase
 
@@ -1166,7 +1307,20 @@ pos0=(/ &
  1.2374252527000000d0, -0.7327306814000000d0,  3.5131024385999998d0/)
 
 atype0=(/ &
-1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2/)
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,&
+1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2,1,2,2/)
 
 !--- local unit cell parameters
 lata=18.646900d0

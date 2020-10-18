@@ -153,7 +153,7 @@ module fnn
 
   use aenet
 
-  use mod_short_repulsion, only : force_cutoff, short_repulsion, short_rep
+  use mod_short_repulsion, only : short_repulsion, short_rep 
  
   implicit none
 
@@ -232,10 +232,48 @@ do i = 1, NBUFFER
    f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
 enddo
 
-call force_cutoff(NATOMS, atype, f, myid, short_rep)
+!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0) ! before October 06, 9:45pm
+!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.0d0) ! before October 09, 12:04pm
+!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0)
+call force_cutoff(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
 call short_repulsion(short_rep)
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+
+contains
+
+subroutine force_cutoff(fcut_o, fcut_h, ffactor)
+   real(8),intent(in) :: fcut_o, fcut_h, ffactor
+   integer :: i,ia,ity
+   real(8) :: fcut, fset
+   
+   do i = 1, NATOMS
+      ity = nint(atype(i))
+
+      if(ity==1) then
+          fcut = fcut_h
+          fset = fcut*ffactor
+      else if(ity==2) then
+          fcut = fcut_o
+          fset = fcut*ffactor
+      else
+          print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
+          stop 
+      endif
+
+      do ia=1,3
+         if(f(i,ia) > fcut) then
+           print'(a,5i9,es15.5,2f8.2)','max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+           f(i,ia) = fset
+         endif
+         if(f(i,ia) < -fcut) then
+           print'(a,5i9,es15.5,2f8.2)','min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+           f(i,ia) = -fset
+         endif
+      enddo
+
+   enddo
+end subroutine
 
 end subroutine
 

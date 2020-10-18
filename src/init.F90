@@ -9,7 +9,7 @@ module init
   use pqeq_mod, only : PQEq, initialize_eField, initialize_pqeq
   use force_mod, only : force_reaxff
   use memory_allocator_mod
-  use fileio, only : ReadBIN, ReadXYZ
+  use fileio, only : ReadBIN, ReadXYZ, xyz_agg
 
   use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, &
                   num_pairs, num_types, mddriver_fnn, get_max_cutoff
@@ -87,7 +87,10 @@ enddo
 if(is_fnn) then
   fnn_param_obj = mdcontext_fnn()
   mdbase%ff => fnn_param_obj
-  if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn'
+  if(myid==0) then
+     print*,'get_mdcontext_func : mdcontext_fnn'
+     call fnn_param_obj%print()
+  endif
 else
   call mdcontext_reaxff()
   call set_potentialtables_reaxff()
@@ -146,8 +149,8 @@ if(myid==0) then
    write(6,'(a30,es12.2)')   "time step[fs]:",dt*UTIME
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTEP:", &
                                   mdmode, current_step, ntime_step
-   write(6,'(a30,f12.3,f8.3,i9)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep
-   write(6,'(a30,2i6)') 'fstep,pstep:', fstep,pstep
+   write(6,'(a30,f12.3,f8.3,i9,f8.3)') 'treq,vsfact,sstep,vmag_factor:',treq*UTEMP0, vsfact, sstep, vmag_factor
+   write(6,'(a30,3i6)') 'fstep,pstep,xyz_num_stack:', fstep,pstep,xyz_num_stack
    write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
    write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
    write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
@@ -207,6 +210,8 @@ call msd_initialize(m=msd_data, atom_name=atmname, total_steps=ntime_step, onest
 
 !--- intialize short repulsion for neuralnet MD 
 call initialize_short_repulsion(short_rep, atmname)
+
+if(xyz_num_stack>1) call xyz_agg%init(GNATOMS, xyz_num_stack)
 
 !--- keep initial position
 if(isSpring .or. msd_data%is_msd) then

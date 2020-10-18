@@ -6,6 +6,7 @@ use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc, put_rn
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
+                 vmag_factor, xyz_num_stack, &
                  forcefield_type, is_fnn, is_reaxff
 
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
@@ -304,6 +305,7 @@ do while (.true.)
          call get_token_and_set_value(linein, treq)
          call get_token_and_set_value(linein, vsfact)
          call get_token_and_set_value(linein, sstep)
+         call get_token_and_set_value(linein, vmag_factor)
       case ('io_step')
          call get_token_and_set_value(linein, fstep)
          call get_token_and_set_value(linein, pstep)
@@ -406,6 +408,16 @@ endif
 if(find_cmdline_argc('--qstep',idx)) then
     call get_command_argument(idx+1,argv)
     read(argv,*) qstep
+endif
+
+if(find_cmdline_argc('--vmag_factor',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) vmag_factor
+endif
+
+if(find_cmdline_argc('--xyz_num_stack',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) xyz_num_stack
 endif
 
 if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 
