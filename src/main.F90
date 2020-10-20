@@ -23,7 +23,7 @@ call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 
 call mpi_get_processor_name(hostname, resultlen, ierr) 
-print'(a,i9,a)','myid,hostname: ', myid,hostname
+print'(a,1x,i9,1x,a)','INFO: myid,hostname ', myid, hostname
 
 if(myid==0)  print'(a30)', 'rxmd has started'
 

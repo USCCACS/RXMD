@@ -100,8 +100,7 @@ endif
 if(isRunFromXYZ) then
   call ReadXYZ(atype, pos, v, q, f, RunFromXYZPath)
 else
-  !call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
-  call ReadH2O(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+  call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 endif
 
 !--- get global number of atoms by summing up each type. 
