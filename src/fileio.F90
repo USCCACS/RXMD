@@ -686,8 +686,8 @@ pos0=(/ &
 atype0=(/2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1/)
 
 !--- local unit cell parameters
-lata=4.754d0
-latb=8.234d0
+lata=4.5181d0
+latb=lata*sqrt(3.d0)
 latc=7.346d0
 lalpha=90.0000d0
 lbeta=90.0000d0
