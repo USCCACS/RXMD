@@ -1031,7 +1031,6 @@ do i=1, NATOMS                           ! O
         kgid = l2g(atype(k))
         kty = nint(atype(k))
       endif
-      print*,myid,igid,l2g(atype(l)),is_found_j,is_found_k
    enddo
 
    info_ij = int_to_str(myid)//' '//int_to_str(igid)//' '//int_to_str(jgid)//' '//int_to_str(ity)//' '//int_to_str(jty)
