@@ -753,13 +753,11 @@ do i=1, NATOMS
    enddo
 
 enddo
-!print*,shape(f),shape(this%f_spring), size(f,dim=1), size(this%f_spring,dim=1)
-!
-!do i=1, size(f,dim=1)
-!   print'(i9,3f15.10)',i,this%f_spring(i,1:3)
-!do j=1, size(f,dim=2)
-!   f(i,j)=f(i,j)+this%f_spring(i,j)
-!enddo; enddo
+
+do i=1, size(f,dim=1)
+do j=1, size(f,dim=2)
+   f(i,j)=f(i,j)+this%f_spring(i,j)
+enddo; enddo
 
 call bstat%print(myid)
 

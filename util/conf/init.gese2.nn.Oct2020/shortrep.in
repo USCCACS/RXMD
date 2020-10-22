@@ -1,0 +1,13 @@
+5                    ! 01 potential_type             # 4-global Id based, 5-neighbor-list based.
+1.0    0.006  4.0    ! 02 alpha_bond, alpha_angle, cutoff for Ge-Se neighbor list 
+353.720     84.367   ! 03 Kr(Ge-Se spring), Kq(Se-Ge-Se spring)  # (kcal/mol/A^2), (kcal/mol/degree^2)
+2.40    109.00       ! 04 r0(desired Ge-Se bond length), q0 (desired Se-Ge-Se angle)
+35.37     2.7        ! 05 Kr_Ge, rGe_Ge   # (kcal/mol/A^2), (A) one-sided spring parameters for Ge-Ge 
+0.0   2.05   2.95    ! 06 beta_1 beta_s1, beta_l1    # Ge-Se bond range1
+0.0   0.90   1.12    ! xx beta_2 beta_s2, beta_l2    # O-H bond range2
+50.0   50.0   0.7    ! 08 fcut_Ge, fcut_Se,  ffactor   # force filtering parameters
+2.90   2.10   2.90   ! 09 dSeSe_min, dGeSe_min, dGeGe_min  # bond statistics parameters
+4.70   3.00   1d99   ! 10 dSeSe_max, dGeSe_max, dGeGe_max  # bond statistics parameters
+2.20    2.85         ! 11 rc_inner, rc_outer         # distance-based (Ge-Se) ML force termination
+2.90     2.8         ! 12 rc_SeSe_min, rc_GeGe_min       # distance-based (Se-Se,Ge-Ge) ML force termination
+1.5      3.5         ! 13 stop_GeSe_min, stop_GeSe_max   # given code stop conditions based on O-H bond length

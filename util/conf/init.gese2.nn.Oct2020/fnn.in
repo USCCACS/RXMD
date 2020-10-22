@@ -1,0 +1,4 @@
+### GeSe2 system ###
+## model data: element name, AMU, aenet model, cutoff distance
+model  Ge   72.64  Ge.20t-20t.nn   9.0
+model  Se   78.96  Se.20t-20t.nn   9.0
