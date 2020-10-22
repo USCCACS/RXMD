@@ -163,10 +163,6 @@ enddo
 
 call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, size(Ekinetic), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
-! October 8th, 2020
-AverageVelocity(1) = sqrt(2.d0*Ekinetic(2,1)/( Ekinetic(1,1)*mass(1) ) )
-AverageVelocity(2) = sqrt(2.d0*Ekinetic(2,2)/( Ekinetic(1,2)*mass(2) ) )
-
 do ity=1, MAX_ELEMENT
    if(Ekinetic(1,ity)>1.d0) then
       ctmp(ity) = Ekinetic(2,ity)/Ekinetic(1,ity)
@@ -180,6 +176,10 @@ do ity=1, MAX_ELEMENT
 enddo
 
 ! October 8th, 2020
+do ity=1, size(mass)
+   AverageVelocity(ity) = sqrt(2.d0*Ekinetic(2,ity)/( Ekinetic(1,ity)*mass(ity) ) )
+enddo
+
 vcounter=0
 do i=1, NATOMS
    ity=nint(atype(i))

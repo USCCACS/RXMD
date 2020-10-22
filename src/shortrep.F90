@@ -50,7 +50,7 @@ end type
 type short_repulsion_type2_params
 
   real(8) :: alpha_bond, alpha_angle, vscale
-  real(8) :: rc_oh
+  real(8) :: rc_nbr
 
   real(8) :: Kr, Kq, Kr_O
   real(8) :: r0, q0, r0_O
@@ -60,13 +60,15 @@ type short_repulsion_type2_params
   real(8) :: beta_1, beta_2
   real(8) :: beta_s1, beta_l1, beta_s2, beta_l2
 
-  integer :: htype, otype
+  integer :: htype=-1, otype=-1, getype=-1, setype=-1
 
   real(8) :: fcut_o=75d0, fcut_h=50d0, ffactor=0.7d0
 
   real(8) :: rc_inner, rc_outer, rc_hh_min, rc_oo_min
 
   real(8) :: stop_OH_min, stop_OH_max
+
+  real(8),allocatable :: f_spring(:,:)
 
   character(2),allocatable :: atom_name(:)
 
@@ -85,7 +87,8 @@ type short_repulsion_type2_params
     procedure :: read => read_type2_params
     procedure :: print => print_type2_params
     procedure :: apply2 => apply_type2_short_repulsion
-    procedure :: apply3or4 => apply_type3or4_short_repulsion
+    procedure :: apply4 => apply_type4_short_repulsion
+    procedure :: apply5 => apply_type5_short_repulsion
     procedure :: flipv => flip_frozenh_velocity
     procedure :: freezex => freeze_h_in_overstreched_bond
     procedure :: oo_spring => spring_potential_for_OObond
@@ -369,15 +372,19 @@ subroutine read_type2_params(this, funit, atom_name, potential_type)
   integer :: ity, jty
   real(8) :: sigma_sum
 
-  call assert(2<=potential_type .and. potential_type<=4, &
+  call assert(2<=potential_type .and. potential_type<=5, &
      'unsupported potential type in read_type2_params(). Exiting rxmd.', myid)
+
+  allocate(this%f_spring(NBUFFER,3))
 
   do ity=1, size(atom_name)
      if(index(atom_name(ity),"H") /=0) this%htype=ity
      if(index(atom_name(ity),"O") /=0) this%otype=ity
+     if(index(atom_name(ity),"Ge") /=0) this%getype=ity
+     if(index(atom_name(ity),"Se") /=0) this%setype=ity
   enddo
 
-  read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
+  read(funit,*) this%alpha_bond, this%alpha_angle, this%rc_nbr
   read(funit,*) this%Kr, this%Kq
   read(funit,*) this%r0, this%q0
   read(funit,*) this%Kr_O, this%r0_O
@@ -404,8 +411,11 @@ subroutine print_type2_params(this, potential_type)
   integer :: iunit
 
   if(myid==0) then
-    print'(a30,a7,i3,1x,a7,i3)', "atom types: ", "H -", this%htype, "O -", this%otype
-    print'(a35,3f10.3)', 'alpha_bond, alpha_angle, rc_oh: ', this%alpha_bond, this%alpha_angle, this%rc_oh
+    if(this%htype>0) print'(a30,a7,i3)',  "atom type: ", "H -", this%htype
+    if(this%otype>0) print'(a30,a7,i3)',  "atom type: ", "O -", this%otype
+    if(this%getype>0) print'(a30,a7,i3)', "atom type: ", "Ge -", this%getype
+    if(this%setype>0) print'(a30,a7,i3)', "atom type: ", "Se -", this%setype
+    print'(a35,3f10.3)', 'alpha_bond, alpha_angle, rc_nbr: ', this%alpha_bond, this%alpha_angle, this%rc_nbr
     print'(a30,2f10.3)', 'Kr, Kq: ', this%Kr, this%Kq
     print'(a30,2f10.3)', 'r0, q0: ', this%r0, this%q0
     print'(a30,2f10.3)','Kr_O, r0_O: ', this%Kr_O, this%r0_O
@@ -422,7 +432,7 @@ subroutine print_type2_params(this, potential_type)
 
     open(newunit=iunit, file='shortrep.in.current',form='formatted')
     write(iunit,*) potential_type
-    write(iunit,*) this%alpha_bond, this%alpha_angle, this%rc_oh
+    write(iunit,*) this%alpha_bond, this%alpha_angle, this%rc_nbr
     write(iunit,*) this%Kr, this%Kq
     write(iunit,*) this%r0, this%q0
     write(iunit,*) this%Kr_O, this%r0_O
@@ -518,12 +528,12 @@ endif
 end subroutine
 
 !-----------------------------------------------------------------------
-subroutine ForceA3(coeff,i,j,k,da0, da1)
+subroutine ForceA3(coeff,i,j,k,da0, da1, f)
 ! derivative of <cos_ijk>
 !-----------------------------------------------------------------------
 implicit none
 ! Caa(0,0)=Caa, Caa(0,-1)=Caa-1, Caa(-1,0)=Ca-1a, Caa(-1,-1)=Ca-1a-1
-
+real(8),intent(in out) :: f(NBUFFER,3)
 real(8),INTENT(IN) :: coeff, da0(0:3), da1(0:3)
 integer,INTENT(IN) :: i,j,k
 real(8) :: Caa(-2:0,-2:0), Ci(3), Ck(3)
@@ -579,7 +589,184 @@ f(k,3) = f(k,3) - fjk(3)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine apply_type3or4_short_repulsion(this, potential_type, bstat, lj_pot)
+subroutine apply_type5_short_repulsion(this, potential_type, bstat)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type2_params),intent(in out) :: this
+integer,intent(in) :: potential_type
+type(bond_stats),intent(in out) :: bstat
+
+real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
+integer :: i, j, j1, ity, jty, k, k1, k2, k3, k4, igid, jgid, kgid
+
+integer,parameter :: MAXNEIGHBS = 100
+integer :: nbr_count, nbr_index(MAXNEIGHBS)
+integer :: se_list(4)
+real(8) :: nbr_dist(MAXNEIGHBS), dist_1st, dist_2nd
+real(8) :: rsese(0:3), rij(0:3), rik(0:3), rij0(0:3)
+real(8) :: rhh(0:3), roo(0:3), roo_min
+real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3)
+
+real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
+
+!call set_force_zero(this%rc_inner, this%rc_outer, this%rc_hh_min)
+this%f_spring=0.d0
+
+call bstat%reset()
+
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+
+   if(ity/=this%getype) cycle ! only Ge
+
+   igid = l2g(atype(i))
+
+   roo_min = 1d99
+   nbr_count = 0; nbr_dist = MAX_DIST
+   do j1 = 1, nbrlist(i,0)
+
+      j = nbrlist(i,j1)
+      jty = nint(atype(j))
+
+      ! Ge-Ge force cut
+      if(jty==this%getype) then
+
+        rsese(1:3) = pos(i,1:3) - pos(j,1:3)
+        rsese(0) = sqrt(sum(rsese(1:3)*rsese(1:3)))
+        if(roo_min>rsese(0)) roo_min = rsese(0)
+
+        if(rsese(0)<this%rc_oo_min) then  
+           f(i,1:3)=0.d0 ! clear ML force for Ge-Ge
+           f(j,1:3)=0.d0 ! clear ML force for Ge-Ge
+        endif
+      endif
+
+      if(jty/=this%setype) cycle  ! only Se
+
+      dr(1:3) = pos(i,1:3) - pos(j,1:3)
+      dr2 = sum(dr(1:3)*dr(1:3))
+      dr1 = sqrt(dr2)
+
+      if(dr1>this%rc_nbr) cycle ! Ge-Se bond cutoff for neighbor list
+
+      nbr_count = nbr_count + 1
+      nbr_index(nbr_count) = j
+      nbr_dist(nbr_count) = dr1
+
+      !if(myid==0) print'(a,i6,2i6,f8.3)','jty, this%htype:',i,jty,this%htype, dr1
+
+      !f(i,1:3) = f(i,1:3) + fcoef*dr(1:3)
+   enddo
+
+   call assert(nbr_count>=4, 'ERROR: found less than 4 Se neighbors from Ge ', myid)
+   !print*,'nbr_index: ', i,nbr_count,nbr_index(1:nbr_count)
+   !print*,'nbr_dist: ', i,nbr_count,nbr_dist(1:nbr_count)
+
+   if(roo_min<bstat%dOO_min) bstat%num_oo_min = bstat%num_oo_min + 1
+
+   ! pickup 4 Se atoms
+   se_list = -1
+   do j1 = 1, 4
+      j = minloc(nbr_dist,dim=1)
+      se_list(j1) = nbr_index(j)
+      nbr_dist(j) = MAX_DIST
+   enddo
+   !print'(a,6i6)','myid,se_list: ', myid,i,se_list(1:4)
+
+   do j1 = 1, size(se_list)
+
+      j = se_list(j1)
+      jgid = l2g(atype(j))
+
+      rij(1:3) = pos(i,1:3)-pos(j,1:3)
+      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+      rij(1:3) = rij(1:3)/rij(0)
+
+      !*** clear ML force for Ge-Se ***
+      if(rij(0)<this%rc_inner.or.this%rc_outer<rij(0)) then
+        !print'(a,f6.3,7e11.3)','fzero: myid,i,j,ity,jty,rij,fi,fj: '//info_ij,rij(0),f(i,1:3),f(j,1:3)
+        f(j,1:3)=0.d0  
+      endif
+
+      Krcoef = this%alpha_bond * this%Kr*(rij(0)-this%r0) ! ij
+
+      ff(1:3) = Krcoef*rij(1:3)
+      this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
+      this%f_spring(j,1:3) = this%f_spring(j,1:3) + ff(1:3)
+
+      if(rij(0)>bstat%dOH_max) print'(a,2i9,f8.3)','OUTLIER: j-atom is too far',igid,jgid,rij(0)
+      if(rij(0)<bstat%dOH_min) print'(a,2i9,f8.3)','OUTLIER: j-atom is too close ',igid,jgid,rij(0)
+      if(rij(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
+      if(rij(0)<bstat%dOH_min) bstat%num_oh_min = bstat%num_oh_min + 1
+
+      do k1 = j1 + 1, size(se_list)
+
+         k = se_list(k1)
+         kgid = l2g(atype(k))
+
+         rik(1:3) = pos(i,1:3)-pos(k,1:3)
+         rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+         rik(1:3) = rik(1:3)/rik(0)
+
+         !*** clear ML force for Ge-Se ***
+         if(rik(0)<this%rc_inner.or.this%rc_outer<rik(0)) then
+           !print'(a,f6.3,7e11.3)','fzero: myid,i,k,ity,kty,rik,fi,fk: '//info_ik,rik(0),f(i,1:3),f(k,1:3)
+           f(k,1:3)=0.d0  
+         endif
+
+         ff(1:3) = Krcoef*rik(1:3)
+         this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
+         this%f_spring(k,1:3) = this%f_spring(k,1:3) + ff(1:3)
+
+         cosine = sum(rij(1:3)*rik(1:3))
+         theta = acos(cosine)
+         sine = sin(theta)
+
+         call assert(abs(sine)>1d-9, 'ERROR: too small Se-Ge-Se angle', myid)
+
+         Kqcoef = this%alpha_angle * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
+
+         rij0(0)=rij(0); rij0(1:3)=-rij(1:3)
+         call ForceA3(Kqcoef,j,i,k,rij0,rik, this%f_spring)
+
+         ! Se-Se distance 
+         rhh(1:3) = pos(j,1:3) - pos(k,1:3)
+         rhh(0) = sqrt(sum(rhh(1:3)*rhh(1:3)))
+
+         !*** clear ML force for Se-Se ***
+         if(rhh(0) < this%rc_hh_min) then
+           f(j,1:3)=0d0 
+           f(k,1:3)=0d0 
+         endif
+
+         if(rik(0)>bstat%dOH_max) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too far ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+         if(rik(0)<bstat%dOH_min) print'(a,3i9,3f8.3)','OUTLIER: k-atom is too close ',igid,jgid,kgid,rij(0),rik(0),rhh(0)
+         if(rik(0)>bstat%dOH_max) bstat%num_oh_max = bstat%num_oh_max + 1
+         if(rik(0)<bstat%dOH_min) bstat%num_oh_min = bstat%num_oh_min + 1
+
+         if(rhh(0)>bstat%dHH_max) bstat%num_hh_max = bstat%num_hh_max + 1
+         if(rhh(0)<bstat%dHH_min) bstat%num_hh_min = bstat%num_hh_min + 1
+
+      enddo
+
+      !write(unit=6,fmt='(a,4f12.3)') 'Krcoef, ff(1:3): ', Krcoef, ff(1:3)
+   enddo
+
+enddo
+!print*,shape(f),shape(this%f_spring), size(f,dim=1), size(this%f_spring,dim=1)
+!
+!do i=1, size(f,dim=1)
+!   print'(i9,3f15.10)',i,this%f_spring(i,1:3)
+!do j=1, size(f,dim=2)
+!   f(i,j)=f(i,j)+this%f_spring(i,j)
+!enddo; enddo
+
+call bstat%print(myid)
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine apply_type4_short_repulsion(this, potential_type, bstat, lj_pot)
 !-----------------------------------------------------------------------------
 class (short_repulsion_type2_params),intent(in) :: this
 integer,intent(in) :: potential_type
@@ -797,9 +984,7 @@ do i=1, NATOMS                           ! O
 
    rij(1:3)=-rij(1:3)
    !print*,Kqcoef, theta*180d0/pi, this%q0
-   call ForceA3(Kqcoef,j,i,k,rij,rik)
-
-
+   call ForceA3(Kqcoef,j,i,k,rij,rik, f)
 enddo
 
 call bstat%print(myid)
@@ -1135,7 +1320,7 @@ do i=1, NATOMS
       dr1 = sqrt(dr2)
       dri = 1d0/dr1
 
-      if(dr1>this%rc_oh) cycle
+      if(dr1>this%rc_nbr) cycle
 
       nbr_count = nbr_count + 1
       nbr_index(nbr_count) = j
@@ -1198,7 +1383,7 @@ do i=1, NATOMS
 
    rij(1:3)=-rij(1:3)
    !print*,Kqcoef, theta*180d0/pi, this%q0
-   call ForceA3(Kqcoef,j,i,k,rij,rik)
+   call ForceA3(Kqcoef,j,i,k,rij,rik, f)
 
    !if(myid==0) print'(a,3i6,3f8.3)','i,j,k,dist_1st,dist_2nd, theta: ', &
    !    i, j, k, dist_1st, dist_2nd, theta
@@ -1244,7 +1429,8 @@ end subroutine
 !-----------------------------------------------------------------------------
 subroutine short_repulsion(sr)
 !-----------------------------------------------------------------------------
-type(short_repulsion_type),intent(in) :: sr
+!type(short_repulsion_type),intent(in) :: sr
+type(short_repulsion_type),intent(in out) :: sr ! intent(out) because of f_spring. move it out from sr?
 character(len=:),allocatable :: filebase
 real(8),allocatable :: ftmp(:,:)
 
@@ -1255,7 +1441,9 @@ if (sr%potential_type==1) then
 else if (sr%potential_type==2) then
   call sr%p2%apply2()
 else if (sr%potential_type==3.or.sr%potential_type==4) then
-  call sr%p2%apply3or4(sr%potential_type, bstat, lj_pot)
+  call sr%p2%apply4(sr%potential_type, bstat, lj_pot)
+else if (sr%potential_type==5) then
+  call sr%p2%apply5(sr%potential_type, bstat)
 else
   print*,'To be implemented'
 
