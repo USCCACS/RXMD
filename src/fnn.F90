@@ -235,8 +235,11 @@ enddo
 !call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0) ! before October 06, 9:45pm
 !call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.0d0) ! before October 09, 12:04pm
 !call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0)
-call force_cutoff(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
-call short_repulsion(short_rep)
+
+if(short_rep%has_short_repulsion) then
+  call force_cutoff(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
+  call short_repulsion(short_rep)
+endif
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
@@ -246,6 +249,7 @@ subroutine force_cutoff(fcut_o, fcut_h, ffactor)
    real(8),intent(in) :: fcut_o, fcut_h, ffactor
    integer :: i,ia,ity
    real(8) :: fcut, fset
+
    
    do i = 1, NATOMS
       ity = nint(atype(i))
