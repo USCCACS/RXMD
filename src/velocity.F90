@@ -150,7 +150,7 @@ integer,parameter :: MAX_ELEMENT=20
 real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
 
 ! October 8th, 2020
-real(8) :: AverageVelocity(2), vmag
+real(8) :: AverageVelocity(MAX_ELEMENT), vmag
 integer :: vcounter
 
 Ekinetic(:,:)=0.d0
