@@ -141,6 +141,8 @@ real(8),allocatable,intent(in),optional :: f(:,:)
 
 character(len=:),allocatable :: filename
 
+integer :: idx
+
 if(xyz_num_stack>1) then
 
   call xyz_agg%gather(NATOMS,atype,pos)
@@ -160,7 +162,13 @@ else
   if(isBinary) call WriteBIN(atype,pos,v,q,fileNameBase)
   if(isBondFile) call WriteBND(fileNameBase)
   if(isPDB) call WritePDB(fileNameBase)
-  if(isXYZ) call WriteXYZ(fileNameBase, atype, pos, v, q, f)
+  if(isXYZ) then
+     if( find_cmdline_argc('--xyz_pto',idx)) then
+       call WriteXYZ_PTO(fileNameBase, atype, pos, v, q, f)
+     else
+       call WriteXYZ(fileNameBase, atype, pos, v, q, f)
+     endif
+  endif
 
 endif
 
@@ -379,6 +387,180 @@ it_timer(21)=it_timer(21)+(tj-ti)
 
 
 end subroutine
+
+!--------------------------------------------------------------------------
+subroutine WriteXYZ_PTO(fileNameBase, atype, pos, v, q, f)
+!--------------------------------------------------------------------------
+implicit none
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
+real(8),allocatable,intent(in),optional :: f(:,:)
+
+character(*),intent(in) :: fileNameBase
+
+integer :: i, ity, idx1, idx0, igd
+
+integer (kind=MPI_OFFSET_KIND) :: offset
+integer (kind=MPI_OFFSET_KIND) :: fileSize
+integer :: localDataSize
+integer :: fh ! file handler
+
+integer :: OneLineSize, MetaDataSize
+character(60) :: a60
+character(len=:),allocatable :: OneLine,AllLines
+
+integer :: scanbuf
+
+integer :: ti,tj,tk
+
+integer :: j1,j,jty,nTi, ibond
+real(8),allocatable :: dpol(:,:)
+real(8) :: centroid(3), dr(3), drsq
+
+integer,parameter :: mxbond = 6
+real(8),parameter :: rcut = 3.d0, rcutsq = rcut*rcut
+
+integer(8) :: GNATOMS_Ti
+
+call system_clock(ti,tk)
+
+allocate(dpol(NATOMS,3))
+dpol = 0.d0
+
+nTi=0
+do i=1, NATOMS !i atom loop
+
+   ity = nint(atype(i))
+
+   if(atmname(ity) == "Ti") then ! if i atom is Ti compute polarization
+
+      nTi=nTi+1
+      ibond=0
+      centroid = 0.0d0 !reset centroid positions
+
+      do j1 = 1, nbrlist(i,0) !j atom loop
+
+         j = nbrlist(i,j1)
+         jty = nint(atype(j))
+
+         if(atmname(jty) == "O") then !is atom j O ?
+           dr(1:3) = pos(i,1:3) - pos(j,1:3)
+           drsq = dr(1)*dr(1)+dr(2)*dr(2)+dr(3)*dr(3)
+
+           if(drsq < rcutsq) then ! Am I bonded ?
+             centroid(1:3) = centroid(1:3) + pos(j,1:3)
+             ibond=ibond+1
+           endif 
+
+         endif 
+
+      enddo !end j loop
+
+      if(ibond<mxbond) print'(a,3i9)', "WARNING Broken Symmetry LT 6 Ti-O Bonds: myid,ibond,mxbond ", myid, ibond, mxbond
+      if(ibond>mxbond) print'(a,3i9)', "WARNING Broken Symmetry GT 6 Ti-O Bonds: myid,ibond,mxbond ", myid, ibond, mxbond
+
+      centroid(1:3) = centroid(1:3)/dble(ibond)
+      dpol(i,1:3) = pos(i,1:3) - centroid(1:3)
+
+   endif !end Ti check
+
+enddo !end i atom loop
+
+! GNATOMS, 6 lattice parameters, two newlines.
+MetaDataSize = 9 + 60 + 2
+write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
+
+! name + pos(i,1:3) + gid + dpol(i,1:3) + newline
+OneLineSize = 3 + 36 + 9 + 36 + 1 
+
+! get local datasize
+if(find_cmdline_argc('--xyz_pto_tionly',idx)) then
+  localDataSize=nTi*OneLineSize
+else
+  localDataSize=NATOMS*OneLineSize
+endif
+if(myid==0) localDataSize = localDataSize + MetaDataSize
+
+call MPI_File_Open(MPI_COMM_WORLD,trim(fileNameBase)//".xyz", &
+     MPI_MODE_WRONLY+MPI_MODE_CREATE,MPI_INFO_NULL,fh,ierr)
+
+! offset will point the end of local write after the scan
+call MPI_Scan(localDataSize,scanbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+
+! since offset is MPI_OFFSET_KIND and localDataSize is integer, use an integer as buffer
+offset=scanbuf
+
+! nprocs-1 rank has the total data size
+call MPI_Bcast(scanbuf,1,MPI_INTEGER,nprocs-1,MPI_COMM_WORLD,ierr)
+fileSize=scanbuf
+
+call MPI_File_set_size(fh, fileSize, ierr)
+
+! set offset at the beginning of the local write
+offset=offset-localDataSize
+
+call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
+
+allocate(character(OneLineSize) :: OneLine)
+allocate(character(localDataSize) :: AllLines)
+
+GNATOMS_Ti = nTi
+call MPI_ALLREDUCE(MPI_IN_PLACE, GNATOMS_Ti, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+
+idx0=1 ! allline index
+if(myid==0) then
+
+  if(find_cmdline_argc('--xyz_pto_tionly',idx)) then
+    write(AllLines(idx0:idx0+8),'(i9)') GNATOMS_Ti; idx0=idx0+9
+  else
+    write(AllLines(idx0:idx0+8),'(i9)') GNATOMS; idx0=idx0+9
+  endif
+
+  write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+  write(AllLines(idx0:idx0+59),'(a60)') a60; idx0=idx0+60
+  write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
+endif
+
+do i=1, NATOMS
+  idx1 = 1 ! oneline index
+
+  ity = nint(atype(i))
+  igd = l2g(atype(i))
+
+  if(find_cmdline_argc('--xyz_pto_tionly',idx) .and. atmname(ity) /= "Ti") cycle
+
+! element name
+  write(OneLine(idx1:idx1+2),'(a3)') atmname(ity); idx1=idx1+3
+
+! atom positions. with high precision for dielectric calculation
+  write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
+
+! global Id
+  write(OneLine(idx1:idx1+8),'(i9)') igd; idx1=idx1+9
+
+  write(OneLine(idx1:idx1+35),'(3es12.4)') dpol(i,1:3); idx1=idx1+36
+  write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
+
+  write(AllLines(idx0:idx0+OneLineSize-1),'(a)') OneLine; idx0=idx0+OneLineSize
+
+enddo
+
+if(localDataSize>0) then
+    call MPI_File_Write(fh,AllLines,localDataSize, &
+         MPI_CHARACTER,MPI_STATUS_IGNORE,ierr)
+endif
+
+deallocate(AllLines, OneLine)
+deallocate(dpol)
+
+call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+call MPI_File_Close(fh,ierr)
+
+call system_clock(tj,tk)
+it_timer(21)=it_timer(21)+(tj-ti)
+
+end subroutine
+
 
 !--------------------------------------------------------------------------
 subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f)
