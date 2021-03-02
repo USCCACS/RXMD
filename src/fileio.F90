@@ -420,12 +420,18 @@ real(8) :: centroid(3), dr(3), drsq
 integer,parameter :: mxbond = 6
 real(8),parameter :: rcut = 3.d0, rcutsq = rcut*rcut
 
+integer :: octa_parity(2)
+integer,allocatable :: rotation_flag(:)
+real(8),parameter :: aaxis = 3.902d0
+
 integer(8) :: GNATOMS_Ti
 
 call system_clock(ti,tk)
 
 allocate(dpol(NATOMS,3))
 dpol = 0.d0
+allocate(rotation_flag(NATOMS))
+rotation_flag = 0
 
 nTi=0
 do i=1, NATOMS !i atom loop
@@ -437,6 +443,8 @@ do i=1, NATOMS !i atom loop
       nTi=nTi+1
       ibond=0
       centroid = 0.0d0 !reset centroid positions
+
+      octa_parity(1:2)=nint(pos(i,1:2)/aaxis)
 
       do j1 = 1, nbrlist(i,0) !j atom loop
 
@@ -450,11 +458,14 @@ do i=1, NATOMS !i atom loop
            if(drsq < rcutsq) then ! Am I bonded ?
              centroid(1:3) = centroid(1:3) + pos(j,1:3)
              ibond=ibond+1
+
+             if(dr(2)>1d0.and.abs(dr(1))>0.3d0) rotation_flag(i) = nint(sign(1.0,dr(1)))
            endif 
 
          endif 
 
       enddo !end j loop
+
 
       if(ibond<mxbond) print'(a,3i9)', "WARNING Broken Symmetry LT 6 Ti-O Bonds: myid,ibond,mxbond ", myid, ibond, mxbond
       if(ibond>mxbond) print'(a,3i9)', "WARNING Broken Symmetry GT 6 Ti-O Bonds: myid,ibond,mxbond ", myid, ibond, mxbond
@@ -470,8 +481,8 @@ enddo !end i atom loop
 MetaDataSize = 9 + 60 + 2
 write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
 
-! name + pos(i,1:3) + gid + dpol(i,1:3) + newline
-OneLineSize = 3 + 36 + 9 + 36 + 1 
+! name + pos(i,1:3) + gid + dpol(i,1:3) + octa_order + newline
+OneLineSize = 3 + 36 + 9 + 36 + 2 + 1 
 
 ! get local datasize
 if(find_cmdline_argc('--xyz_pto_tionly',idx)) then
@@ -539,6 +550,18 @@ do i=1, NATOMS
   write(OneLine(idx1:idx1+8),'(i9)') igd; idx1=idx1+9
 
   write(OneLine(idx1:idx1+35),'(3es12.4)') dpol(i,1:3); idx1=idx1+36
+
+  octa_parity(1:2) = nint(pos(i,1:2)/aaxis)
+  if( rotation_flag(i) == 0 ) then
+    write(OneLine(idx1:idx1+1),'(i2)') 0; idx1=idx1+2
+  else
+    if( mod((octa_parity(1) + octa_parity(2)),2)*2 - 1 == rotation_flag(i) ) then
+      write(OneLine(idx1:idx1+1),'(i2)') 1; idx1=idx1+2
+    else
+      write(OneLine(idx1:idx1+1),'(i2)') 2; idx1=idx1+2
+    endif 
+  endif
+
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 
   write(AllLines(idx0:idx0+OneLineSize-1),'(a)') OneLine; idx0=idx0+OneLineSize
@@ -551,7 +574,7 @@ if(localDataSize>0) then
 endif
 
 deallocate(AllLines, OneLine)
-deallocate(dpol)
+deallocate(dpol, rotation_flag)
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
