@@ -94,6 +94,53 @@ type short_repulsion_type2_params
     procedure :: oo_spring => spring_potential_for_OObond
 end type
 
+type short_repulsion_type6_params
+
+  real(8) :: a_bond_OH, a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
+  real(8) :: Kr_OH, Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
+  real(8) :: r0_OH, q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
+
+  real(8) :: a_bond_ONa, a_angle_NaOH   ! alpha_bond(O-Na), alpha_angle(Na-O-H)
+  real(8) :: Kr_ONa, Kq_NaOH            ! Kr(O-Na spring), Kq(Na-O-H spring)
+  real(8) :: r0_ONa, q0_NaOH            ! r0(desired O-Na bond length), q0 (desired Na-O-H angle)
+
+  real(8) :: Kr_O, r0_O    ! one-sided spring parameters for O-O
+  real(8) :: Kr_Na, r0_Na  ! one-sided spring parameters for Na-Na
+
+  real(8) :: beta_1, beta_2
+  real(8) :: beta_s1, beta_l1, beta_s2, beta_l2
+
+  integer :: natype=-1, htype=-1, otype=-1
+
+  real(8) :: fcut_o=75d0, fcut_h=50d0, fcut_na=30d0, ffactor=0.7d0  ! force filtering parameters
+
+  real(8) :: rc_inner, rc_outer    ! distance-based (O-H) ML force termination
+  real(8) :: rc_hh_min, rc_oo_min  ! distance-based (H-H,O-O) ML force termination
+  real(8) :: rc_ONa_inner, rc_ONa_outer  ! distance-based (O-Na) ML force termination
+  real(8) :: rc_NaH_min, rc_NaNa_min     ! distance-based (H-Na,Na-Na) ML force termination
+
+  real(8) :: stop_OH_min, stop_OH_max   ! code stop conditions based on O-H bond length
+  real(8) :: stop_ONa_min, stop_ONa_max ! code stop conditions based on O-Na bond length
+
+  character(2),allocatable :: atom_name(:)
+
+  logical :: is_initialized = .false.
+
+  real(8),allocatable :: f_spring(:,:)
+
+  real(8),allocatable :: r_oh(:,:)
+
+  type(bond_stats) :: bstat
+  real(8) :: dHH_min, dHH_max, dOH_min, dOH_max, dOO_min, dOO_max ! bond_stats parameters
+  real(8) :: dNaNa_min, dNaNa_max, dONa_min, dONa_max ! bond_stats parameters
+
+  contains 
+    procedure :: read => read_type6_params
+    procedure :: print => print_type6_params
+    procedure :: apply => apply_type6_short_repulsion
+end type
+
+
 type short_repulsion_type
 
   logical :: has_short_repulsion=.false.
@@ -102,27 +149,135 @@ type short_repulsion_type
 
   type(short_repulsion_type1_params) :: p1
   type(short_repulsion_type2_params) :: p2
+  type(short_repulsion_type6_params) :: p6
 
 end type 
-
-type lj_potential_type
-  real(8) :: sigma=2.5d0, epsiron=1.d0
-  real(8) :: rcutoff=2.6d0
-
-  contains 
-    procedure :: init => set_cutoff_lj_potential
-    procedure :: calc => calc_force_lj_potential
-    procedure :: save_table => save_table_lj_potential
-end type
-
 
 type(short_repulsion_type) short_rep
 
 type(bond_stats) bstat
 
-type(lj_potential_type) lj_pot
-
 contains
+
+!-----------------------------------------------------------------------------
+subroutine read_type6_params(this, funit, atom_name, potential_type)
+!-----------------------------------------------------------------------------
+  implicit none
+  class(short_repulsion_type6_params) :: this
+  character(2),allocatable,intent(in) :: atom_name(:)
+  integer,intent(in) :: potential_type
+
+  integer,intent(in) :: funit 
+  integer :: ity, jty
+  real(8) :: sigma_sum
+
+  call assert(potential_type==6, &
+     'unsupported potential type in read_type6_params(). Exiting rxmd.', myid)
+
+  allocate(this%f_spring(NBUFFER,3))
+
+  do ity=1, size(atom_name)
+     if(index(atom_name(ity),"H") /=0) this%htype=ity
+     if(index(atom_name(ity),"O") /=0) this%otype=ity
+     if(index(atom_name(ity),"Na") /=0) this%natype=ity
+  enddo
+
+  read(funit,*) this%a_bond_OH, this%a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
+  read(funit,*) this%Kr_OH, this%Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
+  read(funit,*) this%r0_OH, this%q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
+
+  read(funit,*) this%a_bond_ONa, this%a_angle_NaOH   ! alpha_bond(O-Na), alpha_angle(Na-O-H)
+  read(funit,*) this%Kr_ONa, this%Kq_NaOH            ! Kr(O-Na spring), Kq(Na-O-H spring)
+  read(funit,*) this%r0_ONa, this%q0_NaOH            ! r0(desired O-Na bond length), q0 (desired Na-O-H angle)
+
+  read(funit,*) this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
+  read(funit,*) this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
+
+  read(funit,*) this%beta_1, this%beta_2
+  read(funit,*) this%beta_s1, this%beta_l1, this%beta_s2, this%beta_l2
+
+  read(funit,*) this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  ! force filtering parameters
+
+  read(funit,*) this%rc_inner, this%rc_outer    ! distance-based (O-H) ML force termination
+  read(funit,*) this%rc_hh_min, this%rc_oo_min  ! distance-based (H-H,O-O) ML force termination
+  read(funit,*) this%rc_ONa_inner, this%rc_ONa_outer  ! distance-based (O-Na) ML force termination
+  read(funit,*) this%rc_NaH_min, this%rc_NaNa_min     ! distance-based (H-Na,Na-Na) ML force termination
+
+  read(funit,*) this%stop_OH_min, this%stop_OH_max   ! code stop conditions based on O-H bond length
+  read(funit,*) this%stop_ONa_min, this%stop_ONa_max ! code stop conditions based on O-Na bond length
+
+  this%is_initialized = .true.
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine print_type6_params(this, potential_type)
+!-----------------------------------------------------------------------------
+  implicit none
+  class(short_repulsion_type6_params) :: this
+  integer,intent(in) :: potential_type
+  integer :: iunit
+
+  if(myid==0) then
+    if(this%htype>0) print'(a30,a7,i3)',  "atom type: ", "H -", this%htype
+    if(this%otype>0) print'(a30,a7,i3)',  "atom type: ", "O -", this%otype
+    if(this%natype>0) print'(a30,a7,i3)', "atom type: ", "Na -", this%natype
+
+    write(*,*) this%a_bond_OH, this%a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
+    write(*,*) this%Kr_OH, this%Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
+    write(*,*) this%r0_OH, this%q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
+  
+    write(*,*) this%a_bond_ONa, this%a_angle_NaOH   ! alpha_bond(O-Na), alpha_angle(Na-O-H)
+    write(*,*) this%Kr_ONa, this%Kq_NaOH            ! Kr(O-Na spring), Kq(Na-O-H spring)
+    write(*,*) this%r0_ONa, this%q0_NaOH            ! r0(desired O-Na bond length), q0 (desired Na-O-H angle)
+  
+    write(*,*) this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
+    write(*,*) this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
+  
+    write(*,*) this%beta_1, this%beta_2
+    write(*,*) this%beta_s1, this%beta_l1, this%beta_s2, this%beta_l2
+  
+    write(*,*) this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  ! force filtering parameters
+  
+    write(*,*) this%rc_inner, this%rc_outer    ! distance-based (O-H) ML force termination
+    write(*,*) this%rc_hh_min, this%rc_oo_min  ! distance-based (H-H,O-O) ML force termination
+    write(*,*) this%rc_ONa_inner, this%rc_ONa_outer  ! distance-based (O-Na) ML force termination
+    write(*,*) this%rc_NaH_min, this%rc_NaNa_min     ! distance-based (H-Na,Na-Na) ML force termination
+  
+    write(*,*) this%stop_OH_min, this%stop_OH_max   ! code stop conditions based on O-H bond length
+    write(*,*) this%stop_ONa_min, this%stop_ONa_max ! code stop conditions based on O-Na bond length
+
+    open(newunit=iunit, file='shortrep.in.current',form='formatted')
+    write(iunit,*) potential_type
+    write(iunit,*) this%a_bond_OH, this%a_angle_HOH 
+    write(iunit,*) this%Kr_OH, this%Kq_HOH          
+    write(iunit,*) this%r0_OH, this%q0_HOH          
+  
+    write(iunit,*) this%a_bond_ONa, this%a_angle_NaOH   
+    write(iunit,*) this%Kr_ONa, this%Kq_NaOH            
+    write(iunit,*) this%r0_ONa, this%q0_NaOH            
+  
+    write(iunit,*) this%Kr_O, this%r0_O    
+    write(iunit,*) this%Kr_Na, this%r0_Na  
+  
+    write(iunit,*) this%beta_1, this%beta_2
+    write(iunit,*) this%beta_s1, this%beta_l1, this%beta_s2, this%beta_l2
+  
+    write(iunit,*) this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  
+  
+    write(iunit,*) this%rc_inner, this%rc_outer    
+    write(iunit,*) this%rc_hh_min, this%rc_oo_min  
+    write(iunit,*) this%rc_ONa_inner, this%rc_ONa_outer  
+    write(iunit,*) this%rc_NaH_min, this%rc_NaNa_min     
+  
+    write(iunit,*) this%stop_OH_min, this%stop_OH_max   
+    write(iunit,*) this%stop_ONa_min, this%stop_ONa_max 
+
+    close(iunit)
+
+  endif
+
+end subroutine
 
 !-----------------------------------------------------------------------------
 subroutine set_param_bond_stats(this, dHH_min, dHH_max, dOH_min, dOH_max, dOO_min, dOO_max)
@@ -169,78 +324,6 @@ subroutine spring_potential_for_OObond(this, dr, U, Up)
 
    return
 end subroutine
-
-!-----------------------------------------------------------------------------
-subroutine set_cutoff_lj_potential(this, rcutoff) 
-!-----------------------------------------------------------------------------
-   class(lj_potential_type),intent(in out) :: this
-   real(8),intent(in)  :: rcutoff
-
-   ! TODO the cutoff distance should be set from outside
-   this%rcutoff = rcutoff  
-
-end subroutine
-
-!-----------------------------------------------------------------------------
-subroutine calc_force_lj_potential(this, dr, U, Up) 
-!-----------------------------------------------------------------------------
-   class(lj_potential_type),intent(in) :: this
-   real(8),intent(in) :: dr
-
-   !  force,enegry,force at cutoff, energy at cutoff
-   real(8),intent(in out) ::  U, Up
-   real(8) :: U_c, Up_c 
-
-   real(8) :: sigr, sigr12, sigr6
-
-
-   if(dr>this%rcutoff) then
-     Up=0.d0; U=0.d0
-     return 
-   endif
-
-
-   sigr = this%sigma/this%rcutoff
-   sigr6 = sigr**6
-   sigr12 = sigr6*sigr6
-
-   U_c = 4.d0*this%epsiron*(sigr12-sigr6) ! energy at cutoff
-   Up_c = -48d0*this%epsiron*(sigr12-0.5d0*sigr6)/this%rcutoff ! force at cutoff
-
-
-   sigr = this%sigma/dr
-   sigr6 = sigr**6
-   sigr12 = sigr6*sigr6
-
-   U = 4.d0*this%epsiron*(sigr12-sigr6)-U_c - (dr-this%rcutoff)*Up_c
-   Up = -48d0*this%epsiron*(sigr12-0.5d0*sigr6)/dr - Up_c
-
-   return
-end subroutine
-
-!-----------------------------------------------------------------------------
-subroutine save_table_lj_potential(this, myrank)
-!-----------------------------------------------------------------------------
-   class(lj_potential_type),intent(in) :: this
-   integer,intent(in) :: myrank
-
-   integer,parameter :: ntables = 100
-
-   integer :: i,iunit
-   real(8) :: dr, U, Up
-
-   if(myrank==0) then
-      open(newunit=iunit,file='lj_pot.dat')
-      do i=1, ntables
-         dr = dble(i)*this%rcutoff/ntables
-         call this%calc(dr, U, Up)
-         write(iunit,fmt='(3es15.5)') dr, U, Up
-      enddo
-      close(iunit)
-   endif
-
-end subroutine
-   
 
 !-----------------------------------------------------------------------------
 subroutine print_bond_stats(this, myrank)
@@ -589,6 +672,194 @@ f(k,3) = f(k,3) - fjk(3)
 end subroutine
 
 !-----------------------------------------------------------------------------
+subroutine apply_type6_short_repulsion(this, potential_type, bstat)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type6_params),intent(in out) :: this
+integer,intent(in) :: potential_type
+type(bond_stats),intent(in out) :: bstat
+
+real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
+integer :: i, j, j1, ity, jty, k, k1, k2, k3, k4, igid, jgid, kgid
+
+real(8) :: rij(0:3), rik(0:3), rij0(0:3)
+
+real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3)
+
+integer :: ia
+logical :: is_OH_bond=.false., is_ONa_bond=.false., is_NaH_bond=.false.
+real(8) :: fcut, fset
+
+real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
+
+
+call bstat%reset()
+
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   if(ity==this%otype) then
+       fcut = this%fcut_h
+       fset = fcut*this%ffactor
+   else if(ity==this%htype) then
+       fcut = this%fcut_o
+       fset = fcut*this%ffactor
+   else if(ity==this%natype) then
+       fcut = this%fcut_o
+       fset = fcut*this%ffactor
+   else
+       print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
+       stop
+   endif
+
+   do ia=1,3
+      if(f(i,ia) > fcut) then
+        print'(a,5i9,es15.5,2f8.2)','max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+        f(i,ia) = fset
+      endif
+      if(f(i,ia) < -fcut) then
+        print'(a,5i9,es15.5,2f8.2)','min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+        f(i,ia) = -fset
+      endif
+   enddo
+enddo
+
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   do j1 = 1, nbrlist(i,0)
+
+      j = nbrlist(i,j1)
+      jty = nint(atype(j))
+      jgid = l2g(atype(j))
+
+      dr(1:3) = pos(i,1:3) - pos(j,1:3)
+      dr2 = sum(dr(1:3)*dr(1:3))
+      dr1 = sqrt(dr2)
+
+      is_OH_bond =  (ity==this%otype .and. jty==this%htype) .or.  (ity==this%htype .and. jty==this%otype)
+      is_ONa_bond = (ity==this%otype .and. jty==this%natype) .or. (ity==this%natype .and. jty==this%otype)
+      is_NaH_bond = (ity==this%natype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%natype)
+
+      if(is_OH_bond) then
+        if(dr1<this%rc_inner .or. this%rc_outer<dr1) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+
+        if(dr1<this%stop_OH_min) print'(a,2i9,3f8.3)','ERROR: O-H bond is too short',igid,jgid,dr1
+        if(dr1>this%stop_OH_max) print'(a,2i9,3f8.3)','ERROR: O-H bond is too long',igid,jgid,dr1
+        call assert(dr1>this%stop_OH_min, 'ERROR: O-H bond is too short', val=dr1) 
+        call assert(dr1<this%stop_OH_max, 'ERROR: O-H bond is too long', val=dr1)
+      endif
+
+      if( (ity==jty) .and. (ity==this%otype)) then
+        if(dr1<this%rc_oo_min) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+      endif
+
+      if( (ity==jty) .and. (ity==this%htype)) then
+        if(dr1<this%rc_hh_min) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+      endif
+
+      if(is_ONa_bond) then
+        if(dr1<this%rc_ONa_inner .or. this%rc_ONa_outer<dr1) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+
+        if(dr1<this%stop_ONa_min) print'(a,2i9,3f8.3)','ERROR: O-Na bond is too short',igid,jgid,dr1
+        if(dr1>this%stop_ONa_max) print'(a,2i9,3f8.3)','ERROR: O-Na bond is too long',igid,jgid,dr1
+        call assert(dr1>this%stop_ONa_min, 'ERROR: O-Na bond is too short', val=dr1) 
+        call assert(dr1<this%stop_ONa_max, 'ERROR: O-Na bond is too long', val=dr1)
+      endif
+
+      if(is_NaH_bond) then
+        if(dr1<this%rc_NaH_min) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+      endif
+
+      if( (ity==jty) .and. (ity==this%natype)) then
+        if(dr1<this%rc_NaNa_min) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+      endif
+
+   enddo
+
+enddo
+
+this%f_spring=0.d0
+
+!do i=1, NATOMS
+!
+!   ity = nint(atype(i))
+!   igid = l2g(atype(i))
+!
+!   do j1 = 1, nbrlist(i,0)
+!
+!      j = nbrlist(i,j1)
+!      jgid = l2g(atype(j))
+!
+!      rij(1:3) = pos(i,1:3)-pos(j,1:3)
+!      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+!      rij(1:3) = rij(1:3)/rij(0)
+!
+!      Krcoef = this%alpha_bond * this%Kr*(rij(0)-this%r0) ! ij
+!
+!      ff(1:3) = Krcoef*rij(1:3)
+!      this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
+!      this%f_spring(j,1:3) = this%f_spring(j,1:3) + ff(1:3)
+!
+!      do k1 = j1 + 1, nbrlist(i,0)
+!
+!         k = nbrlist(i,k1)
+!         kgid = l2g(atype(k))
+!
+!         rik(1:3) = pos(i,1:3)-pos(k,1:3)
+!         rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+!         rik(1:3) = rik(1:3)/rik(0)
+!
+!         ff(1:3) = Krcoef*rik(1:3)
+!         this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
+!         this%f_spring(k,1:3) = this%f_spring(k,1:3) + ff(1:3)
+!
+!         cosine = sum(rij(1:3)*rik(1:3))
+!         theta = acos(cosine)
+!         sine = sin(theta)
+!
+!         Kqcoef = this%alpha_angle * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
+!
+!         rij0(0)=rij(0); rij0(1:3)=-rij(1:3)
+!         call ForceA3(Kqcoef,j,i,k,rij0,rik, this%f_spring)
+!
+!      enddo
+!   enddo
+!
+!enddo
+
+
+do i=1, size(f,dim=1)
+do j=1, size(f,dim=2)
+   f(i,j)=f(i,j)+this%f_spring(i,j)
+enddo; enddo
+
+call bstat%print(myid)
+
+end subroutine
+
+!-----------------------------------------------------------------------------
 subroutine apply_type5_short_repulsion(this, potential_type, bstat)
 !-----------------------------------------------------------------------------
 class (short_repulsion_type2_params),intent(in out) :: this
@@ -764,12 +1035,11 @@ call bstat%print(myid)
 end subroutine
 
 !-----------------------------------------------------------------------------
-subroutine apply_type4_short_repulsion(this, potential_type, bstat, lj_pot)
+subroutine apply_type4_short_repulsion(this, potential_type, bstat)
 !-----------------------------------------------------------------------------
 class (short_repulsion_type2_params),intent(in) :: this
 integer,intent(in) :: potential_type
 type(bond_stats) :: bstat
-type(lj_potential_type) :: lj_pot
 
 real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
 integer :: i, j, k, l, l1, ity, jty, kty, lty, igid, jgid, kgid
@@ -855,9 +1125,7 @@ do i=1, NATOMS                           ! O
         roo(0) = sqrt(sum(roo(1:3)*roo(1:3)))
         if(roo_min>roo(0)) roo_min = roo(0)
 
-        ! apply LJ potential 
         call this%oo_spring(roo(0), U, Up)
-        !if(myid==0) print'(a,i2,2es15.5)','lj_pot: ', i,l,roo(0),Up
         f(i,1:3) = f(i,1:3) - Up*roo(1:3)/roo(0)
         f(l,1:3) = f(l,1:3) + Up*roo(1:3)/roo(0)
       endif
@@ -1438,9 +1706,11 @@ if (sr%potential_type==1) then
 else if (sr%potential_type==2) then
   call sr%p2%apply2()
 else if (sr%potential_type==3.or.sr%potential_type==4) then
-  call sr%p2%apply4(sr%potential_type, bstat, lj_pot)
+  call sr%p2%apply4(sr%potential_type, bstat)
 else if (sr%potential_type==5) then
   call sr%p2%apply5(sr%potential_type, bstat)
+else if (sr%potential_type==6) then
+  call sr%p6%apply(sr%potential_type, bstat)
 else
   print*,'To be implemented'
 
