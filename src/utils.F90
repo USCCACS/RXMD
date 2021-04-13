@@ -372,7 +372,7 @@ if(condition) return
 print'(a)',repeat('!',60)
 
 if(present(myrank)) write(6,fmt='(a)', advance='no') 'myrank '//int_to_str(myrank)//' :'
-if(present(val)) write(6,fmt='(a,e15.5,a)', advance='no') ' value',val,' : '
+if(present(val)) write(6,fmt='(a,es15.5,a)', advance='no') ' value',val,' : '
 print'(a)',message
 print'(a)',repeat('!',60)
 stop
