@@ -459,7 +459,7 @@ do i=1, NATOMS !i atom loop
              centroid(1:3) = centroid(1:3) + pos(j,1:3)
              ibond=ibond+1
 
-             if(dr(2)>1d0.and.abs(dr(1))>0.3d0) rotation_flag(i) = nint(sign(1.0,dr(1)))
+             if(dr(2)>1d0.and.abs(dr(1))>0.3d0) rotation_flag(i) = nint(sign(1d0,dr(1)))
            endif 
 
          endif 
