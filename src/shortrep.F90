@@ -193,10 +193,16 @@ subroutine read_type6_params(this, funit, atom_name, potential_type)
   read(funit,*) this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
   read(funit,*) this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
 
-  read(funit,*) this%beta_1, this%beta_2
-  read(funit,*) this%beta_s1, this%beta_l1, this%beta_s2, this%beta_l2
+  read(funit,*) this%beta_1, this%beta_s1, this%beta_l1 ! O-H bond range1
+  read(funit,*) this%beta_2, this%beta_s2, this%beta_l2 ! O-Na bond range1
 
   read(funit,*) this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  ! force filtering parameters
+
+  read(funit,*) this%dHH_min, this%dOH_max, this%dOO_min ! bond statistics parameters
+  read(funit,*) this%dHH_max, this%dOH_min, this%dOO_max ! bond statistics parameters
+
+  read(funit,*) this%dNaNa_min, this%dONa_max ! bond statistics parameters
+  read(funit,*) this%dNaNa_max, this%dONa_min ! bond statistics parameters
 
   read(funit,*) this%rc_inner, this%rc_outer    ! distance-based (O-H) ML force termination
   read(funit,*) this%rc_hh_min, this%rc_oo_min  ! distance-based (H-H,O-O) ML force termination
@@ -223,47 +229,54 @@ subroutine print_type6_params(this, potential_type)
     if(this%otype>0) print'(a30,a7,i3)',  "atom type: ", "O -", this%otype
     if(this%natype>0) print'(a30,a7,i3)', "atom type: ", "Na -", this%natype
 
-    write(*,*) this%a_bond_OH, this%a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
-    write(*,*) this%Kr_OH, this%Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
-    write(*,*) this%r0_OH, this%q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
+    write(*,'(a30,2f12.3)') 'a_bond_OH, a_angle_HOH: ', this%a_bond_OH, this%a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
+    write(*,'(a30,2f12.3)') 'Kr_OH, Kq_HOH: ', this%Kr_OH, this%Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
+    write(*,'(a30,2f12.3)') 'r0_OH, q0_HOH: ', this%r0_OH, this%q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
   
-    write(*,*) this%a_bond_ONa, this%a_angle_NaOH   ! alpha_bond(O-Na), alpha_angle(Na-O-H)
-    write(*,*) this%Kr_ONa, this%Kq_NaOH            ! Kr(O-Na spring), Kq(Na-O-H spring)
-    write(*,*) this%r0_ONa, this%q0_NaOH            ! r0(desired O-Na bond length), q0 (desired Na-O-H angle)
+    write(*,'(a30,2f12.3)') 'a_bond_ONa, a_angle_NaOH: ', this%a_bond_ONa, this%a_angle_NaOH   ! alpha_bond(O-Na), alpha_angle(Na-O-H)
+    write(*,'(a30,2f12.3)') 'Kr_ONa, Kq_NaOH: ', this%Kr_ONa, this%Kq_NaOH       ! Kr(O-Na spring), Kq(Na-O-H spring)
+    write(*,'(a30,2f12.3)') 'r0_ONa, q0_NaOH: ', this%r0_ONa, this%q0_NaOH       ! r0(desired O-Na bond length), q0 (desired Na-O-H angle)
   
-    write(*,*) this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
-    write(*,*) this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
+    write(*,'(a30,2f12.3)') 'Kr_O, r0_O: ', this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
+    write(*,'(a30,2f12.3)') 'Kr_Na, r0_Na: ', this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
   
-    write(*,*) this%beta_1, this%beta_2
-    write(*,*) this%beta_s1, this%beta_l1, this%beta_s2, this%beta_l2
+    write(*,'(a30,3f12.3)') 'beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
+    write(*,'(a30,3f12.3)') 'beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
+
+    write(*,'(a30,4f12.3)') 'fcut_o, fcut_h, fcut_na, ffactor: ', &
+            this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  ! force filtering parameters
   
-    write(*,*) this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  ! force filtering parameters
-  
-    write(*,*) this%rc_inner, this%rc_outer    ! distance-based (O-H) ML force termination
-    write(*,*) this%rc_hh_min, this%rc_oo_min  ! distance-based (H-H,O-O) ML force termination
-    write(*,*) this%rc_ONa_inner, this%rc_ONa_outer  ! distance-based (O-Na) ML force termination
-    write(*,*) this%rc_NaH_min, this%rc_NaNa_min     ! distance-based (H-Na,Na-Na) ML force termination
-  
-    write(*,*) this%stop_OH_min, this%stop_OH_max   ! code stop conditions based on O-H bond length
-    write(*,*) this%stop_ONa_min, this%stop_ONa_max ! code stop conditions based on O-Na bond length
+    write(*,'(a30,2f12.3)') 'rc_inner, rc_outer: ', this%rc_inner, this%rc_outer      ! distance-based (O-H) ML force termination
+    write(*,'(a30,2f12.3)') 'rc_hh_min, rc_oo_min: ', this%rc_hh_min, this%rc_oo_min  ! distance-based (H-H,O-O) ML force termination
+    write(*,'(a30,2f12.3)') 'rc_ONa_inner, rc_ONa_outer: ', this%rc_ONa_inner, this%rc_ONa_outer  ! distance-based (O-Na) ML force termination
+    write(*,'(a30,2f12.3)') 'rc_NaH_min, rc_NaNa_min: ', this%rc_NaH_min, this%rc_NaNa_min     ! distance-based (H-Na,Na-Na) ML force termination
+
+    write(*,'(a30,2f12.3)') 'stop_OH_min, stop_OH_max: ', this%stop_OH_min, this%stop_OH_max   ! code stop conditions based on O-H bond length
+    write(*,'(a30,2f12.3)') 'stop_ONa_min, stop_ONa_max: ', this%stop_ONa_min, this%stop_ONa_max ! code stop conditions based on O-Na bond length
 
     open(newunit=iunit, file='shortrep.in.current',form='formatted')
-    write(iunit,*) potential_type
+
     write(iunit,*) this%a_bond_OH, this%a_angle_HOH 
-    write(iunit,*) this%Kr_OH, this%Kq_HOH          
-    write(iunit,*) this%r0_OH, this%q0_HOH          
+    write(iunit,*) this%Kr_OH, this%Kq_HOH
+    write(iunit,*) this%r0_OH, this%q0_HOH
   
-    write(iunit,*) this%a_bond_ONa, this%a_angle_NaOH   
-    write(iunit,*) this%Kr_ONa, this%Kq_NaOH            
-    write(iunit,*) this%r0_ONa, this%q0_NaOH            
+    write(iunit,*) this%a_bond_ONa, this%a_angle_NaOH
+    write(iunit,*) this%Kr_ONa, this%Kq_NaOH
+    write(iunit,*) this%r0_ONa, this%q0_NaOH
   
-    write(iunit,*) this%Kr_O, this%r0_O    
-    write(iunit,*) this%Kr_Na, this%r0_Na  
+    write(iunit,*) this%Kr_O, this%r0_O
+    write(iunit,*) this%Kr_Na, this%r0_Na
   
-    write(iunit,*) this%beta_1, this%beta_2
-    write(iunit,*) this%beta_s1, this%beta_l1, this%beta_s2, this%beta_l2
+    write(iunit,*) this%beta_1, this%beta_s1, this%beta_l1 
+    write(iunit,*) this%beta_2, this%beta_s2, this%beta_l2 
   
     write(iunit,*) this%fcut_o, this%fcut_h, this%fcut_na, this%ffactor  
+  
+    write(iunit,*) this%dHH_min, this%dOH_max, this%dOO_min 
+    write(iunit,*) this%dHH_max, this%dOH_min, this%dOO_max 
+  
+    write(iunit,*) this%dNaNa_min, this%dONa_max 
+    write(iunit,*) this%dNaNa_max, this%dONa_min 
   
     write(iunit,*) this%rc_inner, this%rc_outer    
     write(iunit,*) this%rc_hh_min, this%rc_oo_min  
@@ -432,6 +445,9 @@ if(sr%potential_type==1) then
 else if(sr%potential_type==2.or.sr%potential_type==3.or.sr%potential_type==4.or.sr%potential_type==5) then
    call sr%p2%read(funit, atom_name, sr%potential_type) 
    call sr%p2%print(sr%potential_type)
+else if(sr%potential_type==6) then
+   call sr%p6%read(funit, atom_name, sr%potential_type) 
+   call sr%p6%print(sr%potential_type)
 else
    print'(a)', 'ERROR: unsupported potential type. Exiting the code', sr%potential_type
    stop
@@ -740,7 +756,7 @@ do i=1, NATOMS
       dr2 = sum(dr(1:3)*dr(1:3))
       dr1 = sqrt(dr2)
 
-      is_OH_bond =  (ity==this%otype .and. jty==this%htype) .or.  (ity==this%htype .and. jty==this%otype)
+      is_OH_bond = (ity==this%otype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%otype)
       is_ONa_bond = (ity==this%otype .and. jty==this%natype) .or. (ity==this%natype .and. jty==this%otype)
       is_NaH_bond = (ity==this%natype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%natype)
 
@@ -750,8 +766,8 @@ do i=1, NATOMS
            f(j,1:3)=0.d0 
         endif
 
-        if(dr1<this%stop_OH_min) print'(a,2i9,3f8.3)','ERROR: O-H bond is too short',igid,jgid,dr1
-        if(dr1>this%stop_OH_max) print'(a,2i9,3f8.3)','ERROR: O-H bond is too long',igid,jgid,dr1
+        if(dr1<this%stop_OH_min) print'(a,2i9,2i6,3f8.3)','ERROR: O-H bond is too short',igid,jgid,ity,jty,dr1
+        if(dr1>this%stop_OH_max) print'(a,2i9,2i6,3f8.3)','ERROR: O-H bond is too long',igid,jgid,ity,jty,dr1
         call assert(dr1>this%stop_OH_min, 'ERROR: O-H bond is too short', val=dr1) 
         call assert(dr1<this%stop_OH_max, 'ERROR: O-H bond is too long', val=dr1)
       endif
@@ -776,8 +792,8 @@ do i=1, NATOMS
            f(j,1:3)=0.d0 
         endif
 
-        if(dr1<this%stop_ONa_min) print'(a,2i9,3f8.3)','ERROR: O-Na bond is too short',igid,jgid,dr1
-        if(dr1>this%stop_ONa_max) print'(a,2i9,3f8.3)','ERROR: O-Na bond is too long',igid,jgid,dr1
+        if(dr1<this%stop_ONa_min) print'(a,2i9,2i6,3f8.3)','ERROR: O-Na bond is too short',igid,jgid,ity,jty,dr1
+        if(dr1>this%stop_ONa_max) print'(a,2i9,2i6,3f8.3)','ERROR: O-Na bond is too long',igid,jgid,ity,jty,dr1
         call assert(dr1>this%stop_ONa_min, 'ERROR: O-Na bond is too short', val=dr1) 
         call assert(dr1<this%stop_ONa_max, 'ERROR: O-Na bond is too long', val=dr1)
       endif

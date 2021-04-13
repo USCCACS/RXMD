@@ -153,7 +153,7 @@ module fnn
 
   use aenet
 
-  use mod_short_repulsion, only : short_repulsion, short_rep 
+  use mod_short_repulsion, only : short_repulsion, short_repulsion_type, short_rep 
  
   implicit none
 
@@ -232,12 +232,10 @@ do i = 1, NBUFFER
    f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
 enddo
 
-!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0) ! before October 06, 9:45pm
-!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.0d0) ! before October 09, 12:04pm
-!call force_cutoff(fcut_o=70d0, fcut_h=50d0, ffactor=0.7d0)
 
 if(short_rep%has_short_repulsion) then
-  call force_cutoff(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
+  !call force_cutoff_h2o(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
+  call force_cutoff_naoh(short_rep)
   call short_repulsion(short_rep)
 endif
 
@@ -245,7 +243,44 @@ CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
 contains
 
-subroutine force_cutoff(fcut_o, fcut_h, ffactor)
+subroutine force_cutoff_naoh(sr)
+   type(short_repulsion_type),intent(in) :: sr
+   integer :: i,ia,ity
+   real(8) :: fcut, fset
+   
+   do i = 1, NATOMS
+      ity = nint(atype(i))
+
+      if(ity==sr%p6%htype) then
+          fcut = sr%p6%fcut_h
+          fset = fcut*sr%p6%ffactor
+      else if(ity==sr%p6%otype) then
+          fcut = sr%p6%fcut_o
+          fset = fcut*sr%p6%ffactor
+      else if(ity==sr%p6%natype) then
+          fcut = sr%p6%fcut_na
+          fset = fcut*sr%p6%ffactor
+      else
+          print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
+          stop 
+      endif
+
+      do ia=1,3
+         if(f(i,ia) > fcut) then
+           print'(a,5i9,es15.5,2f8.2)','max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+           f(i,ia) = fset
+         endif
+         if(f(i,ia) < -fcut) then
+           print'(a,5i9,es15.5,2f8.2)','min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+           f(i,ia) = -fset
+         endif
+      enddo
+
+   enddo
+
+end subroutine
+
+subroutine force_cutoff_h2o(fcut_o, fcut_h, ffactor)
    real(8),intent(in) :: fcut_o, fcut_h, ffactor
    integer :: i,ia,ity
    real(8) :: fcut, fset
