@@ -95,6 +95,7 @@ type short_repulsion_type2_params
 end type
 
 type short_repulsion_type6_params
+  real(8) :: rc_OH, rc_ONa ! bond cutoff(O-H), bond cutoff(O-Na) 
 
   real(8) :: a_bond_OH, a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
   real(8) :: Kr_OH, Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
@@ -106,6 +107,9 @@ type short_repulsion_type6_params
 
   real(8) :: Kr_O, r0_O    ! one-sided spring parameters for O-O
   real(8) :: Kr_Na, r0_Na  ! one-sided spring parameters for Na-Na
+
+  real(8) :: Kr_NaH, r0_NaH    ! one-sided spring parameters for Na-H
+  real(8) :: Kr_HH, r0_HH  ! one-sided spring parameters for H-H
 
   real(8) :: beta_1, beta_2
   real(8) :: beta_s1, beta_l1, beta_s2, beta_l2
@@ -181,7 +185,7 @@ subroutine read_type6_params(this, funit, atom_name, potential_type)
      if(index(atom_name(ity),"O") /=0) this%otype=ity
      if(index(atom_name(ity),"Na") /=0) this%natype=ity
   enddo
-
+  read(funit,*) this%rc_OH, this%rc_ONa ! bond cutoff(O-H), bond cutoff(O-Na) 
   read(funit,*) this%a_bond_OH, this%a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
   read(funit,*) this%Kr_OH, this%Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
   read(funit,*) this%r0_OH, this%q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
@@ -192,6 +196,8 @@ subroutine read_type6_params(this, funit, atom_name, potential_type)
 
   read(funit,*) this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
   read(funit,*) this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
+  read(funit,*) this%Kr_NaH, this%r0_NaH  ! one-sided spring parameters for Na-H
+  read(funit,*) this%Kr_HH, this%r0_HH    ! one-sided spring parameters for H-H
 
   read(funit,*) this%beta_1, this%beta_s1, this%beta_l1 ! O-H bond range1
   read(funit,*) this%beta_2, this%beta_s2, this%beta_l2 ! O-Na bond range1
@@ -229,6 +235,7 @@ subroutine print_type6_params(this, potential_type)
     if(this%otype>0) print'(a30,a7,i3)',  "atom type: ", "O -", this%otype
     if(this%natype>0) print'(a30,a7,i3)', "atom type: ", "Na -", this%natype
 
+    write(*,'(a30,2f13.3)') 'rc_OH, rc_ONa: ', this%rc_OH, this%rc_ONa ! bond cutoff(O-H), bond cutoff(O-Na) 
     write(*,'(a30,2f12.3)') 'a_bond_OH, a_angle_HOH: ', this%a_bond_OH, this%a_angle_HOH ! alpha_bond(O-H), alpha_angle(H-O-H)
     write(*,'(a30,2f12.3)') 'Kr_OH, Kq_HOH: ', this%Kr_OH, this%Kq_HOH          ! Kr(O-H spring), Kq(H-O-H spring)
     write(*,'(a30,2f12.3)') 'r0_OH, q0_HOH: ', this%r0_OH, this%q0_HOH          ! r0(desired O-H bond length), q0(desired H-O-H angle)
@@ -239,6 +246,8 @@ subroutine print_type6_params(this, potential_type)
   
     write(*,'(a30,2f12.3)') 'Kr_O, r0_O: ', this%Kr_O, this%r0_O    ! one-sided spring parameters for O-O
     write(*,'(a30,2f12.3)') 'Kr_Na, r0_Na: ', this%Kr_Na, this%r0_Na  ! one-sided spring parameters for Na-Na
+    write(*,'(a30,2f12.3)') 'Kr_NaH, r0_NaH: ', this%Kr_NaH, this%r0_NaH    ! one-sided spring parameters for Na-H
+    write(*,'(a30,2f12.3)') 'Kr_HH, r0_HH: ', this%Kr_HH, this%r0_HH  ! one-sided spring parameters for H-H
   
     write(*,'(a30,3f12.3)') 'beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
     write(*,'(a30,3f12.3)') 'beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
@@ -256,6 +265,7 @@ subroutine print_type6_params(this, potential_type)
 
     open(newunit=iunit, file='shortrep.in.current',form='formatted')
 
+    write(iunit,*) this%rc_OH, this%rc_ONa 
     write(iunit,*) this%a_bond_OH, this%a_angle_HOH 
     write(iunit,*) this%Kr_OH, this%Kq_HOH
     write(iunit,*) this%r0_OH, this%q0_HOH
@@ -266,6 +276,8 @@ subroutine print_type6_params(this, potential_type)
   
     write(iunit,*) this%Kr_O, this%r0_O
     write(iunit,*) this%Kr_Na, this%r0_Na
+    write(iunit,*) this%Kr_NaH, this%r0_NaH
+    write(iunit,*) this%Kr_HH, this%r0_HH
   
     write(iunit,*) this%beta_1, this%beta_s1, this%beta_l1 
     write(iunit,*) this%beta_2, this%beta_s2, this%beta_l2 
@@ -695,34 +707,37 @@ integer,intent(in) :: potential_type
 type(bond_stats),intent(in out) :: bstat
 
 real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
-integer :: i, j, j1, ity, jty, k, k1, k2, k3, k4, igid, jgid, kgid
+integer :: i, j, j1, ity, jty, kty, k, k1, k2, k3, k4, igid, jgid, kgid
 
 real(8) :: rij(0:3), rik(0:3), rij0(0:3)
 
-real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3)
+real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3), radial_term, angle_term
 
 integer :: ia
 logical :: is_OH_bond=.false., is_ONa_bond=.false., is_NaH_bond=.false.
+logical :: is_OO_bond=.false., is_HH_bond=.false., is_NaNa_bond=.false.
 real(8) :: fcut, fset
+real(8) :: r_opt, k_spring, q_opt, q_spring
 
 real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
 
 
 call bstat%reset()
 
+!(1) magnitude-based ML force cut
 do i=1, NATOMS
 
    ity = nint(atype(i))
    igid = l2g(atype(i))
 
    if(ity==this%otype) then
-       fcut = this%fcut_h
+       fcut = this%fcut_o
        fset = fcut*this%ffactor
    else if(ity==this%htype) then
-       fcut = this%fcut_o
+       fcut = this%fcut_h
        fset = fcut*this%ffactor
    else if(ity==this%natype) then
-       fcut = this%fcut_o
+       fcut = this%fcut_na
        fset = fcut*this%ffactor
    else
        print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
@@ -741,6 +756,7 @@ do i=1, NATOMS
    enddo
 enddo
 
+! (2) distance-based ML force cut
 do i=1, NATOMS
 
    ity = nint(atype(i))
@@ -759,45 +775,67 @@ do i=1, NATOMS
       is_OH_bond = (ity==this%otype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%otype)
       is_ONa_bond = (ity==this%otype .and. jty==this%natype) .or. (ity==this%natype .and. jty==this%otype)
       is_NaH_bond = (ity==this%natype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%natype)
+      is_NaNa_bond = (ity==jty) .and. (ity==this%natype)
+      is_OO_bond = (ity==jty) .and. (ity==this%otype)
+      is_HH_bond = (ity==jty) .and. (ity==this%htype)
 
-      if(is_OH_bond) then
+      ! check 
+      if(myid==0) then
+        write(6,'(a,f6.2,5i2)',advance='no') 'dr,ity,jty,htype,otype,natype : ',  dr1,ity,jty,this%htype,this%otype,this%natype
+        if(is_OH_bond) write(6,'(a,3f8.3)',advance='no') ' O-H,dr,OH_inner&outer',dr1,this%rc_inner,this%rc_outer
+        if(is_ONa_bond) write(6,'(a,3f8.3)',advance='no') ' O-Na,dr,ON_inner&outer',    dr1,this%rc_ONa_inner,this%rc_ONa_outer
+        if(is_NaH_bond) write(6,'(a,2f8.3)',advance='no') ' Na-H,dr,NaH_min',           dr1,this%rc_NaH_min
+        if(is_NaNa_bond) write(6,'(a,2f8.3)',advance='no') ' Na-Na,dr,NaNa_min',        dr1,this%rc_NaNa_min
+        if(is_OO_bond) write(6,'(a,2f8.3)',advance='no') ' O-O,dr,oo_min',        dr1,this%rc_oo_min
+        if(is_HH_bond) write(6,'(a,2f8.3)',advance='no') ' H-H,dr,hh_min',        dr1,this%rc_hh_min
+        write(6,*)
+      endif
+
+      ! O-H bond
+      if(is_OH_bond .and. dr1<this%rc_OH) then
         if(dr1<this%rc_inner .or. this%rc_outer<dr1) then
            f(i,1:3)=0.d0 
            f(j,1:3)=0.d0 
         endif
 
+        ! stop condition check. Apply bond cutoff first to atoms in neighbor list.
         if(dr1<this%stop_OH_min) print'(a,2i9,2i6,3f8.3)','ERROR: O-H bond is too short',igid,jgid,ity,jty,dr1
         if(dr1>this%stop_OH_max) print'(a,2i9,2i6,3f8.3)','ERROR: O-H bond is too long',igid,jgid,ity,jty,dr1
         call assert(dr1>this%stop_OH_min, 'ERROR: O-H bond is too short', val=dr1) 
         call assert(dr1<this%stop_OH_max, 'ERROR: O-H bond is too long', val=dr1)
       endif
 
-      if( (ity==jty) .and. (ity==this%otype)) then
+      ! O-O bond
+      if(is_OO_bond) then
         if(dr1<this%rc_oo_min) then
            f(i,1:3)=0.d0 
            f(j,1:3)=0.d0 
         endif
       endif
 
-      if( (ity==jty) .and. (ity==this%htype)) then
+      ! H-H bond
+      if(is_HH_bond) then
         if(dr1<this%rc_hh_min) then
            f(i,1:3)=0.d0 
            f(j,1:3)=0.d0 
         endif
       endif
 
-      if(is_ONa_bond) then
+      ! O-Na bond
+      if(is_ONa_bond .and. dr1 < this%rc_ONa) then 
         if(dr1<this%rc_ONa_inner .or. this%rc_ONa_outer<dr1) then
            f(i,1:3)=0.d0 
            f(j,1:3)=0.d0 
         endif
 
+        ! stop condition check. Apply bond cutoff first to atoms in neighbor list.
         if(dr1<this%stop_ONa_min) print'(a,2i9,2i6,3f8.3)','ERROR: O-Na bond is too short',igid,jgid,ity,jty,dr1
         if(dr1>this%stop_ONa_max) print'(a,2i9,2i6,3f8.3)','ERROR: O-Na bond is too long',igid,jgid,ity,jty,dr1
         call assert(dr1>this%stop_ONa_min, 'ERROR: O-Na bond is too short', val=dr1) 
         call assert(dr1<this%stop_ONa_max, 'ERROR: O-Na bond is too long', val=dr1)
       endif
 
+      ! Na-H bond
       if(is_NaH_bond) then
         if(dr1<this%rc_NaH_min) then
            f(i,1:3)=0.d0 
@@ -805,7 +843,8 @@ do i=1, NATOMS
         endif
       endif
 
-      if( (ity==jty) .and. (ity==this%natype)) then
+      ! Na-Na bond
+      if(is_NaNa_bond) then
         if(dr1<this%rc_NaNa_min) then
            f(i,1:3)=0.d0 
            f(j,1:3)=0.d0 
@@ -816,54 +855,151 @@ do i=1, NATOMS
 
 enddo
 
+! (3) Apply spring constraint
 this%f_spring=0.d0
 
-!do i=1, NATOMS
-!
-!   ity = nint(atype(i))
-!   igid = l2g(atype(i))
-!
-!   do j1 = 1, nbrlist(i,0)
-!
-!      j = nbrlist(i,j1)
-!      jgid = l2g(atype(j))
-!
-!      rij(1:3) = pos(i,1:3)-pos(j,1:3)
-!      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
-!      rij(1:3) = rij(1:3)/rij(0)
-!
-!      Krcoef = this%alpha_bond * this%Kr*(rij(0)-this%r0) ! ij
-!
-!      ff(1:3) = Krcoef*rij(1:3)
-!      this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
-!      this%f_spring(j,1:3) = this%f_spring(j,1:3) + ff(1:3)
-!
-!      do k1 = j1 + 1, nbrlist(i,0)
-!
-!         k = nbrlist(i,k1)
-!         kgid = l2g(atype(k))
-!
-!         rik(1:3) = pos(i,1:3)-pos(k,1:3)
-!         rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
-!         rik(1:3) = rik(1:3)/rik(0)
-!
-!         ff(1:3) = Krcoef*rik(1:3)
-!         this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
-!         this%f_spring(k,1:3) = this%f_spring(k,1:3) + ff(1:3)
-!
-!         cosine = sum(rij(1:3)*rik(1:3))
-!         theta = acos(cosine)
-!         sine = sin(theta)
-!
-!         Kqcoef = this%alpha_angle * this%Kq*(theta*180d0/pi-this%q0)*(-1.d0/sine)
-!
-!         rij0(0)=rij(0); rij0(1:3)=-rij(1:3)
-!         call ForceA3(Kqcoef,j,i,k,rij0,rik, this%f_spring)
-!
-!      enddo
-!   enddo
-!
-!enddo
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   do j1 = 1, nbrlist(i,0)
+
+      j = nbrlist(i,j1)
+      jty = nint(atype(j))
+      jgid = l2g(atype(j))
+
+      rij(1:3) = pos(i,1:3)-pos(j,1:3)
+      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+      rij(1:3) = rij(1:3)/rij(0)
+
+      ! bond type check
+      is_OH_bond = (ity==this%otype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%otype)
+      is_ONa_bond = (ity==this%otype .and. jty==this%natype) .or. (ity==this%natype .and. jty==this%otype)
+      is_NaH_bond = (ity==this%natype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%natype)
+      is_NaNa_bond = (ity==jty) .and. (ity==this%natype)
+      is_OO_bond = (ity==jty) .and. (ity==this%otype)
+      is_HH_bond = (ity==jty) .and. (ity==this%htype)
+
+      Krcoef = 0.d0
+      r_opt = 0.d0
+      k_spring = 0.d0
+      if(is_OH_bond .and. rij(0) < this%rc_OH) then ! two-sided O-H
+
+         Krcoef = this%a_bond_OH * this%Kr_OH*(rij(0)-this%r0_OH)
+         r_opt = this%r0_OH
+         k_spring = this%Kr_OH
+
+      else if(is_ONa_bond .and. rij(0) < this%rc_ONa) then ! two-sided O-Na
+
+         Krcoef = this%a_bond_ONa * this%Kr_ONa*(rij(0)-this%r0_ONa)
+         r_opt = this%r0_ONa
+         k_spring = this%Kr_ONa
+
+      else if(is_OO_bond .and. rij(0) < this%r0_O) then ! one-sided O-O
+
+         Krcoef = this%Kr_O*(rij(0)-this%r0_O)
+         r_opt = this%r0_O
+         k_spring = this%Kr_O
+
+      else if(is_NaNa_bond .and.  rij(0)<this%r0_Na) then ! one-sided Na-Na
+
+         Krcoef = this%Kr_Na*(rij(0)-this%r0_Na)
+         r_opt = this%r0_Na
+         k_spring = this%Kr_Na
+
+      else if(is_NaH_bond .and.  rij(0)<this%r0_NaH) then ! one-sided Na-H
+
+         Krcoef = this%Kr_NaH*(rij(0)-this%r0_NaH)
+         r_opt = this%r0_NaH
+         k_spring = this%Kr_NaH
+
+      else if(is_HH_bond .and.  rij(0)<this%r0_HH) then ! one-sided H-H
+
+         Krcoef = this%Kr_HH*(rij(0)-this%r0_HH)
+         r_opt = this%r0_HH
+         k_spring = this%Kr_HH
+
+      endif
+
+      ! check 
+      if(myid==0.and.abs(Krcoef)>0d0) then
+        write(6,'(a,f6.4,5i2)',advance='no') 'dr,ity,jty,htype,otype,natype : ',rij(0),ity,jty,this%htype,this%otype,this%natype
+        if(is_OH_bond) write(6,'(a)',advance='no') ' O-H '
+        if(is_ONa_bond) write(6,'(a)',advance='no') ' O-Na '
+        if(is_NaH_bond) write(6,'(a)',advance='no') ' Na-H '
+        if(is_NaNa_bond) write(6,'(a)',advance='no') ' Na-Na '
+        if(is_OO_bond) write(6,'(a)',advance='no') ' O-O '
+        if(is_HH_bond) write(6,'(a)',advance='no') ' H-H '
+        write(6,'(a,3f8.3)') ' Krcoef,r_opt,k_spring', Krcoef, r_opt, k_spring
+      endif
+
+      ff(1:3) = Krcoef*rij(1:3)
+      this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
+      this%f_spring(j,1:3) = this%f_spring(j,1:3) + ff(1:3)
+
+      ! ENTERING 3-body calculation
+      ! apply 3-body constraints. only considering H-O-H & Na-O-H & H-O-Na (2021/04/13)
+      if(ity/=this%otype) cycle
+
+      do k1 = j1 + 1, nbrlist(i,0)
+
+         k = nbrlist(i,k1)
+         kgid = l2g(atype(k))
+         kty = nint(atype(k))
+
+         rik(1:3) = pos(i,1:3)-pos(k,1:3)
+         rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+         rik(1:3) = rik(1:3)/rik(0)
+
+         if(rik(0) > 1.1d0) cycle
+
+         cosine = sum(rij(1:3)*rik(1:3))
+         theta = acos(cosine)
+         sine = sin(theta)
+
+         Kqcoef = 0d0;  q_spring = 0d0;  q_opt = 0d0
+         if(jty==this%htype .and. kty==this%htype) then  ! H-O-H triplet & within its cutoff
+
+            if(rij(0)<this%rc_OH .and. rik(0)<this%rc_OH) then 
+               Kqcoef = this%a_angle_HOH*this%Kq_HOH*(theta*180d0/pi-this%q0_HOH)*(-1.d0/sine)
+               q_spring = this%Kq_HOH
+               q_opt =  this%q0_HOH
+            endif
+
+         else if(jty==this%natype .and. kty==this%htype) then ! Na-O-H triplet & within its cutoff
+
+            if(rij(0)<this%rc_ONa .and. rik(0)<this%rc_OH) then
+               Kqcoef = this%a_angle_NaOH*this%Kq_NaOH*(theta*180d0/pi-this%q0_NaOH)*(-1.d0/sine)
+               q_spring = this%Kq_NaOH
+               q_opt =  this%q0_NaOH
+            endif
+
+         else if(jty==this%htype .and. kty==this%natype) then ! H-O-Na triplet & within its cutoff
+
+            if(rij(0)<this%rc_OH .and. rik(0)<this%rc_ONa) then
+               Kqcoef = this%a_angle_NaOH*this%Kq_NaOH*(theta*180d0/pi-this%q0_NaOH)*(-1.d0/sine)
+               q_spring = this%Kq_NaOH
+               q_opt = this%q0_NaOH
+            endif
+
+         endif
+
+      ! check 
+         if(myid==0.and.abs(Kqcoef)>0d0) then
+           write(6,'(a,2f8.4,f8.2,2x,3i2,2x,3i2)',advance='no') 'drij,drik,theta,ity,jty,kty,htype,otype,natype : ', &
+                rij(0),rik(0),theta*180d0/pi,ity,jty,kty,this%htype,this%otype,this%natype
+           write(6,'(a,3f8.3)') ' Kqcoef,q_opt, q_spring', Kqcoef, q_opt, q_spring
+         endif
+
+         rij0(0)=rij(0); rij0(1:3)=-rij(1:3)
+         call ForceA3(Kqcoef,j,i,k,rij0,rik, this%f_spring)
+
+      enddo
+
+   enddo
+
+enddo
 
 
 do i=1, size(f,dim=1)
