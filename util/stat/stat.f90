@@ -2,11 +2,24 @@ module stat_mod
 
   implicit none
   real(8),parameter :: pi = 4.d0*datan(1.d0)
-  integer,parameter :: NTABLES = 2000, NTABLES_BA=180
-  real(8),parameter :: RCUT = 9d0, DRI = NTABLES/RCUT
+  integer,parameter :: NTABLES = 200, NTABLES_BA=180
+  real(8),parameter :: RCUT = 6d0, DRI = NTABLES/RCUT
   !real(8),parameter :: RCUT = 15d0, DRI = NTABLES/RCUT
   real(8),parameter :: QCUT = 10d0, DQ = QCUT/NTABLES
-  integer,parameter :: MAXNEIGHBS = 1000
+  integer,parameter :: MAXNEIGHBS = 500
+
+  type bond_length 
+     character(len=2) :: A,B
+     real(8) :: rc
+  end type
+
+  real(8),parameter :: BARC0=3d0
+  type(bond_length) :: bond_length0(2) = [ &
+                       bond_length('H','O',1.0d0), &
+                       bond_length('Na','O',3.0d0) &
+                       ]
+                       !bond_length('H','O',1.0d0), &
+                       !bond_length('Na','O',2.0d0) &
 
   type NSD_type ! Neutron Scattering Data type
      character(len=2) :: name
@@ -15,7 +28,7 @@ module stat_mod
 
   ! neutron scattering length data are from 
   !  https://www.nist.gov/ncnr/neutron-scattering-lengths-list
-  type(NSD_type) :: NSD0(11)=[NSD_type(name='Ge',length=8.185d-5), & 
+  type(NSD_type) :: NSD0(13)=[NSD_type(name='Ge',length=8.185d-5), & 
                               NSD_type(name='Se',length=7.970d-5), &
                               NSD_type(name='Sb',length=5.57d-5), &
                               NSD_type(name='Te',length=5.80d-5), & 
@@ -25,7 +38,9 @@ module stat_mod
                               NSD_type(name='Al',length=3.449d-5), &
                               NSD_type(name='H',length=-3.7390d-5), &
                               NSD_type(name='Na',length=3.63d-5), &
-                              NSD_type(name='Cl',length=9.5770d-5) ]
+                              NSD_type(name='Cl',length=9.5770d-5), &
+                              NSD_type(name='Pb',length=9.405d-5), &
+                              NSD_type(name='Ti',length=-3.4380d-5)  ]
 
   type base_atom_type
     real(8) :: pos(3), rr
@@ -51,15 +66,14 @@ module stat_mod
      integer :: num_atoms
   end type
 
-  integer,parameter :: NUM_BA=1
-  real(8),parameter :: BA_CUTOFF=2.0d0
   type analysis_context
 
      type(string_array),allocatable :: elems(:)
      type(NSD_type),allocatable :: NSD(:)
 
-     real(8),allocatable :: concentration(:), gr(:,:,:), nr(:,:,:), ba(:,:,:,:,:), sq(:,:,:)
-     real(8) :: rc_ba(NUM_BA)
+     real(8),allocatable :: concentration(:), gr(:,:,:), nr(:,:,:), ba(:,:,:,:), sq(:,:,:)
+
+     real(8),allocatable :: ba_rc(:,:)
 
      integer :: num_atoms, num_atom_types
      real(8) :: volume, lattice(6), kvector(3)
@@ -255,27 +269,22 @@ contains
         write(unit=iunit,fmt='(a,1x)',advance='no') '1-angle,'
         do jty=1,size(this%elems)
         do kty=1,size(this%elems)
-           do l=1,size(this%ba,dim=4)
-             write(a1,'(i1)') l
-               write(unit=iunit,fmt='(a12,a1,1x)',advance='no') & 
-                 this%elems(jty)%str//'-'//this%elems(ity)%str//'-'//this%elems(kty)%str//'_'//a1,','
-           enddo
+           write(unit=iunit,fmt='(a12,a1,1x)',advance='no') & 
+              this%elems(jty)%str//'-'//this%elems(ity)%str//'-'//this%elems(kty)%str,','
         enddo; enddo
         write(unit=iunit,fmt=*)
 
-        do k=1,size(this%ba,dim=5)
+        do k=1,size(this%ba,dim=4)
            write(unit=iunit,fmt='(i8,a1)',advance='no') k,','
            do jty=1,size(this%elems)
            do kty=1,size(this%elems)
-              do l=1,size(this%ba,dim=4)
-                 bavalue = sum(this%ba(jty,ity,kty,l,:))
-                 if(bavalue>0.d0) then
-                   write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') &
-                     this%ba(jty,ity,kty,l,k)/(bavalue*this%num_atoms_per_type(ity)*this%num_sample_frames),','
-                 else
-                   write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') 0.d0,','
-                 endif
-              enddo
+              bavalue = sum(this%ba(jty,ity,kty,:))
+              if(bavalue>0.d0) then
+                write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') &
+                  this%ba(jty,ity,kty,k)/(bavalue*this%num_atoms_per_type(ity)*this%num_sample_frames),','
+              else
+                write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') 0.d0,','
+              endif
            enddo; enddo
            write(unit=iunit,fmt=*)
         enddo
@@ -292,6 +301,11 @@ contains
      type(mdframe),intent(in) :: oneframe
      type(analysis_context) :: c
      integer :: i, j, ne, ity, jty, kty, idx
+
+     character(len=256) :: argv
+     integer :: iunit
+
+     character(len=2) :: A,B
 
      c%num_atoms = oneframe%num_atoms
      c%lattice = oneframe%lattice
@@ -316,7 +330,7 @@ contains
      ne = size(c%elems)
      c%num_atom_types = ne
 
-     allocate(c%gr(ne,ne,NTABLES),c%nr(ne,ne,NTABLES),c%sq(ne,ne,NTABLES),c%ba(ne,ne,ne,NUM_BA,NTABLES_BA))
+     allocate(c%gr(ne,ne,NTABLES),c%nr(ne,ne,NTABLES),c%sq(ne,ne,NTABLES),c%ba(ne,ne,ne,NTABLES_BA))
      c%gr=0.d0;  c%nr=0.d0;  c%sq=0.d0; c%ba=0.d0
 
      allocate(c%concentration(ne), c%num_atoms_per_type(ne))
@@ -335,10 +349,22 @@ contains
 
      c%num_sample_frames = 0
 
-     do i=1, NUM_BA
-       c%rc_ba(i)=BA_CUTOFF*dble(i)/NUM_BA
+     print'(a)',repeat('-',60)
+     ! setup bond angle cutoff
+     allocate(c%ba_rc(ne,ne))
+     c%ba_rc=BARC0
+     do ity = 1, ne
+     do jty = 1, ne
+        do i=1,size(bond_length0)
+           if( bond_length0(i)%A ==  c%elems(jty)%str .and.  bond_length0(i)%B == c%elems(ity)%str) then
+              c%ba_rc(ity,jty) = bond_length0(i)%rc
+              c%ba_rc(jty,ity) = bond_length0(i)%rc
+              print'(a,f6.2)',' found bond angle cutff '//trim(bond_length0(i)%A)//'-'//trim(bond_length0(i)%B), bond_length0(i)%rc
+           endif
+        enddo
      enddo
-     print'(a,20f8.3)','c%rc_ba: ', c%rc_ba
+     enddo
+     print'(a)',repeat('-',60)
 
      call c%print()
   end function

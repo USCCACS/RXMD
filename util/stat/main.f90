@@ -77,31 +77,30 @@ program main
         enddo
 
         do j = 1, ia%counter-1
-          if(ia%nbrs(j)%rr>BA_CUTOFF) cycle
           jty = ia%nbrs(j)%itype
 
           rr1(1:3) = ia%nbrs(j)%pos(1:3)-ia%pos(1:3)
           rr1(0) = sqrt(sum(rr1(1:3)*rr1(1:3)))
           rr1(1:3) = rr1(1:3)/rr1(0)
 
+          if(rr1(0)>ac%ba_rc(ity,jty)) cycle ! bond angle cutoff
+
           do k = j+1, ia%counter
-             if(ia%nbrs(k)%rr>BA_CUTOFF) cycle
              kty = ia%nbrs(k)%itype
 
              rr2(1:3) = ia%nbrs(k)%pos(1:3)-ia%pos(1:3)
              rr2(0) = sqrt(sum(rr2(1:3)*rr2(1:3)))
              rr2(1:3) = rr2(1:3)/rr2(0)
+
+             if(rr2(0)>ac%ba_rc(ity,kty)) cycle ! bond angle cutoff
+             !print'(3i3,2f8.3,2es10.2)',ity,jty,kty,rr1(0),rr2(0), ac%ba_rc(ity,jty), ac%ba_rc(ity,kty)
         
              cosine = sum(rr1(1:3)*rr2(1:3))
              theta = acos(cosine)*180d0/pi
              idx = int(theta) + 1
 
-             do l = 1, NUM_BA
-               if(ia%nbrs(j)%rr<ac%rc_ba(l) .and. ia%nbrs(k)%rr<ac%rc_ba(l)) then
-                 ac%ba(jty,ity,kty,l,idx) = ac%ba(jty,ity,kty,l,idx)+0.5d0
-                 ac%ba(kty,ity,jty,l,idx) = ac%ba(kty,ity,jty,l,idx)+0.5d0
-               endif
-             enddo 
+             ac%ba(jty,ity,kty,idx) = ac%ba(jty,ity,kty,idx)+0.5d0
+             ac%ba(kty,ity,jty,idx) = ac%ba(kty,ity,jty,idx)+0.5d0
 
            enddo
 
