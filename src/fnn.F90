@@ -234,7 +234,8 @@ enddo
 
 
 if(short_rep%has_short_repulsion) then
-  if(short_rep%potential_type==5) call force_cutoff_h2o(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, ffactor=short_rep%p2%ffactor)
+  if(short_rep%potential_type==5) call force_cutoff_h2o(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, &
+                                                        ffactor=short_rep%p2%ffactor)
   call short_repulsion(short_rep)
 endif
 
