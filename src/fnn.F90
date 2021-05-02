@@ -342,7 +342,6 @@ do nstep=0, num_mdsteps-1
    call vkick(1.d0, atype, v, f)
 
    pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
-   if(short_rep%has_short_repulsion .and. short_rep%potential_type == 3) call short_rep%p2%freezex()
 
 !--- migrate atoms after positions are updated
    call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
@@ -355,8 +354,6 @@ do nstep=0, num_mdsteps-1
 
 !--- update velocity
    call vkick(1.d0, atype, v, f)
-
-   if(short_rep%has_short_repulsion .and. short_rep%potential_type == 3) call short_rep%p2%flipv()
 
    call cpu_time(tfinish(0))
 
