@@ -142,6 +142,45 @@ type short_repulsion_type6_params
     procedure :: apply => apply_type6_short_repulsion
 end type
 
+type short_repulsion_type7_params
+  real(8) :: rc_NH ! bond cutoff(N-H)
+
+  real(8) :: a_bond_NH, a_angle_HNH ! alpha_bond(N-H), alpha_angle(H-N-H)
+  real(8) :: Kr_NH, Kq_HNH          ! Kr(N-H spring), Kq(H-N-H spring)
+  real(8) :: r0_NH, q0_HNH          ! r0(desired N-H bond length), q0(desired H-N-H angle)
+
+  real(8) :: Kr_N, r0_N    ! one-sided spring parameters for N-N
+  real(8) :: Kr_HH, r0_HH  ! one-sided spring parameters for H-H
+
+  real(8) :: beta_1, beta_2
+  real(8) :: beta_s1, beta_l1, beta_s2, beta_l2
+
+  integer :: ntype=-1, htype=-1
+
+  real(8) :: fcut_n=75d0, fcut_h=50d0, ffactor=0.7d0  ! force filtering parameters
+
+  real(8) :: rc_inner, rc_outer    ! distance-based (N-H) ML force termination
+  real(8) :: rc_hh_min, rc_nn_min  ! distance-based (H-H,N-N) ML force termination
+
+  real(8) :: stop_NH_min, stop_NH_max   ! code stop conditions based on N-H bond length
+
+  character(2),allocatable :: atom_name(:)
+
+  logical :: is_initialized = .false.
+
+  real(8),allocatable :: f_spring(:,:)
+
+  real(8),allocatable :: r_oh(:,:)
+
+  type(bond_stats) :: bstat
+  real(8) :: dHH_min, dHH_max, dNH_min, dNH_max, dNN_min, dNN_max ! bond_stats parameters
+
+  contains 
+    procedure :: read => read_type7_params
+    procedure :: print => print_type7_params
+    procedure :: apply => apply_type7_short_repulsion
+end type
+
 
 type short_repulsion_type
 
@@ -151,7 +190,8 @@ type short_repulsion_type
 
   type(short_repulsion_type1_params) :: p1
   type(short_repulsion_type2_params) :: p2
-  type(short_repulsion_type6_params) :: p6
+  type(short_repulsion_type6_params) :: p6 ! NaOH
+  type(short_repulsion_type7_params) :: p7 ! NH3
 
 end type 
 
@@ -160,6 +200,112 @@ type(short_repulsion_type) short_rep
 type(bond_stats) bstat
 
 contains
+
+!-----------------------------------------------------------------------------
+subroutine read_type7_params(this, funit, atom_name, potential_type)
+!-----------------------------------------------------------------------------
+  implicit none
+  class(short_repulsion_type7_params) :: this
+  character(2),allocatable,intent(in) :: atom_name(:)
+  integer,intent(in) :: potential_type
+
+  integer,intent(in) :: funit 
+  integer :: ity, jty
+  real(8) :: sigma_sum
+
+  call assert(potential_type==7, &
+     'unsupported potential type in read_type7_params(). Exiting rxmd.', myid)
+
+  allocate(this%f_spring(NBUFFER,3))
+
+  do ity=1, size(atom_name)
+     if(index(atom_name(ity),"N") /=0) this%ntype=ity
+     if(index(atom_name(ity),"H") /=0) this%htype=ity
+  enddo
+
+  read(funit,*) this%a_bond_NH,this%a_angle_HNH,this%rc_NH ! alpha_bond(N-H), alpha_angle(H-N-H),bond cutoff(N-H)
+  read(funit,*) this%Kr_NH, this%Kq_HNH          ! Kr(N-H spring), Kq(H-N-H spring)
+  read(funit,*) this%r0_NH, this%q0_HNH          ! r0(desired N-H bond length), q0(desired H-N-H angle)
+
+  read(funit,*) this%Kr_N, this%r0_N    ! one-sided spring parameters for N-N
+  read(funit,*) this%Kr_HH, this%r0_HH    ! one-sided spring parameters for H-H
+
+  read(funit,*) this%beta_1, this%beta_s1, this%beta_l1 ! N-H bond range1
+  read(funit,*) this%beta_2, this%beta_s2, this%beta_l2 ! N-Na bond range1
+
+  read(funit,*) this%fcut_n, this%fcut_h, this%ffactor  ! force filtering parameters
+
+  read(funit,*) this%dHH_min, this%dNH_max, this%dNN_min ! bond statistics parameters
+  read(funit,*) this%dHH_max, this%dNH_min, this%dNN_max ! bond statistics parameters
+
+  read(funit,*) this%rc_inner, this%rc_outer    ! distance-based (N-H) ML force termination
+  read(funit,*) this%rc_hh_min, this%rc_nn_min  ! distance-based (H-H,N-N) ML force termination
+
+  read(funit,*) this%stop_NH_min, this%stop_NH_max   ! code stop conditions based on N-H bond length
+
+  this%is_initialized = .true.
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine print_type7_params(this, potential_type)
+!-----------------------------------------------------------------------------
+  implicit none
+  class(short_repulsion_type7_params) :: this
+  integer,intent(in) :: potential_type
+  integer :: iunit
+
+  if(myid==0) then
+    if(this%ntype>0) print'(a30,a7,i3)',  "atom type: ", "N -", this%ntype
+    if(this%htype>0) print'(a30,a7,i3)',  "atom type: ", "H -", this%htype
+
+    write(*,'(a30,2f13.3)') 'rc_NH: ', this%rc_NH ! bond cutoff(N-H)
+    write(*,'(a30,2f12.3)') 'a_bond_NH, a_angle_HNH: ', this%a_bond_NH, this%a_angle_HNH ! alpha_bond(N-H), alpha_angle(H-N-H)
+    write(*,'(a30,2f12.3)') 'Kr_NH, Kq_HNH: ', this%Kr_NH, this%Kq_HNH          ! Kr(N-H spring), Kq(H-N-H spring)
+    write(*,'(a30,2f12.3)') 'r0_NH, q0_HNH: ', this%r0_NH, this%q0_HNH          ! r0(desired N-H bond length), q0(desired H-N-H angle)
+  
+    write(*,'(a30,2f12.3)') 'Kr_N, r0_N: ', this%Kr_N, this%r0_N    ! one-sided spring parameters for N-N
+    write(*,'(a30,2f12.3)') 'Kr_HH, r0_HH: ', this%Kr_HH, this%r0_HH  ! one-sided spring parameters for H-H
+  
+    write(*,'(a30,3f12.3)') 'beta_1, beta_s1, beta_l1: ', this%beta_1, this%beta_s1, this%beta_l1
+    write(*,'(a30,3f12.3)') 'beta_2, beta_s2, beta_l2: ', this%beta_2, this%beta_s2, this%beta_l2
+
+    write(*,'(a30,4f12.3)') 'fcut_n, fcut_h, ffactor: ', &
+            this%fcut_n, this%fcut_h, this%ffactor  ! force filtering parameters
+  
+    write(*,'(a30,2f12.3)') 'rc_inner, rc_outer: ', this%rc_inner, this%rc_outer      ! distance-based (N-H) ML force termination
+    write(*,'(a30,2f12.3)') 'rc_hh_min, rc_nn_min: ', this%rc_hh_min, this%rc_nn_min  ! distance-based (H-H,N-N) ML force termination
+
+    write(*,'(a30,2f12.3)') 'stop_NH_min, stop_NH_max: ', this%stop_NH_min, this%stop_NH_max   ! code stop conditions based on N-H bond length
+
+    open(newunit=iunit, file='shortrep.in.current',form='formatted')
+
+    write(iunit,*) this%rc_NH
+    write(iunit,*) this%a_bond_NH, this%a_angle_HNH 
+    write(iunit,*) this%Kr_NH, this%Kq_HNH
+    write(iunit,*) this%r0_NH, this%q0_HNH
+  
+    write(iunit,*) this%Kr_N, this%r0_N
+    write(iunit,*) this%Kr_HH, this%r0_HH
+  
+    write(iunit,*) this%beta_1, this%beta_s1, this%beta_l1 
+    write(iunit,*) this%beta_2, this%beta_s2, this%beta_l2 
+  
+    write(iunit,*) this%fcut_n, this%fcut_h, this%ffactor  
+  
+    write(iunit,*) this%dHH_min, this%dNH_max, this%dNN_min 
+    write(iunit,*) this%dHH_max, this%dNH_min, this%dNN_max 
+  
+    write(iunit,*) this%rc_inner, this%rc_outer    
+    write(iunit,*) this%rc_hh_min, this%rc_nn_min  
+  
+    write(iunit,*) this%stop_NH_min, this%stop_NH_max   
+
+    close(iunit)
+
+  endif
+
+end subroutine
 
 !-----------------------------------------------------------------------------
 subroutine read_type6_params(this, funit, atom_name, potential_type)
@@ -449,15 +595,18 @@ if(myid==0) then
   print'(a)', repeat('-',60)
 endif
 
-if(sr%potential_type==1) then
+if(sr%potential_type==7) then
+   call sr%p7%read(funit, atom_name, sr%potential_type) 
+   call sr%p7%print(sr%potential_type)
+else if(sr%potential_type==6) then
+   call sr%p6%read(funit, atom_name, sr%potential_type) 
+   call sr%p6%print(sr%potential_type)
+else if(sr%potential_type==1) then
    call sr%p1%read(funit)
    call sr%p1%print()
 else if(sr%potential_type==2.or.sr%potential_type==3.or.sr%potential_type==4.or.sr%potential_type==5) then
    call sr%p2%read(funit, atom_name, sr%potential_type) 
    call sr%p2%print(sr%potential_type)
-else if(sr%potential_type==6) then
-   call sr%p6%read(funit, atom_name, sr%potential_type) 
-   call sr%p6%print(sr%potential_type)
 else
    print'(a)', 'ERROR: unsupported potential type. Exiting the code', sr%potential_type
    stop
@@ -694,6 +843,296 @@ f(k,3) = f(k,3) - fjk(3)
 !--- Check N3rd ---
 !print'(a,6f20.13)','N3rd: ', &
 !Ci(1)-Ci(2), -Cj(1), Ci(2), -Ck(1), Cj(2), Ck(1)-Ck(2)
+
+end subroutine
+
+!-----------------------------------------------------------------------------
+subroutine apply_type7_short_repulsion(this, potential_type, bstat)
+!-----------------------------------------------------------------------------
+class (short_repulsion_type7_params),intent(in out) :: this
+integer,intent(in) :: potential_type
+type(bond_stats),intent(in out) :: bstat
+
+real(8) :: coef(2,2), fcoef, ff0(3), dr(3), dr1, dr2, dri, dri_eta
+integer :: i, j, j1, ity, jty, kty, k, k1, k2, k3, k4, igid, jgid, kgid
+
+real(8) :: rij(0:3), rik(0:3), rij0(0:3)
+
+real(8) :: sine, cosine, theta, Krcoef, Kqcoef, ff(3), radial_term, angle_term
+
+integer :: ia
+
+logical :: is_NH_bond=.false., is_NN_bond=.false., is_HH_bond=.false.
+logical :: is_NH_bond_2nd=.false.
+logical :: is_tagged_NH=.false., is_tagged_NH_2nd=.false.
+
+real(8) :: fcut, fset
+real(8) :: r_opt, k_spring, q_opt, q_spring
+
+integer :: tag_counter
+
+real(8),parameter :: MAX_DIST = 1e9, pi=3.14159265358979d0
+
+
+call bstat%reset()
+
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   if(ity/=this%ntype) cycle ! check only N
+
+   tag_counter = 0
+   do j1 = 1, nbrlist(i,0)
+
+      j = nbrlist(i,j1)
+      jty = nint(atype(j))
+      jgid = l2g(atype(j))
+
+      ! check if tagged O-H pair 
+      is_tagged_NH = (ity==this%ntype) .and. (jty==this%htype) .and. is_tagged_pair(igid,jgid)
+      if(is_tagged_NH) tag_counter = tag_counter + 1
+   enddo
+
+   if(tag_counter/=3) print'(a,i6,i2,i9,i6)', &
+          'ERROR: Found N with non optimal neighbor H atoms: ', myid,ity,igid,tag_counter
+
+enddo
+
+!(1) magnitude-based ML force cut
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   if(ity==this%ntype) then
+       fcut = this%fcut_n
+       fset = fcut*this%ffactor
+   else if(ity==this%htype) then
+       fcut = this%fcut_h
+       fset = fcut*this%ffactor
+   else
+       print*,'ERROR: atomtype was not found.', myid, ity, i, l2g(atype(i))
+       stop
+   endif
+
+   do ia=1,3
+      if(f(i,ia) > fcut) then
+        print'(a,5i9,es15.5,2f8.2)','max force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+        f(i,ia) = fset
+      endif
+      if(f(i,ia) < -fcut) then
+        print'(a,5i9,es15.5,2f8.2)','min force cutoff applied.', myid, ity, i, l2g(atype(i)), ia, f(i,ia), fcut, fset
+        f(i,ia) = -fset
+      endif
+   enddo
+enddo
+
+! (2) distance-based ML force cut
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   do j1 = 1, nbrlist(i,0)
+
+      j = nbrlist(i,j1)
+      jty = nint(atype(j))
+      jgid = l2g(atype(j))
+
+      dr(1:3) = pos(i,1:3) - pos(j,1:3)
+      dr2 = sum(dr(1:3)*dr(1:3))
+      dr1 = sqrt(dr2)
+
+      is_NH_bond = (ity==this%ntype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%ntype)
+      is_NN_bond = (ity==jty) .and. (ity==this%ntype)
+      is_HH_bond = (ity==jty) .and. (ity==this%htype)
+
+      ! check tagged O-H pair or not
+      is_tagged_NH = (ity==this%ntype) .and. (jty==this%htype) .and. is_tagged_pair(igid,jgid)
+
+!      ! check 
+!      if(myid==0) then
+!        write(6,'(a,f6.2,4i2)',advance='no') 'dr,ity,jty,htype,ntype: ',  dr1,ity,jty,this%htype,this%ntype
+!        if(is_NH_bond) write(6,'(a,3f8.3)',advance='no') ' N-H,dr,NH_inner&outer',dr1,this%rc_inner,this%rc_outer
+!        if(is_NN_bond) write(6,'(a,2f8.3)',advance='no') ' N-N,dr,nn_min',        dr1,this%rc_nn_min
+!        if(is_HH_bond) write(6,'(a,2f8.3)',advance='no') ' H-H,dr,hh_min',        dr1,this%rc_hh_min
+!        write(6,*)
+!      endif
+
+      ! N-H bond
+      if(is_NH_bond) then
+
+        ! any N-H pair within inner cutoff
+        if(dr1<this%rc_inner) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+           ! stop condition check. Apply bond cutoff first to atoms in neighbor list.
+           if(dr1<this%stop_NH_min) print'(a,2i9,2i6,3f8.3)','ERROR: N-H bond is too short',igid,jgid,ity,jty,dr1
+           call assert(dr1>this%stop_NH_min, 'ERROR: N-H bond is too short', val=dr1) 
+        endif
+
+        ! only tagged N-H pair exceeding outer cutoff
+        if(this%rc_outer<dr1 .and. is_tagged_NH) then
+           print'(a,2i3,2i9,f8.3)','ity,jty,igid,jgid,dr1: ',ity,jty,igid,jgid,dr1
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+           if(dr1>this%stop_NH_max) print'(a,2i9,2i6,3f8.3)','ERROR: N-H bond is too long',igid,jgid,ity,jty,dr1
+           call assert(dr1<this%stop_NH_max, 'ERROR: N-H bond is too long', val=dr1)
+        endif
+
+      endif
+
+      ! N-N bond
+      if(is_NN_bond) then
+        if(dr1<this%rc_nn_min) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+      endif
+
+      ! H-H bond
+      if(is_HH_bond) then
+        if(dr1<this%rc_hh_min) then
+           f(i,1:3)=0.d0 
+           f(j,1:3)=0.d0 
+        endif
+      endif
+
+   enddo
+
+enddo
+
+! (3) Apply spring constraint
+this%f_spring=0.d0
+
+do i=1, NATOMS
+
+   ity = nint(atype(i))
+   igid = l2g(atype(i))
+
+   do j1 = 1, nbrlist(i,0)
+
+      j = nbrlist(i,j1)
+      jty = nint(atype(j))
+      jgid = l2g(atype(j))
+
+      rij(1:3) = pos(i,1:3)-pos(j,1:3)
+      rij(0) = sqrt(sum(rij(1:3)*rij(1:3)))
+      rij(1:3) = rij(1:3)/rij(0)
+
+      ! bond type check
+      is_NH_bond = (ity==this%ntype .and. jty==this%htype) .or. (ity==this%htype .and. jty==this%ntype)
+      is_NN_bond = (ity==jty) .and. (ity==this%ntype)
+      is_HH_bond = (ity==jty) .and. (ity==this%htype)
+
+      ! check if tagged O-H pair 
+      is_tagged_NH = (ity==this%ntype) .and. (jty==this%htype) .and. is_tagged_pair(igid,jgid)
+
+      Krcoef = 0.d0
+      r_opt = 0.d0
+      k_spring = 0.d0
+      if(is_tagged_NH) then ! two-sided N-H
+
+         Krcoef = this%a_bond_NH * this%Kr_NH*(rij(0)-this%r0_NH)
+         r_opt = this%r0_NH
+         k_spring = this%Kr_NH
+
+      else if(is_NN_bond .and. rij(0) < this%r0_N) then ! one-sided N-N
+
+         Krcoef = this%Kr_N*(rij(0)-this%r0_N)
+         r_opt = this%r0_N
+         k_spring = this%Kr_N
+
+      else if(is_HH_bond .and.  rij(0)<this%r0_HH) then ! one-sided H-H
+
+         Krcoef = this%Kr_HH*(rij(0)-this%r0_HH)
+         r_opt = this%r0_HH
+         k_spring = this%Kr_HH
+
+      endif
+
+      ! check 
+!      if(myid==0.and.abs(Krcoef)>0d0) then
+!        write(6,'(a,f6.4,2i2,2i9)',advance='no') 'dr,ity,jty,igid,jgid: ',rij(0),ity,jty,igid,jgid
+!        if(is_tagged_NH) write(6,'(a)',advance='no') ' tagged_N-H '
+!        if(is_NN_bond) write(6,'(a)',advance='no') ' N-N '
+!        if(is_HH_bond) write(6,'(a)',advance='no') ' H-H '
+!        write(6,'(a,3f8.3)') ' Krcoef,r_opt,k_spring', Krcoef, r_opt, k_spring
+!      endif
+
+      !if(is_tagged_NH) then
+      !  write(6,'(a,f6.4,2i2,2i9)',advance='no') 'dr,ity,jty,igid,jgid: ',rij(0),ity,jty,igid,jgid
+      !  write(6,'(a)') ' tagged_N-H '
+      !endif
+
+      ff(1:3) = Krcoef*rij(1:3)
+      this%f_spring(i,1:3) = this%f_spring(i,1:3) - ff(1:3)
+      this%f_spring(j,1:3) = this%f_spring(j,1:3) + ff(1:3)
+
+      ! ENTERING 3-body constraints. 
+      do k1 = j1 + 1, nbrlist(i,0)
+
+         k = nbrlist(i,k1)
+         kgid = l2g(atype(k))
+         kty = nint(atype(k))
+
+         rik(1:3) = pos(i,1:3)-pos(k,1:3)
+         rik(0) = sqrt(sum(rik(1:3)*rik(1:3)))
+         rik(1:3) = rik(1:3)/rik(0)
+
+         cosine = sum(rij(1:3)*rik(1:3))
+         theta = acos(cosine)
+         sine = sin(theta)
+
+         ! check if tagged N-H pair 
+         is_tagged_NH_2nd = (ity==this%ntype) .and. (jty==this%htype) .and. is_tagged_pair(igid,kgid)
+
+         Kqcoef = 0d0;  q_spring = 0d0;  q_opt = 0d0
+         if(is_tagged_NH .and. is_tagged_NH_2nd) then  ! H-N-H triplet & within its cutoff
+
+            Kqcoef = this%a_angle_HNH*this%Kq_HNH*(theta*180d0/pi-this%q0_HNH)*(-1.d0/sine)
+            q_spring = this%Kq_HNH
+            q_opt =  this%q0_HNH
+
+         endif
+
+!      ! check 
+!         if(myid==0.and.abs(Kqcoef)>0d0) then
+!           write(6,'(a,2f8.4,f8.2,2x,3i2,2x,3i6)',advance='no') 'drij,drik,theta,ity,jty,kty,igid,jgid,kgid: ', &
+!                rij(0),rik(0),theta*180d0/pi,ity,jty,kty,igid,jgid,kgid
+!           write(6,'(a,3f8.3)') ' Kqcoef,q_opt, q_spring', Kqcoef, q_opt, q_spring
+!         endif
+
+         rij0(0)=rij(0); rij0(1:3)=-rij(1:3)
+         call ForceA3(Kqcoef,j,i,k,rij0,rik, this%f_spring)
+
+      enddo
+
+   enddo
+
+enddo
+
+
+do i=1, size(f,dim=1)
+do j=1, size(f,dim=2)
+   f(i,j)=f(i,j)+this%f_spring(i,j)
+enddo; enddo
+
+call bstat%print(myid)
+
+contains 
+
+  function is_tagged_pair(center_id,neighbor_id) result(tag)
+     implicit none
+     integer,intent(in) :: center_id,neighbor_id
+     logical :: tag
+
+     tag = (neighbor_id==center_id+1) .or. (neighbor_id==center_id+2) .or. (neighbor_id==center_id+3)
+
+     return
+  end function
 
 end subroutine
 
@@ -1752,7 +2191,9 @@ real(8),allocatable :: ftmp(:,:)
 
 if(.not. sr%has_short_repulsion) return
 
-if (sr%potential_type==1) then
+if (sr%potential_type==7) then
+  call sr%p7%apply(sr%potential_type, bstat)
+else if (sr%potential_type==1) then
   call sr%p1%apply()
 else if (sr%potential_type==2) then
   call sr%p2%apply2()
