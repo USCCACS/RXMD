@@ -13,9 +13,9 @@ module stat_mod
      real(8) :: rc
   end type
 
-  real(8),parameter :: BARC0=3d0
+  real(8),parameter :: BARC0=4d0
   type(bond_length) :: bond_length0(2) = [ &
-                       bond_length('H','O',1.0d0), &
+                       bond_length('H','N',1.2d0), &
                        bond_length('Na','O',3.0d0) &
                        ]
                        !bond_length('H','O',1.0d0), &
@@ -28,7 +28,7 @@ module stat_mod
 
   ! neutron scattering length data are from 
   !  https://www.nist.gov/ncnr/neutron-scattering-lengths-list
-  type(NSD_type) :: NSD0(13)=[NSD_type(name='Ge',length=8.185d-5), & 
+  type(NSD_type) :: NSD0(14)=[NSD_type(name='Ge',length=8.185d-5), & 
                               NSD_type(name='Se',length=7.970d-5), &
                               NSD_type(name='Sb',length=5.57d-5), &
                               NSD_type(name='Te',length=5.80d-5), & 
@@ -40,7 +40,8 @@ module stat_mod
                               NSD_type(name='Na',length=3.63d-5), &
                               NSD_type(name='Cl',length=9.5770d-5), &
                               NSD_type(name='Pb',length=9.405d-5), &
-                              NSD_type(name='Ti',length=-3.4380d-5)  ]
+                              NSD_type(name='Ti',length=-3.4380d-5), &
+                              NSD_type(name='N',length=9.36d-5)  ]
 
   type base_atom_type
     real(8) :: pos(3), rr
@@ -318,12 +319,18 @@ contains
      enddo
 
      ! setup neutron scattering length data for existing atom types
-     allocate(c%NSD(size(c%elems)))
+     allocate(c%NSD(0))
      do i=1, size(c%elems)
         do j=1, size(NSD0)
-           if(c%elems(i)%str==NSD0(j)%name) c%NSD(i) = NSD0(j)
+           if(c%elems(i)%str==NSD0(j)%name) c%NSD = [c%NSD, NSD0(j)]
         enddo
      enddo
+
+     ! check if NSD are found for all elements
+     if ( size(c%NSD) /= size(c%elems) ) then
+        print*,'Error : missing NSD', size(c%NSD), c%NSD
+        stop
+     endif
 
      c%kvector(1:3)=2d0*pi/c%lattice(1:3)
 
