@@ -264,34 +264,34 @@ contains
      enddo
      close(iunit)
 
-     do ity=1,size(this%elems)
-        open(newunit=iunit,file='ba-'//this%elems(ity)%str//'.dat',form='formatted')
+     open(newunit=iunit,file='ba.dat',form='formatted')
 
-        write(unit=iunit,fmt='(a,1x)',advance='no') '1-angle,'
+     write(unit=iunit,fmt='(a,1x)',advance='no') '1-angle,'
+     do ity=1,size(this%elems)
+     do jty=1,size(this%elems)
+     do kty=1,size(this%elems)
+        write(unit=iunit,fmt='(a12,a1,1x)',advance='no') & 
+           this%elems(jty)%str//'-'//this%elems(ity)%str//'-'//this%elems(kty)%str,','
+     enddo; enddo; enddo
+     write(unit=iunit,fmt=*)
+
+     do k=1,size(this%ba,dim=4)
+        write(unit=iunit,fmt='(i8,a1)',advance='no') k,','
+        do ity=1,size(this%elems)
         do jty=1,size(this%elems)
         do kty=1,size(this%elems)
-           write(unit=iunit,fmt='(a12,a1,1x)',advance='no') & 
-              this%elems(jty)%str//'-'//this%elems(ity)%str//'-'//this%elems(kty)%str,','
-        enddo; enddo
+           bavalue = sum(this%ba(jty,ity,kty,:))
+           if(bavalue>0.d0) then
+             write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') &
+               this%ba(jty,ity,kty,k)/(bavalue*this%num_atoms_per_type(ity)*this%num_sample_frames),','
+           else
+             write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') 0.d0,','
+           endif
+        enddo; enddo; enddo
         write(unit=iunit,fmt=*)
-
-        do k=1,size(this%ba,dim=4)
-           write(unit=iunit,fmt='(i8,a1)',advance='no') k,','
-           do jty=1,size(this%elems)
-           do kty=1,size(this%elems)
-              bavalue = sum(this%ba(jty,ity,kty,:))
-              if(bavalue>0.d0) then
-                write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') &
-                  this%ba(jty,ity,kty,k)/(bavalue*this%num_atoms_per_type(ity)*this%num_sample_frames),','
-              else
-                write(unit=iunit,fmt='(es12.5,a1,1x)',advance='no') 0.d0,','
-              endif
-           enddo; enddo
-           write(unit=iunit,fmt=*)
-        enddo
-
-        close(iunit)
      enddo
+
+     close(iunit)
 
   end subroutine
 

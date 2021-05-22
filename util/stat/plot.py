@@ -3,149 +3,142 @@
 import pandas as pd
 import glob, os, sys
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from matplotlib.ticker import FormatStrFormatter
+from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 
 plt.rcParams.update({'font.size': 24})
-plt.rcParams["font.family"] = "Times New Roman"
+#plt.rcParams["font.family"] = "Times New Roman"
+plt.rc('grid', linestyle=':', color='red', linewidth=1)
 
-def ba_plot(dirs, num_ba=2):
-    
+gr_xlabel='1-distance'
+gr_ylabels=['H-H','H-N','N-H','N-N']
+
+ba_xlabel='1-angle'
+ba_ylabels=['N-H-N','N-N-N']
+
+sq_xlabel='wave_number'
+sq_ylabels=['H-H','H-N','N-H','N-N']
+
+
+def ba_plot(dirs, num_columns=2):
+
+    num_plots = len(ba_ylabels)
+    num_rows = int(num_plots/num_columns)
+
     for dir in dirs:
-        for infile in glob.glob(dir+'/ba-*.dat'):
+        for infile in glob.glob(dir+'/ba.dat'):
 
             dat = pd.read_csv(infile)
-            dat = dat.iloc[:, :-1] # drop last column
-            columns = dat.columns
-            names = []
-            for c in columns:
-                names.append(c.lstrip())
-            print(names)
-            dat.columns = names
-            dat = dat.reindex(sorted(dat.columns), axis=1)
-            columns = dat.columns
-            print(columns)
-            
-            num_rows = (len(columns)-1)/num_ba
-            print('===== %s %d ===='%(infile, num_rows))
-             
-            fig = plt.figure(figsize=(num_rows*10, num_ba*8))
+            dat.columns = dat.columns.str.strip()
 
-            for c in range(len(columns)-1):
-                subplots = fig.add_subplot(num_ba, num_rows, c+1)
-                plt.setp(subplots.get_yticklabels(),visible=False)
-                
+            fig = plt.figure(figsize=(num_rows*10, num_columns*10))
+
+            for c in range(num_plots):
+                ax = fig.add_subplot(num_rows,num_columns,c+1)
+
+                ba_y = ba_ylabels[c]
+                ax.plot(dat[ba_xlabel], dat[ba_y], label=ba_y, linewidth=2)
+
                 #subplots.set_ylim([0,1e-6])
-                subplots.set_xlim([0,180])
-                subplots.set_xticks((0, 30, 60, 90, 120, 150, 180))
-                subplots.plot(dat[columns[0]], dat[columns[c+1]], 
-                              label=columns[c+1].lstrip(), linewidth=2)
-                subplots.legend(loc='lower left')
-                subplots.grid()
-            outfile = infile+'.png'
+                ax.set_xlim([0,180])
+                ax.set_xticks((0, 30, 60, 90, 120, 150, 180))
+                ax.yaxis.set_major_locator(ticker.NullLocator())
+                ax.legend(loc='lower left')
+
+            outfile = 'ba.png'
             plt.savefig(outfile,bbox_inches='tight')
-            print('------ %s -----'%(outfile))
+
+            print('=== BA ===================================')
+            print(f'infile {infile}       outfile {outfile}')
+            print(f'dat.cloumns {dat.columns}')
+            print('==========================================')
     return
 
-def sq_plot(dirs, num_sq=2):
+def sq_plot(dirs, num_columns=2):
 
-    num_cols = num_sq*num_sq + 1
-    num_pairs = num_sq*num_sq
-    print('num_sq,num_cols,num_pairs: ', num_sq,num_cols,num_pairs)
+    num_plots = len(sq_ylabels)
+    num_rows = int(num_plots/num_columns)
 
     for dir in dirs:
         for infile in glob.glob(dir+'/sq.dat'):
             
-            print('===== %s ===='%(infile))
-            
             dat = pd.read_csv(infile)
-            
-            columns = dat.columns
-            names = []
-            for c in columns:
-                names.append(c.lstrip())
-            print('name: ', names)
+            dat.columns = dat.columns.str.strip()
 
-            dat.columns = names
-            dat = dat.iloc[:,0:num_cols+1]
-            dat = dat.reindex(sorted(dat.columns), axis=1)
-            print('dat.columns: ', dat.columns)
-            
-            columns = dat.columns
-            print(columns)
-
-            # Sn(q)
-            fig = plt.figure(figsize=(10*num_sq, 8*num_sq))
-            subplots = fig.add_subplot(1,1,1)
-            subplots.plot(dat[columns[-1]], dat[columns[-2]], \
-                label=columns[-2].lstrip(), linewidth=3)
-            outfile = os.path.join(dir,'snq.png')
-            subplots.legend()
-            subplots.grid()
-            plt.savefig(outfile,bbox_inches='tight')
+            # Sn(q) neutron
+            fig = plt.figure(figsize=(10, 10))
+            ax = fig.add_subplot()
+            ax.plot(dat[sq_xlabel], dat['Snq'], label='Sn(q)', linewidth=3)
+            plt.savefig(os.path.join(dir,'snq.png'),bbox_inches='tight')
 
             # S(q) partials
-            fig = plt.figure(figsize=(10*num_sq, 8*num_sq))
-            for c in range(num_pairs):
-                subplots = fig.add_subplot(num_sq,num_sq,c+1)
-                #subplots.set_ylim([0,6])
-                subplots.plot(dat[columns[-1]], dat[columns[c]], 
-                              label=columns[c].lstrip(), linewidth=3)
-                subplots.legend()
-                subplots.grid()
+            fig = plt.figure(figsize=(10*num_rows, 10*num_columns))
+
+            for c in range(num_plots):
+                ax = fig.add_subplot(num_rows,num_columns,c+1)
+                sq_y = sq_ylabels[c]
+                ax.plot(dat[sq_xlabel], dat[sq_y], label=sq_y, linewidth=3)
+                ax.grid(which='major', color='red', linewidth=2.0)
+                ax.grid(which='minor', color='green', linestyle=':', linewidth=1.0)
+                ax.legend()
+
             outfile = os.path.join(dir,'sq.png')
             plt.savefig(outfile,bbox_inches='tight')
-    
-            print('------ %s -----'%(outfile))
+
+            print('=== S(q) =================================')
+            print(f'infile {infile}       outfile {outfile}')
+            print(f'dat.cloumns {dat.columns}')
+            print('==========================================')
             
     return 
                 
-def gr_plot(dirs, num_gr=2):
+def gr_plot(dirs, num_columns=2):
 
-    num_cols = num_gr*num_gr*2 + 2
-    num_pairs = num_gr*num_gr
-    print('num_gr,num_cols,num_pairs: ', num_gr,num_cols,num_pairs)
+    num_plots = len(gr_ylabels)
+    num_rows = int(num_plots/num_columns)
 
     for dir in dirs:
         for infile in glob.glob(dir+'/gr.dat'):
             
-            fig = plt.figure(figsize=(10*num_gr, 8*num_gr))
+            fig = plt.figure(figsize=(10*num_rows, 10*num_columns))
             
             print('===== %s ===='%(infile))
             
             dat = pd.read_csv(infile)
-            
-            columns = dat.columns
-            names = []
-            for c in columns:
-                names.append(c.lstrip())
-            print(names)
-            dat.columns = names
-            dat = dat.iloc[:,0:num_cols]
-            dat = dat.reindex(sorted(dat.columns), axis=1)
-            print(dat.columns)
-            
-            columns = dat.columns
-            print(columns)
+            dat.columns = dat.columns.str.strip()
 
-            for c in range(num_pairs):
-                subplots = fig.add_subplot(num_gr,num_gr,c+1)
-                subplots.set_ylim([0,6])
-                #subplots.set_xlim([0,10])
-                subplots.plot(dat[columns[0]], dat[columns[2*c+1]], 
-                              label=columns[2*c+1].lstrip(), linewidth=3)
-                subplots.plot(dat[columns[0]], dat[columns[2*c+2]],
-                              label=columns[2*c+2].lstrip(), linewidth=3)
-                subplots.legend()
-                subplots.grid()
+            for c in range(num_plots):
+                ax= fig.add_subplot(num_rows,num_columns,c+1)
+                ax.set_ylim([0,6])
+                ax.set_xlim([0,5])
+                #subplots.xaxis.set_minor_locator(AutoMinorLocator(10))
+                ax.minorticks_on()
+
+                gr_y = gr_ylabels[c]+'(gr)'
+                nr_y = gr_ylabels[c]+'(nr)'
+
+                ax.plot(dat[gr_xlabel], dat[gr_y], label=gr_y, linewidth=3)
+                ax.plot(dat[gr_xlabel], dat[nr_y], label=nr_y, linewidth=3)
+                ax.grid(which='major', color='red', linewidth=1.0)
+                ax.grid(which='minor', color='green', linestyle=':', linewidth=0.8)
+                ax.legend()
+
             outfile = os.path.join(dir,'gr.png')
             plt.savefig(outfile,bbox_inches='tight')
     
-            print('------ %s -----'%(outfile))
+            print('=== g(r) =================================')
+            print(f'gr: infile {infile}       outfile {outfile}')
+            print(f'dat.cloumns {dat.columns}')
+            print('==========================================')
             
     return 
 
 
-dirs=['.']
-gr_plot(dirs)
-ba_plot(dirs,2)
-sq_plot(dirs)
+if __name__ == "__main__":
+
+    dirs=['.']
+
+    gr_plot(dirs)
+    sq_plot(dirs)
+    ba_plot(dirs)
