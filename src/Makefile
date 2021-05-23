@@ -7,13 +7,13 @@ include ../make.inc
 
 %.o: %.mod
 
-SRCS := utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 fnn.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 remd_pot_ANN_original.F90 shortrep.F90
-OBJS := $(SRCS:.F90=.o)
+SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 remd_pot_ANN_original.F90 fnn.F90 shortrep.F90
+OBJS = $(SRCS:.F90=.o)
 
 EXE := ../rxmd
 
 $(EXE): $(OBJS)
-	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) module.o $(LIBS)
+	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) $(LIBS)
 
 #cg.o : fileio.o
 #main.F90 : cg.o
@@ -45,17 +45,30 @@ pqeq.o : reaxff.o comm.o lists.o
 main.o : init.o module.o
 
 
-nompi: nompi.f90 
-	$(FC) $(FC_FLAGS) -DNOMPI -c nompi.f90 utils.F90 memory.F90
-	make MPIF90=$(FC) MPIF90_FLAGS="$(FC_FLAGS) -DNOMPI" OBJS="$(OBJS) nompi.o" $(EXE) 
+## build No-MPI executable
 
-librxmd: 
-	make nompi
-	$(FC) $(FC_FLAGS) -DLIBRXMD -DNOMPI -c main.F90
-	ar crv librxmd.a *.o
+nompi: MPIF90_FLAGS := $(FC_FLAGS) -DNOMPI
+nompi: MPIF90 := $(FC)
+
+nompi_o: nompi.o
+	$(MPIF90) $(MPIF90_FLAGS) -c nompi.F90
+
+nompi: nompi_o $(OBJS) 
+	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) nompi.o $(LIBS)
+
+
+## build librxmd
+
+librxmd: MPIF90_FLAGS := $(FC_FLAGS) -DNOMPI -DLIBRXMD -fpic
+librxmd: MPIF90 := $(FC)
+
+librxmd: nompi_o $(OBJS)
+	$(FC) *.o  -shared -fpic -o librxmd.so
+
+
 
 clean:
-	rm -f PI* *.o *.mod *.MOD mpif.h *.a ../rxmd
+	rm -f PI* *.o *.mod *.MOD mpif.h *.a *.so ../rxmd
 
 rebuild:
 	make clean
