@@ -288,13 +288,16 @@ type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 
+character(len=:),allocatable :: filebase
+
 integer :: i,ity
 
 if(reset_velocity_random) call gaussian_dist_velocity(atype, v)
 
 if(mdmode==0) then
   call gaussian_dist_velocity(atype, v)
-  call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+  filebase = GetFileNameBase(DataDir,-1)
+  call WriteBIN(atype, pos, v, q, filebase)
   return
 endif
 
@@ -309,9 +312,10 @@ do nstep=0, num_mdsteps-1
 
   call cpu_time(tstart(0))
 
-  if(mod(nstep,fstep)==0) &
-        call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, v)
-        !call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
+  if(mod(nstep,fstep)==0) then
+     filebase = GetFileNameBase(DataDir,current_step+nstep)
+     call OUTPUT(filebase, atype, pos, v, q, v)
+  endif
 
   if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
@@ -361,11 +365,12 @@ do nstep=0, num_mdsteps-1
 enddo
 
 !--- save the final configurations
-!call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, f)
-call OUTPUT(GetFileNameBase(DataDir,current_step+nstep), atype, pos, v, q, v)
+filebase = GetFileNameBase(DataDir,current_step+nstep)
+call OUTPUT(filebase, atype, pos, v, q, v)
 
 !--- update rxff.bin in working directory for continuation run
-call WriteBIN(atype, pos, v, q, GetFileNameBase(DataDir,-1))
+filebase = GetFileNameBase(DataDir,-1)
+call WriteBIN(atype, pos, v, q, filebase)
 
 !--- save result if msd_data%is_msd == true
 call msd_save(msd_data)
@@ -392,7 +397,7 @@ nbrlist(:,0) = 0
 call cpu_time(tstart(2))
 
 !$omp parallel do default(shared) collapse(3) & 
-!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,rr,rr2,rij,fr_ij,rij_mu,eta_ij,idx) 
+!$omp private(c1,c2,c3,ic,c4,c5,c6,rr,rr2,rij) 
 do c1=0, cc(1)-1
 do c2=0, cc(2)-1
 do c3=0, cc(3)-1

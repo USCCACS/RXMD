@@ -249,7 +249,8 @@ integer :: stat
 if((.not.isRunFromXYZ) .and. (myid==0)) verbose=.true.
 
 !FIXME path needs to given from cmdline
-fp = fnn_param_ctor(str_gen('fnn.in'))
+filename = 'fnn.in'
+fp = fnn_param_ctor(filename)
 
 !--- FNN specific output 
 if(myid==0) call fp%print()
