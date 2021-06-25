@@ -1,6 +1,6 @@
 # RXMD params 
 mdmode       1                      <mdmode>
-time         0.4    10              <dt> <ntime_step> 
+time         0.4    5              <dt> <ntime_step> 
 temperature  213  0.1   2    5.0    <treq> <vsfact> <sstep> <vmag_factor>
 io_step      100   1                <fstep>  <pstep>
 io_type      .false. .false. .false. .false. <isBinary> <isBondFile> <isPDB> <isXYZ>
