@@ -6,10 +6,11 @@
 # LINKER is linker (optional)
 # LIBS are extra needed libraries (optional) 
 
-MPIF90 = ftn
-FC = ifort
+MPIF90 = mpif90
+FC = nvfortran
 
-MPIF90_FLAGS = -O3 
+#MPIF90_FLAGS = -fopenmp -g -mp -target=gpu -gpu=cc70,cuda10.1
+MPIF90_FLAGS = -O3
 
 FC_FLAGS = -O3 
 
