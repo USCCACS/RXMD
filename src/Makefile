@@ -20,7 +20,7 @@ $(EXE): $(OBJS)
 
 shortrep.o : module.o fileio.o utils.o
 
-remd_pot_ANN_original.o : constant.o
+remd_pot_ANN_original.o : constant.o symmfunc.o
 
 module.o : utils.o memory.o remd_pot_ANN_original.o
 
