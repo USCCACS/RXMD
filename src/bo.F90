@@ -15,9 +15,9 @@ real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3)
 
 integer :: ti,tj,tk
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
 !--- calculate BO prime 
 CALL BOPRIM()  
@@ -25,10 +25,10 @@ CALL BOPRIM()
 !--- calculate full BO
 CALL BOFULL() 
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(6)=it_timer(6)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 CONTAINS
 
@@ -44,14 +44,14 @@ integer :: c1,c2,c3
 real(8) :: dr(3), dr2, arg_BOpij(3)
 
 !--- initialize deltap(1:,1) to -Val(atype(i))
-!$omp do 
+!!$omp do 
 do i=1, copyptr(6)
    ity = nint(atype(i))
    deltap(i,1) = -Val(ity) 
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp do
+!!$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
 
@@ -104,9 +104,9 @@ do i=1, copyptr(6)
              bo(0,i,j1) = sum( bo(1:3,i,j1) ) 
              bo(0:3,j,i1) = bo(0:3,i,j1)
 
-!$omp atomic
+!!$omp atomic
              deltap(i,1) = deltap(i,1) + bo(0,i,j1)
-!$omp atomic
+!!$omp atomic
              deltap(j,1) = deltap(j,1) + bo(0,i,j1)
           else
              dBOp(i,j1) = 0.d0
@@ -119,7 +119,7 @@ do i=1, copyptr(6)
       endif
    enddo
 enddo
-!$omp end do
+!!$omp end do
  
 END SUBROUTINE
 
@@ -150,14 +150,14 @@ real(8) :: BOp0, BOpsqr
 
 real(8) :: exppboc1i,exppboc2i,exppboc1j,exppboc2j   !<kn>
 
-!$omp do
+!!$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
    deltap(i,2) = deltap(i,1) + Val(ity) - Valval(ity) ! update for Mo
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp do 
+!!$omp do 
 do i=1, copyptr(6)
    ity = nint(atype(i))
   
@@ -289,16 +289,16 @@ do i=1, copyptr(6)
 
    enddo ! do j1=1,nbrlist(i,0) loop end
 enddo
-!$omp end do
+!!$omp end do
 
 !--- Calculate delta(i):
 !--- Initialize detal(i)
-!$omp do
+!!$omp do
 do i=1, copyptr(6)
    ity = nint(atype(i))
    delta(i) = -Val(ity) + sum( BO(0,i,1:nbrlist(i,0)) )
 enddo
-!$omp end do
+!!$omp end do
 
 END SUBROUTINE
 

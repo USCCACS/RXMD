@@ -128,7 +128,7 @@ contains
 
     call omp_set_num_threads(16)
 
-!$omp parallel private(tid,i,j,dr,r,ir,it,jt)
+!!$omp parallel private(tid,i,j,dr,r,ir,it,jt)
     tid = omp_get_thread_num()
     num_threads = omp_get_num_threads()
 
@@ -151,7 +151,7 @@ contains
           if(0.d0 < r .and. r < ac%box_rc) then
             it = mdf%itype(i)
             jt = mdf%itype(j)
-!$omp atomic
+!!$omp atomic
             ac%gr(it,jt,ir)=ac%gr(it,jt,ir)+1.d0
           end if
 

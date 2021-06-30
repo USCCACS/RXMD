@@ -396,8 +396,8 @@ nbrlist(:,0) = 0
 
 call cpu_time(tstart(2))
 
-!$omp parallel do default(shared) collapse(3) & 
-!$omp private(c1,c2,c3,ic,c4,c5,c6,rr,rr2,rij) 
+!!$omp parallel do default(shared) collapse(3) & 
+!!$omp private(c1,c2,c3,ic,c4,c5,c6,rr,rr2,rij) 
 do c1=0, cc(1)-1
 do c2=0, cc(2)-1
 do c3=0, cc(3)-1
@@ -437,7 +437,7 @@ do c3=0, cc(3)-1
      i = llist(i)
   enddo
 enddo; enddo; enddo
-!$omp end parallel do 
+!!$omp end parallel do 
 call cpu_time(tfinish(2))
 
 return

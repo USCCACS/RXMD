@@ -2,6 +2,12 @@ module symmfunc
 
   implicit none
 
+  type sf_F1_return 
+    double precision :: Fijk
+    double precision, dimension(3) :: dFijk_dRj
+    double precision, dimension(3) :: dFijk_dRk
+  end type sf_F1_return
+
   double precision, parameter, private :: PI    = 3.14159265358979d0
   double precision, parameter, private :: PI2   = 2.0d0*PI
   double precision, parameter, private :: EPS   = 1.0d-12
@@ -43,6 +49,7 @@ module symmfunc
   double precision, dimension(:,:,:), allocatable, private :: sf_pG4
   double precision, dimension(:,:,:), allocatable, private :: sf_pG5
 
+  !$omp declare target (sf_pG4)
   !--------------------------------------------------------------------!
 
   integer, public :: stdout = 6
@@ -63,6 +70,7 @@ module symmfunc
 
   real(8), allocatable, private :: exv(:), exva(:)
   real(8) :: exx, dex, dexr
+  !$omp declare target (exx, dexr, exv)
   save
 
 contains !-------------------------------------------------------------!
@@ -666,6 +674,68 @@ contains !-------------------------------------------------------------!
   !                        angle dependend part                        !
   ! This is function F_1(R_ij,R_ik) in the documentation.              !
   !--------------------------------------------------------------------!
+  
+  !$omp declare target (sf_F1_ijk_func)
+  function sf_F1_ijk_func(vecRij, vecRik, Rijr, Rikr, cost, lambda, &
+                       zeta)
+
+    implicit none
+
+    type(sf_F1_return) :: sf_F1_ijk_func
+    double precision, dimension(3), intent(in)  :: vecRij, vecRik
+    double precision, value,              intent(in)  :: Rijr, Rikr
+    double precision, value,              intent(in)  :: cost
+    double precision, value,              intent(in)  :: lambda
+    double precision, value,              intent(in)  :: zeta
+    !double precision,                :: Fijk
+    !double precision, dimension(3),  :: dFijk_dRj
+    !double precision, dimension(3),  :: dFijk_dRk
+
+    double precision :: arg, prefactor, argz, prefactor1
+    real(8), parameter :: epsi = 1.d-12
+
+    if (abs(cost) > 1.0d0) write(*,*) "cos(theta) = ", cost
+
+!    if( abs(lambda-1.0d0) < epsi ) then
+!        arg = 0.5d0*(1.0d0 + cost)
+!    else if( abs(lambda+1.0d0) < epsi ) then
+!        arg = 0.5d0*(1.0d0 - cost)
+!    else
+        arg = 0.5d0*(1.0d0 + lambda*cost)
+!    end if
+
+!    prefactor = 0.5d0*zeta*lambda*arg**(zeta-1.0d0)
+    if( abs(zeta-1.0d0) < epsi ) then
+        argz = 1.d0
+    else if( abs(zeta-2.0d0) < epsi ) then
+        argz = arg
+    else if( abs(zeta-3.0d0) < epsi ) then
+        argz = arg*arg
+    else if( abs(zeta-4.0d0) < epsi ) then
+        argz = arg*arg*arg
+    else
+        argz = arg**(zeta-1.0d0)
+    end if
+!    if( abs(lambda-1.0d0) < epsi ) then
+!        prefactor = 0.5d0*zeta*argz
+!    else if( abs(lambda+1.0d0) < epsi ) then
+!        prefactor = -0.5d0*zeta*argz
+!    else
+        prefactor = 0.5d0*zeta*lambda*argz
+!    end if
+
+!    Fijk  = arg**zeta
+    sf_F1_ijk_func%Fijk  = argz*arg
+
+    prefactor1 = prefactor*Rijr
+!    dFijk_dRj(1:3) = prefactor1*( -cost*vecRij(1:3) + vecRik(1:3) )
+    sf_F1_ijk_func%dFijk_dRj(1:3) = prefactor1*vecRij(1:3)
+
+    prefactor1 = prefactor*Rikr
+!    dFijk_dRk(1:3) = prefactor1*( -cost*vecRik(1:3) + vecRij(1:3) )
+    sf_F1_ijk_func%dFijk_dRk(1:3) = prefactor1*vecRik(1:3)
+  end function sf_F1_ijk_func
+
 
   subroutine sf_F1_ijk(vecRij, vecRik, Rijr, Rikr, cost, lambda, &
                        zeta, Fijk, dFijk_dRj, dFijk_dRk)
@@ -673,10 +743,10 @@ contains !-------------------------------------------------------------!
     implicit none
 
     double precision, dimension(3), intent(in)  :: vecRij, vecRik
-    double precision,               intent(in)  :: Rijr, Rikr
-    double precision,               intent(in)  :: cost
-    double precision,               intent(in)  :: lambda
-    double precision,               intent(in)  :: zeta
+    double precision, value,              intent(in)  :: Rijr, Rikr
+    double precision, value,              intent(in)  :: cost
+    double precision, value,              intent(in)  :: lambda
+    double precision, value,              intent(in)  :: zeta
     double precision,               intent(out) :: Fijk
     double precision, dimension(3), intent(out) :: dFijk_dRj
     double precision, dimension(3), intent(out) :: dFijk_dRk
@@ -732,21 +802,65 @@ contains !-------------------------------------------------------------!
   ! This is function F_2(R) in the documentation.                      !
   ! --> very similar to sf_G2_ij(), may be combined in future.         !
   !--------------------------------------------------------------------!
+   !$omp declare target (sf_F2_ij)
+   function sf_F2_ij_func(Rij, Rc, Rcr, eta)
+
+      implicit none
+
+      double precision, dimension(2) :: sf_F2_ij_func
+      double precision,value, intent(in)  :: Rij
+      double precision,value, intent(in)  :: Rc, Rcr
+      double precision,value, intent(in)  :: eta
+      !double precision, intent(out) :: Fij
+      !double precision, intent(out) :: dFij
+      
+      double precision :: fc, dfc
+      double precision :: fexp, x, d, etij
+      integer :: m
+      
+   !    Rcr = 1.d0/Rc
+      call sf_cut(Rij, Rc, Rcr, fc, dfc)
+
+   !    fexp = exp(-eta*Rij*Rij)
+      etij = eta*Rij
+      x = etij*Rij
+      if( x > exx ) then
+         fexp = 0.d0
+      else
+      if( norder == 1 ) then
+         !---first-order interpolation
+         d = x*dexr
+         m = d
+         d = d - m
+         fexp = (1d0-d)*exv(m)+d*exv(m+1)
+      else
+         !---second-order interpolation
+         m = x/(2.d0*dex)
+         m = 2*m
+         d = 0.5d0*( x*dexr - dble(m) )
+         fexp = d*( (d-1.d0)*exva(m) + exv(m+2) - exv(m) ) + exv(m)
+      end if
+      end if
+
+      sf_F2_ij_func(1)  = fexp*fc !Fij
+      sf_F2_ij_func(2) = fexp*( dfc - 2.0d0*etij*fc  ) !dFij
+
+   end function sf_F2_ij_func
 
   subroutine sf_F2_ij(Rij, Rc, Rcr, eta, Fij, dFij)
 
     implicit none
 
-    double precision, intent(in)  :: Rij
-    double precision, intent(in)  :: Rc, Rcr
-    double precision, intent(in)  :: eta
+    double precision,value, intent(in)  :: Rij
+    double precision,value, intent(in)  :: Rc, Rcr
+    double precision,value, intent(in)  :: eta
     double precision, intent(out) :: Fij
     double precision, intent(out) :: dFij
-
+    
     double precision :: fc, dfc
     double precision :: fexp, x, d, etij
     integer :: m
-
+    
 !    Rcr = 1.d0/Rc
     call sf_cut(Rij, Rc, Rcr, fc, dfc)
 
@@ -756,19 +870,19 @@ contains !-------------------------------------------------------------!
     if( x > exx ) then
         fexp = 0.d0
     else
-    if( norder == 1 ) then
-        !---first-order interpolation
-        d = x*dexr
-        m = d
-        d = d - m
-        fexp = (1d0-d)*exv(m)+d*exv(m+1)
-    else
-        !---second-order interpolation
-        m = x/(2.d0*dex)
-        m = 2*m
-        d = 0.5d0*( x*dexr - dble(m) )
-        fexp = d*( (d-1.d0)*exva(m) + exv(m+2) - exv(m) ) + exv(m)
-    end if
+      if( norder == 1 ) then
+         !---first-order interpolation
+         d = x*dexr
+         m = d
+         d = d - m
+         fexp = (1d0-d)*exv(m)+d*exv(m+1)
+      else
+         !---second-order interpolation
+         m = x/(2.d0*dex)
+         m = 2*m
+         d = 0.5d0*( x*dexr - dble(m) )
+         fexp = d*( (d-1.d0)*exva(m) + exv(m+2) - exv(m) ) + exv(m)
+      end if
     end if
 
     Fij  = fexp*fc
@@ -778,113 +892,148 @@ contains !-------------------------------------------------------------!
 
   !--------------------------------------------------------------------!
 
-  subroutine sf_G4_update(tijk, vecRij, vecRik, vecRjk, Rij, Rik, Rjk, &
-                          cost, n, G, iG, dGi, dGj, dGk, dGh)
+subroutine sf_G4_update(tijk, vecRij, vecRik, vecRjk, Rij, Rik, Rjk, &
+                        cost, n, G, iG, dGi, dGj, dGk, dGh)
 
-    implicit none
+   implicit none
 
-    integer,                                    intent(in)    :: tijk
-    double precision, dimension(3),             intent(in)    :: vecRij, vecRik, vecRjk
-    double precision,                           intent(in)    :: Rij, Rik, Rjk
-    double precision,                           intent(in)    :: cost
-    integer,                                    intent(in)    :: n
-    double precision, dimension(n),             intent(inout) :: G
-    integer,                                    intent(inout) :: iG
-    double precision, dimension(3,n), optional, intent(inout) :: dGi
-    double precision, dimension(3,n), optional, intent(inout) :: dGj
-    double precision, dimension(3,n), optional, intent(inout) :: dGk
-    double precision, dimension(6,n), optional, intent(inout) :: dGh
+   integer,                                    intent(in)    :: tijk
+   double precision, dimension(3),             intent(in)    :: vecRij, vecRik, vecRjk
+   double precision,                           intent(in)    :: Rij, Rik, Rjk
+   double precision,                           intent(in)    :: cost
+   integer,                                    intent(in)    :: n
+   double precision, dimension(n),             intent(inout) :: G
+   integer,                                    intent(inout) :: iG
+   double precision, dimension(3,n), optional, intent(inout) :: dGi
+   double precision, dimension(3,n), optional, intent(inout) :: dGj
+   double precision, dimension(3,n), optional, intent(inout) :: dGk
+   double precision, dimension(6,n), optional, intent(inout) :: dGh
 
-    integer                        :: iG4
-    double precision               :: Rc, Rcr, lambda, zeta, eta
-    double precision               :: G4, G0
-    double precision, dimension(3) :: dG4, dF1j, dF1k
+   integer                        :: iG4 
+   double precision               :: Rc, Rcr, lambda, zeta, eta
+   double precision               :: G4, G0
+   double precision, dimension(3) :: dG4, dF1j, dF1k
 
-    double precision :: F1, F2ij, dF2ij, F2ik, dF2ik, F2jk, dF2jk
-    double precision :: Rijr, Rikr, vecRijik(3), vecRikij(3)
-    double precision :: dGhh(6), dGhij(3), dGhik(3), dGhjk(3)
-    double precision :: dG401, dG402, dG403, vecRij0(3), vecRik0(3), vecRjk0(3)
+   double precision :: F1, F2ij, dF2ij, F2ik, dF2ik, F2jk, dF2jk
+   double precision :: Rijr, Rikr, vecRijik(3), vecRikij(3)
+   double precision :: dGhh(6), dGhij(3), dGhik(3), dGhjk(3)
+   double precision :: dG401, dG402, dG403, vecRij0(3), vecRik0(3), vecRjk0(3)
+
+   type(sf_F1_return) :: sf_F1_result
+   double precision, dimension(2) :: sf_F2_result
+
+   integer :: iG_tmp
+   integer :: iter 
+   iter = sf_nG3(4,tijk)
 
     Rijr = 1.d0/Rij
     Rikr = 1.d0/Rik
     vecRijik(1:3) = -cost*vecRij(1:3) + vecRik(1:3)
     vecRikij(1:3) = -cost*vecRik(1:3) + vecRij(1:3)
 
-    !$omp target data map(to: sf_nG3(1:5,1:6), sf_pG4(1:4,1:60,1:6))
-    !$omp target teams distribute parallel do
-    do iG4 = 1, sf_nG3(4,tijk)
-       iG     = iG + 1
-       Rc     = sf_pG4(1,iG4,tijk)
-       lambda = sf_pG4(2,iG4,tijk)
-       zeta   = sf_pG4(3,iG4,tijk)
-       eta    = sf_pG4(4,iG4,tijk)
+    !iG = iG + iter
 
-       call sf_F1_ijk(vecRijik, vecRikij, Rijr, Rikr, cost, lambda, &
-                      zeta, F1, dF1j, dF1k)
-       Rcr = 1.d0/Rc
-       call sf_F2_ij(Rij, Rc, Rcr, eta, F2ij, dF2ij)
-       call sf_F2_ij(Rik, Rc, Rcr, eta, F2ik, dF2ik)
-       call sf_F2_ij(Rjk, Rc, Rcr, eta, F2jk, dF2jk)
+    !$omp target data map(to:sf_pG4(1:4,1:60,1:6), exx, dexr, exv(0:nbin)) 
+    !$omp target teams distribute parallel do default(none) &
+    !$omp&       private(iG_tmp, Rc, Rcr, lambda, zeta, eta, G0, G4, vecRij0, vecRik0, vecRjk0, &
+    !$omp&               F1, dF1j, dF1k, F2ij, dF2ij, F2ik, dF2ik, F2jk, dF2jk, dG4, & 
+    !$omp&               dG401, dG402, dG403, dGhij, dGhik, dGhjk, dGhh, sf_F1_result, sf_F2_result) &
+    !$omp&       shared(iter, sf_pG4, tijk, G, iG, vecRijik, vecRikij, Rijr, Rikr, cost, &
+    !$omp&              Rij, Rik, Rjk, dGi,dGj,dGk, vecRij, vecRik, vecRjk, dGh) 
+    do iG4 = 1, iter
+      iG_tmp = iG + iG4
+      Rc     = sf_pG4(1,iG4,tijk)
+      lambda = sf_pG4(2,iG4,tijk)
+      zeta   = sf_pG4(3,iG4,tijk)
+      eta    = sf_pG4(4,iG4,tijk)
 
-       G0    = 2.d0*F2ij*F2ik*F2jk
-       G4    = F1*G0
-       ! factor of 2 for k<j in sf_fingerprint()
+      !call sf_F1_ijk(vecRijik, vecRikij, Rijr, Rikr, cost, lambda, &
+      !               zeta, F1, dF1j, dF1k)
+      sf_F1_result = sf_F1_ijk_func(vecRijik, vecRikij, Rijr, Rikr, cost, lambda, zeta)
+      
+      F1 = sf_F1_result%Fijk
+      dF1j = sf_F1_result%dFijk_dRj
+      dF1k = sf_F1_result%dFijk_dRk
+
+      Rcr = 1.d0/Rc
+      !call sf_F2_ij(Rij, Rc, Rcr, eta, F2ij, dF2ij)
+      !call sf_F2_ij(Rik, Rc, Rcr, eta, F2ik, dF2ik)
+      !call sf_F2_ij(Rjk, Rc, Rcr, eta, F2jk, dF2jk)
+
+      sf_F2_result = sf_F2_ij_func(Rij, Rc, Rcr, eta)
+      F2ij = sf_F2_result(1)
+      dF2ij = sf_F2_result(2)
+
+      sf_F2_result = sf_F2_ij_func(Rik, Rc, Rcr, eta)
+      F2ik = sf_F2_result(1)
+      dF2ik = sf_F2_result(2)
+
+      sf_F2_result = sf_F2_ij_func(Rjk, Rc, Rcr, eta)
+      F2jk = sf_F2_result(1)
+      dF2jk = sf_F2_result(2)
+
+      G0    = 2.d0*F2ij*F2ik*F2jk
+      G4    = F1*G0
+      ! factor of 2 for k<j in sf_fingerprint()
 !       G(iG) = G(iG) + 2.0d0*G4
-       G(iG) = G(iG) + G4
+      !G(iG) = G(iG) + G4
+      G(iG_tmp) = G(iG_tmp) + G4
 
-       if (present(dGi)) then
-           F1   = 2.d0*F1
-          dG401 = F1*dF2ij*F2ik*F2jk
-          dG402 = F1*F2ij*dF2ik*F2jk
-          dG403 = F1*F2ij*F2ik*dF2jk
-          vecRij0(1:3) = vecRij(1:3)*dG401
-          vecRik0(1:3) = vecRik(1:3)*dG402
-          vecRjk0(1:3) = vecRjk(1:3)*dG403
-          dF1j(1:3) = dF1j(1:3)*G0
-          dF1k(1:3) = dF1k(1:3)*G0
-          dG4(1:3) = -(dF1j(1:3) + dF1k(1:3)) - vecRij0(1:3) - vecRik0(1:3)
+      if (present(dGi)) then
+         F1   = 2.d0*F1
+         dG401 = F1*dF2ij*F2ik*F2jk
+         dG402 = F1*F2ij*dF2ik*F2jk
+         dG403 = F1*F2ij*F2ik*dF2jk
+         vecRij0(1:3) = vecRij(1:3)*dG401
+         vecRik0(1:3) = vecRik(1:3)*dG402
+         vecRjk0(1:3) = vecRjk(1:3)*dG403
+         dF1j(1:3) = dF1j(1:3)*G0
+         dF1k(1:3) = dF1k(1:3)*G0
+         dG4(1:3) = -(dF1j(1:3) + dF1k(1:3)) - vecRij0(1:3) - vecRik0(1:3)
 !          dGi(1:3,iG) = dGi(1:3,iG) + 2.0d0*dG4(1:3)
-          dGi(1:3,iG) = dGi(1:3,iG) + dG4(1:3)
+         dGi(1:3,iG_tmp) = dGi(1:3,iG_tmp) + dG4(1:3)
 !       end if
 !       if (present(dGj)) then
-          dG4(1:3) =  dF1j(1:3) + vecRij0(1:3) - vecRjk0(1:3)
+         dG4(1:3) =  dF1j(1:3) + vecRij0(1:3) - vecRjk0(1:3)
 !          dGj(1:3,iG) = dGj(1:3,iG) + 2.0d0*dG4(1:3)
-          dGj(1:3,iG) = dGj(1:3,iG) + dG4(1:3)
+         dGj(1:3,iG_tmp) = dGj(1:3,iG_tmp) + dG4(1:3)
 !       end if
 !       if (present(dGk)) then
-          dG4(1:3) =  dF1k(1:3) + vecRik0(1:3) + vecRjk0(1:3)
+         dG4(1:3) =  dF1k(1:3) + vecRik0(1:3) + vecRjk0(1:3)
 !          dGk(1:3,iG) = dGk(1:3,iG) + 2.0d0*dG4(1:3)
-          dGk(1:3,iG) = dGk(1:3,iG) + dG4(1:3)
+         dGk(1:3,iG_tmp) = dGk(1:3,iG_tmp) + dG4(1:3)
 !       end if
-       if (present(dGh)) then
-           dGhij(1:3) = ( vecRij0(1:3) + dF1j(1:3) )*Rij
-           dGhik(1:3) = ( vecRik0(1:3) + dF1k(1:3) )*Rik
-           dGhjk(1:3) =   vecRjk0(1:3)*Rjk
-           dGhh(1) = dGhij(1)*vecRij(1)  &
-&                  + dGhik(1)*vecRik(1)  &
-&                  + dGhjk(1)*vecRjk(1)
-           dGhh(2) = dGhij(2)*vecRij(2)  &
-&                  + dGhik(2)*vecRik(2)  &
-&                  + dGhjk(2)*vecRjk(2)
-           dGhh(3) = dGhij(3)*vecRij(3)  &
-&                  + dGhik(3)*vecRik(3)  &
-&                  + dGhjk(3)*vecRjk(3)
-           dGhh(4) = dGhij(2)*vecRij(3)  &
-&                  + dGhik(2)*vecRik(3)  &
-&                  + dGhjk(2)*vecRjk(3)
-           dGhh(5) = dGhij(3)*vecRij(1)  &
-&                  + dGhik(3)*vecRik(1)  &
-&                  + dGhjk(3)*vecRjk(1)
-           dGhh(6) = dGhij(1)*vecRij(2)  &
-&                  + dGhik(1)*vecRik(2)  &
-&                  + dGhjk(1)*vecRjk(2)
-!           dGh(1:6,iG) = dGh(1:6,iG) + 2.0d0*dGhh(1:6)
-           dGh(1:6,iG) = dGh(1:6,iG) + dGhh(1:6)
-       end if
-       end if
+         if (present(dGh)) then
+            dGhij(1:3) = ( vecRij0(1:3) + dF1j(1:3) )*Rij
+            dGhik(1:3) = ( vecRik0(1:3) + dF1k(1:3) )*Rik
+            dGhjk(1:3) =   vecRjk0(1:3)*Rjk
+            dGhh(1) = dGhij(1)*vecRij(1)  &
+   &                  + dGhik(1)*vecRik(1)  &
+   &                  + dGhjk(1)*vecRjk(1)
+            dGhh(2) = dGhij(2)*vecRij(2)  &
+   &                  + dGhik(2)*vecRik(2)  &
+   &                  + dGhjk(2)*vecRjk(2)
+            dGhh(3) = dGhij(3)*vecRij(3)  &
+   &                  + dGhik(3)*vecRik(3)  &
+   &                  + dGhjk(3)*vecRjk(3)
+            dGhh(4) = dGhij(2)*vecRij(3)  &
+   &                  + dGhik(2)*vecRik(3)  &
+   &                  + dGhjk(2)*vecRjk(3)
+            dGhh(5) = dGhij(3)*vecRij(1)  &
+   &                  + dGhik(3)*vecRik(1)  &
+   &                  + dGhjk(3)*vecRjk(1)
+            dGhh(6) = dGhij(1)*vecRij(2)  &
+   &                  + dGhik(1)*vecRik(2)  &
+   &                  + dGhjk(1)*vecRjk(2)
+   !           dGh(1:6,iG) = dGh(1:6,iG) + 2.0d0*dGhh(1:6)
+            dGh(1:6,iG_tmp) = dGh(1:6,iG_tmp) + dGhh(1:6)
+         end if
+      end if
 
     end do
    !$omp end target data
+
+    iG = iG + iter
 
   end subroutine sf_G4_update
 
@@ -1074,7 +1223,7 @@ contains !-------------------------------------------------------------!
     exx = 40.d0
     dex  = exx/(nbin-1)
     dexr = 1.d0/dex
-
+    
     exv(:) = 0.d0
     do k = 0, nbin
        x = dble(k)*dex

@@ -819,25 +819,25 @@ fij(1:3) = coCC*(Ci(1)*rij(1:3) + Ci(2)*rjk(1:3))
 fjk(1:3) =-coCC*(Ck(1)*rij(1:3) + Ck(2)*rjk(1:3))
 fijjk(1:3) =  -fij(1:3) + fjk(1:3) 
 
-!$omp atomic
+!!$omp atomic
 f(i,1) = f(i,1) + fij(1)
-!$omp atomic
+!!$omp atomic
 f(i,2) = f(i,2) + fij(2)
-!$omp atomic
+!!$omp atomic
 f(i,3) = f(i,3) + fij(3)
 
-!$omp atomic
+!!$omp atomic
 f(j,1) = f(j,1) + fijjk(1)
-!$omp atomic
+!!$omp atomic
 f(j,2) = f(j,2) + fijjk(2)
-!$omp atomic
+!!$omp atomic
 f(j,3) = f(j,3) + fijjk(3)
 
-!$omp atomic
+!!$omp atomic
 f(k,1) = f(k,1) - fjk(1)
-!$omp atomic
+!!$omp atomic
 f(k,2) = f(k,2) - fjk(2)
-!$omp atomic
+!!$omp atomic
 f(k,3) = f(k,3) - fjk(3)
 
 !--- Check N3rd ---

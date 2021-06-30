@@ -284,8 +284,8 @@ call system_clock(ti,tk)
 
 nbplist(0,:) = 0
 
-!$omp parallel do schedule(runtime), default(shared), &
-!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn,pqeqc,pqeqs,ff)
+!!$omp parallel do schedule(runtime), default(shared), &
+!!$omp private(i,j,ity,jty,n,m,mn,nn,c1,c2,c3,c4,c5,c6,dr,dr2,drtb,itb,inxn,pqeqc,pqeqs,ff)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -314,7 +314,7 @@ do c3=0, nbcc(3)-1
                jty = nint(atype(j))
 
 !--- make neighbor-list upto the taper function cutoff
-!$omp atomic
+!!$omp atomic
                nbplist(0,i) = nbplist(0,i) + 1
                nbplist(nbplist(0,i),i) = j
 
@@ -349,7 +349,7 @@ do c3=0, nbcc(3)-1
    i=nbllist(i)
    enddo
 enddo; enddo; enddo
-!$omp end parallel do
+!!$omp end parallel do
 
 !--- for array size stat
 if(mod(nstep,pstep)==0) then
@@ -379,8 +379,8 @@ integer :: ti,tj,tk
 call system_clock(ti,tk)
 
 Est = 0.d0
-!$omp parallel do default(shared), reduction(+:Est) &
-!$omp private(i,j,j1,ity,jty,eta_ity,Est1,Eshell,Ccicj,Csicj,Csisj,shelli,shellj,qic,qjc,ff,dr,dr2)
+!!$omp parallel do default(shared), reduction(+:Est) &
+!!$omp private(i,j,j1,ity,jty,eta_ity,Est1,Eshell,Ccicj,Csicj,Csisj,shelli,shellj,qic,qjc,ff,dr,dr2)
 do i=1, NATOMS
    ity = nint(atype(i))
    eta_ity = eta(ity)
@@ -432,7 +432,7 @@ do i=1, NATOMS
    enddo
 
 enddo
-!$omp end parallel do
+!!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(18)=it_timer(18)+(tj-ti)
@@ -453,7 +453,7 @@ real(8) :: gssum, gtsum
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-!$omp parallel do default(shared), schedule(runtime), private(gssum, gtsum, eta_ity,i,j,j1,ity)
+!!$omp parallel do default(shared), schedule(runtime), private(gssum, gtsum, eta_ity,i,j,j1,ity)
 do i=1,NATOMS
 
    gssum=0.d0
@@ -471,7 +471,7 @@ do i=1,NATOMS
    gt(i) = - 1.d0     - eta_ity*qt(i) - gtsum
 
 enddo 
-!$omp end parallel do
+!!$omp end parallel do
 
 gnew(1) = dot_product(gs(1:NATOMS), gs(1:NATOMS))
 gnew(2) = dot_product(gt(1:NATOMS), gt(1:NATOMS))

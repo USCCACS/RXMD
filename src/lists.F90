@@ -74,8 +74,8 @@ call system_clock(ti,tk)
 
 nbrlist(:,0) = 0
 
-!$omp parallel do default(shared) collapse(3) & 
-!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,dr,dr2) 
+!!$omp parallel do default(shared) collapse(3) & 
+!!$omp private(c1,c2,c3,ic,c4,c5,c6,n,n1,m,m1,nty,mty,inxn,dr,dr2) 
 DO c1=-nlayer, cc(1)-1+nlayer
 DO c2=-nlayer, cc(2)-1+nlayer
 DO c3=-nlayer, cc(3)-1+nlayer
@@ -112,12 +112,12 @@ DO c3=-nlayer, cc(3)-1+nlayer
      m = llist(m)
   enddo
 enddo; enddo; enddo
-!$omp end parallel do 
+!!$omp end parallel do 
 
 !--- to get the reverse information (i.e. from i,j1&j to i1), store <i1> into <nbrindx>.
 
 if(.not. present(skip_check)) then
-!$omp parallel do default(shared) private(i,i1,j,j1,isFound)
+!!$omp parallel do default(shared) private(i,i1,j,j1,isFound)
    do i=1, copyptr(6)
       do i1 = 1, nbrlist(i,0)
          j = nbrlist(i,i1)
@@ -133,7 +133,7 @@ if(.not. present(skip_check)) then
               myid, i,nbrlist(i,0:nbrlist(i,0)), j, nbrlist(j,0:nbrlist(j,0))
       enddo
    enddo
-!$omp end parallel do
+!!$omp end parallel do
    
    !--- error trap
    n=maxval(nbrlist(1:NATOMS,0))
@@ -174,7 +174,7 @@ call system_clock(ti,tk)
 ! reset non-bonding pair list
 nbplist(0,:)=0
 
-!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
+!!$omp parallel do default(shared),private(c1,c2,c3,c4,c5,c6,i,j,m,n,mn,iid,jid,dr,dr2)
 do c1=0, nbcc(1)-1
 do c2=0, nbcc(2)-1
 do c3=0, nbcc(3)-1
@@ -209,7 +209,7 @@ do c3=0, nbcc(3)-1
       i=nbllist(i)
    enddo
 enddo; enddo; enddo
-!$omp end parallel do
+!!$omp end parallel do
 
 call system_clock(tj,tk)
 it_timer(15)=it_timer(15)+(tj-ti)

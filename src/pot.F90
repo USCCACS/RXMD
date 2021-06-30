@@ -47,10 +47,10 @@ do i=1, NBUFFER
    gtype(i)=l2g(atype(i))
 enddo
 
-!$omp parallel default(shared)
+!!$omp parallel default(shared)
 CALL BOCALC(NMINCELL, atype, pos)
-!$omp end parallel
-!$omp parallel default(shared)
+!!$omp end parallel
+!!$omp parallel default(shared)
 if(isPQEq) then
   CALL ENbond_PQEq() 
 else
@@ -61,7 +61,7 @@ CALL Elnpr()
 CALL Ehb()
 CALL E3b()
 CALL E4b()
-!$omp end parallel 
+!!$omp end parallel 
 
 if(isSpring) call SpringForce(ipos(1,:,:))
 if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
@@ -178,12 +178,12 @@ real(8) :: PE2, PE3, PE4
 
 integer :: ti,tj,tk
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
 !=== preparation ==============================================================
-!$omp do 
+!!$omp do 
 do i = 1, copyptr(6)
    ity = itype(i)
 
@@ -212,9 +212,9 @@ do i = 1, copyptr(6)
 
 enddo
 !============================================================== preparation ===
-!$omp end do
+!!$omp end do
 
-!$omp do reduction(+:PE)
+!!$omp do reduction(+:PE)
 do i=1, NATOMS
    ity = itype(i)
 
@@ -304,17 +304,17 @@ do i=1, NATOMS
 
       CElp_d  = CEover(6) + CEunder(5)
       !call ForceD(j, CElp_d)
-!$omp atomic 
+!!$omp atomic 
       cdbnd(j)=cdbnd(j)+CElp_d
    enddo
 
 enddo ! i-loop
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(9)=it_timer(9)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 
 END subroutine
@@ -351,11 +351,11 @@ real(8) :: BOij,BOjk
 
 integer :: ti,tj,tk
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
-!$omp do schedule(guided) reduction(+:PE)
+!!$omp do schedule(guided) reduction(+:PE)
 do j=1, NATOMS
    jty = itype(j)
 
@@ -535,10 +535,10 @@ do j=1, NATOMS
             enddo
 
             !call ForceD(i, CE3body_d(2))
-!$omp atomic
+!!$omp atomic
       cdbnd(i)=cdbnd(i)+CE3body_d(2)
             !call ForceD(k, CE3body_d(3))
-!$omp atomic
+!!$omp atomic
       cdbnd(k)=cdbnd(k)+CE3body_d(3)
 
             call ForceA3(CE3body_a, i, j, k, rij, rjk) 
@@ -550,12 +550,12 @@ do j=1, NATOMS
       endif ! if(BOij>MINBO0) then
    enddo ! i-loop
 enddo ! j-loop
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(11)=it_timer(11)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 END subroutine
 
@@ -583,11 +583,11 @@ real(8) :: PEhb, CEhb(3), ff(3)
 
 integer :: ti,tj,tk
 
-!$omp master 
+!!$omp master 
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
-!$omp do schedule(dynamic) reduction(+:PE)
+!!$omp do schedule(dynamic) reduction(+:PE)
 do i=1, NATOMS
    ity = itype(i)
 
@@ -645,17 +645,17 @@ do i=1, NATOMS
    
                   ff(1:3) = CEhb(3)*rjk(1:3)
 
-!$omp atomic
+!!$omp atomic
                   f(j,1) = f(j,1) - ff(1)
-!$omp atomic
+!!$omp atomic
                   f(j,2) = f(j,2) - ff(2)
-!$omp atomic
+!!$omp atomic
                   f(j,3) = f(j,3) - ff(3)
-!$omp atomic
+!!$omp atomic
                   f(k,1) = f(k,1) + ff(1)
-!$omp atomic
+!!$omp atomic
                   f(k,2) = f(k,2) + ff(2)
-!$omp atomic
+!!$omp atomic
                   f(k,3) = f(k,3) + ff(3)
 
                endif ! if(rik2<rchb2)
@@ -666,12 +666,12 @@ do i=1, NATOMS
       endif ! if(BO(0,j,i1)>MINBO0)
    enddo 
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(10)=it_timer(10)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 end subroutine
 
@@ -697,11 +697,11 @@ integer :: ti,tj,tk
 
 real(8) :: PE11,PE12,PE13
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
-!$omp do schedule(guided) reduction(+:PE)
+!!$omp do schedule(guided) reduction(+:PE)
 do i=1, NATOMS
 
    ity = itype(i) 
@@ -749,17 +749,17 @@ do i=1, NATOMS
 
                ff(1:3) = (CEvdw+CEclmb)*dr(1:3)
     
-!$omp atomic
+!!$omp atomic
                f(i,1) = f(i,1) - ff(1)
-!$omp atomic
+!!$omp atomic
                f(i,2) = f(i,2) - ff(2)
-!$omp atomic
+!!$omp atomic
                f(i,3) = f(i,3) - ff(3)
-!$omp atomic
+!!$omp atomic
                f(j,1) = f(j,1) + ff(1)
-!$omp atomic
+!!$omp atomic
                f(j,2) = f(j,2) + ff(2)
-!$omp atomic
+!!$omp atomic
                f(j,3) = f(j,3) + ff(3)
 
 !--- stress calculation
@@ -773,12 +773,12 @@ do i=1, NATOMS
 
     enddo  !do j1 = 1, nbplist(0,i) 
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(7)=it_timer(7)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 END subroutine 
 
@@ -807,11 +807,11 @@ real(8) :: fcc(3),fsc(3),fcs(3),fss(3)
 real(8) :: drcc(3),drsc(3),drcs(3),drss(3)
 real(8) :: ffi(3),ffj(3),Eshell
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
-!$omp do schedule(guided) reduction(+:PE)
+!!$omp do schedule(guided) reduction(+:PE)
 do i=1, NATOMS
 
    ity = itype(i) 
@@ -895,17 +895,17 @@ do i=1, NATOMS
 
                ff(1:3) = CEvdw*dr(1:3) + fcc(1:3) + fcs(1:3) + fsc(1:3) + fss(1:3)
     
-!$omp atomic
+!!$omp atomic
                f(i,1) = f(i,1) - ff(1)
-!$omp atomic
+!!$omp atomic
                f(i,2) = f(i,2) - ff(2)
-!$omp atomic
+!!$omp atomic
                f(i,3) = f(i,3) - ff(3)
-!$omp atomic
+!!$omp atomic
                f(j,1) = f(j,1) + ff(1)
-!$omp atomic
+!!$omp atomic
                f(j,2) = f(j,2) + ff(2)
-!$omp atomic
+!!$omp atomic
                f(j,3) = f(j,3) + ff(3)
 
             !endif
@@ -914,12 +914,12 @@ do i=1, NATOMS
 
     enddo  !do j1 = 1, nbplist(0,i) 
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(7)=it_timer(7)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 END subroutine 
 
@@ -932,11 +932,11 @@ real(8) :: exp_be12,  CEbo, PEbo, coeff(3)
 integer :: iid,jid
 integer :: ti,tj,tk
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
-!$omp do reduction(+:PE)
+!!$omp do reduction(+:PE)
 do i=1, NATOMS
 
    ity = itype(i)
@@ -967,12 +967,12 @@ do i=1, NATOMS
 
    enddo
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(8)=it_timer(8)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 end subroutine
 
@@ -1004,11 +1004,11 @@ integer :: jid,kid
 
 integer :: ti,tj,tk
 
-!$omp master
+!!$omp master
 call system_clock(ti,tk)
-!$omp end master
+!!$omp end master
 
-!$omp do schedule(guided) reduction(+:PE)
+!!$omp do schedule(guided) reduction(+:PE)
 do j=1,NATOMS
 
   jty = itype(j)
@@ -1175,10 +1175,10 @@ do j=1,NATOMS
                  C4body_a(1:3) = CEconj(4:6) + CEtors(7:9) !ijk, jkl, ijkl
 
                  !call ForceD(j, CEtors(3))
-!$omp atomic
+!!$omp atomic
       cdbnd(j)=cdbnd(j)+CEtors(3)
                  !call ForceD(k, CEtors(3))
-!$omp atomic
+!!$omp atomic
       cdbnd(k)=cdbnd(k)+CEtors(3)
 
                  j1 = nbrindx(j, i1)
@@ -1216,12 +1216,12 @@ do j=1,NATOMS
    enddo ! k-loop
 
 enddo
-!$omp end do
+!!$omp end do
 
-!$omp master
+!!$omp master
 call system_clock(tj,tk)
 it_timer(12)=it_timer(12)+(tj-ti)
-!$omp end master
+!!$omp end master
 
 end subroutine
 
@@ -1244,26 +1244,26 @@ do j1=1, nbrlist(i,0)
   dr(1:3) = pos(i,1:3)-pos(j,1:3)
   ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
 
-!$omp atomic
+!!$omp atomic
   f(i,1) = f(i,1) - ff(1)
-!$omp atomic
+!!$omp atomic
   f(i,2) = f(i,2) - ff(2)
-!$omp atomic
+!!$omp atomic
   f(i,3) = f(i,3) - ff(3)
 
-!$omp atomic
+!!$omp atomic
   f(j,1) = f(j,1) + ff(1)
-!$omp atomic
+!!$omp atomic
   f(j,2) = f(j,2) + ff(2)
-!$omp atomic
+!!$omp atomic
   f(j,3) = f(j,3) + ff(3)
 
   Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
   Cbond(3)=coeff*BO(0,i,j1)*A2(j,i1) ! Coeff of deltap_j
 
-!$omp atomic
+!!$omp atomic
   ccbnd(i)=ccbnd(i)+Cbond(2)
-!$omp atomic
+!!$omp atomic
   ccbnd(j)=ccbnd(j)+Cbond(3)
 
 enddo
@@ -1288,27 +1288,27 @@ Cbond(1) = coeff*(A0(i,j1) + BO(0,i,j1)*A1(i,j1) )! Coeff of BOp
 
 dr(1:3) = pos(i,1:3) - pos(j,1:3)
 ff(1:3) = Cbond(1)*dBOp(i,j1)*dr(1:3)
-!$omp atomic
+!!$omp atomic
 f(i,1) = f(i,1) - ff(1)
-!$omp atomic
+!!$omp atomic
 f(i,2) = f(i,2) - ff(2)
-!$omp atomic
+!!$omp atomic
 f(i,3) = f(i,3) - ff(3)
 
-!$omp atomic
+!!$omp atomic
 f(j,1) = f(j,1) + ff(1)
-!$omp atomic
+!!$omp atomic
 f(j,2) = f(j,2) + ff(2)
-!$omp atomic
+!!$omp atomic
 f(j,3) = f(j,3) + ff(3)
 
 !--- A3 is not necessary anymore with the new BO def. 
 Cbond(2)=coeff*BO(0,i,j1)*A2(i,j1) ! Coeff of deltap_i
 Cbond(3)=coeff*BO(0,i,j1)*A2(j,i1) ! Coeff of deltap_j
 
-!$omp atomic
+!!$omp atomic
 ccbnd(i)=ccbnd(i)+Cbond(2)
-!$omp atomic
+!!$omp atomic
 ccbnd(j)=ccbnd(j)+Cbond(3)
 
 return
@@ -1336,17 +1336,17 @@ Cbond(1) = cf(1)*(A0(i,j1) + BO(0,i,j1)*A1(i,j1))*dBOp(i,j1)        & !full BO
 dr(1:3) = pos(i,1:3)-pos(j,1:3)
 ff(1:3) = Cbond(1)*dr(1:3)
 
-!$omp atomic
+!!$omp atomic
 f(i,1) = f(i,1) - ff(1)
-!$omp atomic
+!!$omp atomic
 f(i,2) = f(i,2) - ff(2)
-!$omp atomic
+!!$omp atomic
 f(i,3) = f(i,3) - ff(3)
-!$omp atomic
+!!$omp atomic
 f(j,1) = f(j,1) + ff(1)
-!$omp atomic
+!!$omp atomic
 f(j,2) = f(j,2) + ff(2)
-!$omp atomic
+!!$omp atomic
 f(j,3) = f(j,3) + ff(3)
 
 !--- 1st element is "full"-bond order.
@@ -1355,9 +1355,9 @@ cBO(1:3) = (/cf(1)*BO(0,i,j1),  cf(2)*BO(2,i,j1),  cf(3)*BO(3,i,j1) /)
 Cbond(2)=cBO(1)*A2(i,j1) + (cBO(2)+cBO(3))*A3(i,j1)
 Cbond(3)=cBO(1)*A2(j,i1) + (cBO(2)+cBO(3))*A3(j,i1)
 
-!$omp atomic
+!!$omp atomic
 ccbnd(i)=ccbnd(i)+Cbond(2)
-!$omp atomic
+!!$omp atomic
 ccbnd(j)=ccbnd(j)+Cbond(3)
 
 return
@@ -1423,32 +1423,32 @@ fkl(1:3) =-coDD*( Cwl(1)*rij(1:3) + Cwl(2)*rjk(1:3) + Cwl(3)*rkl(1:3) )
 fijjk(1:3)= -fij(1:3) + fjk(1:3)
 fjkkl(1:3)= -fjk(1:3) + fkl(1:3)
 
-!$omp atomic
+!!$omp atomic
 f(i,1) = f(i,1) + fij(1) 
-!$omp atomic
+!!$omp atomic
 f(i,2) = f(i,2) + fij(2) 
-!$omp atomic
+!!$omp atomic
 f(i,3) = f(i,3) + fij(3) 
 
-!$omp atomic
+!!$omp atomic
 f(j,1) = f(j,1) + fijjk(1)
-!$omp atomic
+!!$omp atomic
 f(j,2) = f(j,2) + fijjk(2)
-!$omp atomic
+!!$omp atomic
 f(j,3) = f(j,3) + fijjk(3)
 
-!$omp atomic
+!!$omp atomic
 f(k,1) = f(k,1) + fjkkl(1)
-!$omp atomic
+!!$omp atomic
 f(k,2) = f(k,2) + fjkkl(2)
-!$omp atomic
+!!$omp atomic
 f(k,3) = f(k,3) + fjkkl(3)
 
-!$omp atomic
+!!$omp atomic
 f(l,1) = f(l,1) - fkl(1)
-!$omp atomic
+!!$omp atomic
 f(l,2) = f(l,2) - fkl(2)
-!$omp atomic
+!!$omp atomic
 f(l,3) = f(l,3) - fkl(3)
 
 !--- Check N3rd ---
@@ -1492,25 +1492,25 @@ fij(1:3) = coCC*(Ci(1)*rij(1:3) + Ci(2)*rjk(1:3))
 fjk(1:3) =-coCC*(Ck(1)*rij(1:3) + Ck(2)*rjk(1:3))
 fijjk(1:3) =  -fij(1:3) + fjk(1:3) 
 
-!$omp atomic
+!!$omp atomic
 f(i,1) = f(i,1) + fij(1)
-!$omp atomic
+!!$omp atomic
 f(i,2) = f(i,2) + fij(2)
-!$omp atomic
+!!$omp atomic
 f(i,3) = f(i,3) + fij(3)
 
-!$omp atomic
+!!$omp atomic
 f(j,1) = f(j,1) + fijjk(1)
-!$omp atomic
+!!$omp atomic
 f(j,2) = f(j,2) + fijjk(2)
-!$omp atomic
+!!$omp atomic
 f(j,3) = f(j,3) + fijjk(3)
 
-!$omp atomic
+!!$omp atomic
 f(k,1) = f(k,1) - fjk(1)
-!$omp atomic
+!!$omp atomic
 f(k,2) = f(k,2) - fjk(2)
-!$omp atomic
+!!$omp atomic
 f(k,3) = f(k,3) - fjk(3)
 
 !--- Check N3rd ---
