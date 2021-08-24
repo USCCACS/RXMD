@@ -344,6 +344,8 @@ contains !-------------------------------------------------------------!
           dGh(1:6,1:n) = 0.0d0
        end if
     end if
+
+    !$omp parallel do
     jloop : do j = 1, nx
        pij = sf_idx2(type1, typej(j))
 
@@ -933,12 +935,14 @@ subroutine sf_G4_update(tijk, vecRij, vecRik, vecRjk, Rij, Rik, Rjk, &
 
     !iG = iG + iter
 
-    !$omp target data map(to:sf_pG4(1:4,1:60,1:6), exx, dexr, exv(0:nbin)) 
+    !PRINT *, iter
+
+    !omp target data map(to:sf_pG4(1:4,1:60,1:6), exx, dexr, exv(0:nbin)) 
     !$omp target teams distribute parallel do default(none) &
     !$omp&       private(iG_tmp, Rc, Rcr, lambda, zeta, eta, G0, G4, vecRij0, vecRik0, vecRjk0, &
     !$omp&               F1, dF1j, dF1k, F2ij, dF2ij, F2ik, dF2ik, F2jk, dF2jk, dG4, & 
     !$omp&               dG401, dG402, dG403, dGhij, dGhik, dGhjk, dGhh, sf_F1_result, sf_F2_result) &
-    !$omp&       shared(iter, sf_pG4, tijk, G, iG, vecRijik, vecRikij, Rijr, Rikr, cost, &
+    !$omp&       shared(iter,sf_pG4, tijk, G, iG, vecRijik, vecRikij, Rijr, Rikr, cost, &
     !$omp&              Rij, Rik, Rjk, dGi,dGj,dGk, vecRij, vecRik, vecRjk, dGh) 
     do iG4 = 1, iter
       iG_tmp = iG + iG4
@@ -1031,7 +1035,7 @@ subroutine sf_G4_update(tijk, vecRij, vecRik, vecRjk, Rij, Rik, Rjk, &
       end if
 
     end do
-   !$omp end target data
+   !omp end target data
 
     iG = iG + iter
 
