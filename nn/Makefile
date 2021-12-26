@@ -1,7 +1,7 @@
-CXX=icpx
-FXX=ifx
-MPICXX=mpiicx
-MPIF90=mpiifx
+CXX=icpc
+FXX=ifort
+MPICXX=mpiicpc
+MPIF90=mpiifort
 #OMPFLAGS=-fiopenmp -fopenmp-targets=spir64 -D__STRICT_ANSI__ 
 #OMPFLAGS=-fiopenmp -fopenmp-targets=spir64 
 OMPFLAGS=
@@ -10,11 +10,21 @@ OMPFLAGS=
 all:
 	$(CXX) $(OMPFLAGS) -std=c++17 -c nn.cpp
 	$(FXX) -c rxmdnn.f90
-
 	$(FXX) $(OMPFLAGS) -lstdc++ -cxxlib rxmdnn.o nn.o 
 
+gxx:
+	g++ -c nn.cpp
+	gfortran -c rxmdnn.f90
+	gfortran -lstdc++ rxmdnn.o nn.o
+
+ixx:
+	icpc -c nn.cpp
+	ifort -c rxmdnn.f90
+	ifort -lstdc++ rxmdnn.o nn.o
+
 cxx:
-	$(CXX) $(OMPFLAGS) nn.cpp -c
+	$(CXX) $(OMPFLAGS) nn.cpp
+
 
 clean:
 	rm -fv *.o *.mod a.out

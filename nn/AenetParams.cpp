@@ -47,7 +47,8 @@ void read_G2(std::ifstream & fin, const std::vector<int> &sf, std::vector<std::v
 
 struct AenetParams
 {
-	std::string filename; 
+	std::string element, filename; 
+	double mass; 
 
 	// load_Network
 	int nlayers, nnodes_max, Wsize, nvalues;
@@ -70,8 +71,11 @@ struct AenetParams
 
 	std::vector<double> D, value, deriv, work, work2, work3, work4;
 
-	AenetParams(const std::string & _filename) : filename(_filename)
+	AenetParams(const std::string & parminfo)
 	{
+		std::stringstream ss(parminfo);
+		ss >> element >> filename >> mass; 
+
 		std::ifstream fin = std::ifstream(filename);
 
 		load_Network(fin);

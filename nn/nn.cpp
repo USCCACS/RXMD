@@ -559,7 +559,7 @@ std::unique_ptr<RXMDNN> rxmdnn_ptr;
 extern "C" void init_rxmdnn(void)
 {
 	std::cout << "foo from init\n";
-	rxmdnn_ptr = std::make_unique<RXMDNN>("pto.xyz","params.in");
+	rxmdnn_ptr = std::make_unique<RXMDNN>("pto.xyz","rxmdnn.in");
 }
 
 extern "C" void predict_rxmdnn(void)

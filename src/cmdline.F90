@@ -7,7 +7,7 @@ use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfil
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
                  vmag_factor, xyz_num_stack, &
-                 forcefield_type, is_fnn, is_reaxff
+                 forcefield_type, is_fnn, is_reaxff, is_rxmdnn
 
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
                   isEfield, isLG, isPQEq, isPolarizable, PQEqParmPath, &
@@ -94,6 +94,12 @@ if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
     if(myrank==0) print'(a)', "usage : ./rxmd --ffield ffield --outDir DAT --rxmdin rxmd.in"
     call MPI_FINALIZE(ierr)
     stop
+endif
+
+inquire(file='rxmdnn.in', exist=is_rxmdnn)
+if(is_rxmdnn) then
+  ParmPath='rxmdnn.in'
+  FFPath=""
 endif
 
 inquire(file='fnn.in', exist=is_fnn)
