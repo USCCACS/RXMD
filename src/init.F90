@@ -14,6 +14,8 @@ module init
   use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, &
                   num_pairs, num_types, mddriver_fnn, get_max_cutoff
 
+  use rxmdnn, only : rxmdnn_param, rxmdnn_param_obj, mddriver_rxmdnn
+
   use lists_mod, only: getnonbondingmesh 
 
   use fnnin_parser, only : fnn_param_ctor 
@@ -84,18 +86,32 @@ do i=1,3
                    
 enddo    
 
-if(is_fnn) then
-  fnn_param_obj = mdcontext_fnn()
-  mdbase%ff => fnn_param_obj
-  if(myid==0) then
-     print*,'get_mdcontext_func : mdcontext_fnn'
+!--- ff-dependent setup
+ff_type_flag = TYPE_REAXFF
+if(is_fnn) ff_type_flag = TYPE_FNN
+if(is_rxmdnn) ff_type_flag = TYPE_RXMDNN
+
+select case (ff_type_flag)
+
+   case(TYPE_FNN)
+     fnn_param_obj = mdcontext_fnn()
+     mdbase%ff => fnn_param_obj
+     if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn' 
      call fnn_param_obj%print()
-  endif
-else
-  call mdcontext_reaxff()
-  call set_potentialtables_reaxff()
-  if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
-endif
+
+  case(TYPE_RXMDNN)
+
+  case(TYPE_REAXFF)
+    call mdcontext_reaxff()
+    call set_potentialtables_reaxff()
+    if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
+
+  case default
+    if(myid==0) print*,'ERROR: an unknown force field type found in init(): ', ff_type_flag
+    stop
+
+end select
+
 
 if(isRunFromXYZ) then
   call ReadXYZ(atype, pos, v, q, f, RunFromXYZPath)
@@ -114,16 +130,23 @@ call MPI_ALLREDUCE(MPI_IN_PLACE, natoms_per_type, size(natoms_per_type), &
 
 GNATOMS = sum(natoms_per_type)
 
-!--- determine cutoff distances
-if(is_fnn) then
-!--- set cutoff distance
-  call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fnn_param_obj))
-else
+!--- setup ff-dependent cutoff distances
+select case (ff_type_flag)
+   case(TYPE_FNN)
+     call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fnn_param_obj))
+
+   case(TYPE_RXMDNN)
+
+   case(TYPE_REAXFF)
 !--- get cutoff distance based on the bond-order
-  call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
+     call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
-  call GetNonbondingMesh()
-endif
+     call GetNonbondingMesh()
+
+   case default
+     if(myid==0) print*,'ERROR: an unknown force field type found in init(): ', ff_type_flag
+     stop
+end select
 
 !--- index array for returning reaction force
 call allocator(frcindx,1,NBUFFER)

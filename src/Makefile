@@ -7,7 +7,7 @@ include ../make.inc
 
 %.o: %.mod
 
-SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 remd_pot_ANN_original.F90 fnn.F90 shortrep.F90 symmfunc.F90
+SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 remd_pot_ANN_original.F90 fnn.F90 shortrep.F90 symmfunc.F90 rxmdnn.F90
 OBJS = $(SRCS:.F90=.o)
 
 EXE := ../rxmd
@@ -30,6 +30,7 @@ velocity.o : module.o
 
 lists.o : module.o utils.o
 fnn.o : module.o comm.o lists.o fileio.o shortrep.o
+rxmdnn.o : module.o cmdline.o utils.o fileio.o comm.o velocity.o msd.o
 
 cmdline.o : utils.o module.o memory.o
 msd.o : utils.o module.o
@@ -38,7 +39,7 @@ ensembles.o : module.o
 
 bo.o : reaxff.o
 pot.o : reaxff.o bo.o comm.o pqeq.o qeq.o
-init.o : reaxff.o fileio.o pot.o fnn.o shortrep.o
+init.o : reaxff.o fileio.o pot.o fnn.o shortrep.o rxmdnn.o
 qeq.o : reaxff.o comm.o lists.o
 pqeq.o : reaxff.o comm.o lists.o
 

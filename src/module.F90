@@ -105,7 +105,9 @@ REAL(8) :: ftol
 
 
 character(len=:),allocatable :: forcefield_type
-logical :: is_reaxff=.false., is_fnn=.false.
+integer,parameter :: TYPE_REAXFF=1, TYPE_FNN=2, TYPE_RXMDNN=3
+integer :: ff_type_flag = 0
+logical :: is_reaxff=.false., is_fnn=.false., is_rxmdnn=.false.
 
 !--- natoms_per_type() is used to clear unused cutoff distance for ReaxFF
 !--- see get_cutoff_bondorder()
