@@ -24,7 +24,7 @@ module init
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
   use rxmdnn, only : rxmdnn_param, rxmdnn_param_ctor, rxmdnn_param_obj, &
-                     mddriver_rxmdnn, get_maxrc_rxmdnn, init_rxmdnn
+                     mddriver_rxmdnn, get_maxrc_rxmdnn, allocate_nbrdist_rxmdnn, init_rxmdnn
 
   use msd_mod, only : msd_data, msd_initialize
 
@@ -100,6 +100,7 @@ select case (ff_type_flag)
 
   case(TYPE_RXMDNN)
      call init_rxmdnn()
+     call allocate_nbrdist_rxmdnn()
      rxmdnn_param_obj = mdcontext_rxmdnn()
      mdbase%ff => rxmdnn_param_obj
      if(myid==0) print*,'get_mdcontext_func : mdcontext_rxmdnn' 

@@ -13,7 +13,11 @@ OBJS = $(SRCS:.F90=.o)
 EXE := ../rxmd
 
 $(EXE): $(OBJS)
-	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) $(LIBS)
+	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) $(LIBS) 
+
+rxmdnn: $(OBJS)
+	icpc -c ../nn/nn.cpp 
+	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) $(LIBS) -lstdc++ nn.o
 
 #cg.o : fileio.o
 #main.F90 : cg.o

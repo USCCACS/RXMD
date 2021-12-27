@@ -9,13 +9,19 @@ module rxmdnn
     end subroutine
   
     subroutine predict() bind(c,name="predict_rxmdnn")
-
     ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
     end subroutine
 
+    subroutine predict_hybrid(natoms, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
+    ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
+       import :: c_ptr, c_int
+       integer(c_int),value :: natoms, maxnbrs
+       type(c_ptr),value :: nbrdist_ptr
+    end subroutine
+
     subroutine get_maxrc(maxrc) bind(c,name="get_maxrc_rxmdnn")
-        import :: c_float
-        real(c_float) :: maxrc
+        import :: c_double
+        real(c_double) :: maxrc
     end subroutine
   
   end interface
@@ -26,10 +32,20 @@ end module
 
 program main
   use rxmdnn
-  real(4) :: maxrc=0.d0
+  real(8) :: maxrc=0.d0
+
+  integer(c_int) :: natoms=10, nnbrs=20
+
+  real(c_double),allocatable,target :: nbrdist(:)
+  type(c_ptr) :: nbrdist_ptr
+
+  allocate(nbrdist(natoms*nnbrs))
+
+  call random_number(nbrdist) 
+  nbrdist_ptr = c_loc(nbrdist(1))
 
   call init()
-  call predict()
+  call predict_hybrid(natoms,natoms,nbrdist_ptr)
   call get_maxrc(maxrc)
   print*,'maxrc: ', maxrc
 

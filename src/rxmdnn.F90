@@ -1,6 +1,7 @@
 !------------------------------------------------------------------------------
 module rxmdnn
 !------------------------------------------------------------------------------
+  use iso_c_binding
 
   use utils, only : pi, int_to_str
   use memory_allocator_mod
@@ -36,28 +37,45 @@ module rxmdnn
 
   real(8) :: maxrc_rxmdnn=0.d0
 
-  real(8),allocatable :: nbrdist(:)
+  real(c_double),allocatable,target :: nbrdist(:)
+  type(c_ptr) :: nbrdist_ptr
+
+  interface 
+
+    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
+    subroutine init_rxmdnn() bind(c,name="init_rxmdnn")
+    end subroutine
+
+    subroutine predict_rxmdnn_hybrid(natoms, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
+       import :: c_int, c_ptr
+       integer(c_int),value :: natoms, maxnbrs
+       type(c_ptr),value :: nbrdist_ptr
+    end subroutine
+  
+    subroutine predict_rxmdnn() bind(c,name="predict_rxmdnn")
+    ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
+
+    end subroutine
+
+    subroutine get_maxrc_rxmdnn(maxrc) bind(c,name="get_maxrc_rxmdnn")
+        import :: c_double
+        real(c_double) :: maxrc
+    end subroutine
+  
+  end interface
 
 contains
 
 !------------------------------------------------------------------------------
-subroutine init_rxmdnn()
+subroutine allocate_nbrdist_rxmdnn()
 !------------------------------------------------------------------------------
-  allocate(nbrdist(4*NBUFFER*MAXNEIGHBS)) 
-end subroutine
 
-!------------------------------------------------------------------------------
-subroutine get_maxrc_rxmdnn(maxrc)
-!------------------------------------------------------------------------------
-  real(8),intent(in out) :: maxrc
-
-  maxrc_rxmdnn = 5.5d0 ! FIXME this value will be passed from C++ side
-
-  maxrc = maxrc_rxmdnn
+  allocate(nbrdist(NBUFFER*MAXNEIGHBS))
 
   return 
 
 end subroutine
+
 
 !------------------------------------------------------------------------------
 subroutine rxmdnn_param_print(this)
@@ -155,54 +173,27 @@ real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
 real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, NBUFFER), F_i(3, num_atoms)
 integer :: type_i, index_i, type_j(MAXNEIGHBS), index_j(MAXNEIGHBS)
-integer :: i,j,j1,ity,n_j,stat
-
-real(8) :: rcmax=4.5d0
+integer :: i,j,j1,ity,n_j,stat,idx
 
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
-call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc_rxmdnn) 
+call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
 
-!call cpu_time(tstart(1))
-!f = 0.d0; F_i = 0.d0; f3r = 0.d0;
-!Epot = 0.d0
-!do i = 1, num_atoms
-!   coo_i(1:3) = pos(i,1:3)
-!   type_i = nint(atype(i))
-!   index_i = i
-!   n_j = nbrlist(i,0)
-!
-!   !print'(a,3f8.3,3i6)',atmname(type_i),coo_i, type_i, index_i, n_j
-!   do j1 = 1, nbrlist(i,0)
-!      j = nbrlist(i,j1)
-!      coo_j(1:3,j1) = pos(j,1:3)
-!      type_j(j1) = nint(atype(j))
-!      index_j(j1) = j
-!
-!      !print'(a3,3f8.3,2i6,f8.3)','j: ',coo_j(1:3,j1), type_j(j1), index_j(j1)
+!do i=1, num_atoms 
+!   print'(i6,i6,f8.3,a2)',i,nbrlist(i,0),maxrc,': '
+!   do j1=1, MAXNEIGHBS
+!      idx = 4*((i-1)*MAXNEIGHBS+j1-1)
+!      print'(4f6.2 $)',nbrdist(idx+1:idx+4)
+!     if(mod(j1-1,8)==7) print'(a1,i6)', ',',j1
 !   enddo
-!
-!   call aenet_atomic_energy_and_forces( &
-!        coo_i, type_i, index_i, n_j, coo_j, type_j, index_j, num_atoms, &
-!        E_i, F_i, f3r, NBUFFER, stat) 
-!
-!   Epot = Epot + E_i
-!
-!   !print'(a,i5,4es15.5)','i,E_i, F_i: ', i, E_i*Eev_kcal, F_i(1:3,i)*Eev_kcal
+!   print*
 !enddo
-!call cpu_time(tfinish(1))
-!
-!Epot = Epot*Eev_kcal
-!
-!!omp simd
-!do i = 1, num_atoms
-!   f(i,1:3) = f (i,1:3) + F_i(1:3,i)*Eev_kcal
-!enddo
-!!omp simd
-!do i = 1, NBUFFER
-!   f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
-!enddo
+!stop 'foo'
+
+nbrdist_ptr = c_loc(nbrdist(1))
+call predict_rxmdnn_hybrid(num_atoms, MAXNEIGHBS, nbrdist_ptr) 
+
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
