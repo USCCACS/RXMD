@@ -15,15 +15,135 @@ module rxmdnn
  
   implicit none
 
+  type rxmdnn_model_params 
+    character(len=:),allocatable :: filename
+    character(len=:),allocatable :: element
+    real(8) :: mass
+  end type
+
   type, extends(force_field_class) :: rxmdnn_param
+    type(rxmdnn_model_params), allocatable :: models(:) 
+    contains 
+       procedure :: print => rxmdnn_param_print
   end type
 
   type(rxmdnn_param),target :: rxmdnn_param_obj
 
+  character(len=:),allocatable,private :: token
+
   ! timing for 1-feature calc & 2-force inference
   real(8),save,private :: tstart(0:3)=0.0, tfinish(0:3)=0.0
 
+  real(8) :: maxrc_rxmdnn=0.d0
+
+  real(8),allocatable :: nbrdist(:)
+
 contains
+
+!------------------------------------------------------------------------------
+subroutine init_rxmdnn()
+!------------------------------------------------------------------------------
+  allocate(nbrdist(4*NBUFFER*MAXNEIGHBS)) 
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine get_maxrc_rxmdnn(maxrc)
+!------------------------------------------------------------------------------
+  real(8),intent(in out) :: maxrc
+
+  maxrc_rxmdnn = 5.5d0 ! FIXME this value will be passed from C++ side
+
+  maxrc = maxrc_rxmdnn
+
+  return 
+
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine rxmdnn_param_print(this)
+!------------------------------------------------------------------------------
+  class(rxmdnn_param), intent(in) :: this
+  integer :: ia
+
+  write(*,fmt='(a)') repeat('=',80)
+  do ia=1, size(this%models)
+
+     associate(m=>this%models(ia))
+        print'(a,i3,2a,1x,f10.3,3x,a,1x,f8.3)', 'element,mass,filename: ', & 
+           get_index_of_model(m%element,this%models),'-',m%element, m%mass, m%filename
+     end associate
+    
+  enddo
+  write(*,fmt='(a)') repeat('=',80)
+
+end subroutine
+
+!------------------------------------------------------------------------------
+function get_index_of_model(element, models) result(idx)
+!------------------------------------------------------------------------------
+  type(rxmdnn_model_params),allocatable,intent(in) :: models(:)
+  character(len=:),allocatable,intent(in) :: element
+  integer :: idx
+  do idx=1, size(models)
+     if(models(idx)%element == element) return
+  enddo
+  idx = -1
+  return
+end function
+
+!------------------------------------------------------------------------------
+function rxmdnn_param_ctor(path) result(c)
+!------------------------------------------------------------------------------
+  character(len=:),allocatable,intent(in) :: path
+  character(256) :: linein0
+  character(len=:),allocatable :: linein 
+
+  integer :: iunit
+  type(rxmdnn_param) :: c 
+
+  open(newunit=iunit, file=path, status='old', form='formatted')
+
+  ! find how many models exist. 
+  do while (.true.)
+    read(iunit,'(a)',end=10) linein0
+    linein = trim(adjustl(linein0))
+
+    if(getstr(linein, token) > 0) then
+       if(token=='model') call get_tokens_and_append_model(linein, c%models)
+    endif
+  end do
+  10 rewind(iunit)
+
+  if (size(c%models)<=0) stop 'ERROR: at least one model must be defined.'
+
+  return
+
+contains
+
+  !------------------------------------------------------------------------------
+  subroutine get_tokens_and_append_model(linein, models)
+  !------------------------------------------------------------------------------
+    character(len=:),allocatable,intent(in out) :: linein
+    type(rxmdnn_model_params),allocatable,intent(in out) :: models(:)
+    type(rxmdnn_model_params) :: mbuf
+  
+    if (getstr(linein, token) < 0) stop 'error while reading element name'
+    mbuf%element = trim(adjustl(token))
+    if (getstr(linein, token) < 0) stop 'error while reading element mass'
+    read(token, *) mbuf%mass
+    if (getstr(linein, token) < 0) stop 'error while reading model filename'
+    mbuf%filename = trim(adjustl(token))
+    read(token, *) mbuf%filename
+  
+    ! allocate zero-sized array
+    if(.not.allocated(models)) allocate(models(0)) 
+    models = [models, mbuf]
+  
+    return
+  end subroutine
+  
+
+end function
 
 !------------------------------------------------------------------------------
 subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q)
@@ -42,7 +162,7 @@ real(8) :: rcmax=4.5d0
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
-call get_nbrlist_rxmdnn(num_atoms, atype, pos, rcmax) 
+call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc_rxmdnn) 
 
 !call cpu_time(tstart(1))
 !f = 0.d0; F_i = 0.d0; f3r = 0.d0;
@@ -186,10 +306,11 @@ real(8),intent(in),allocatable :: atype(:), pos(:,:)
 real(8),intent(in) :: rcmax
 
 real(8) :: rr(3), rr2, rij, dsum 
-integer :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii
+integer :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx
 integer :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,kty,inxn
 
 nbrlist(:,0) = 0
+nbrdist(:) = 0.d0
 
 call cpu_time(tstart(2))
 
@@ -223,6 +344,13 @@ do c3=0, cc(3)-1
              if(rij<rcmax) then 
                nbrlist(i, 0) = nbrlist(i, 0) + 1
                nbrlist(i, nbrlist(i, 0)) = j
+
+               ii = nbrlist(i,0)
+               idx = 4*((i-1)*MAXNEIGHBS+ii-1)
+               !print'(2i6,f8.3,4f10.5,a)',i,j1,rij,nbrdist(idx+1:idx+4),' before'
+               nbrdist(idx+1) = rij
+               nbrdist(idx+2:idx+4) = rr(1:3)
+               !print'(2i6,f8.3,4f10.5,a)',i,j1,rij,nbrdist(idx+1:idx+4),' after'
              endif
 
            endif
@@ -237,41 +365,20 @@ enddo; enddo; enddo
 !!$omp end parallel do 
 call cpu_time(tfinish(2))
 
+!do i=1, natoms
+!   print'(i6,i6,f8.3,a2)',i,nbrlist(i,0),rcmax,': '
+!   do j1=1, MAXNEIGHBS
+!      idx = 4*((i-1)*MAXNEIGHBS+j1-1)
+!      print'(4f6.2 $)',nbrdist(idx+1:idx+4)
+!      if(mod(j1-1,8)==7) print'(a1,i6)', ',',j1
+!   enddo
+!   print*
+!enddo
+!stop 'foo'
+
 return
 
 end subroutine
-
-!!------------------------------------------------------------------------------------------
-!subroutine get_cutoff_fnn(rcut, rcut2, maxrcut, radial_cutoff)
-!!------------------------------------------------------------------------------------------
-!real(8),allocatable,intent(in out) :: rcut(:), rcut2(:)
-!real(8),intent(in out) :: maxrcut
-!real(rk),intent(in) :: radial_cutoff
-!
-!integer :: ity,jty,inxn
-!
-!!--- get the cutoff length 
-!call allocator(rcut, 1, num_pairs)
-!call allocator(rcut2, 1, num_pairs)
-!call allocator(pair_types, 1, num_types, 1, num_types)
-!
-!inxn=0
-!do ity=1, num_types
-!do jty=ity, num_types
-!   inxn = inxn + 1
-!   pair_types(ity,jty) = inxn
-!
-!   rcut(inxn)  = radial_cutoff
-!   rcut2(inxn) = radial_cutoff*radial_cutoff
-!   !print'(a,3i6,2f10.5)','ity, jty, inxn: ', ity, jty, inxn, rcut(inxn), rcut2(inxn)
-!
-!   pair_types(jty,ity) = pair_types(ity,jty) 
-!enddo
-!enddo
-!
-!maxrcut = maxval(rcut)
-!
-!end subroutine
 
 !-------------------------------------------------------------------------------------------
 subroutine print_e_rxmdnn(atype, v, q)

@@ -11,24 +11,23 @@ module init
   use memory_allocator_mod
   use fileio, only : ReadBIN, ReadXYZ, ReadH2O, xyz_agg
 
-  use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, &
-                  num_pairs, num_types, mddriver_fnn, get_max_cutoff
-
-  use rxmdnn, only : rxmdnn_param, rxmdnn_param_obj, mddriver_rxmdnn
-
   use lists_mod, only: getnonbondingmesh 
 
+  use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, &
+                  num_pairs, num_types, mddriver_fnn, get_max_cutoff
   use fnnin_parser, only : fnn_param_ctor 
+  use aenet, only : aenet_init, aenet_load_potential, aenet_print_info
+  use symmfunc, only : sf_set_table
+  use mod_short_repulsion, only : initialize_short_repulsion, short_rep
 
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
+  use rxmdnn, only : rxmdnn_param, rxmdnn_param_ctor, rxmdnn_param_obj, &
+                     mddriver_rxmdnn, get_maxrc_rxmdnn, init_rxmdnn
+
   use msd_mod, only : msd_data, msd_initialize
 
-  use aenet, only : aenet_init, aenet_load_potential, aenet_print_info
-  use symmfunc, only : sf_set_table
-
-  use mod_short_repulsion, only : initialize_short_repulsion, short_rep
 
 contains
 
@@ -100,6 +99,11 @@ select case (ff_type_flag)
      call fnn_param_obj%print()
 
   case(TYPE_RXMDNN)
+     call init_rxmdnn()
+     rxmdnn_param_obj = mdcontext_rxmdnn()
+     mdbase%ff => rxmdnn_param_obj
+     if(myid==0) print*,'get_mdcontext_func : mdcontext_rxmdnn' 
+     call fnn_param_obj%print()
 
   case(TYPE_REAXFF)
     call mdcontext_reaxff()
@@ -136,6 +140,7 @@ select case (ff_type_flag)
      call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fnn_param_obj))
 
    case(TYPE_RXMDNN)
+     call get_maxrc_rxmdnn(maxrc)
 
    case(TYPE_REAXFF)
 !--- get cutoff distance based on the bond-order
@@ -144,7 +149,7 @@ select case (ff_type_flag)
      call GetNonbondingMesh()
 
    case default
-     if(myid==0) print*,'ERROR: an unknown force field type found in init(): ', ff_type_flag
+     if(myid==0) print*,'ERROR: an unknown FF type found in init() for cutoff setup: ', ff_type_flag
      stop
 end select
 
@@ -250,6 +255,48 @@ if(isSpring .or. msd_data%is_msd) then
 endif
 
 end subroutine
+
+!------------------------------------------------------------------------------------------
+function mdcontext_rxmdnn() result(fp)
+!------------------------------------------------------------------------------------------
+implicit none
+
+integer :: i,j, ity, num_models
+integer,allocatable :: dims(:)
+character(len=:),allocatable :: path
+
+logical :: verbose=.false.
+
+type(rxmdnn_param) :: fp
+
+character(len=2), dimension(:), allocatable  :: atom_types
+character(len=:), allocatable :: filename
+integer :: stat
+
+if((.not.isRunFromXYZ) .and. (myid==0)) verbose=.true.
+
+!FIXME path needs to given from cmdline
+filename = 'rxmdnn.in'
+fp = rxmdnn_param_ctor(filename)
+
+!--- RXMDNN specific output 
+if(myid==0) call fp%print()
+
+num_models = size(fp%models)
+
+num_types = num_models
+num_pairs = num_types*(num_types+1)/2
+
+allocate(mass(num_models), atmname(num_models))
+do i=1, num_models
+   atmname(i) = fp%models(i)%element
+   mass(i) = fp%models(i)%mass
+enddo
+
+!--- set md dirver function 
+mddriver_func => mddriver_rxmdnn
+
+end function
 
 !------------------------------------------------------------------------------------------
 function mdcontext_fnn() result(fp)

@@ -155,16 +155,18 @@ struct NeighborList
 };
 
 std::tuple<std::vector<double>,std::vector<double>> 
-featurize_nbrlist(MDFrame &mdframe, NeighborList &nbr, Params &p)
+//featurize_nbrlist(MDFrame &mdframe, NeighborList &nbr, Params &p)
+featurize_nbrlist(int const natoms, std::vector<double> const & nbrdist, Params const &p)
 {
-	auto natoms = mdframe.natoms;
+	//auto natoms = mdframe.natoms;
 
 	std::vector<double> G2, dG2;
 
 	G2.resize(natoms*p.feature_size,0.0);
 	dG2.resize(3*natoms*p.feature_size,0.0);
 
-	std::cout << "size(G2,dG2,eta.rs,G2) : " << G2.size() << " " << dG2.size() << " " << p.eta.size() << " " << p.rs.size() << std::endl;
+	std::cout << "size(G2,dG2,eta.rs,G2) : " << G2.size() << " " << dG2.size() << " " 
+		<< p.eta.size() << " " << p.rs.size() << std::endl;
 
 	int G2_size = G2.size();
 	int dG2_size = dG2.size();
@@ -172,7 +174,8 @@ featurize_nbrlist(MDFrame &mdframe, NeighborList &nbr, Params &p)
 	int rs_size = p.rs.size();
 	int rc_size = p.rc.size();
 	int feature_size = p.feature_size; 
-	int nbrdist_size = nbr.nbrdist.size();
+	//int nbrdist_size = nbr.nbrdist.size();
+	int nbrdist_size = nbrdist.size();
 	std::cout << "size(G2,dG2,eta,rs,rc,feature_size,nbrdist) : " << G2_size << " " << dG2_size << " " 
 		<< eta_size << " " << rs_size << " " << rc_size << " " 
 		<< feature_size << " " << nbrdist_size << std::endl;
@@ -182,7 +185,8 @@ featurize_nbrlist(MDFrame &mdframe, NeighborList &nbr, Params &p)
 	auto eta_ptr = p.eta.data();
 	auto rs_ptr = p.rs.data();
 	auto rc_ptr = p.rc.data();
-	auto nbrdist_ptr = nbr.nbrdist.data();
+	//auto nbrdist_ptr = nbr.nbrdist.data();
+	auto nbrdist_ptr = nbrdist.data();
 
 	#pragma omp target data map(tofrom: G2_ptr[0:G2_size], dG2_ptr[0:dG2_size]), \
 		map(to: eta_ptr[0:feature_size], rs_ptr[0:feature_size], rc_ptr[0:feature_size]), \
@@ -487,6 +491,7 @@ struct RXMDNN
 
 	std::vector<Net> nns; 
 
+	// use XYZ file to construct MDFrame and NeighborList (for testing purpose)
 	RXMDNN(std::string const & structfile, std::string const & paramfile) 
 	{
 		std::string filename(structfile);
@@ -503,6 +508,8 @@ struct RXMDNN
 		std::string line; 
 		while(std::getline(pin,line))
 		{
+			if(line.compare(0,5,"model") != 0) continue;
+
 			auto ap = AenetParams(line);
 			aps.push_back(ap);
 	
@@ -519,12 +526,48 @@ struct RXMDNN
 
 	}
 
-	void predict()
+	// Setup model parametre only. MD info and neighborlist will be passed from Fortran later.
+	RXMDNN(std::string const & paramfile) 
+	{
+		std::string paramfiles(paramfile);
+		std::ifstream pin(paramfiles);
+
+		std::string line; 
+		while(std::getline(pin,line))
+		{
+			if(line.compare(0,5,"model") != 0) continue;
+
+			auto ap = AenetParams(line);
+			aps.push_back(ap);
+	
+			auto pm = Params(ap);
+			pms.push_back(pm);
+
+			std::vector<int> nodes = ap.get_nodes();
+
+			auto nn = Net(nodes);
+			nn.set_wb_aenet(ap.W, ap.nnodes);
+
+			nns.push_back(nn);
+		}
+
+	}
+
+	float get_maxrc_rxmdnn()
+	{
+		float maxrc=0.0; 
+		for(auto pm : pms) for(auto rc : pm.rc) if(maxrc < rc) maxrc = rc;
+
+		return maxrc; 
+	}
+
+	void predict(int const natoms, std::vector<double> const & nbrdist)
 	{
 		for(int i=0; i<pms.size(); i++)
 		{
 			auto & pm = pms[i];
-			auto feature = featurize_nbrlist(md, nbr, pm);
+			//auto feature = featurize_nbrlist(md.natoms, nbr.nbrdist, pm);
+			auto feature = featurize_nbrlist(natoms, nbrdist, pm);
 			auto G2 = std::get<0>(feature);
 			auto dG2 = std::get<1>(feature);
 
@@ -565,10 +608,17 @@ extern "C" void init_rxmdnn(void)
 extern "C" void predict_rxmdnn(void)
 {
 	std::cout << "foo from predict\n";
-	rxmdnn_ptr->predict(); 
+	rxmdnn_ptr->predict(rxmdnn_ptr->md.natoms, rxmdnn_ptr->nbr.nbrdist); 
 }
 
-extern "C" void finalize_rxmdnn(void)
+extern "C" void predict_rxmdnn_gpu(int natoms, void *nbrdist)
 {
-	std::cout << "foo from finalize\n";
+	std::cout << "foo from predict\n";
+	rxmdnn_ptr->predict(rxmdnn_ptr->md.natoms, rxmdnn_ptr->nbr.nbrdist); 
+}
+
+extern "C" void get_maxrc_rxmdnn(float & maxrc)
+{
+	maxrc = rxmdnn_ptr->get_maxrc_rxmdnn(); 
+	std::cout << "foo from maxrc " << maxrc << std::endl;
 }

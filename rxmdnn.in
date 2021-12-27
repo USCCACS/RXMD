@@ -1,3 +1,4 @@
-Pb Pb.20t-20t.nn-00005_asc  207.2
-Ti Ti.20t-20t.nn-00005_asc  47.87
-O  O.20t-20t.nn-00005_asc   16.00
+#PbTiO3 model trained by aenet
+model Pb 207.2  Pb.20t-20t.nn-00005_asc
+model Ti 47.87  Ti.20t-20t.nn-00005_asc
+model O  16.00  O.20t-20t.nn-00005_asc

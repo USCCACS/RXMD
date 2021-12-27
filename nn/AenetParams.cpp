@@ -74,7 +74,10 @@ struct AenetParams
 	AenetParams(const std::string & parminfo)
 	{
 		std::stringstream ss(parminfo);
-		ss >> element >> filename >> mass; 
+
+		std::string token; 
+		ss >> token >> element >> mass >> filename; 
+		std::cout << token << " " <<  element << " " << mass << " " << filename << std::endl; 
 
 		std::ifstream fin = std::ifstream(filename);
 
