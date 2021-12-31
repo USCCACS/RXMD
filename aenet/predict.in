@@ -1,0 +1,16 @@
+TYPES
+3
+Pb
+Ti
+O
+
+NETWORKS
+Pb   Pb.20t-20t.nn
+Ti   Ti.20t-20t.nn
+O     O.20t-20t.nn
+
+FORCES
+
+!RELAX
+!method=bfgs  F_conv=1.0d-2  E_conv=1.0d-6  steps=99
+

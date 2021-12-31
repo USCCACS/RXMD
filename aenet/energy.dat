@@ -1,0 +1,5 @@
+# Predicted Total Energies/atom and Referenced Total Energies/atom in (eV) and (Hartree).
+# frc_files/000.xsf                                 
+       1        -2955.84429095         -108.62442087        -2955.80369355         -108.62292895
+#RMSE(eV)=           0.04059740 MAE(eV )=           0.04059740 EMAX(eV )=           0.04059740 Coeff  =           0.00000000
+#RMSE(Har)=           0.00149192 MAE(Har)=           0.00149192 EMAX(Har)=           0.00149192 Coeff^2=           0.00000000
