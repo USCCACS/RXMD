@@ -8,9 +8,9 @@ OMPFLAGS=
 
 # hybrid build
 all:
-	$(CXX) $(OMPFLAGS) -std=c++17 -c nn.cpp
+	$(CXX) $(OMPFLAGS) -c nn.cpp
 	$(FXX) -c rxmdnn.f90
-	$(FXX) $(OMPFLAGS) -lstdc++ -cxxlib rxmdnn.o nn.o 
+	$(FXX) $(OMPFLAGS) -lstdc++ rxmdnn.o nn.o 
 
 gxx:
 	g++ -c nn.cpp

@@ -104,6 +104,50 @@ struct MDFrame
     }
 };
 
+MDFrame read_single_mdframe(std::ifstream &in, std::string _filename="NA")
+{
+	MDFrame mdframe;
+	std::string str;
+
+	mdframe.filename = _filename;
+
+	getss(in) >> mdframe.natoms; 
+	getss(in) >> mdframe.lattice[0] >> mdframe.lattice[1] >> mdframe.lattice[2] >> 
+		mdframe.lattice[3] >>  mdframe.lattice[4] >>  mdframe.lattice[5];
+
+	mdframe.name.resize(mdframe.natoms);
+	mdframe.x.resize(mdframe.natoms);
+	mdframe.y.resize(mdframe.natoms);
+	mdframe.z.resize(mdframe.natoms);
+	mdframe.mol_id.resize(mdframe.natoms);
+
+	for (int i=0; i<mdframe.natoms; i++)
+	{
+	std::string name;
+	float x,y,z,vx,vy,vz;
+	int id;
+
+	getss(in) >> name >> x >> y >> z; 
+
+	id = i+1;
+
+	mdframe.name[id-1] = name;
+	mdframe.x[id-1] = x;
+	mdframe.y[id-1] = y;
+	mdframe.z[id-1] = z;
+	mdframe.mol_id[id-1] = id;
+
+	if (mdframe.elems.count(name) == 0)
+		{
+			mdframe.elems[name]=1;
+		} else {
+			mdframe.elems[name]++;
+		}
+	}
+
+	return mdframe;
+};
+
 typedef std::tuple<double, int, std::string, dist, bool, int, std::string> tuple_t;
 typedef std::vector<std::vector<tuple_t>> nbrlist_t;
 typedef std::vector<double> nbrdist_t;
@@ -153,6 +197,90 @@ struct NeighborList
 		}
 	}
 };
+
+std::tuple<std::vector<double>,std::vector<double>> 
+featurize_nbrlist(int const natoms, int const maxnbrs, std::vector<double> const & nbrdist, Params const &p)
+{
+	//auto natoms = mdframe.natoms;
+
+	std::vector<double> G2, dG2;
+
+	G2.resize(natoms*p.feature_size,0.0);
+	dG2.resize(3*natoms*p.feature_size,0.0);
+
+	std::cout << "size(G2,dG2,eta.rs,G2) : " << G2.size() << " " << dG2.size() << " " 
+		<< p.eta.size() << " " << p.rs.size() << std::endl;
+
+	int G2_size = G2.size();
+	int dG2_size = dG2.size();
+	int eta_size = p.eta.size();
+	int rs_size = p.rs.size();
+	int rc_size = p.rc.size();
+	int feature_size = p.feature_size; 
+	int nbrdist_size = nbrdist.size();
+	std::cout << "size(G2,dG2,eta,rs,rc,feature_size,nbrdist) : " << G2_size << " " << dG2_size << " " 
+		<< eta_size << " " << rs_size << " " << rc_size << " " 
+		<< feature_size << " " << nbrdist_size << std::endl;
+
+	auto G2_ptr = G2.data();
+	auto dG2_ptr = dG2.data();
+	auto eta_ptr = p.eta.data();
+	auto rs_ptr = p.rs.data();
+	auto rc_ptr = p.rc.data();
+	auto nbrdist_ptr = nbrdist.data();
+
+	#pragma omp target data map(tofrom: G2_ptr[0:G2_size], tofrom: dG2_ptr[0:dG2_size]), \
+		map(to: eta_ptr[0:feature_size], rs_ptr[0:feature_size], rc_ptr[0:feature_size]), \
+		map(to: nbrdist_ptr[0:nbrdist_size]),  map(to: natoms, feature_size, nbrdist_size)
+	for (int n=0; n<natoms; n++)
+	{
+		for (int ii = 0; ii < feature_size; ii++)
+		{
+			auto rs_val = rs_ptr[ii];
+			auto eta_val = eta_ptr[ii];
+			auto rc_val = rc_ptr[ii];
+
+			for (int j=0; j<maxnbrs; j++)
+			{
+				if (n==j) continue;
+
+				int ii4 = 4*(n*maxnbrs + j);
+				auto dr = nbrdist_ptr[ii4];
+				auto dx = nbrdist_ptr[ii4+1]/dr;
+				auto dy = nbrdist_ptr[ii4+2]/dr;
+				auto dz = nbrdist_ptr[ii4+3]/dr;
+
+				auto rij_rs = dr - rs_val; 
+				auto exp_rij = exp(-eta_val * rij_rs * rij_rs);
+				auto fc_rij = 0.5*cos(M_PI*dr/rc_val);
+
+				auto G2_val = exp_rij*fc_rij;
+				if (dr > rc_val) G2_val = 0.0;
+
+				int idx = n*feature_size + ii;
+				G2_ptr[idx] += G2_val;
+
+				auto G2_deriv = exp_rij*(-2.0*eta_val*fc_rij*rij_rs - M_PI/(2.0*rc_val)*sin(M_PI*dr/rc_val));
+				if (dr > rc_val) G2_deriv= 0.0;
+
+				int idx3 = 3*(n*feature_size + ii);
+				//std::cout << n << " " << j << " " << dr << " " << rc_val << " " << G2_val << " " << G2_deriv << std::endl;
+				dG2_ptr[idx3  ] += G2_deriv*dx;
+				dG2_ptr[idx3+1] += G2_deriv*dy;
+				dG2_ptr[idx3+2] += G2_deriv*dz;
+				/*
+				std::cout << n << " " << j << " " << dr << " " << rc_val << " " << 
+						ii4 << " " << G2_deriv << " " << dx << " " << dy << " " << dz << " " << 
+						G2_ptr[idx] << " " << dG2_ptr[idx3  ] << " " << dG2_ptr[idx3+1] << " " << dG2_ptr[idx3+2] << std::endl;
+				*/
+
+			}
+		}
+	}
+
+	return std::make_tuple(G2,dG2);
+}
+
 
 std::tuple<std::vector<double>,std::vector<double>> 
 featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrdist_voidptr, Params const &p)
@@ -206,89 +334,6 @@ featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrdist_voidptr, Pa
 				auto dr = nbrdist_ptr[ii4];
 				if(dr == 0.0) continue;
 
-				auto dx = nbrdist_ptr[ii4+1]/dr;
-				auto dy = nbrdist_ptr[ii4+2]/dr;
-				auto dz = nbrdist_ptr[ii4+3]/dr;
-
-				auto rij_rs = dr - rs_val; 
-				auto exp_rij = exp(-eta_val * rij_rs * rij_rs);
-				auto fc_rij = 0.5*cos(M_PI*dr/rc_val);
-
-				auto G2_val = exp_rij*fc_rij;
-				if (dr > rc_val) G2_val = 0.0;
-
-				int idx = n*feature_size + ii;
-				G2_ptr[idx] += G2_val;
-
-				auto G2_deriv = exp_rij*(-2.0*eta_val*fc_rij*rij_rs - M_PI/(2.0*rc_val)*sin(M_PI*dr/rc_val));
-				if (dr > rc_val) G2_deriv= 0.0;
-
-				int idx3 = 3*(n*feature_size + ii);
-				//std::cout << n << " " << j << " " << dr << " " << rc_val << " " << G2_val << " " << G2_deriv << std::endl;
-				dG2_ptr[idx3  ] += G2_deriv*dx;
-				dG2_ptr[idx3+1] += G2_deriv*dy;
-				dG2_ptr[idx3+2] += G2_deriv*dz;
-				/*
-				std::cout << n << " " << j << " " << dr << " " << rc_val << " " << 
-						ii4 << " " << G2_deriv << " " << dx << " " << dy << " " << dz << " " << 
-						G2_ptr[idx] << " " << dG2_ptr[idx3  ] << " " << dG2_ptr[idx3+1] << " " << dG2_ptr[idx3+2] << std::endl;
-				*/
-
-			}
-		}
-	}
-
-	return std::make_tuple(G2,dG2);
-}
-
-std::tuple<std::vector<double>,std::vector<double>> 
-featurize_nbrlist(int const natoms, int const maxnbrs, std::vector<double> const & nbrdist, Params const &p)
-{
-	//auto natoms = mdframe.natoms;
-
-	std::vector<double> G2, dG2;
-
-	G2.resize(natoms*p.feature_size,0.0);
-	dG2.resize(3*natoms*p.feature_size,0.0);
-
-	std::cout << "size(G2,dG2,eta.rs,G2) : " << G2.size() << " " << dG2.size() << " " 
-		<< p.eta.size() << " " << p.rs.size() << std::endl;
-
-	int G2_size = G2.size();
-	int dG2_size = dG2.size();
-	int eta_size = p.eta.size();
-	int rs_size = p.rs.size();
-	int rc_size = p.rc.size();
-	int feature_size = p.feature_size; 
-	int nbrdist_size = nbrdist.size();
-	std::cout << "size(G2,dG2,eta,rs,rc,feature_size,nbrdist) : " << G2_size << " " << dG2_size << " " 
-		<< eta_size << " " << rs_size << " " << rc_size << " " 
-		<< feature_size << " " << nbrdist_size << std::endl;
-
-	auto G2_ptr = G2.data();
-	auto dG2_ptr = dG2.data();
-	auto eta_ptr = p.eta.data();
-	auto rs_ptr = p.rs.data();
-	auto rc_ptr = p.rc.data();
-	auto nbrdist_ptr = nbrdist.data();
-
-	#pragma omp target data map(tofrom: G2_ptr[0:G2_size], dG2_ptr[0:dG2_size]), \
-		map(to: eta_ptr[0:feature_size], rs_ptr[0:feature_size], rc_ptr[0:feature_size]), \
-		map(to: nbrdist_ptr[0:nbrdist_size]),  map(to: natoms, feature_size, nbrdist_size)
-	for (int n=0; n<natoms; n++)
-	{
-		for (int ii = 0; ii < feature_size; ii++)
-		{
-			auto rs_val = rs_ptr[ii];
-			auto eta_val = eta_ptr[ii];
-			auto rc_val = rc_ptr[ii];
-
-			for (int j=0; j<maxnbrs; j++)
-			{
-				if (n==j) continue;
-
-				int ii4 = 4*(n*maxnbrs + j);
-				auto dr = nbrdist_ptr[ii4];
 				auto dx = nbrdist_ptr[ii4+1]/dr;
 				auto dy = nbrdist_ptr[ii4+2]/dr;
 				auto dz = nbrdist_ptr[ii4+3]/dr;
@@ -520,51 +565,6 @@ std::cout << "===============================\n";
 	}
 };
 
-
-MDFrame read_single_mdframe(std::ifstream &in, std::string _filename="NA")
-{
-	MDFrame mdframe;
-	std::string str;
-
-	mdframe.filename = _filename;
-
-	getss(in) >> mdframe.natoms; 
-	getss(in) >> mdframe.lattice[0] >> mdframe.lattice[1] >> mdframe.lattice[2] >> 
-		mdframe.lattice[3] >>  mdframe.lattice[4] >>  mdframe.lattice[5];
-
-	mdframe.name.resize(mdframe.natoms);
-	mdframe.x.resize(mdframe.natoms);
-	mdframe.y.resize(mdframe.natoms);
-	mdframe.z.resize(mdframe.natoms);
-	mdframe.mol_id.resize(mdframe.natoms);
-
-	for (int i=0; i<mdframe.natoms; i++)
-	{
-	std::string name;
-	float x,y,z,vx,vy,vz;
-	int id;
-
-	getss(in) >> name >> x >> y >> z; 
-
-	id = i+1;
-
-	mdframe.name[id-1] = name;
-	mdframe.x[id-1] = x;
-	mdframe.y[id-1] = y;
-	mdframe.z[id-1] = z;
-	mdframe.mol_id[id-1] = id;
-
-	if (mdframe.elems.count(name) == 0)
-		{
-			mdframe.elems[name]=1;
-		} else {
-			mdframe.elems[name]++;
-		}
-	}
-
-	return mdframe;
-};
-
 struct RXMDNN
 {
 	MDFrame md; 
@@ -574,6 +574,8 @@ struct RXMDNN
 	std::vector<Params> pms;
 
 	std::vector<Net> nns; 
+
+	int natoms; 
 
 	// use XYZ file to construct MDFrame and NeighborList (for testing purpose)
 	RXMDNN(std::string const & structfile, std::string const & paramfile) 
@@ -610,9 +612,10 @@ struct RXMDNN
 
 	}
 
-	// Setup model parametre only. MD info and neighborlist will be passed from Fortran later.
-	RXMDNN(std::string const & paramfile) 
+	// Setup model parameters. no XYZ is used. 
+	RXMDNN(int const _natoms, std::string const & paramfile) 
 	{
+		natoms = _natoms; 
 		std::string paramfiles(paramfile);
 		std::ifstream pin(paramfiles);
 
@@ -658,7 +661,7 @@ struct RXMDNN
 			auto dG2 = std::get<1>(feature);
 
 			std::cout << "\nG2\n";
-			for(int j=0; j<natoms; j+=2) 
+			for(int j=0; j<maxnbrs; j+=2) 
 			{
 				std::cout << std::setw(3) << j << ": ";
 				for(int i=0; i<20; i+=2) std::cout << std::scientific << 
@@ -666,7 +669,7 @@ struct RXMDNN
 				std::cout << std::endl;
 			}
 			std::cout << "\ndG2\n";
-			for(int j=0; j<natoms; j+=2) 
+			for(int j=0; j<maxnbrs; j+=2) 
 			{
 				std::cout << std::setw(3) << j << ": ";
 				for(int i=0; i<20; i+=2) std::cout << std::scientific << 
@@ -685,16 +688,22 @@ struct RXMDNN
 
 std::unique_ptr<RXMDNN> rxmdnn_ptr; 
 
-extern "C" void init_rxmdnn(void)
+extern "C" void init_rxmdnn_hybrid(int natoms)
 {
 	std::cout << "foo from init\n";
-	rxmdnn_ptr = std::make_unique<RXMDNN>("pto.xyz","rxmdnn.in");
+	rxmdnn_ptr = std::make_unique<RXMDNN>(natoms,"rxmdnn.in");
 }
 
 extern "C" void predict_rxmdnn_hybrid(int natoms, int maxnbrs, void *nbrdist_ptr)
 {
 	std::cout << "foo from predict_hybrid\n";
 	rxmdnn_ptr->predict(natoms, maxnbrs, nbrdist_ptr);
+}
+
+extern "C" void init_rxmdnn(void)
+{
+	std::cout << "foo from init\n";
+	rxmdnn_ptr = std::make_unique<RXMDNN>("pto.xyz","rxmdnn.in");
 }
 
 extern "C" void predict_rxmdnn(void)

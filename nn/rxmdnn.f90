@@ -7,6 +7,12 @@ module rxmdnn
     subroutine init() bind(c,name="init_rxmdnn")
     ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
     end subroutine
+
+    subroutine init_hybrid(natoms) bind(c,name="init_rxmdnn_hybrid")
+    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
+       import :: c_int
+       integer(c_int),value :: natoms
+    end subroutine
   
     subroutine predict() bind(c,name="predict_rxmdnn")
     ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
@@ -44,7 +50,7 @@ program main
   call random_number(nbrdist) 
   nbrdist_ptr = c_loc(nbrdist(1))
 
-  call init()
+  call init_hybrid(natoms)
   call predict_hybrid(natoms,natoms,nbrdist_ptr)
   call get_maxrc(maxrc)
   print*,'maxrc: ', maxrc

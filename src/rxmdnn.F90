@@ -46,6 +46,12 @@ module rxmdnn
     subroutine init_rxmdnn() bind(c,name="init_rxmdnn")
     end subroutine
 
+    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
+    subroutine init_rxmdnn_hybrid(natoms) bind(c,name="init_rxmdnn_hybrid")
+       import :: c_int
+       integer(c_int),value :: natoms
+    end subroutine
+
     subroutine predict_rxmdnn_hybrid(natoms, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
        import :: c_int, c_ptr
        integer(c_int),value :: natoms, maxnbrs
@@ -179,17 +185,6 @@ call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
-
-!do i=1, num_atoms 
-!   print'(i6,i6,f8.3,a2)',i,nbrlist(i,0),maxrc,': '
-!   do j1=1, MAXNEIGHBS
-!      idx = 4*((i-1)*MAXNEIGHBS+j1-1)
-!      print'(4f6.2 $)',nbrdist(idx+1:idx+4)
-!     if(mod(j1-1,8)==7) print'(a1,i6)', ',',j1
-!   enddo
-!   print*
-!enddo
-!stop 'foo'
 
 nbrdist_ptr = c_loc(nbrdist(1))
 call predict_rxmdnn_hybrid(num_atoms, MAXNEIGHBS, nbrdist_ptr) 
@@ -338,10 +333,10 @@ do c3=0, cc(3)-1
 
                ii = nbrlist(i,0)
                idx = 4*((i-1)*MAXNEIGHBS+ii-1)
-               !print'(2i6,f8.3,4f10.5,a)',i,j1,rij,nbrdist(idx+1:idx+4),' before'
+               !print'(2i6,f8.3,4f10.5,a)',i,ii,rij,nbrdist(idx+1:idx+4),' before'
                nbrdist(idx+1) = rij
                nbrdist(idx+2:idx+4) = rr(1:3)
-               !print'(2i6,f8.3,4f10.5,a)',i,j1,rij,nbrdist(idx+1:idx+4),' after'
+               !print'(2i6,f8.3,4f10.5,i6,1x,a)',i,ii,rij,nbrdist(idx+1:idx+4),idx,' after'
              endif
 
            endif
