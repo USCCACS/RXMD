@@ -37,7 +37,14 @@ module rxmdnn
 
   real(8) :: maxrc_rxmdnn=0.d0
 
-  real(c_double),allocatable,target :: nbrdist(:)
+  type nbrdist_type
+     real(c_float),allocatable:: rij(:)
+  end type
+
+  type(nbrdist_type),allocatable :: nbrdists(:)
+
+  integer,allocatable :: ndst_counts(:)
+
   type(c_ptr) :: nbrdist_ptr
 
   interface 
@@ -52,9 +59,9 @@ module rxmdnn
        integer(c_int),value :: natoms
     end subroutine
 
-    subroutine predict_rxmdnn_hybrid(natoms, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
+    subroutine predict_rxmdnn_hybrid(natoms, atom_type, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
        import :: c_int, c_ptr
-       integer(c_int),value :: natoms, maxnbrs
+       integer(c_int),value :: natoms, atom_type, maxnbrs
        type(c_ptr),value :: nbrdist_ptr
     end subroutine
   
@@ -73,10 +80,19 @@ module rxmdnn
 contains
 
 !------------------------------------------------------------------------------
-subroutine allocate_nbrdist_rxmdnn()
+subroutine allocate_nbrdist_rxmdnn(num_elems)
 !------------------------------------------------------------------------------
+  integer,intent(in) :: num_elems
+  integer :: ity
 
-  allocate(nbrdist(NBUFFER*MAXNEIGHBS))
+  allocate(ndst_counts(num_elems),nbrdists(num_elems))
+
+  do ity=1, num_elems
+     allocate(nbrdists(ity)%rij(NBUFFER*MAXNEIGHBS))
+     nbrdists(ity)%rij = 0.d0
+  enddo
+
+  ndst_counts(:)=0
 
   return 
 
@@ -177,8 +193,6 @@ class(force_field_class),pointer,intent(in out) :: ff
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
-real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, NBUFFER), F_i(3, num_atoms)
-integer :: type_i, index_i, type_j(MAXNEIGHBS), index_j(MAXNEIGHBS)
 integer :: i,j,j1,ity,n_j,stat,idx
 
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
@@ -186,8 +200,13 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
 
-nbrdist_ptr = c_loc(nbrdist(1))
-call predict_rxmdnn_hybrid(num_atoms, MAXNEIGHBS, nbrdist_ptr) 
+do ity=1, size(mass)
+  print'(a)',repeat('=-',40)
+  print*,'in get_force_rxmdnn: ity ', ity
+  nbrdist_ptr = c_loc(nbrdists(ity)%rij(1))
+  call predict_rxmdnn_hybrid(ndst_counts(ity), ity, MAXNEIGHBS, nbrdist_ptr) 
+  print'(a)',repeat('=-',40)
+enddo
 
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
@@ -295,8 +314,12 @@ real(8) :: rr(3), rr2, rij, dsum
 integer :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx
 integer :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,kty,inxn
 
+
 nbrlist(:,0) = 0
-nbrdist(:) = 0.d0
+ndst_counts(:) = 0
+do i=1, size(nbrdists)
+  nbrdists(i)%rij = 0.d0
+enddo
 
 call cpu_time(tstart(2))
 
@@ -309,6 +332,9 @@ do c3=0, cc(3)-1
   i = header(c1, c2, c3)
   do i1=1, nacell(c1, c2, c3)
      ity = nint(atype(i))
+
+     ndst_counts(ity) = ndst_counts(ity) + 1
+     !print*,'ity,ndst_counts : ', ity, ndst_counts(ity)
 
      !print'(3i6,i6,3f10.5)',c1,c2,c3,m,pos(m,1:3)
 
@@ -332,11 +358,12 @@ do c3=0, cc(3)-1
                nbrlist(i, nbrlist(i, 0)) = j
 
                ii = nbrlist(i,0)
-               idx = 4*((i-1)*MAXNEIGHBS+ii-1)
-               !print'(2i6,f8.3,4f10.5,a)',i,ii,rij,nbrdist(idx+1:idx+4),' before'
-               nbrdist(idx+1) = rij
-               nbrdist(idx+2:idx+4) = rr(1:3)
-               !print'(2i6,f8.3,4f10.5,i6,1x,a)',i,ii,rij,nbrdist(idx+1:idx+4),idx,' after'
+               idx = 4*((ndst_counts(ity)-1)*MAXNEIGHBS+ii-1)
+
+               !print'(3i6,f8.3,4f10.5,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),' before'
+               nbrdists(ity)%rij(idx+1) = rij
+               nbrdists(ity)%rij(idx+2:idx+4) = rr(1:3)
+               !print'(3i6,f8.3,4f10.5,i6,1x,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),idx,' after'
              endif
 
            endif
@@ -351,14 +378,16 @@ enddo; enddo; enddo
 !!$omp end parallel do 
 call cpu_time(tfinish(2))
 
-!do i=1, natoms
-!   print'(i6,i6,f8.3,a2)',i,nbrlist(i,0),rcmax,': '
-!   do j1=1, MAXNEIGHBS
-!      idx = 4*((i-1)*MAXNEIGHBS+j1-1)
-!      print'(4f6.2 $)',nbrdist(idx+1:idx+4)
-!      if(mod(j1-1,8)==7) print'(a1,i6)', ',',j1
+!do ity=1, size(nbrdists)
+!   do i=1, ndst_counts(ity)
+!      print'(i6,i6,f8.3,a2)',ity,i,rcmax,': '
+!      do j1=1, MAXNEIGHBS
+!         idx = 4*((i-1)*MAXNEIGHBS+j1-1)
+!         print'(4f6.2,a2 $)',nbrdists(ity)%rij(idx+1:idx+4), '  '
+!         if(mod(j1-1,4)==3) print'(a1,i6)', ',',j1
+!      enddo
+!      print*
 !   enddo
-!   print*
 !enddo
 !stop 'foo'
 

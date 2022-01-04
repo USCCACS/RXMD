@@ -23,10 +23,10 @@
 
 struct Params
 {
-	std::vector<double> eta, eta0;
-	std::vector<double> rs, rs0;
-	std::vector<double> rc;
-	const double rc0 = 4.5;
+	std::vector<float> eta, eta0;
+	std::vector<float> rs, rs0;
+	std::vector<float> rc;
+	const float rc0 = 4.5;
 	int num_elems; 
 
 	int feature_size; 
@@ -66,11 +66,11 @@ struct Params
 
 struct dist 
 {
-	double dx,dy,dz;
-	dist(double _dx, double _dy, double _dz) : dx(_dx), dy(_dy), dz(_dz){};
+	float dx,dy,dz;
+	dist(float _dx, float _dy, float _dz) : dx(_dx), dy(_dy), dz(_dz){};
 };
 
-double apply_pbc(double x, double lattice)
+float apply_pbc(float x, float lattice)
 {
     if(x>=0.5*lattice) x-=lattice;
     if(x<-0.5*lattice) x+=lattice;
@@ -82,10 +82,10 @@ struct MDFrame
     std::string filename;
 
     int natoms;
-    double lattice[6];
+    float lattice[6];
 
-    std::vector<double> x, y, z;
-    std::vector<double> vx, vy, vz;
+    std::vector<float> x, y, z;
+    std::vector<float> vx, vy, vz;
     std::vector<int> mol_id;  // molecular Id
     std::vector<std::string> name;
     std::map<std::string,int> elems;
@@ -148,9 +148,9 @@ MDFrame read_single_mdframe(std::ifstream &in, std::string _filename="NA")
 	return mdframe;
 };
 
-typedef std::tuple<double, int, std::string, dist, bool, int, std::string> tuple_t;
+typedef std::tuple<float, int, std::string, dist, bool, int, std::string> tuple_t;
 typedef std::vector<std::vector<tuple_t>> nbrlist_t;
-typedef std::vector<double> nbrdist_t;
+typedef std::vector<float> nbrdist_t;
 
 struct NeighborList
 {
@@ -172,15 +172,15 @@ struct NeighborList
 			for (int j=0; j<mdframe.natoms; j++)
 			{
 
-				double dx = mdframe.x[j] - mdframe.x[i];
-				double dy = mdframe.y[j] - mdframe.y[i];
-				double dz = mdframe.z[j] - mdframe.z[i];
+				float dx = mdframe.x[j] - mdframe.x[i];
+				float dy = mdframe.y[j] - mdframe.y[i];
+				float dz = mdframe.z[j] - mdframe.z[i];
 
 				dx = apply_pbc(dx, mdframe.lattice[0]);
 				dy = apply_pbc(dy, mdframe.lattice[1]);
 				dz = apply_pbc(dz, mdframe.lattice[2]);
 
-				double dr = sqrt(dx*dx + dy*dy + dz*dz); 
+				float dr = sqrt(dx*dx + dy*dy + dz*dz); 
 				if (dr == 0.0) continue;
 
 				auto data = std::make_tuple(dr, j, mdframe.name[j], dist(dx,dy,dz), true, i, mdframe.name[i]);
@@ -198,18 +198,18 @@ struct NeighborList
 	}
 };
 
-std::tuple<std::vector<double>,std::vector<double>> 
-featurize_nbrlist(int const natoms, int const maxnbrs, std::vector<double> const & nbrdist, Params const &p)
+std::tuple<std::vector<float>,std::vector<float>> 
+featurize_nbrlist(int const natoms, int const maxnbrs, std::vector<float> const & nbrdist, Params const &p)
 {
 	//auto natoms = mdframe.natoms;
 
-	std::vector<double> G2, dG2;
+	std::vector<float> G2, dG2;
 
 	G2.resize(natoms*p.feature_size,0.0);
 	dG2.resize(3*natoms*p.feature_size,0.0);
 
-	std::cout << "size(G2,dG2,eta.rs,G2) : " << G2.size() << " " << dG2.size() << " " 
-		<< p.eta.size() << " " << p.rs.size() << std::endl;
+	std::cout << "natoms,maxnbrs,size(G2,dG2,eta,rs) : " << natoms << " " << maxnbrs << " " << 
+		G2.size() << " " << dG2.size() << " " << p.eta.size() << " " << p.rs.size() << std::endl;
 
 	int G2_size = G2.size();
 	int dG2_size = dG2.size();
@@ -282,20 +282,20 @@ featurize_nbrlist(int const natoms, int const maxnbrs, std::vector<double> const
 }
 
 
-std::tuple<std::vector<double>,std::vector<double>> 
+std::tuple<std::vector<float>,std::vector<float>> 
 featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrdist_voidptr, Params const &p)
 {
-	double *nbrdist = (double *) nbrdist_voidptr; 
+	float *nbrdist = (float *) nbrdist_voidptr; 
 
 	//auto natoms = mdframe.natoms;
 
-	std::vector<double> G2, dG2;
+	std::vector<float> G2, dG2;
 
 	G2.resize(natoms*p.feature_size,0.0);
 	dG2.resize(3*natoms*p.feature_size,0.0);
 
-	std::cout << "size(G2,dG2,eta.rs,G2) : " << G2.size() << " " << dG2.size() << " " 
-		<< p.eta.size() << " " << p.rs.size() << std::endl;
+	std::cout << "natoms,maxnbrs,size(G2,dG2,eta,rs) : " << natoms << " " << maxnbrs << " " 
+		<< G2.size() << " " << dG2.size() << " " << p.eta.size() << " " << p.rs.size() << std::endl;
 
 	int G2_size = G2.size();
 	int dG2_size = dG2.size();
@@ -306,8 +306,7 @@ featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrdist_voidptr, Pa
 	int nbrdist_size = natoms*maxnbrs;
 
 	std::cout << "size(G2,dG2,eta,rs,rc,feature_size,nbrdist) : " << G2_size << " " << dG2_size << " " 
-		<< eta_size << " " << rs_size << " " << rc_size << " " 
-		<< feature_size << " " << nbrdist_size << std::endl;
+		<< eta_size << " " << rs_size << " " << rc_size << " " << feature_size << " " << nbrdist_size << std::endl;
 
 	auto G2_ptr = G2.data();
 	auto dG2_ptr = dG2.data();
@@ -356,10 +355,11 @@ featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrdist_voidptr, Pa
 				dG2_ptr[idx3  ] += G2_deriv*dx;
 				dG2_ptr[idx3+1] += G2_deriv*dy;
 				dG2_ptr[idx3+2] += G2_deriv*dz;
+
 				/*
 				std::cout << n << " " << j << " " << dr << " " << rc_val << " " << 
-						ii4 << " " << G2_deriv << " " << dx << " " << dy << " " << dz << " " << 
-						G2_ptr[idx] << " " << dG2_ptr[idx3  ] << " " << dG2_ptr[idx3+1] << " " << dG2_ptr[idx3+2] << std::endl;
+						ii4 << " " << G2_deriv << " " << dx << " " << dy << " " << dz << " , " << 
+						G2_ptr[idx] << " " << dG2_ptr[idx3] << " " << dG2_ptr[idx3+1] << " " << dG2_ptr[idx3+2] << std::endl;
 				*/
 
 			}
@@ -374,7 +374,7 @@ struct Dense
 	int width, height, n; 
 	int nodes; // nodes per layer. height == nodes
 
-	std::vector<double> w, b; 
+	std::vector<float> w, b; 
 
 	Dense(int _width, int _height, bool randomize = true)
 		: width(_width), height(_height), nodes(_height)
@@ -387,18 +387,18 @@ struct Dense
 		{
 			b.resize(height);
 			w.resize(height*width);
-			for(int i=0; i < b.size(); i++) b[i] = 2.0*((double)rand()/RAND_MAX-0.5);
-			for(int i=0; i < w.size(); i++) w[i] = 2.0*((double)rand()/RAND_MAX-0.5);
+			for(int i=0; i < b.size(); i++) b[i] = 2.0*((float)rand()/RAND_MAX-0.5);
+			for(int i=0; i < w.size(); i++) w[i] = 2.0*((float)rand()/RAND_MAX-0.5);
 		}
 	}
 
-	void set_w(std::vector<double> & _w)
+	void set_w(std::vector<float> & _w)
 	{
 		w.resize(0);
 		std::copy(_w.begin(), _w.end(), back_inserter(w));
 	}
 
-	void set_b(std::vector<double> & _b)
+	void set_b(std::vector<float> & _b)
 	{
 		b.resize(0);
 		std::copy(_b.begin(), _b.end(), back_inserter(b));
@@ -406,15 +406,36 @@ struct Dense
 
 };
 
-double relu(double x)
+float tanh(float x)
+{
+	float e2x = std::exp(2*x);
+	return (e2x - 1.0)/(e2x + 1.0);
+}
+
+float dtanh(float x)
+{
+	return 1.0 - tanh(x);
+}
+
+float relu(float x)
 {
 	return x < 0.0 ? 0.0 : x;
 };
 
-double drelu(double x)
+float drelu(float x)
 {
 	return x < 0.0 ? 0.0 : 1.0;
 };
+
+float actfunc(float x)
+{
+	return tanh(x);	
+}
+
+float dactfunc(float x)
+{
+	return dtanh(x);
+}
 
 struct Net
 {
@@ -433,7 +454,7 @@ struct Net
 		}
 	}
 
-	void set_wb_aenet(const std::vector<double> & W, const std::vector<int> & nnodes)
+	void set_wb_aenet(const std::vector<float> & W, const std::vector<int> & nnodes)
 	{
 		//std::cout << nnodes.size() << " " << nn.size() << std::endl;
 		assert(nnodes.size()-1 == nn.size());
@@ -455,18 +476,18 @@ struct Net
 		}
 	}
 
-	std::tuple<std::vector<double>,std::vector<double>> 
-		predict(const std::vector<double> & feature, std::vector<double> & dfeature, const int batch_size=1)
+	std::tuple<std::vector<float>,std::vector<float>> 
+		predict(const std::vector<float> & feature, std::vector<float> & dfeature, const int batch_size=1)
 	{
-		std::cout << "\n\n   Entering predict()   \n\n";
+		std::cout << "\n\n   Entering Net::predict()   \n\n";
 		std::cout << "size(batch,feature,nn),nn[0].width : " << batch_size << " " 
 			<< feature.size() << " " << nn.size() << " " << nn[0].width << std::endl; 
 
 		//assert(feature.size() == batch_size*nn[0].width); 
 
-		std::vector<double> vin,vout; 
-		std::vector<double> dvin,dvout,dsigma; 
-		std::vector<double> energies, forces; 
+		std::vector<float> vin,vout; 
+		std::vector<float> dvin,dvout,dsigma; 
+		std::vector<float> energies, forces; 
 
 		std::copy(feature.begin(), feature.end(), back_inserter(vin));
 		std::copy(dfeature.begin(), dfeature.end(), back_inserter(dvin));
@@ -475,14 +496,20 @@ struct Net
 		std::cout << "vin ===============================\n";
 		for(int ih=0; ih<vin.size(); ih++) std::cout << vin[ih] << " "; std::cout << std::endl;
 		std::cout << "===============================\n";
-		std::cout << "vout ===============================\n";
+		std::cout << "dvin ===============================\n";
 		for(int ih=0; ih<dvin.size(); ih++) std::cout << dvin[ih] << " "; std::cout << std::endl;
 		std::cout << "===============================\n";
 		*/
 
 		for(int n=0; n<batch_size; n++)
 		{
-			//for(int i=nn.size()-1; 0<=i; i--)
+			const int fsize_per_particle = nn[0].width; 
+			vin.resize(fsize_per_particle, 0.0);
+			dvin.resize(3*fsize_per_particle, 0.0);
+
+			for(int i=0; i<fsize_per_particle; i++) vin[i]=feature[n*fsize_per_particle+i];
+			for(int i=0; i<3*fsize_per_particle; i++) dvin[i]=dfeature[n*3*fsize_per_particle+i];
+
 			for(int i=0; i<nn.size(); i++)
 			{
 				const int height = nn[i].height;
@@ -533,8 +560,8 @@ struct Net
 	
 				// compute sigma_deriv(z) first, then appy activation function sigma(z)
 				dsigma.resize(height);
-				for(int ih=0; ih<height; ih++) dsigma[ih]=drelu(vout[ih]);
-				for(int ih=0; ih<height; ih++) vout[ih]=relu(vout[ih]);
+				for(int ih=0; ih<height; ih++) dsigma[ih]=dactfunc(vout[ih]);
+				for(int ih=0; ih<height; ih++) vout[ih]=actfunc(vout[ih]);
 /*
 std::cout << "=============================== vout after activation \n";
 for(int ih=0; ih<height; ih++) std::cout << vout[ih] << " "; std::cout << std::endl;
@@ -648,41 +675,51 @@ struct RXMDNN
 		return maxrc; 
 	}
 
-	//void predict(int const natoms, int const maxnbrs, std::vector<double> const & nbrdist)
-	void predict(int const natoms, int const maxnbrs, void* nbrdist_ptr)
+	//void predict(int const natoms, int const maxnbrs, std::vector<float> const & nbrdist)
+	void predict(int const natoms, int const atom_type, int const maxnbrs, void* nbrdist_ptr)
 	{
+		std::cout << "\n\nEntering RXMDNN::predict()\n\nnatoms,atom_type,maxnbrs: " << 
+			natoms << " " << atom_type << " " << maxnbrs << std::endl;
 
-		for(int i=0; i<pms.size(); i++)
+		//atom_type is 1-indexed while pms&&nn are 0-indexed. 
+		int atom_type_idx = atom_type - 1; 
+
+		auto & pm = pms[atom_type_idx]; 
+
+		auto feature = featurize_nbrlist(natoms, maxnbrs, nbrdist_ptr, pm);
+		auto G2 = std::get<0>(feature);
+		auto dG2 = std::get<1>(feature);
+
+		/*
+		std::cout << "\nG2 size " << G2.size() << std::endl;
+		for(int j=0; j<natoms; j++) 
 		{
-			auto & pm = pms[i];
-
-			auto feature = featurize_nbrlist(natoms, maxnbrs, nbrdist_ptr, pm);
-			auto G2 = std::get<0>(feature);
-			auto dG2 = std::get<1>(feature);
-
-			std::cout << "\nG2\n";
-			for(int j=0; j<maxnbrs; j+=2) 
-			{
-				std::cout << std::setw(3) << j << ": ";
-				for(int i=0; i<20; i+=2) std::cout << std::scientific << 
-					std::setprecision(5) << std::setw(10) << G2[j*pm.feature_size+i] << " "; 
-				std::cout << std::endl;
-			}
-			std::cout << "\ndG2\n";
-			for(int j=0; j<maxnbrs; j+=2) 
-			{
-				std::cout << std::setw(3) << j << ": ";
-				for(int i=0; i<20; i+=2) std::cout << std::scientific << 
-					std::setprecision(5) << std::setw(10) << dG2[3*(j*pm.feature_size+i)] << " "; 
-				std::cout << std::endl;
-			}
+			std::cout << std::setw(3) << j << ": ";
+			//for(int i=0; i<pm.feature_size; i++) std::cout << std::scientific << 
+			for(int i=0; i<10; i++) std::cout << std::scientific << 
+				std::setprecision(5) << std::setw(10) << G2[j*pm.feature_size+i] << " "; 
 			std::cout << std::endl;
-
-			auto result = nns[i].predict(G2, dG2, natoms); 
-
-			auto energy = std::get<0>(result);
-			auto force = std::get<1>(result);
 		}
+		std::cout << "\ndG2 size " << dG2.size() << std::endl;
+		for(int j=0; j<natoms; j++) 
+		{
+			std::cout << std::setw(3) << j << ": ";
+			//for(int i=0; i<pm.feature_size; i++) 
+			for(int i=0; i<10; i++) 
+				std::cout << std::scientific << std::setprecision(5) << std::setw(10) << dG2[3*(j*pm.feature_size+i)] << " "; 
+			std::cout << std::endl;
+		}
+		std::cout << std::endl;
+		*/
+
+		auto result = nns[atom_type_idx].predict(G2, dG2, natoms); 
+
+		auto energy = std::get<0>(result);
+		auto force = std::get<1>(result);
+
+		std::cout << "size(energy,force) : " << energy.size() << " " << force.size() << std::endl;
+		for(int i=0; i<energy.size(); i++)
+			std::cout << i << " " << energy[i] << " " << force[3*i] << " " << force[3*i+1] << " " << force[3*i+2] << std::endl;
 	};
 };
 
@@ -694,10 +731,10 @@ extern "C" void init_rxmdnn_hybrid(int natoms)
 	rxmdnn_ptr = std::make_unique<RXMDNN>(natoms,"rxmdnn.in");
 }
 
-extern "C" void predict_rxmdnn_hybrid(int natoms, int maxnbrs, void *nbrdist_ptr)
+extern "C" void predict_rxmdnn_hybrid(int natoms, int atom_type, int maxnbrs, void *nbrdist_ptr)
 {
 	std::cout << "foo from predict_hybrid\n";
-	rxmdnn_ptr->predict(natoms, maxnbrs, nbrdist_ptr);
+	rxmdnn_ptr->predict(natoms, atom_type, maxnbrs, nbrdist_ptr);
 }
 
 extern "C" void init_rxmdnn(void)
@@ -709,7 +746,8 @@ extern "C" void init_rxmdnn(void)
 extern "C" void predict_rxmdnn(void)
 {
 	std::cout << "foo from predict\n";
-	rxmdnn_ptr->predict(rxmdnn_ptr->md.natoms, rxmdnn_ptr->md.natoms, (void *) rxmdnn_ptr->nbr.nbrdist.data()); 
+	int atom_type = 1;
+	rxmdnn_ptr->predict(rxmdnn_ptr->md.natoms, atom_type, rxmdnn_ptr->md.natoms, (void *) rxmdnn_ptr->nbr.nbrdist.data()); 
 }
 
 extern "C" void get_maxrc_rxmdnn(double & maxrc)

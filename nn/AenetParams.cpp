@@ -48,12 +48,12 @@ void read_G2(std::ifstream & fin, const std::vector<int> &sf, std::vector<std::v
 struct AenetParams
 {
 	std::string element, filename; 
-	double mass; 
+	float mass; 
 
 	// load_Network
 	int nlayers, nnodes_max, Wsize, nvalues;
 	std::vector<int> nnodes, f_a, iw, iv;
-	std::vector<double> W;
+	std::vector<float> W;
 	bool init, evaluated, derivatives; 
 	
 	// load_Setup
@@ -61,15 +61,15 @@ struct AenetParams
 	std::string atomtype, sftype;
 	int nenv, nsf, nsfparam; 
 	std::vector<std::string> envtypes;
-	double Rc_min, Rc_max;
+	float Rc_min, Rc_max;
 
 	std::vector<int> sf;
-	std::vector<std::vector<double>> sfparam;
+	std::vector<std::vector<float>> sfparam;
 	std::vector<std::vector<int>> sfenv;
 	int neval;
-	std::vector<double> sfval_min, sfval_max, sfval_avg, sfval_cov;
+	std::vector<float> sfval_min, sfval_max, sfval_avg, sfval_cov;
 
-	std::vector<double> D, value, deriv, work, work2, work3, work4;
+	std::vector<float> D, value, deriv, work, work2, work3, work4;
 
 	AenetParams(const std::string & parminfo)
 	{

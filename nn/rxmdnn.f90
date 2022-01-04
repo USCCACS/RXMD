@@ -18,10 +18,10 @@ module rxmdnn
     ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
     end subroutine
 
-    subroutine predict_hybrid(natoms, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
+    subroutine predict_hybrid(natoms, atom_type, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
     ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
        import :: c_ptr, c_int
-       integer(c_int),value :: natoms, maxnbrs
+       integer(c_int),value :: natoms, atom_type, maxnbrs
        type(c_ptr),value :: nbrdist_ptr
     end subroutine
 
@@ -42,8 +42,10 @@ program main
 
   integer(c_int) :: natoms=10, nnbrs=20
 
-  real(c_double),allocatable,target :: nbrdist(:)
+  real(c_float),allocatable,target :: nbrdist(:)
   type(c_ptr) :: nbrdist_ptr
+
+  integer :: ity
 
   allocate(nbrdist(natoms*nnbrs))
 
@@ -51,8 +53,11 @@ program main
   nbrdist_ptr = c_loc(nbrdist(1))
 
   call init_hybrid(natoms)
-  call predict_hybrid(natoms,natoms,nbrdist_ptr)
   call get_maxrc(maxrc)
-  print*,'maxrc: ', maxrc
+  print'(a,f10.5)','maxrc: ', maxrc
+  
+  do ity = 1,3
+    call predict_hybrid(natoms, ity, natoms, nbrdist_ptr)
+  enddo
 
 end program

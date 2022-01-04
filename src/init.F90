@@ -102,11 +102,12 @@ select case (ff_type_flag)
   case(TYPE_RXMDNN)
      !call init_rxmdnn()
      call init_rxmdnn_hybrid(NATOMS)
-     call allocate_nbrdist_rxmdnn()
      rxmdnn_param_obj = mdcontext_rxmdnn()
      mdbase%ff => rxmdnn_param_obj
      if(myid==0) print*,'get_mdcontext_func : mdcontext_rxmdnn' 
-     call fnn_param_obj%print()
+     call rxmdnn_param_obj%print()
+
+     call allocate_nbrdist_rxmdnn(size(mass))
 
   case(TYPE_REAXFF)
     call mdcontext_reaxff()
