@@ -26,7 +26,7 @@ integer :: numParams, numAtomNames
 
 logical :: getReal=.false., getNorm=.false., noCoordinateShift=.false.
 
-logical :: isLG, is_fnn, is_reaxff, is_vread
+logical :: isLG, is_fnn, is_rxmdnn, is_reaxff, is_vread
 
 contains
 
@@ -342,6 +342,10 @@ do i=1, command_argument_count()
        call get_command_argument(i+1,argv)
        ffieldFileName=adjustl(argv)
        is_fnn = .true.
+     case("-rxmdnn")
+       call get_command_argument(i+1,argv)
+       ffieldFileName=adjustl(argv)
+       is_rxmdnn = .true.
      case("-vread")
        is_vread = .true.
      case("-lg")
@@ -357,17 +361,23 @@ do i=1, command_argument_count()
    end select
 enddo
 
+inquire(file='../rxmdnn.in', exist=is_rxmdnn)
 inquire(file='../fnn.in', exist=is_fnn)
-if(is_fnn) then
+inquire(file='../ffield', exist=is_reaxff)
+
+if(is_rxmdnn) then
+   print'(a)',repeat('-',60)
+   ffieldFileName='../rxmdnn.in'
+   print'(a)','Found rxmdnn.in file: '//trim(adjustl(ffieldFileName))
+   print'(a)','Generate rxff.bin for RXMDNN simulation' 
+   print'(a)',repeat('-',60)
+else if(is_fnn) then
    print'(a)',repeat('-',60)
    ffieldFileName='../fnn.in'
    print'(a)','Found fnn.in file: '//trim(adjustl(ffieldFileName))
    print'(a)','Generate rxff.bin for FNN simulation' 
    print'(a)',repeat('-',60)
-endif
-
-inquire(file='../ffield', exist=is_reaxff)
-if(is_reaxff) then
+else if(is_reaxff) then
    print'(a)',repeat('-',60)
    ffieldFileName='../ffield'
    print'(a)','Found ffield file: '//trim(adjustl(ffieldFileName))
@@ -388,7 +398,7 @@ write(6,'(a20,i9,3i6)') ' nprocs,vprocs: ',nprocs, vprocs(1:3)
 write(6,'(a20,i9,3i6)') ' mctot,mc: ',mctot, mc(1:3)
 write(6,'(a60)') repeat('-',60)
 
-if(is_fnn) then
+if(is_fnn .or. is_rxmdnn) then
   call get_atomnames_for_fnn(ffieldFileName)
 else
   call getAtomNames(ffieldFileName)
