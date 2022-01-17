@@ -303,7 +303,7 @@ featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrdist_voidptr, Pa
 	int rs_size = p.rs.size();
 	int rc_size = p.rc.size();
 	int feature_size = p.feature_size; 
-	int nbrdist_size = natoms*maxnbrs;
+	int nbrdist_size = 4*natoms*maxnbrs;
 
 	std::cout << "size(G2,dG2,eta,rs,rc,feature_size,nbrdist) : " << G2_size << " " << dG2_size << " " 
 		<< eta_size << " " << rs_size << " " << rc_size << " " << feature_size << " " << nbrdist_size << std::endl;
@@ -717,9 +717,11 @@ struct RXMDNN
 		auto energy = std::get<0>(result);
 		auto force = std::get<1>(result);
 
+		/*
 		std::cout << "size(energy,force) : " << energy.size() << " " << force.size() << std::endl;
 		for(int i=0; i<energy.size(); i++)
 			std::cout << i << " " << energy[i] << " " << force[3*i] << " " << force[3*i+1] << " " << force[3*i+2] << std::endl;
+		*/
 	};
 };
 
