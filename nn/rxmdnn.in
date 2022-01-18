@@ -1,8 +1,8 @@
 #PbTiO3 model trained by aenet
-#aenet Pb 207.2  Pb.20t-20t.nn-00005_asc
-#aenet Ti 47.87  Ti.20t-20t.nn-00005_asc
-#aenet O  16.00  O.20t-20t.nn-00005_asc
+aenet Pb 207.2  Pb.20t-20t.nn-00005_asc
+aenet Ti 47.87  Ti.20t-20t.nn-00005_asc
+aenet O  16.00  O.20t-20t.nn-00005_asc
 
 #SiO2 model trained by jaxmd
-jaxmd Si  28.0855  sic_jax.json
-jaxmd C   12.00   sic_jax.json
+#jaxmd Si  28.0855  sic_jax.json
+#jaxmd C   12.00   sic_jax.json
