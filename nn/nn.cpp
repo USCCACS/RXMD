@@ -17,52 +17,10 @@
 #include <cmath>
 #include <cassert>
 
-#include "AenetParams.cpp"
+#include "Params.cpp"
 
 #define MAX_NEIGHBOR 100
 
-struct Params
-{
-	std::vector<float> eta, eta0;
-	std::vector<float> rs, rs0;
-	std::vector<float> rc;
-	const float rc0 = 4.5;
-	int num_elems; 
-
-	int feature_size; 
-
-	Params() : num_elems{3}, eta0{0.5, 1.0, 3.0}, rs0{1.0, 2.0, 3.0, 4.0}
-	{
-		for(int k=0; k<num_elems; k++)
-			for(int i=0; i<eta0.size(); i++)
-				for(int j=0; j<rs0.size(); j++)
-				{
-					eta.push_back(eta0[i]);
-					rs.push_back(rs0[j]);
-					rc.push_back(rc0);
-				}
-
-		feature_size = num_elems*eta0.size()*rs0.size();
-		assert(feature_size > 0);
-
-		assert(eta.size() == feature_size);
-		assert(rs.size() == feature_size);
-	}
-
-	Params(AenetParams const &ap)
-	{
-		//ap.show();
-		assert(ap.sfparam.size() == ap.sfenv.size());
-		feature_size = ap.sfparam.size();
-
-		for (int i = 0; i<ap.sfparam.size(); i++) 
-		{ 
-			rc.push_back(ap.sfparam[i][0]);
-			eta.push_back(ap.sfparam[i][1]);
-			rs.push_back(ap.sfparam[i][2]);
-		}; 
-	}
-};
 
 struct dist 
 {
@@ -476,6 +434,11 @@ struct Net
 		}
 	}
 
+	void set_wb_jaxmd(void)
+	{
+		//FIXME
+	}
+
 	std::tuple<std::vector<float>,std::vector<float>> 
 		predict(const std::vector<float> & feature, std::vector<float> & dfeature, const int batch_size=1)
 	{
@@ -598,6 +561,7 @@ struct RXMDNN
 	NeighborList nbr; 
 
 	std::vector<AenetParams> aps;
+	std::vector<JAXMDParams> jps;
 	std::vector<Params> pms;
 
 	std::vector<Net> nns; 
@@ -615,27 +579,7 @@ struct RXMDNN
 
 		nbr = NeighborList(md);
 	
-		std::string paramfiles(paramfile);
-		std::ifstream pin(paramfiles);
-
-		std::string line; 
-		while(std::getline(pin,line))
-		{
-			if(line.compare(0,5,"model") != 0) continue;
-
-			auto ap = AenetParams(line);
-			aps.push_back(ap);
-	
-			auto pm = Params(ap);
-			pms.push_back(pm);
-
-			std::vector<int> nodes = ap.get_nodes();
-
-			auto nn = Net(nodes);
-			nn.set_wb_aenet(ap.W, ap.nnodes);
-
-			nns.push_back(nn);
-		}
+		parse_param_file(paramfile);
 
 	}
 
@@ -643,29 +587,51 @@ struct RXMDNN
 	RXMDNN(int const _natoms, std::string const & paramfile) 
 	{
 		natoms = _natoms; 
+		parse_param_file(paramfile);
+	}
+
+	void parse_param_file(std::string paramfile)
+	{
 		std::string paramfiles(paramfile);
 		std::ifstream pin(paramfiles);
 
 		std::string line; 
 		while(std::getline(pin,line))
 		{
-			if(line.compare(0,5,"model") != 0) continue;
+			if(line.compare(0,5,"aenet") == 0) 
+			{
 
-			auto ap = AenetParams(line);
-			aps.push_back(ap);
+				auto ap = AenetParams(line);
+				aps.push_back(ap);
 	
-			auto pm = Params(ap);
-			pms.push_back(pm);
+				auto pm = Params(ap);
+				pms.push_back(pm);
 
-			std::vector<int> nodes = ap.get_nodes();
+				std::vector<int> nodes = ap.get_nodes();
 
-			auto nn = Net(nodes);
-			nn.set_wb_aenet(ap.W, ap.nnodes);
+				auto nn = Net(nodes);
+				nn.set_wb_aenet(ap.W, ap.nnodes);
 
-			nns.push_back(nn);
+				nns.push_back(nn);
+			} 
+			if(line.compare(0,5,"jaxmd") == 0) 
+			{ 
+				auto jp = JAXMDParams(line);
+				jps.push_back(jp);
+	
+				auto pm = Params(jp);
+				pms.push_back(pm);
+
+				std::vector<int> nodes = jp.get_nodes();
+
+				auto nn = Net(nodes);
+				nn.set_wb_jaxmd(); //FIXME
+
+				nns.push_back(nn);
+			}
 		}
-
 	}
+
 
 	float get_maxrc_rxmdnn()
 	{
