@@ -346,6 +346,12 @@ contains
      close(nompi_file_handler)
    end subroutine
 
+   subroutine mpi_get_processor_name(hostname, resultlen, ierr) 
+     integer :: resultlen, ierr
+     character(len=8) :: hostname
+     hostname = "localhost"
+   end subroutine
+
    real(8) function mpi_wtime() result(t)
      call cpu_time(t) 
    end function
