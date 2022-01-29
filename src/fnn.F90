@@ -187,7 +187,7 @@ select type(ff); type is (fnn_param)
    fp => ff
 end select
 
-call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
+call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_fnn(num_atoms, atype, pos, fp) 

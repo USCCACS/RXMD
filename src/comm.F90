@@ -169,7 +169,7 @@ select case(imode)
 
    case(MODE_COPY_FNN)
 
-      np2d=1; np1d=2; nn2d=1
+      np2d=1; np1d=3; nn2d=1
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
       ne = size(pack2d)*3+size(pack1d)
@@ -179,6 +179,7 @@ select case(imode)
 
       a=1
       pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>q; a=a+1
       pack1d(a)%ptr=>frcindx; pack1d(a)%cpbk=.true.; a=a+1
 
       a=1
