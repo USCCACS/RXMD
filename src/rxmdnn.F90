@@ -47,8 +47,9 @@ module rxmdnn
 
   type(c_ptr) :: nbrdist_ptr
 
-  interface 
+#ifdef RXMDNN
 
+  interface 
     ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
     subroutine init_rxmdnn() bind(c,name="init_rxmdnn")
     end subroutine
@@ -74,10 +75,38 @@ module rxmdnn
         import :: c_double
         real(c_double) :: maxrc
     end subroutine
-  
   end interface
 
 contains
+
+#else
+
+contains
+
+    subroutine init_rxmdnn() 
+    end subroutine
+
+    subroutine init_rxmdnn_hybrid(natoms) 
+       import :: c_int
+       integer(c_int),value :: natoms
+    end subroutine
+
+    subroutine predict_rxmdnn_hybrid(natoms, atom_type, maxnbrs, nbrdist_ptr) 
+       import :: c_int, c_ptr
+       integer(c_int),value :: natoms, atom_type, maxnbrs
+       type(c_ptr),value :: nbrdist_ptr
+    end subroutine
+  
+    subroutine predict_rxmdnn() 
+    end subroutine
+
+    subroutine get_maxrc_rxmdnn(maxrc) 
+        import :: c_double
+        real(c_double) :: maxrc
+    end subroutine
+
+#endif
+
 
 !------------------------------------------------------------------------------
 subroutine allocate_nbrdist_rxmdnn(num_elems)
@@ -437,3 +466,4 @@ real(8) :: tt=0.d0, Etotal
 end subroutine
 
 end module
+
