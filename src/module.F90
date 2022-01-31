@@ -20,15 +20,13 @@ type :: mdbase_class
    class(force_field_class),pointer :: ff
 end type
 
-
 !integer :: NBUFFER=5000
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
 
-
-integer :: NBUFFER=2000
-!integer,parameter :: MAXNEIGHBS=400  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
-integer,parameter :: MAXNEIGHBS=40  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+integer :: NBUFFER=5000
+integer,parameter :: MAXNEIGHBS=400  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
+!integer,parameter :: MAXNEIGHBS=40  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
@@ -108,7 +106,7 @@ REAL(8) :: ftol
 character(len=:),allocatable :: forcefield_type
 integer,parameter :: TYPE_REAXFF=1, TYPE_FNN=2, TYPE_RXMDNN=3
 integer :: ff_type_flag = 0
-logical :: is_reaxff=.false., is_fnn=.false., is_rxmdnn=.false.
+logical :: is_reaxff=.false., is_fnn=.false., is_rxmdnn=.false., is_nnmm=.false.
 
 !--- natoms_per_type() is used to clear unused cutoff distance for ReaxFF
 !--- see get_cutoff_bondorder()

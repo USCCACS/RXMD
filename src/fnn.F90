@@ -7,6 +7,8 @@ module fnnin_parser
                                      scale_to_target_temperature, &
                                      maximally_preserving_bd
 
+  use nnmm_mod, only : nnmmp, get_mm_force_and_mix
+
   use iso_fortran_env, only: int32, int64, real32, real64 
 
   implicit none
@@ -181,6 +183,7 @@ real(8) :: coo_i(3),  coo_j(3, MAXNEIGHBS), E_i, f3r(3, NBUFFER), F_i(3, num_ato
 integer :: type_i, index_i, type_j(MAXNEIGHBS), index_j(MAXNEIGHBS)
 integer :: i,j,j1,ity,n_j,stat
 
+real(8) :: PEmm
 
 ! not sure if this is the best way, but binding force_field_class to fnn_parm
 select type(ff); type is (fnn_param) 
@@ -232,7 +235,6 @@ do i = 1, NBUFFER
    f(i,1:3) = f(i,1:3) + f3r(1:3,i)*Eev_kcal
 enddo
 
-
 if(short_rep%has_short_repulsion) then
   if(short_rep%potential_type==5) call force_cutoff_h2o(fcut_o=short_rep%p2%fcut_o, fcut_h=short_rep%p2%fcut_h, &
                                                         ffactor=short_rep%p2%ffactor)
@@ -240,6 +242,12 @@ if(short_rep%has_short_repulsion) then
 endif
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+
+if(is_nnmm) then
+  call get_mm_force_and_mix(nnmmp, PEmm, num_atoms, atype, pos, f, q, nbrlist)
+  Epot = Epot + PEmm
+endif
+
 
 contains
 
@@ -292,6 +300,7 @@ character(len=:),allocatable :: filebase
 
 integer :: i,ity
 
+if(current_step == 0) call gaussian_dist_velocity(atype, v)
 if(reset_velocity_random) call gaussian_dist_velocity(atype, v)
 
 if(mdmode==0) then

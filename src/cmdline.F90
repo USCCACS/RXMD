@@ -7,12 +7,14 @@ use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfil
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
                  vmag_factor, xyz_num_stack, &
-                 forcefield_type, is_fnn, is_reaxff, is_rxmdnn
+                 forcefield_type, is_fnn, is_reaxff, is_rxmdnn, is_nnmm
 
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
                   isEfield, isLG, isPQEq, isPolarizable, PQEqParmPath, &
                   ntype_pqeq, ntype_pqeq2, Elempqeq, x0pqeq, j0pqeq, Zpqeq, Rcpqeq, Rspqeq, Kspqeq, &
                   alphacc, alphasc, alphass
+
+use nnmm_mod, only : nnmmp, nnmm_params_ctor
 
 interface get_token_and_set_value
    module procedure set_r8, set_i4, set_l, set_str
@@ -106,6 +108,10 @@ inquire(file='fnn.in', exist=is_fnn)
 if(is_fnn) then
   ParmPath='fnn.in'
   FFPath=""
+
+  inquire(file='nnmm.in', exist=is_nnmm) ! MM must be used with NN
+  if(is_nnmm) nnmmp = nnmm_params_ctor("nnmm.in") 
+
 endif
 
 inquire(file='ffield', exist=is_reaxff)

@@ -29,6 +29,8 @@ module init
 
   use msd_mod, only : msd_data, msd_initialize
 
+  use nnmm_mod, only : nnmmp, nnmd_setup_system, NN, MM
+
 
 contains
 
@@ -93,19 +95,23 @@ if(is_rxmdnn) ff_type_flag = TYPE_RXMDNN
 
 select case (ff_type_flag)
 
-   case(TYPE_FNN)
+  case(TYPE_FNN)
      fnn_param_obj = mdcontext_fnn()
      mdbase%ff => fnn_param_obj
-     if(myid==0) print*,'get_mdcontext_func : mdcontext_fnn' 
-     call fnn_param_obj%print()
+     if(myid==0) then
+        print*,'get_mdcontext_func : mdcontext_fnn' 
+        call fnn_param_obj%print()
+     endif
 
   case(TYPE_RXMDNN)
      !call init_rxmdnn()
      call init_rxmdnn_hybrid(NATOMS)
      rxmdnn_param_obj = mdcontext_rxmdnn()
      mdbase%ff => rxmdnn_param_obj
-     if(myid==0) print*,'get_mdcontext_func : mdcontext_rxmdnn' 
-     call rxmdnn_param_obj%print()
+     if(myid==0) then
+        print*,'get_mdcontext_func : mdcontext_rxmdnn' 
+        call rxmdnn_param_obj%print()
+     endif
 
      call allocate_nbrdist_rxmdnn(size(mass))
 
@@ -123,6 +129,8 @@ end select
 
 if(isRunFromXYZ) then
   call ReadXYZ(atype, pos, v, q, f, RunFromXYZPath)
+else if(is_nnmm .and. find_cmdline_argc('--start_from_nnmm',i)) then
+  call nnmd_setup_system(atype, pos, v, q, f, atmname, nnmmp, NN, MM)
 else
   call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 endif
