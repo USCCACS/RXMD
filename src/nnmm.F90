@@ -36,6 +36,14 @@ type shift
     procedure :: show => show_shift_params
 end type
 
+type stripe
+  character(len=:),allocatable :: dtype 
+  integer :: dir, num_stripes
+  real(8) :: shift
+  contains 
+    procedure :: show => show_stripe_params
+end type
+
 type circular
   character(len=:),allocatable :: dtype 
   real(8) :: center(2), radius
@@ -43,19 +51,20 @@ type circular
     procedure :: show => show_circ_params
 end type
 
-type rectangle
+type rectangular
   character(len=:),allocatable :: dtype 
   real(8) :: xmin=0d0, ymin=0d0
   real(8) :: xmax=0d0, ymax=0d0
   contains 
-    procedure :: show => show_rectangle_params
+    procedure :: show => show_rectangular_params
 end type
 
 type layer
   integer :: ltype, num_ucells
   real(8) :: zmin, zmax
+  type(stripe),allocatable :: stripes(:)
   type(circular),allocatable :: circs(:)
-  type(rectangle),allocatable :: rects(:)
+  type(rectangular),allocatable :: rects(:)
   type(unitcell_type) :: ucell
   contains 
     procedure :: show => show_layer_params
@@ -117,7 +126,8 @@ do i = 1, num_atoms
       rsig12 = rsig**12
 
       PElj = 4d0*eps*(rsig12-rsig6)
-      ff(1:3) = (-24d0)*eps*(2d0*rsig12-rsig6)/rr2*rr(1:3)
+      !ff(1:3) = (-24d0)*eps*(2d0*rsig12-rsig6)/rr2*rr(1:3)
+      ff(1:3) = 24d0*eps*rsig6/rr2*rr(1:3) ! only attractive term
 
       PEmm = PEmm + PElj
       f_mm(1:3) = f_mm(1:3) - ff(1:3)
@@ -137,7 +147,7 @@ do i = 1, num_atoms
    if(num_frac_mm>0) frac_mm = frac_mm/num_frac_mm
    !print'(a,i3,f10.5,i6)','i,frac,num_frac_mm: ', i, frac_mm, num_frac_mm
 
-   f(i,1:3) = (1d0-frac_mm)*(f(i,1:3) + f_nn(1:3)) + frac_mm*f_mm(1:3)
+   f(i,1:3) = f_nn(1:3) + (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
 
 enddo
 
@@ -152,7 +162,7 @@ function apply_domain_operators(lattice, atype, rr0, la, shifts) result(rr)
    type(layer),intent(in) :: la
    type(shift),allocatable,intent(in) :: shifts(:)
 
-   real(8) :: rr(3), dr(0:2)
+   real(8) :: rr(3), dr(0:2), lstripe
    integer :: ia, ib, shift_sign
 
    rr = rr0
@@ -188,6 +198,23 @@ function apply_domain_operators(lattice, atype, rr0, la, shifts) result(rr)
 
       if((rr(1)<la%rects(ia)%xmin*lattice(1)) .or. (la%rects(ia)%xmax*lattice(1)<rr(1))) cycle
       if((rr(2)<la%rects(ia)%ymin*lattice(2)) .or. (la%rects(ia)%ymax*lattice(2)<rr(2))) cycle
+      do ib = 1, size(shifts)
+         if(trim(adjustl(atype)) == shifts(ib)%atype) then
+!print*,trim(adjustl(atype)), shifts(ib)%atype, trim(adjustl(atype))==shifts(ib)%atype, shift_sign*shifts(ib)%zshift
+                 rr(3) = rr(3) + shift_sign*shifts(ib)%zshift
+         endif
+      enddo
+   enddo
+
+   do ia = 1, size(la%stripes)
+
+      shift_sign = 1
+      if(la%stripes(ia)%dtype == 'down') shift_sign = -1
+
+      ib = la%stripes(ia)%dir
+      lstripe = lattice(ib)/la%stripes(ia)%num_stripes
+      if (mod(int( (rr(ib) + la%stripes(ia)%shift*lattice(ib) )/lstripe),2) /= 0) cycle
+
       do ib = 1, size(shifts)
          if(trim(adjustl(atype)) == shifts(ib)%atype) then
 !print*,trim(adjustl(atype)), shifts(ib)%atype, trim(adjustl(atype))==shifts(ib)%atype, shift_sign*shifts(ib)%zshift
@@ -340,7 +367,11 @@ subroutine nnmm_set_unitcells(NN, MM)
   !===================================================================
   ! REMARK: use MM lattice to apply mismatch strain to NN
   !===================================================================
-  NN%lattice(1:2) = MM%lattice(1:2)
+  !NN%lattice(1:2) = MM%lattice(1:2)
+  avex = (NN%lattice(1) + MM%lattice(1))*0.5d0
+  avey = (NN%lattice(2) + MM%lattice(2))*0.5d0
+  NN%lattice(1) = avex;  MM%lattice(1) = avex
+  NN%lattice(2) = avey;  MM%lattice(2) = avey
   
   return
 end subroutine
@@ -377,6 +408,9 @@ subroutine show_layer_params(this)
   print'(a40,2i6,2f10.3)', 'ltype,num_ucells,zmin,zmax: ', &
           this%ltype,this%num_ucells,this%zmin,this%zmax
 
+  do ia = 1, size(this%stripes)
+     call this%stripes(ia)%show()
+  enddo 
   do ia = 1, size(this%circs)
      call this%circs(ia)%show()
   enddo 
@@ -413,6 +447,14 @@ subroutine show_shift_params(this)
 end subroutine
 
 !------------------------------------------------------------------------------
+subroutine show_stripe_params(this)
+!------------------------------------------------------------------------------
+  class(stripe),intent(in) :: this
+  print'(a40,a8,i6,es12.2,i6)','stripe_domain(dir,shift,num_stripes): ', &
+  this%dtype, this%dir, this%shift, this%num_stripes
+end subroutine
+
+!------------------------------------------------------------------------------
 subroutine show_circ_params(this)
 !------------------------------------------------------------------------------
   class(circular),intent(in) :: this
@@ -421,10 +463,10 @@ subroutine show_circ_params(this)
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine show_rectangle_params(this)
+subroutine show_rectangular_params(this)
 !------------------------------------------------------------------------------
-  class(rectangle),intent(in) :: this
-  print'(a40,a8,4es12.2)','rectangle_domain(type,min,max): ', &
+  class(rectangular),intent(in) :: this
+  print'(a40,a8,4es12.2)','rectangular_domain(type,min,max): ', &
   this%dtype, this%xmin, this%ymin, this%xmax, this%ymax
 end subroutine
 
@@ -473,22 +515,46 @@ subroutine get_tokens_and_append_shift_per_atomtype(linein, shifts)
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_tokens_and_append_rectangle_domain(linein, rects)
+subroutine get_tokens_and_append_stripe_domain(linein, stripes)
 !------------------------------------------------------------------------------
   character(len=:),allocatable,intent(in out) :: linein
-  type(rectangle),allocatable,intent(in out) :: rects(:)
-  type(rectangle) :: rect
+  type(stripe),allocatable,intent(in out) :: stripes(:)
+  type(stripe) :: stripe 
+
+  if (getstr(linein, token) < 0) stop 'error while reading stripe domain type'
+  stripe%dtype = token
+  if (getstr(linein, token) < 0) stop 'error while reading stripe domain dir'
+  read(token, *) stripe%dir
+  if (getstr(linein, token) < 0) stop 'error while reading stripe domain shift'
+  read(token, *) stripe%shift
+  if (getstr(linein, token) < 0) stop 'error while reading num_stripe domains'
+  read(token, *) stripe%num_stripes
+
+  ! allocate zero-sized array
+  if(.not.allocated(stripes)) allocate(stripes(0)) 
+
+  stripes = [stripes, stripe]
+
+  return
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine get_tokens_and_append_rectangular_domain(linein, rects)
+!------------------------------------------------------------------------------
+  character(len=:),allocatable,intent(in out) :: linein
+  type(rectangular),allocatable,intent(in out) :: rects(:)
+  type(rectangular) :: rect
 
   if (getstr(linein, token) < 0) stop 'error while reading rec domain type'
   rect%dtype = token
-  if (getstr(linein, token) < 0) stop 'error while reading rectangle domain xmin'
+  if (getstr(linein, token) < 0) stop 'error while reading rectangular domain xmin'
   read(token, *) rect%xmin
-  if (getstr(linein, token) < 0) stop 'error while reading rectangle domain ymin'
+  if (getstr(linein, token) < 0) stop 'error while reading rectangular domain ymin'
   read(token, *) rect%ymin
 
-  if (getstr(linein, token) < 0) stop 'error while reading rectangle domain xmax'
+  if (getstr(linein, token) < 0) stop 'error while reading rectangular domain xmax'
   read(token, *) rect%xmax
-  if (getstr(linein, token) < 0) stop 'error while reading rectangle domain ymax'
+  if (getstr(linein, token) < 0) stop 'error while reading rectangular domain ymax'
   read(token, *) rect%ymax
 
   ! allocate zero-sized array
@@ -624,16 +690,22 @@ do while (.true.)
 
      if(token=='layers') call get_tokens_and_append_nnmm_layers(linein, dp%lx, dp%ly, dp%layers)
 
+     if(token=='stripe') then
+       if (getstr(linein, token) < 0) stop 'error while reading layer index for stripe domain'
+       read(token, *) lid
+       call get_tokens_and_append_stripe_domain(linein, dp%layers(lid)%stripes)
+     endif
+
      if(token=='circular'.or.token=='circ') then
        if (getstr(linein, token) < 0) stop 'error while reading layer index for circular domain'
        read(token, *) lid
        call get_tokens_and_append_circular_domain(linein, dp%layers(lid)%circs)
      endif
 
-     if(token=='rectangle'.or.token=='rec') then
+     if(token=='rectangular'.or.token=='rec') then
        if (getstr(linein, token) < 0) stop 'error while reading layer index for rectangular domain'
        read(token, *) lid
-       call get_tokens_and_append_rectangle_domain(linein, dp%layers(lid)%rects)
+       call get_tokens_and_append_rectangular_domain(linein, dp%layers(lid)%rects)
      endif
   endif
 
