@@ -88,7 +88,7 @@ real(8),intent(in out) :: PEmm
 real(8),allocatable,intent(in out) :: f(:,:)
 
 integer :: i, j, j1, ity, jty, num_frac_mm
-real(8) :: f_mm(3), ff(3), frac_mm, PElj 
+real(8) :: f_mm(3), f_nn(3), ff(3), frac_mm, PElj 
 real(8) :: eps, sigma(3,3), rr(3), rr1, rr2, rsig, rsig2, rsig6, rsig12
 
 real(8),parameter :: rcut_mm = 3d0
@@ -100,6 +100,7 @@ do i = 1, num_atoms
    ity = nint(atype(i))
 
    f_mm = 0.d0
+   f_nn = 0.d0
    frac_mm = 0.d0
    num_frac_mm = 0
    do j1 = 1, nbrlist(i,0)
@@ -121,6 +122,9 @@ do i = 1, num_atoms
       PEmm = PEmm + PElj
       f_mm(1:3) = f_mm(1:3) - ff(1:3)
 
+      ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)
+      f_nn(1:3) = f_nn(1:3) - ff(1:3)
+
       !print'(a,2i3,3f10.5,1x,3f10.5,1x,f10.5)','ity,jty,sig(ity,jty),eps,rr1,ff(1:3),PElj: ',&
       !        ity,jty,sigma(ity,jty),eps,rr1,ff(1:3),PElj
 
@@ -133,7 +137,7 @@ do i = 1, num_atoms
    if(num_frac_mm>0) frac_mm = frac_mm/num_frac_mm
    !print'(a,i3,f10.5,i6)','i,frac,num_frac_mm: ', i, frac_mm, num_frac_mm
 
-   f(i,1:3) = (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
+   f(i,1:3) = (1d0-frac_mm)*(f(i,1:3) + f_nn(1:3)) + frac_mm*f_mm(1:3)
 
 enddo
 
