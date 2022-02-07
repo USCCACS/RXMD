@@ -16,6 +16,8 @@ use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, &
 
 use nnmm_mod, only : nnmmp, nnmm_params_ctor
 
+use step_modifier, only : step_params, step_params_ctor
+
 interface get_token_and_set_value
    module procedure set_r8, set_i4, set_l, set_str
 end interface
@@ -110,7 +112,10 @@ if(is_fnn) then
   FFPath=""
 
   inquire(file='nnmm.in', exist=is_nnmm) ! MM must be used with NN
-  if(is_nnmm) nnmmp = nnmm_params_ctor("nnmm.in") 
+  if(is_nnmm) then
+     nnmmp = nnmm_params_ctor("nnmm.in") 
+     step_params = step_params_ctor("nnmm.in")
+  endif
 
 endif
 

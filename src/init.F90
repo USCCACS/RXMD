@@ -30,8 +30,6 @@ module init
   use msd_mod, only : msd_data, msd_initialize
 
   use nnmm_mod, only : nnmmp, nnmd_setup_system, NN, MM
-
-
 contains
 
 !------------------------------------------------------------------------------------------

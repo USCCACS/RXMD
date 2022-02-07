@@ -12,7 +12,7 @@ integer,parameter :: NN_LAYER_TYPE=0, MM_LAYER_TYPE=1
 type unitcell_type
   real(8) :: lattice(6)
   integer :: num_atoms
-  real(8),allocatable :: pos(:)
+  real(8),allocatable :: pos(:), q(:)
   character(2),allocatable :: atype(:)
   integer,allocatable :: itype(:)
 end type
@@ -34,6 +34,12 @@ type shift
   real(8) :: zshift
   contains 
     procedure :: show => show_shift_params
+end type
+
+type remove
+  real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+  contains 
+    procedure :: show => show_remove_params
 end type
 
 type stripe
@@ -62,6 +68,7 @@ end type
 type layer
   integer :: ltype, num_ucells
   real(8) :: zmin, zmax
+  type(remove),allocatable :: removes(:)
   type(stripe),allocatable :: stripes(:)
   type(circular),allocatable :: circs(:)
   type(rectangular),allocatable :: rects(:)
@@ -101,6 +108,7 @@ real(8) :: f_mm(3), f_nn(3), ff(3), frac_mm, PElj
 real(8) :: eps, sigma(3,3), rr(3), rr1, rr2, rsig, rsig2, rsig6, rsig12
 
 real(8),parameter :: rcut_mm = 3d0
+integer :: qq
 
 call dp%MM_params%set(eps,sigma)
 
@@ -140,7 +148,8 @@ do i = 1, num_atoms
 
       if(rr1 < rcut_mm) then
         num_frac_mm = num_frac_mm + 1
-        if (nint(q(j)) == MM_LAYER_TYPE) frac_mm = frac_mm + 1d0
+        qq = mod(nint(q(j)*1d9),10)
+        if (qq == MM_LAYER_TYPE) frac_mm = frac_mm + 1d0
       endif
 
    enddo
@@ -152,6 +161,33 @@ do i = 1, num_atoms
 enddo
 
 end subroutine
+
+!-------------------------------------------------------------------------------------------
+function to_be_removed(lattice, rr0, la) result(flag)
+!-------------------------------------------------------------------------------------------
+   real(8),intent(in) :: lattice(6), rr0(3)
+   type(layer),intent(in) :: la
+
+   real(8) :: rr(3), zlength
+   integer :: ia
+   logical :: flag
+
+   flag = .false.
+   rr = rr0
+   zlength = la%zmax - la%zmin
+
+   if( (rr(3)<la%zmin) .or. (la%zmax<rr(3)) ) return 
+
+   rr(3) = rr(3) - la%zmin
+
+   do ia = 1, size(la%removes)
+
+     if( (la%removes(ia)%xmin*lattice(1)<rr(1)) .and. (rr(1)<la%removes(ia)%xmax*lattice(1)) .and. &
+         (la%removes(ia)%ymin*lattice(2)<rr(2)) .and. (rr(2)<la%removes(ia)%ymax*lattice(2)) .and. &
+         (la%removes(ia)%zmin*zlength<rr(3))    .and. (rr(3)<la%removes(ia)%zmax*zlength)) flag = .true.
+   enddo
+
+end function
 
 !-------------------------------------------------------------------------------------------
 function apply_domain_operators(lattice, atype, rr0, la, shifts) result(rr)
@@ -293,13 +329,15 @@ do il = 1, size(dp%layers)
 
       do ia = 0, NNMM%num_atoms-1
 
-         num_atoms = num_atoms + 1
-
          rr(1) = (NNMM%pos(3*ia+1) + ix)*NNMM%lattice(1)
          rr(2) = (NNMM%pos(3*ia+2) + iy)*NNMM%lattice(2)
          rr(3) = (NNMM%pos(3*ia+3) + iz)*NNMM%lattice(3) + dp%layers(il)%zmin
          rr = rr + 1d-9  ! tiny shift
          !if(myid==0) print'(2i6,3i3,3f10.5)',dp%layers(il)%ltype,ia,ix,iy,iz,NNMM%pos(3*ia+1:3*ia+3)
+
+         if(to_be_removed(lattice, rr, dp%layers(il))) cycle
+
+         num_atoms = num_atoms + 1
 
          rr = apply_domain_operators(lattice, NNMM%atype(ia+1), rr, dp%layers(il), dp%shifts)
 
@@ -313,7 +351,9 @@ do il = 1, size(dp%layers)
          do ity = 1, size(atmname)
             if(atmname(ity) == trim(adjustl(NNMM%atype(ia+1)))) atype(num_local) = ity + num_atoms*1d-13
          enddo
-         q(num_local) = dp%layers(il)%ltype ! array q tells either NN or MM atom
+
+         ! store atomic charge and NN/MM region info in q array
+         q(num_local) = NNMM%q(ia+1) + 1d-9*dp%layers(il)%ltype 
 
          !if(myid==0) write(iunit,'(a3,3f10.3,i3)') NNMM%atype(ia+1), rr(1:3), layer_type
       enddo
@@ -352,6 +392,7 @@ subroutine nnmm_set_unitcells(NN, MM)
              0.500d0,   0.500d0,   0.1118d0, & 
              0.000d0,   0.500d0,   0.6174d0, & 
              0.500d0,   0.000d0,   0.6174d0 ]
+  NN%q = [0.0d0,0.0d0,0.0d0,0.0d0,0.0d0]
   NN%atype = ["Pb", "Ti", "O ", "O ", "O "]
 
   NN%num_atoms = size(NN%atype)
@@ -359,6 +400,7 @@ subroutine nnmm_set_unitcells(NN, MM)
   MM%lattice = [3.945130d0, 3.945130d0, 3.945130d0, 90d0,  90d0,  90d0]
   MM%pos = [0.0d0,0.0d0,0.0d0, 0.5d0,0.5d0,0.5d0, 0.5d0,0.0d0,0.5d0, &
             0.5d0,0.5d0,0.0d0, 0.0d0,0.5d0,0.5d0]
+  MM%q = [0.0d0,0.0d0,0.0d0,0.0d0,0.0d0]
 ! since NN model is for Pb/Ti/O, relabel Sr to Pb
   !MM%atype = ["Sr", "Ti", "O ", "O ", "O "]
   MM%atype = ["Pb", "Ti", "O ", "O ", "O "] 
@@ -408,6 +450,9 @@ subroutine show_layer_params(this)
   print'(a40,2i6,2f10.3)', 'ltype,num_ucells,zmin,zmax: ', &
           this%ltype,this%num_ucells,this%zmin,this%zmax
 
+  do ia = 1, size(this%removes)
+     call this%removes(ia)%show()
+  enddo 
   do ia = 1, size(this%stripes)
      call this%stripes(ia)%show()
   enddo 
@@ -444,6 +489,14 @@ subroutine show_shift_params(this)
 !------------------------------------------------------------------------------
   class(shift),intent(in) :: this
   print'(a40,a8,3es12.2,2x,es12.2)','atom shift(type,zshift): ', this%atype, this%zshift
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine show_remove_params(this)
+!------------------------------------------------------------------------------
+  class(remove),intent(in) :: this
+  print'(a40,6es12.2)','remove(xmin,xmax,ymin,ymax,zmin,zmax): ', &
+          this%xmin, this%xmax, this%ymin, this%ymax, this%zmin, this%zmax
 end subroutine
 
 !------------------------------------------------------------------------------
@@ -510,6 +563,34 @@ subroutine get_tokens_and_append_shift_per_atomtype(linein, shifts)
   if(.not.allocated(shifts)) allocate(shifts(0)) 
 
   shifts = [shifts, s]
+
+  return
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine get_tokens_and_append_remove_domain(linein, removes)
+!------------------------------------------------------------------------------
+  character(len=:),allocatable,intent(in out) :: linein
+  type(remove),allocatable,intent(in out) :: removes(:)
+  type(remove) :: remove
+
+  if (getstr(linein, token) < 0) stop 'error while reading remove xmin'
+  read(token, *) remove%xmin
+  if (getstr(linein, token) < 0) stop 'error while reading remove xmax'
+  read(token, *) remove%xmax
+  if (getstr(linein, token) < 0) stop 'error while reading remove ymin'
+  read(token, *) remove%ymin
+  if (getstr(linein, token) < 0) stop 'error while reading remove ymax'
+  read(token, *) remove%ymax
+  if (getstr(linein, token) < 0) stop 'error while reading remove zmin'
+  read(token, *) remove%zmin
+  if (getstr(linein, token) < 0) stop 'error while reading remove zmax'
+  read(token, *) remove%zmax
+
+  ! allocate zero-sized array
+  if(.not.allocated(removes)) allocate(removes(0)) 
+
+  removes = [removes, remove]
 
   return
 end subroutine
@@ -689,6 +770,12 @@ do while (.true.)
      if(token=='shift') call get_tokens_and_append_shift_per_atomtype(linein, dp%shifts)
 
      if(token=='layers') call get_tokens_and_append_nnmm_layers(linein, dp%lx, dp%ly, dp%layers)
+
+     if(token=='remove') then
+       if (getstr(linein, token) < 0) stop 'error while reading layer index for remove'
+       read(token, *) lid
+       call get_tokens_and_append_remove_domain(linein, dp%layers(lid)%removes)
+     endif
 
      if(token=='stripe') then
        if (getstr(linein, token) < 0) stop 'error while reading layer index for stripe domain'

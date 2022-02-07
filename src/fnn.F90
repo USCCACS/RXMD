@@ -156,6 +156,8 @@ module fnn
   use aenet
 
   use mod_short_repulsion, only : short_repulsion, short_repulsion_type, short_rep 
+
+  use step_modifier, only : step_params
  
   implicit none
 
@@ -293,12 +295,25 @@ use utils, only : UTEMP, UTEMP0
 use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, scale_temperature
 !------------------------------------------------------------------------------
 type(mdbase_class),intent(in out) :: mdbase
-integer,intent(in) :: num_mdsteps
+integer,intent(in out) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 
 character(len=:),allocatable :: filebase
 
-integer :: i,ity
+integer :: i,ity, ia
+
+
+if(size(step_params)==0) deallocate(step_params)
+if(.not. allocated(step_params)) then
+  allocate(step_params(1))
+  step_params(1)%nsteps = num_mdsteps
+endif
+if(myid==0) then
+  do ia=1, size(step_params)
+    print'(a,i3,a)',"=== step ", ia, " ==="
+    call step_params(ia)%show()
+  enddo
+endif
 
 if(current_step == 0) call gaussian_dist_velocity(atype, v)
 if(reset_velocity_random) call gaussian_dist_velocity(atype, v)
@@ -314,62 +329,73 @@ call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
 
 call cpu_time(cpu0)
 
-!--- set force model
-do nstep=0, num_mdsteps-1
+nstep = current_step
 
-  if(mod(nstep,pstep)==0) call print_e_fnn(atype, v, q)
+do ia=1, size(step_params)
 
-  call cpu_time(tstart(0))
+  if(myid==0) print'(a,i6,i9)','step_params,nsteps: ', ia, step_params(ia)%nsteps
 
-  if(mod(nstep,fstep)==0) then
-     filebase = GetFileNameBase(DataDir,current_step+nstep)
-     call OUTPUT(filebase, atype, pos, v, q, v)
-  endif
+  do num_mdsteps=0, step_params(ia)%nsteps-1
 
-  if(mod(nstep,sstep)==0.and.mdmode==4) &
-      v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
+    if(associated(step_params(ia)%strain)) call step_params(ia)%strain%apply(NATOMS, pos)
 
-   if(mod(nstep,sstep)==0.and.mdmode==5) &
-      call scale_to_target_temperature(atype, v, treq)
+    nstep = nstep + 1
 
-   if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
-      call gaussian_dist_velocity(atype, v)
+    if(mod(nstep,pstep)==0) call print_e_fnn(atype, v, q)
+
+    call cpu_time(tstart(0))
+
+    if(mod(nstep,fstep)==0) then
+       filebase = GetFileNameBase(DataDir,current_step+nstep)
+       call OUTPUT(filebase, atype, pos, v, q, v)
+    endif
+
+    if(mod(nstep,sstep)==0.and.mdmode==4) &
+        v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
+
+     if(mod(nstep,sstep)==0.and.mdmode==5) &
+        call scale_to_target_temperature(atype, v, treq)
+
+     if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
+        call gaussian_dist_velocity(atype, v)
 
 !--- element-wise velocity scaling
-   if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call scale_temperature(atype, v)
+     if(mod(nstep,sstep)==0.and.mdmode==7) &
+        call scale_temperature(atype, v)
 
-   if(mod(nstep,sstep)==0.and.mdmode==8) &
-      call adjust_temperature(atype, v)
+     if(mod(nstep,sstep)==0.and.mdmode==8) &
+        call adjust_temperature(atype, v)
 
-   if(mod(nstep,sstep)==0.and.mdmode==9) &
-      call maximally_preserving_BD(atype, v, vsfact) 
+     if(mod(nstep,sstep)==0.and.mdmode==9) &
+        call maximally_preserving_BD(atype, v, vsfact) 
 
 !--- MSD measurements
-   call msd_add_initial_pos(msd_data, nstep, NATOMS, pos, ipos)
-   call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
+     call msd_add_initial_pos(msd_data, nstep, NATOMS, pos, ipos)
+     call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
 
 !--- total force may not be zero with FNN. fix linear momentum every pstep.
-   if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
+     if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
 
 !--- update velocity & position
-   call vkick(1.d0, atype, v, f)
+     call vkick(1.d0, atype, v, f)
 
-   pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
+     pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
 
 !--- migrate atoms after positions are updated
-   call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
-                  v=v,f=f,q=q,ipos=ipos)
+     call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
+                    v=v,f=f,q=q,ipos=ipos)
 
-   call cpu_time(cpu1)
-   call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
-   call cpu_time(cpu2)
-   comp = comp + (cpu2-cpu1)
+     call cpu_time(cpu1)
+     call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
+     call cpu_time(cpu2)
+     comp = comp + (cpu2-cpu1)
 
 !--- update velocity
-   call vkick(1.d0, atype, v, f)
+     call vkick(1.d0, atype, v, f)
 
-   call cpu_time(tfinish(0))
+     call cpu_time(tfinish(0))
+
+  enddo
 
 enddo
 
