@@ -134,14 +134,15 @@ do i = 1, num_atoms
       rsig12 = rsig**12
 
       PElj = 4d0*eps*(rsig12-rsig6)
-      !ff(1:3) = (-24d0)*eps*(2d0*rsig12-rsig6)/rr2*rr(1:3)
-      ff(1:3) = 24d0*eps*rsig6/rr2*rr(1:3) ! only attractive term
-
       PEmm = PEmm + PElj
+
+      ff(1:3) = (-24d0)*eps*(2d0*rsig12-rsig6)/rr2*rr(1:3)
+      !ff(1:3) = 24d0*eps*rsig6/rr2*rr(1:3) ! only attractive term
+
       f_mm(1:3) = f_mm(1:3) - ff(1:3)
 
-      ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)
-      f_nn(1:3) = f_nn(1:3) - ff(1:3)
+      !ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)
+      !f_nn(1:3) = f_nn(1:3) - ff(1:3)
 
       !print'(a,2i3,3f10.5,1x,3f10.5,1x,f10.5)','ity,jty,sig(ity,jty),eps,rr1,ff(1:3),PElj: ',&
       !        ity,jty,sigma(ity,jty),eps,rr1,ff(1:3),PElj
@@ -153,10 +154,12 @@ do i = 1, num_atoms
       endif
 
    enddo
+
    if(num_frac_mm>0) frac_mm = frac_mm/num_frac_mm
    !print'(a,i3,f10.5,i6)','i,frac,num_frac_mm: ', i, frac_mm, num_frac_mm
 
-   f(i,1:3) = f_nn(1:3) + (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
+   !f(i,1:3) = f_nn(1:3) + (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
+   f(i,1:3) = (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
 
 enddo
 

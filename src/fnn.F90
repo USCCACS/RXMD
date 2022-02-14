@@ -329,7 +329,7 @@ call get_force_fnn(mdbase%ff, natoms, atype, pos, f, q)
 
 call cpu_time(cpu0)
 
-nstep = current_step
+nstep = 0
 
 do ia=1, size(step_params)
 
@@ -400,7 +400,7 @@ do ia=1, size(step_params)
 enddo
 
 !--- save the final configurations
-filebase = GetFileNameBase(DataDir,current_step+nstep)
+filebase = GetFileNameBase(DataDir,current_step + nstep)
 call OUTPUT(filebase, atype, pos, v, q, v)
 
 !--- update rxff.bin in working directory for continuation run

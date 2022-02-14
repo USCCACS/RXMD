@@ -481,8 +481,8 @@ enddo !end i atom loop
 MetaDataSize = 9 + 60 + 2
 write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
 
-! name + pos(i,1:3) + gid + dpol(i,1:3) + octa_order + newline
-OneLineSize = 3 + 36 + 9 + 36 + 2 + 1 
+! name + pos(i,1:3) + gid + dpol(i,1:3) + rot_flag + rot_angle + newline
+OneLineSize = 3 + 36 + 9 + 36 + 2 + 12 + 1 
 
 ! get local datasize
 if(find_cmdline_argc('--xyz_pto_tionly',idx)) then
@@ -551,6 +551,7 @@ do i=1, NATOMS
 
   write(OneLine(idx1:idx1+35),'(3es12.4)') dpol(i,1:3); idx1=idx1+36
 
+! rotation flag
   octa_parity(1:2) = nint(pos(i,1:2)/aaxis)
   if( rotation_flag(i) == 0 ) then
     write(OneLine(idx1:idx1+1),'(i2)') 0; idx1=idx1+2
@@ -561,6 +562,22 @@ do i=1, NATOMS
       write(OneLine(idx1:idx1+1),'(i2)') 2; idx1=idx1+2
     endif 
   endif
+
+! rotation angle in x&y plane. use dr(3) to store the norm of dpol in xy 
+  dr(1:3) = dpol(i,1:3)
+  dr(3) = sqrt(sum(dr(1:2)*dr(1:2)))
+  if(dr(3) < 1d-6) then 
+     write(OneLine(idx1:idx1+11),'(es12.4)') 0.d0; idx1=idx1+12
+  else
+     dr(1:2) = dr(1:2)/dr(3) 
+     if(dr(2) > 0.d0) then
+        write(OneLine(idx1:idx1+11),'(es12.4)') acos(dr(1)); idx1=idx1+12
+     else
+        write(OneLine(idx1:idx1+11),'(es12.4)') 3.1415926d0+acos(-1d0*dr(1)); idx1=idx1+12
+     endif
+  endif
+
+
 
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 
