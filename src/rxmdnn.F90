@@ -87,12 +87,10 @@ contains
     end subroutine
 
     subroutine init_rxmdnn_hybrid(natoms) 
-       import :: c_int
        integer(c_int),value :: natoms
     end subroutine
 
     subroutine predict_rxmdnn_hybrid(natoms, atom_type, maxnbrs, nbrdist_ptr) 
-       import :: c_int, c_ptr
        integer(c_int),value :: natoms, atom_type, maxnbrs
        type(c_ptr),value :: nbrdist_ptr
     end subroutine
@@ -101,7 +99,6 @@ contains
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 
-        import :: c_double
         real(c_double) :: maxrc
     end subroutine
 

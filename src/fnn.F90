@@ -290,23 +290,23 @@ end subroutine
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine mddriver_fnn(mdbase, num_mdsteps) 
+subroutine mddriver_fnn(mdbase, mdsteps) 
 use utils, only : UTEMP, UTEMP0
 use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, scale_temperature
 !------------------------------------------------------------------------------
 type(mdbase_class),intent(in out) :: mdbase
-integer,intent(in out) :: num_mdsteps
+integer,intent(in) :: mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 
 character(len=:),allocatable :: filebase
 
-integer :: i,ity, ia
+integer :: i,ity, ia, num_mdsteps
 
 
 if(size(step_params)==0) deallocate(step_params)
 if(.not. allocated(step_params)) then
   allocate(step_params(1))
-  step_params(1)%nsteps = num_mdsteps
+  step_params(1)%nsteps = mdsteps
 endif
 if(myid==0) then
   do ia=1, size(step_params)
