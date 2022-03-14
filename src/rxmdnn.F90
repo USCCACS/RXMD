@@ -204,7 +204,7 @@ contains
     ! allocate zero-sized array
     if(.not.allocated(models)) allocate(models(0)) 
     models = [models, mbuf]
-  
+
     return
   end subroutine
   
@@ -221,7 +221,7 @@ real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
 
 integer :: i,j,j1,ity,n_j,stat,idx
 
-call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, ipos=ipos)
+call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
@@ -256,6 +256,8 @@ if(reset_velocity_random) call gaussian_dist_velocity(atype, v)
 
 call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q)
 
+filebase = GetFileNameBase(DataDir,-1)
+
 call cpu_time(cpu0)
 
 !--- set force model
@@ -265,7 +267,10 @@ do nstep=0, num_mdsteps-1
 
   call cpu_time(tstart(0))
 
-  if(mod(nstep,fstep)==0) call OUTPUT(filebase, atype, pos, v, q, v)
+  if(mod(nstep,fstep)==0) then
+     filebase = GetFileNameBase(DataDir,current_step+nstep)
+     call OUTPUT(filebase, atype, pos, v, q, v)
+  endif
 
   if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
