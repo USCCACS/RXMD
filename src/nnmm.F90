@@ -65,6 +65,14 @@ type rectangular
     procedure :: show => show_rectangular_params
 end type
 
+type circlattice
+  character(len=:),allocatable :: dtype 
+  real(8) :: dx,dy, r,s  ! dx&dy:attice const in 2d,  r:radius, s:separation
+  integer :: nx,ny
+  contains 
+    procedure :: show => show_circularlattice_params
+end type
+
 type layer
   integer :: ltype, num_ucells
   real(8) :: zmin, zmax
@@ -72,6 +80,7 @@ type layer
   type(stripe),allocatable :: stripes(:)
   type(circular),allocatable :: circs(:)
   type(rectangular),allocatable :: rects(:)
+  type(circlattice),allocatable :: circlattices(:)
   type(unitcell_type) :: ucell
   contains 
     procedure :: show => show_layer_params
@@ -141,8 +150,8 @@ do i = 1, num_atoms
 
       f_mm(1:3) = f_mm(1:3) - ff(1:3)
 
-      !ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)
-      !f_nn(1:3) = f_nn(1:3) - ff(1:3)
+      ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)
+      f_nn(1:3) = f_nn(1:3) - ff(1:3)
 
       !print'(a,2i3,3f10.5,1x,3f10.5,1x,f10.5)','ity,jty,sig(ity,jty),eps,rr1,ff(1:3),PElj: ',&
       !        ity,jty,sigma(ity,jty),eps,rr1,ff(1:3),PElj
@@ -158,8 +167,8 @@ do i = 1, num_atoms
    if(num_frac_mm>0) frac_mm = frac_mm/num_frac_mm
    !print'(a,i3,f10.5,i6)','i,frac,num_frac_mm: ', i, frac_mm, num_frac_mm
 
-   !f(i,1:3) = f_nn(1:3) + (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
-   f(i,1:3) = (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
+   f(i,1:3) = f_nn(1:3) + (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
+   !f(i,1:3) = (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
 
 enddo
 
@@ -201,13 +210,63 @@ function apply_domain_operators(lattice, atype, rr0, la, shifts) result(rr)
    type(layer),intent(in) :: la
    type(shift),allocatable,intent(in) :: shifts(:)
 
-   real(8) :: rr(3), dr(0:2), lstripe
-   integer :: ia, ib, shift_sign
+   real(8) :: rr(3), dr(0:2), lstripe, dx, dy, r, s
+   integer :: ia, ib, ix, iy, ii, nx, ny, shift_sign
 
    rr = rr0
 
    ! must be within this layer
    if( (rr0(3)<la%zmin) .or. (la%zmax<rr0(3)) ) return 
+
+   do ia = 1, size(la%circlattices)
+      r = la%circlattices(ia)%r
+      s = la%circlattices(ia)%s
+      call get_additional_circularlattice_params(lattice, r, s, nx, ny, dx, dy)
+!print'(a,2f8.3,2i6,2f8.3)','r,s,nx,ny,dx,dy: ',r,s,nx,ny,dx,dy
+
+      shift_sign = 1
+      if(la%circlattices(ia)%dtype == 'down') shift_sign = -1
+
+      do ix = 0, nx-1
+      do iy = 0, ny-1
+
+         dr(1) = ix*dx - rr(1)
+         dr(2) = iy*dy - rr(2)
+         do ii = 1, 2
+            if(dr(ii)>=0.5*lattice(ii)) dr(ii)=dr(ii)-lattice(ii)
+            if(dr(ii)<-0.5*lattice(ii)) dr(ii)=dr(ii)+lattice(ii)
+         enddo
+         dr(0) = sqrt(sum(dr(1:2)*dr(1:2)))
+
+         if(dr(0) < la%circlattices(ia)%r) then
+            do ib = 1, size(shifts)
+               if(trim(adjustl(atype)) == shifts(ib)%atype) then
+!print*,trim(adjustl(atype)), shifts(ib)%atype, trim(adjustl(atype))==shifts(ib)%atype, shift_sign*shifts(ib)%zshift,rr(3)
+                  rr(3) = rr(3) + shift_sign*shifts(ib)%zshift
+               endif
+            enddo
+         endif
+
+         dr(1) = (ix+0.5d0)*dx - rr(1)
+         dr(2) = (iy+0.5d0)*dy - rr(2)
+         do ii = 1, 2
+            if(dr(ii)>=0.5*lattice(ii)) dr(ii)=dr(ii)-lattice(ii)
+            if(dr(ii)<-0.5*lattice(ii)) dr(ii)=dr(ii)+lattice(ii)
+         enddo
+         dr(0) = sqrt(sum(dr(1:2)*dr(1:2)))
+
+         if(dr(0) < la%circlattices(ia)%r) then
+            do ib = 1, size(shifts)
+               if(trim(adjustl(atype)) == shifts(ib)%atype) then
+!print*,trim(adjustl(atype)), shifts(ib)%atype, trim(adjustl(atype))==shifts(ib)%atype, shift_sign*shifts(ib)%zshift,rr(3)
+                  rr(3) = rr(3) + shift_sign*shifts(ib)%zshift
+               endif
+            enddo
+         endif
+
+      enddo; enddo
+
+   enddo
 
 !print'(a,3f10.5)','before, rr: ', rr
    do ia = 1, size(la%circs)
@@ -264,6 +323,24 @@ function apply_domain_operators(lattice, atype, rr0, la, shifts) result(rr)
 !print'(a,3f10.5)',' after, rr: ', rr
    
 end function
+
+!------------------------------------------------------------------------------
+subroutine get_additional_circularlattice_params(lattice, r, s, nx, ny, dx, dy)
+!------------------------------------------------------------------------------
+  real(8),intent(in)  :: lattice(6), r, s
+  integer,intent(in out) :: nx,ny
+  real(8),intent(in out) :: dx,dy
+
+  real(8) :: la
+
+  la = (r + s)*sqrt(2.d0)
+  nx = lattice(1)/la
+  ny = lattice(2)/la
+  dx = lattice(1)/nx
+  dy = lattice(2)/ny
+
+end subroutine
+
 
 !-------------------------------------------------------------------------------------------
 subroutine nnmd_setup_system(atype, pos, v, q, f, atmname, dp, NN, MM)
@@ -413,10 +490,11 @@ subroutine nnmm_set_unitcells(NN, MM)
   ! REMARK: use MM lattice to apply mismatch strain to NN
   !===================================================================
   !NN%lattice(1:2) = MM%lattice(1:2)
-  avex = (NN%lattice(1) + MM%lattice(1))*0.5d0
-  avey = (NN%lattice(2) + MM%lattice(2))*0.5d0
-  NN%lattice(1) = avex;  MM%lattice(1) = avex
-  NN%lattice(2) = avey;  MM%lattice(2) = avey
+  MM%lattice(1:2) = NN%lattice(1:2)
+  !avex = (NN%lattice(1) + MM%lattice(1))*0.5d0
+  !avey = (NN%lattice(2) + MM%lattice(2))*0.5d0
+  !NN%lattice(1) = avex;  MM%lattice(1) = avex
+  !NN%lattice(2) = avey;  MM%lattice(2) = avey
   
   return
 end subroutine
@@ -465,6 +543,10 @@ subroutine show_layer_params(this)
   do ia = 1, size(this%rects)
      call this%rects(ia)%show()
   enddo 
+  do ia = 1, size(this%circlattices)
+     call this%circlattices(ia)%show()
+  enddo 
+
 end subroutine
 
 !------------------------------------------------------------------------------
@@ -524,6 +606,14 @@ subroutine show_rectangular_params(this)
   class(rectangular),intent(in) :: this
   print'(a40,a8,4es12.2)','rectangular_domain(type,min,max): ', &
   this%dtype, this%xmin, this%ymin, this%xmax, this%ymax
+end subroutine
+
+!------------------------------------------------------------------------------
+subroutine show_circularlattice_params(this)
+!------------------------------------------------------------------------------
+  class(circlattice),intent(in) :: this
+  print'(a40,a8,4es12.2)','circularlattice_domain(type,r,s): ', &
+          this%dtype, this%s, this%s
 end subroutine
 
 !------------------------------------------------------------------------------
@@ -674,6 +764,34 @@ subroutine get_tokens_and_append_circular_domain(linein, circs)
 end subroutine
 
 !------------------------------------------------------------------------------
+subroutine get_tokens_and_append_circlattice_domain(linein, circls)
+!------------------------------------------------------------------------------
+  character(len=:),allocatable,intent(in out) :: linein
+  type(circlattice),allocatable,intent(in out) :: circls(:)
+  type(circlattice) :: circl
+
+  character(len=:),allocatable :: dtype 
+  real(8) :: dx,dy, r,s  ! dx&dy:attice const in 2d,  r:radius, s:separation
+  integer :: nx,ny
+
+  if (getstr(linein, token) < 0) stop 'error while reading domain type in circlattice'
+  circl%dtype = token
+  if (getstr(linein, token) < 0) stop 'error while reading radius of circlattice'
+  read(token, *) circl%r
+  if (getstr(linein, token) < 0) stop 'error while reading separation of circlattice'
+  read(token, *) circl%s
+
+  ! allocate zero-sized array
+  if(.not.allocated(circls)) allocate(circls(0)) 
+
+  circls = [circls, circl]
+
+  return
+end subroutine
+
+
+
+!------------------------------------------------------------------------------
 function layer_ctor(ltype, num_ucells, ucell, zmin, zmax) result(c)
 !------------------------------------------------------------------------------
   integer,intent(in) :: ltype, num_ucells
@@ -797,6 +915,14 @@ do while (.true.)
        read(token, *) lid
        call get_tokens_and_append_rectangular_domain(linein, dp%layers(lid)%rects)
      endif
+
+     if(token=='circlattice'.or.token=='circl') then
+       if (getstr(linein, token) < 0) stop 'error while reading layer index for circular domain lattice'
+       read(token, *) lid
+       call get_tokens_and_append_circlattice_domain(linein, dp%layers(lid)%circlattices)
+     endif
+
+
   endif
 
 end do

@@ -252,7 +252,7 @@ character(len=:),allocatable :: filebase
 
 integer :: i,ity
 
-if(reset_velocity_random) call gaussian_dist_velocity(atype, v)
+if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
 call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q)
 
