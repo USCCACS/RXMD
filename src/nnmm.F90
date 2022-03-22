@@ -150,7 +150,7 @@ do i = 1, num_atoms
 
       f_mm(1:3) = f_mm(1:3) - ff(1:3)
 
-      ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)
+      ff(1:3) = -48d0*eps*rsig12/rr2*rr(1:3)*0.2d0
       f_nn(1:3) = f_nn(1:3) - ff(1:3)
 
       !print'(a,2i3,3f10.5,1x,3f10.5,1x,f10.5)','ity,jty,sig(ity,jty),eps,rr1,ff(1:3),PElj: ',&
@@ -165,11 +165,10 @@ do i = 1, num_atoms
    enddo
 
    if(num_frac_mm>0) frac_mm = frac_mm/num_frac_mm
-   !print'(a,i3,f10.5,i6)','i,frac,num_frac_mm: ', i, frac_mm, num_frac_mm
+   !if(myid==0) print'(a,i3,f10.5,i6)','i,frac,num_frac_mm: ', i, frac_mm, num_frac_mm
 
    f(i,1:3) = f_nn(1:3) + (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
    !f(i,1:3) = (1d0-frac_mm)*f(i,1:3) + frac_mm*f_mm(1:3)
-
 enddo
 
 end subroutine
