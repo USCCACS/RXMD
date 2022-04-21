@@ -398,12 +398,12 @@ num_local = 0
 
 pos=0.d0
 
+do ix = 0, dp%lx-1
+do iy = 0, dp%ly-1
 do il = 1, size(dp%layers)
 
    NNMM = dp%layers(il)%ucell
 
-   do ix = 0, dp%lx-1
-   do iy = 0, dp%ly-1
    do iz = 0, dp%layers(il)%num_ucells - 1
 
       do ia = 0, NNMM%num_atoms-1
@@ -436,8 +436,8 @@ do il = 1, size(dp%layers)
 
          !if(myid==0) write(iunit,'(a3,3f10.3,i3)') NNMM%atype(ia+1), rr(1:3), layer_type
       enddo
-   enddo; enddo; enddo
-enddo
+   enddo
+enddo; enddo; enddo
 
 NATOMS = num_local
 
@@ -488,8 +488,8 @@ subroutine nnmm_set_unitcells(NN, MM)
   !===================================================================
   ! REMARK: use MM lattice to apply mismatch strain to NN
   !===================================================================
-  !NN%lattice(1:2) = MM%lattice(1:2)
-  MM%lattice(1:2) = NN%lattice(1:2)
+  NN%lattice(1:2) = MM%lattice(1:2)
+  !MM%lattice(1:2) = NN%lattice(1:2)
   !avex = (NN%lattice(1) + MM%lattice(1))*0.5d0
   !avey = (NN%lattice(2) + MM%lattice(2))*0.5d0
   !NN%lattice(1) = avex;  MM%lattice(1) = avex
