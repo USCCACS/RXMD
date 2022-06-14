@@ -7,6 +7,7 @@ default:
 	@echo "   init"
 	@echo "   rxmd"
 	@echo "   rxmdnn"
+	@echo "   torch"
 	@echo "   clean"
 
 .PHONY: clean all rxmd init
@@ -21,6 +22,9 @@ rxmd:
 
 rxmdnn:
 	cd src && $(MAKE) rxmdnn
+
+torch:
+	cd src && $(MAKE) rxmdtorch
 
 nompi:
 	cd src && make nompi

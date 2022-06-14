@@ -6,7 +6,8 @@
 # LINKER is linker (optional)
 # LIBS are extra needed libraries (optional) 
 
-MPIF90 = mpiifort -check all -traceback
+#MPIF90 = mpiifort -check all -traceback
+MPIF90 = mpiifort 
 FC = ifort
 
 MPIF90_FLAGS = -O3

@@ -10,6 +10,15 @@ include ../make.inc
 SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 remd_pot_ANN_original.F90 fnn.F90 shortrep.F90 symmfunc.F90 rxmdnn.F90 nnmm.F90 stepmod.F90
 OBJS = $(SRCS:.F90=.o)
 
+
+install_root=/scratch1/knomura/torchapp/libtorch
+
+INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
+TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib 
+TORCHLIBS=-ltorch -ltorch_cpu -ltorch_cuda -lc10  -lrxmdtorch
+MACROS=-D_GLIBCXX_USE_CXX11_ABI=0
+
+
 EXE := ../rxmd
 
 $(EXE): $(OBJS)
@@ -18,6 +27,9 @@ $(EXE): $(OBJS)
 rxmdnn: $(OBJS)
 	icpc -c ../nn/nn.cpp 
 	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) $(LIBS) -lstdc++ nn.o
+
+rxmdtorch: $(OBJS)
+	$(MPIF90) $(MPIF90_FLAGS) $(TORCHLIB_DIRS) $(MACROS) -o $(EXE) $(OBJS) $(LIBS) $(TORCHLIBS) -lstdc++ 
 
 #cg.o : fileio.o
 #main.F90 : cg.o
