@@ -39,9 +39,11 @@ module rxmdnn
 
   type nbrdist_type
      real(c_float),allocatable:: rij(:)
+     integer(c_int),allocatable :: jtype(:)
   end type
 
-  type(nbrdist_type),allocatable :: nbrdists(:)
+  !type(nbrdist_type),allocatable :: nbrdists(:)
+  type(nbrdist_type) :: nbrdists
 
   integer,allocatable :: ndst_counts(:)
 
@@ -50,6 +52,16 @@ module rxmdnn
 #ifdef RXMDNN
 
   interface 
+    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
+    subroutine init_rxmdtorch() bind(c,name="init_rxmdtorch")
+    end subroutine
+
+    subroutine predict_rxmdtorch(natoms, atom_type, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdtorch")
+       import :: c_int, c_ptr
+       integer(c_int),value :: natoms, atom_type, maxnbrs
+       type(c_ptr),value :: nbrdist_ptr
+    end subroutine
+
     ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
     subroutine init_rxmdnn() bind(c,name="init_rxmdnn")
     end subroutine
@@ -106,19 +118,14 @@ contains
 
 
 !------------------------------------------------------------------------------
-subroutine allocate_nbrdist_rxmdnn(num_elems)
+subroutine allocate_nbrdist_rxmdnn(num_atoms)
 !------------------------------------------------------------------------------
-  integer,intent(in) :: num_elems
-  integer :: ity
+  integer,intent(in) :: num_atoms
 
-  allocate(ndst_counts(num_elems),nbrdists(num_elems))
-
-  do ity=1, num_elems
-     allocate(nbrdists(ity)%rij(NBUFFER*MAXNEIGHBS))
-     nbrdists(ity)%rij = 0.d0
-  enddo
-
-  ndst_counts(:)=0
+  allocate(nbrdists%rij(4*MAXNEIGHBS*num_atoms))
+  allocate(nbrdists%jtype(MAXNEIGHBS*num_atoms))
+  nbrdists%rij = 0.d0
+  nbrdists%jtype = 0
 
   return 
 
@@ -226,13 +233,13 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
 
-do ity=1, size(mass)
-  print'(a)',repeat('=-',40)
-  print*,'in get_force_rxmdnn: ity ', ity
-  nbrdist_ptr = c_loc(nbrdists(ity)%rij(1))
-  call predict_rxmdnn_hybrid(ndst_counts(ity), ity, MAXNEIGHBS, nbrdist_ptr) 
-  print'(a)',repeat('=-',40)
-enddo
+!do ity=1, size(mass)
+!  print'(a)',repeat('=-',40)
+!  print*,'in get_force_rxmdnn: ity ', ity
+!  nbrdist_ptr = c_loc(nbrdists(ity)%rij(1))
+!  call predict_rxmdnn_hybrid(ndst_counts(ity), ity, MAXNEIGHBS, nbrdist_ptr) 
+!  print'(a)',repeat('=-',40)
+!enddo
 
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
@@ -347,10 +354,8 @@ integer :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,kty,inxn
 
 
 nbrlist(:,0) = 0
-ndst_counts(:) = 0
-do i=1, size(nbrdists)
-  nbrdists(i)%rij = 0.d0
-enddo
+nbrdists%rij = 0.d0
+nbrdists%jtype = 0
 
 call cpu_time(tstart(2))
 
@@ -363,9 +368,6 @@ do c3=0, cc(3)-1
   i = header(c1, c2, c3)
   do i1=1, nacell(c1, c2, c3)
      ity = nint(atype(i))
-
-     ndst_counts(ity) = ndst_counts(ity) + 1
-     !print*,'ity,ndst_counts : ', ity, ndst_counts(ity)
 
      !print'(3i6,i6,3f10.5)',c1,c2,c3,m,pos(m,1:3)
 
@@ -389,11 +391,12 @@ do c3=0, cc(3)-1
                nbrlist(i, nbrlist(i, 0)) = j
 
                ii = nbrlist(i,0)
-               idx = 4*((ndst_counts(ity)-1)*MAXNEIGHBS+ii-1)
+               idx = (i-1)*4*MAXNEIGHBS+(ii-1)*4
 
                !print'(3i6,f8.3,4f10.5,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),' before'
-               nbrdists(ity)%rij(idx+1) = rij
-               nbrdists(ity)%rij(idx+2:idx+4) = rr(1:3)
+               nbrdists%jtype(idx+1) = jty
+               nbrdists%rij(idx+1) = rij
+               nbrdists%rij(idx+2:idx+4) = rr(1:3)
                !print'(3i6,f8.3,4f10.5,i6,1x,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),idx,' after'
              endif
 
@@ -408,19 +411,6 @@ do c3=0, cc(3)-1
 enddo; enddo; enddo
 !!$omp end parallel do 
 call cpu_time(tfinish(2))
-
-!do ity=1, size(nbrdists)
-!   do i=1, ndst_counts(ity)
-!      print'(i6,i6,f8.3,a2)',ity,i,rcmax,': '
-!      do j1=1, MAXNEIGHBS
-!         idx = 4*((i-1)*MAXNEIGHBS+j1-1)
-!         print'(4f6.2,a2 $)',nbrdists(ity)%rij(idx+1:idx+4), '  '
-!         if(mod(j1-1,4)==3) print'(a1,i6)', ',',j1
-!      enddo
-!      print*
-!   enddo
-!enddo
-!stop 'foo'
 
 return
 

@@ -3,7 +3,7 @@
 
 install_root=/scratch1/knomura/torchapp/libtorch
 
-FC=ifort
+FC=ifx
 
 LIB_DIRS=-L../build -L${install_root}/lib -Wl,-R${install_root}/lib 
 INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
@@ -14,7 +14,7 @@ OBJS=rxmdnn.o
 
 all:
 	${FC} -c rxmdnn.f90
-	${FC} ${INCLUDE_DIRS} ${LIB_DIRS} ${OBJS} ${LIBS} -o exe 
+	${FC} ${MACROS} ${INCLUDE_DIRS} ${LIB_DIRS} ${OBJS} ${LIBS} -o exe 
 
 clean:
 	rm -f *.mod *.o exe

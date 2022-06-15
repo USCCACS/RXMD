@@ -3,7 +3,7 @@ include ../make.inc
 # suffix rules
 .SUFFIXES: .o .F90 .cpp
 .F90.o:
-	$(MPIF90) $(MPIF90_FLAGS) -c $<
+	$(FC) $(MPIF90_FLAGS) -c $<
 
 %.o: %.mod
 
@@ -15,8 +15,8 @@ install_root=/scratch1/knomura/torchapp/libtorch
 
 INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
 TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib 
-TORCHLIBS=-ltorch -ltorch_cpu -ltorch_cuda -lc10  -lrxmdtorch
-MACROS=-D_GLIBCXX_USE_CXX11_ABI=0
+TORCHLIBS=-ltorch -ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
+MACROS=-D_GLIBCXX_USE_CXX11_ABI=0 
 
 
 EXE := ../rxmd

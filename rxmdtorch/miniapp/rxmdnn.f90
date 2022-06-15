@@ -4,7 +4,7 @@ module rxmdnn
 
   interface 
 
-    subroutine init(natoms) bind(c,name="init_rxmdnn")
+    subroutine init(natoms) bind(c,name="init_rxmdtorch")
     ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
        import :: c_int
        integer(c_int),value :: natoms

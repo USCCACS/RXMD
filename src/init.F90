@@ -111,7 +111,7 @@ select case (ff_type_flag)
         call rxmdnn_param_obj%print()
      endif
 
-     call allocate_nbrdist_rxmdnn(size(mass))
+     call allocate_nbrdist_rxmdnn(NATOMS)
 
   case(TYPE_REAXFF)
     call mdcontext_reaxff()
