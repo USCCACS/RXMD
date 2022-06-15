@@ -3,7 +3,7 @@ module mpi_mod
 #ifdef NOMPI
   use nompi
 #else
-  include 'mpif.h'
+  use mpi
 #endif
 
 end module

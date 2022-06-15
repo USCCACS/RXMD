@@ -2,6 +2,7 @@
 #include <chrono>
 #include <memory>
 #include "torch/torch.h"
+#include "torch/script.h"
 
 struct Net : torch::nn::Module {
 	Net(int in_dim, int out_dim) {
@@ -105,7 +106,23 @@ extern "C" void predict_rxmdtorch(int natoms, int atom_type, int maxnbrs, void *
 extern "C" void init_rxmdnn_hybrid(int natoms)
 {
 	std::cout << "foo from init\n";
-	//rxmdnn_ptr = std::make_unique<RXMDNN>(natoms,"rxmdnn.in");
+
+	torch::jit::script::Module module;
+	try 
+	{
+		// Deserialize the ScriptModule from a file using torch::jit::load().
+		module = torch::jit::load("nn.pt");
+	}
+		catch (const c10::Error& e) {
+		std::cerr << "error loading the model\n";
+	}
+
+	std::cout << "ok\n";
+
+  	// Create a vector of inputs.
+	//std::vector<torch::jit::IValue> inputs;
+	//inputs.push_back(torch::ones({1, 3, 224, 224}));
+	//inputs.push_back(torch::ones({10, 20}));
 }
 
 extern "C" void predict_rxmdnn_hybrid(int natoms, int atom_type, int maxnbrs, void *nbrdist_ptr)
@@ -133,5 +150,5 @@ extern "C" void get_maxrc_rxmdnn(double & maxrc)
 {
 	maxrc = MAXRC;
 	//maxrc = rxmdnn_ptr->get_maxrc_rxmdnn(); 
-	//std::cout << "foo from maxrc " << maxrc << std::endl;
+	std::cout << "foo from maxrc " << maxrc << std::endl;
 }
