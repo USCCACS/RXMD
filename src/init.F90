@@ -25,7 +25,7 @@ module init
 
   use rxmdnn, only : rxmdnn_param, rxmdnn_param_ctor, rxmdnn_param_obj, &
                      mddriver_rxmdnn, get_maxrc_rxmdnn, allocate_nbrdist_rxmdnn, &
-                     init_rxmdnn, init_rxmdnn_hybrid
+                     init_rxmdtorch
 
   use msd_mod, only : msd_data, msd_initialize
 
@@ -103,7 +103,8 @@ select case (ff_type_flag)
 
   case(TYPE_RXMDNN)
      !call init_rxmdnn()
-     call init_rxmdnn_hybrid(NATOMS)
+     !call init_rxmdnn_hybrid(NATOMS)
+     call init_rxmdtorch()
      rxmdnn_param_obj = mdcontext_rxmdnn()
      mdbase%ff => rxmdnn_param_obj
      if(myid==0) then

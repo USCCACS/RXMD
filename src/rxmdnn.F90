@@ -38,8 +38,12 @@ module rxmdnn
   real(8) :: maxrc_rxmdnn=0.d0
 
   type nbrdist_type
-     real(c_float),allocatable:: rij(:)
-     integer(c_int),allocatable :: jtype(:)
+     !real(c_float),allocatable:: rij(:)
+     !integer(c_int),allocatable :: jtype(:)
+
+     ! FIXME dynamics allocation got released in torch side?
+     real(c_float) :: rij(4*NBUFFER*MAXNEIGHBS) 
+     integer(c_int) :: jtype(NBUFFER*MAXNEIGHBS) 
   end type
 
   !type(nbrdist_type),allocatable :: nbrdists(:)
@@ -47,40 +51,19 @@ module rxmdnn
 
   integer,allocatable :: ndst_counts(:)
 
-  type(c_ptr) :: nbrdist_ptr
+  type(c_ptr) :: nbrdist_ptr, nbrtype_ptr
 
 #ifdef RXMDNN
 
   interface 
-    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
+    ! initialize rxmdtorch 
     subroutine init_rxmdtorch() bind(c,name="init_rxmdtorch")
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, atom_type, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdtorch")
+    subroutine predict_rxmdtorch(natoms, maxnbrs, nbrtype_ptr, nbrdist_ptr) bind(c,name="predict_rxmdtorch")
        import :: c_int, c_ptr
-       integer(c_int),value :: natoms, atom_type, maxnbrs
-       type(c_ptr),value :: nbrdist_ptr
-    end subroutine
-
-    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
-    subroutine init_rxmdnn() bind(c,name="init_rxmdnn")
-    end subroutine
-
-    ! create NN model, pass w&b to GPU, allocate nbrdist on CPU
-    subroutine init_rxmdnn_hybrid(natoms) bind(c,name="init_rxmdnn_hybrid")
-       import :: c_int
-       integer(c_int),value :: natoms
-    end subroutine
-
-    subroutine predict_rxmdnn_hybrid(natoms, atom_type, maxnbrs, nbrdist_ptr) bind(c,name="predict_rxmdnn_hybrid")
-       import :: c_int, c_ptr
-       integer(c_int),value :: natoms, atom_type, maxnbrs
-       type(c_ptr),value :: nbrdist_ptr
-    end subroutine
-  
-    subroutine predict_rxmdnn() bind(c,name="predict_rxmdnn")
-    ! compute nbrlist (on CPU?), feature and predict E&F (return them to CPU?)
-
+       integer(c_int),value :: natoms, maxnbrs
+       type(c_ptr),value :: nbrtype_ptr, nbrdist_ptr
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) bind(c,name="get_maxrc_rxmdnn")
@@ -95,19 +78,13 @@ contains
 
 contains
 
-    subroutine init_rxmdnn() 
+    subroutine init_rxmdtorch() 
     end subroutine
 
-    subroutine init_rxmdnn_hybrid(natoms) 
-       integer(c_int),value :: natoms
-    end subroutine
-
-    subroutine predict_rxmdnn_hybrid(natoms, atom_type, maxnbrs, nbrdist_ptr) 
-       integer(c_int),value :: natoms, atom_type, maxnbrs
-       type(c_ptr),value :: nbrdist_ptr
-    end subroutine
-  
-    subroutine predict_rxmdnn() 
+    subroutine predict_rxmdtorch(natoms, maxnbrs, nbrtype_ptr, nbrdist_ptr) 
+       import :: c_int, c_ptr
+       integer(c_int),value :: natoms, maxnbrs
+       type(c_ptr),value :: nbrtype_ptr, nbrdist_ptr
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 
@@ -122,8 +99,9 @@ subroutine allocate_nbrdist_rxmdnn(num_atoms)
 !------------------------------------------------------------------------------
   integer,intent(in) :: num_atoms
 
-  allocate(nbrdists%rij(4*MAXNEIGHBS*num_atoms))
-  allocate(nbrdists%jtype(MAXNEIGHBS*num_atoms))
+  ! FIXME dynamics allocation got released in torch side?
+  !allocate(nbrdists%rij(4*MAXNEIGHBS*num_atoms)) 
+  !allocate(nbrdists%jtype(MAXNEIGHBS*num_atoms))
   nbrdists%rij = 0.d0
   nbrdists%jtype = 0
 
@@ -233,14 +211,9 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
 
-!do ity=1, size(mass)
-!  print'(a)',repeat('=-',40)
-!  print*,'in get_force_rxmdnn: ity ', ity
-!  nbrdist_ptr = c_loc(nbrdists(ity)%rij(1))
-!  call predict_rxmdnn_hybrid(ndst_counts(ity), ity, MAXNEIGHBS, nbrdist_ptr) 
-!  print'(a)',repeat('=-',40)
-!enddo
-
+nbrdist_ptr = c_loc(nbrdists%rij(1))
+nbrtype_ptr = c_loc(nbrdists%jtype(1))
+call predict_rxmdtorch(NATOMS,  MAXNEIGHBS, nbrtype_ptr, nbrdist_ptr) 
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
@@ -258,6 +231,7 @@ real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 character(len=:),allocatable :: filebase
 
 integer :: i,ity
+
 
 if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
@@ -395,9 +369,12 @@ do c3=0, cc(3)-1
 
                !print'(3i6,f8.3,4f10.5,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),' before'
                nbrdists%jtype(idx+1) = jty
+               !print'(a,3i4,i9,i3)','i,j,ii,idx,jtype: ',i,j,ii,idx, nbrdists%jtype(idx+1)
                nbrdists%rij(idx+1) = rij
                nbrdists%rij(idx+2:idx+4) = rr(1:3)
                !print'(3i6,f8.3,4f10.5,i6,1x,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),idx,' after'
+
+               !print'(a,3i4,i9,i3,4f)','i,j,ii,idx,jtype,rij: ',i,j,ii,idx, nbrdists%jtype(idx+1), nbrdists%rij(idx+1:idx+4)
              endif
 
            endif

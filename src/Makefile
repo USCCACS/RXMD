@@ -3,7 +3,7 @@ include ../make.inc
 # suffix rules
 .SUFFIXES: .o .F90 .cpp
 .F90.o:
-	$(FC) $(MPIF90_FLAGS) -c $<
+	$(FC) $(FC_FLAGS) -c $<
 
 %.o: %.mod
 
@@ -28,7 +28,8 @@ rxmdnn: $(OBJS)
 	icpc -c ../nn/nn.cpp 
 	$(MPIF90) $(MPIF90_FLAGS) -o $(EXE) $(OBJS) $(LIBS) -lstdc++ nn.o
 
-rxmdtorch: $(OBJS)
+rxmdtorch: $(OBJS) 
+	make -C ../rxmdtorch/build
 	$(MPIF90) $(MPIF90_FLAGS) $(TORCHLIB_DIRS) $(MACROS) -o $(EXE) $(OBJS) $(LIBS) $(TORCHLIBS) -lstdc++ 
 
 #cg.o : fileio.o

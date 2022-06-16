@@ -7,12 +7,12 @@
 # LIBS are extra needed libraries (optional) 
 
 #MPIF90 = mpiifort -check all -traceback
-MPIF90 = mpiifort
-FC = ifx
+MPIF90 = mpiifort 
+FC = ifx -traceback
 
-MPIF90_FLAGS = -DRXMDNN 
+MPIF90_FLAGS = -O0
 
-FC_FLAGS = -O3 
+FC_FLAGS = -O0 -C -DRXMDNN 
 
 # LINKER = 
 # LIBS =

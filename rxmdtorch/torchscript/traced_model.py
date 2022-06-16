@@ -29,11 +29,11 @@ class MyNeuralNetwork(nn.Module):
     def __init__(self, input_size, output_size):
         super(MyNeuralNetwork, self).__init__()
         self.nn = nn.Sequential(
-                nn.Linear(input_size, 20),
+                nn.Linear(input_size, 512),
                 nn.ReLU(),
-                nn.Linear(20, 20), 
+                nn.Linear(512, 256), 
                 nn.ReLU(),
-                nn.Linear(20, output_size)
+                nn.Linear(256, output_size)
         )
 
     def forward(self, x):
@@ -43,7 +43,7 @@ my_module = MyModule(10,20)
 sm = torch.jit.script(my_module)
 sm.save("my_module_model.pt")
 
-feature_size=21*3
+feature_size=6*3
 my_nn = MyNeuralNetwork(feature_size,1)
 example = torch.rand(feature_size)
 traced_script_module = torch.jit.trace(my_nn, example)
