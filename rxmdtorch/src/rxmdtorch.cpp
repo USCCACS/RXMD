@@ -23,16 +23,17 @@ struct Net : torch::nn::Module {
 };
 
 #define MAXRC 5.5
-#define DEVICE torch::kCUDA
-//#define DEVICE torch::kCPU
+//#define DEVICE torch::kCUDA
+#define DEVICE torch::kCPU
 
 
 struct RXMDTORCH
 {
-	std::vector<float> rs, eta;
-	float rc;
+	std::vector<float> RS, ETA;
+	float RC;
+	int feature_size;
 
-	torch::jit::script::Module net;
+	std::vector<torch::jit::script::Module> nets;
 
 	RXMDTORCH(std::string filename)
 	{
@@ -42,7 +43,9 @@ struct RXMDTORCH
 
 		try 
 		{
-			net = torch::jit::load(filename);
+			nets.push_back(torch::jit::load("net_Pb.pt"));
+			nets.push_back(torch::jit::load("net_Ti.pt"));
+			nets.push_back(torch::jit::load("net_O.pt"));
 		}
 			catch (const c10::Error& e) {
 			std::cerr << "error loading the model\n";
@@ -50,101 +53,114 @@ struct RXMDTORCH
 
 		std::cout << filename << " loaded" << std::endl;
 
-		rs = {1.0, 2.0, 3.0};
-		eta = {0.5, 1.5};
-		rc = MAXRC;
+		RS = {1.0, 2.0, 3.0, 4.0, 5.0};
+		ETA = {1.0, 1.5, 2.0};
+		RC = MAXRC;
 
-		net.to(DEVICE);
+		feature_size = RS.size()*ETA.size();
+
+		//net.to(DEVICE);
 
 		if (DEVICE == torch::kCPU) torch::set_num_threads(32);
 	}
 
-	void featurize_nbrlist(int const natoms, int const maxnbrs, void *nbrtype_voidptr, void *nbrdist_voidptr)
+	void get_nn_force(int const natoms, int const nbuffer, int const maxnbrs, 
+			void *pos_voidptr, void *type_voidptr, void *force_voidptr)
 	{
-		std::cout << "entered featurize_nbrlist\n";
-		float *nbrdist_0 = (float *) nbrdist_voidptr; 
-		int *nbrtype = (int *) nbrtype_voidptr; 
+		std::cout << "natoms,nbuffer,maxnbrs " << natoms << " " << nbuffer << " " << maxnbrs << std::endl;
+		double *pos_vec0 = (double *) pos_voidptr; 
+		double *type_vec = (double *) type_voidptr; 
+		double *force_vec = (double *) force_voidptr; 
 
-		int size = 4*natoms*maxnbrs;
-
-		auto nbrdist = torch::empty({size}, torch::kFloat).to(DEVICE);
-
-		for(int n=0; n<natoms; n++)
-			for(int j=0; j<maxnbrs; j++)
-				for(int k=4*(n*maxnbrs+j); k<4*(n*maxnbrs+j)+4; k++)
-				{
-					//std::cout << n << " " << j << " " << k << " " << n*maxnbrs + j << " " << 
-					//	nbrtype[n*maxnbrs+j] << " " << nbrdist.sizes() << std::endl;
-					nbrdist[k] = nbrdist_0[k];
-				}
-					
-		int feature_size = eta.size()*rs.size();
-	
-		//auto net = std::make_shared<Net>(feature_size, 1);
-	
-		torch::Tensor total_energy = torch::zeros({1}, torch::kFloat).to(DEVICE);
-		for (int n=0; n<natoms; n++)
+		//FIXME copy & align all position data 
+		std::vector<float> pos_vec(3*nbuffer);
+		for(int i=0; i<nbuffer; i++)
 		{
-			auto G2 = torch::zeros({3*feature_size}, torch::kFloat).to(DEVICE);
-	
-			for (int j=0; j<maxnbrs; j++)
+			pos_vec[3*i] = (float)pos_vec0[i];
+			pos_vec[3*i+1] = (float)pos_vec0[nbuffer+i];
+			pos_vec[3*i+2] = (float)pos_vec0[2*nbuffer+i];
+		}
+
+		std::vector<torch::Tensor> pos(nbuffer); 
+		for(int i=0; i<nbuffer; i++)
+			pos[i] = torch::from_blob(&pos_vec[3*i], {3}, torch::requires_grad());
+
+		/*
+		for(int i=0; i<nbuffer; i++)
+		{
+			std::cout << "===== " << i << " " << type_vec[i] << " =======\n";
+			std::cout << pos[i] << std::endl;
+		}
+		*/
+
+		for(int i=0; i<natoms; i++)
+		{
+			int itype = type_vec[i];
+
+			auto g2 = torch::zeros({3*feature_size});
+			for(int j=0; j<nbuffer; j++)
 			{
+				if(i==j) continue;
+				if(type_vec[j] == 0) continue;
 
-				int ii4 = 4*(n*maxnbrs + j);
-				auto dr = nbrdist[ii4];
-				auto dx = nbrdist[ii4+1];
-				auto dy = nbrdist[ii4+2];
-				auto dz = nbrdist[ii4+3];
+				auto dr = torch::linalg_norm(pos[j] - pos[i]);
+				//std::cout << " pos[i] ========= \n";
+				//std::cout << pos[i] << std::endl;
+				//std::cout << " pos[j] ========= \n";
+				//std::cout << pos[j] << std::endl;
+				//std::cout << i << " " << ia << " " << ib << " " << j << " " << dr << std::endl;
+				if(dr.item<float>()>RC) continue;
 
-				auto jtype = nbrtype[n*maxnbrs+j];
+				int stride = (type_vec[j]-1)*feature_size;
 
-				if(jtype == 0) continue;
-				//std::cout << "n,j,jtype " << n << " " << j << " " << jtype << std::endl;
-	
-				if(dr.item<float>() > rc) continue;
-				//if(dr > rc) continue;
-	
-				int idx = (jtype-1)*feature_size;
-				for (unsigned long i1 = 0; i1 < rs.size(); i1++)
+				int idx=0;
+				for(int ia=0; ia < (int) RS.size(); ia++)
 				{
-					for(unsigned long i2 = 0; i2 < eta.size(); i2++)
-					{
-						auto rij_rs = dr - rs[i1]; 
-						auto exp_rij = exp(-eta[i2] * rij_rs * rij_rs);
-						auto fc_rij = 0.5*cos(M_PI*dr/rc);
+					auto rij_rs = dr - RS[ia]; 
+					auto fc_rij = 0.5*torch::cos(M_PI*dr/RC);
+
+					for(int ib=0; ib < (int) ETA.size(); ib++)
+					{	
+						auto exp_rij = torch::exp(-ETA[ib] * rij_rs * rij_rs);
 	
-						G2[idx] += exp_rij*fc_rij;
+						g2[idx+stride] += exp_rij*fc_rij;
 					}
+					idx++;
 				}
 			}
-	
-			//auto energy = net->forward(G2);
+
 			std::vector<torch::jit::IValue> inputs;
-			inputs.push_back(G2);
+			inputs.push_back(g2);
+			auto energy = nets[itype-1].forward(inputs).toTensor();
 
-			//std::cout << "G2 " << n << " " << G2.sizes() << "\n" << G2 << std::endl;
-			auto energy = net.forward(inputs).toTensor();
-			//std::cout << "energy " << n << " " << energy << std::endl;
+			energy.backward();
 
-			total_energy += energy;
+			//std::cout << "====== " << i << " " << itype << " ======" << std::endl;
+			//std::cout << energy << std::endl;
+			//std::cout << g2 << std::endl;
+			//std::cout << pos[i].grad() << std::endl;
+
+			auto force = pos[i].grad();
+			force_vec[i] = force[0].item<float>();
+			force_vec[i+nbuffer] = force[1].item<float>();
+			force_vec[i+nbuffer*2] = force[2].item<float>();
 		}
-		total_energy.backward();
 	}
 };
 
 std::unique_ptr<RXMDTORCH> rxmdnn_ptr; 
 
-extern "C" void init_rxmdtorch(int natoms)
+extern "C" void init_rxmdtorch()
 {
 	rxmdnn_ptr = std::make_unique<RXMDTORCH>("nn.pt");
 }
 
-extern "C" void predict_rxmdtorch(int natoms, int maxnbrs, void *nbrtype_ptr, void *nbrdist_ptr)
+extern "C" void get_nn_force_torch(int natoms, int nbuffer, int maxnbrs, 
+		void *pos_ptr, void *type_ptr, void *force_ptr)
 {
 	std::cout << "natoms,maxnbrs " << natoms << " " << maxnbrs << std::endl;
-
 	const auto start = std::chrono::steady_clock::now();
-	rxmdnn_ptr->featurize_nbrlist(natoms, maxnbrs, nbrtype_ptr, nbrdist_ptr);
+	rxmdnn_ptr->get_nn_force(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr);
 	const auto end = std::chrono::steady_clock::now();
 	std::cout << "time(s) " << 
 		std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()*1e-6 << std::endl;

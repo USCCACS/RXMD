@@ -52,6 +52,7 @@ module rxmdnn
   integer,allocatable :: ndst_counts(:)
 
   type(c_ptr) :: nbrdist_ptr, nbrtype_ptr
+  type(c_ptr) :: pos_ptr, type_ptr, force_ptr
 
 #ifdef RXMDNN
 
@@ -60,10 +61,10 @@ module rxmdnn
     subroutine init_rxmdtorch() bind(c,name="init_rxmdtorch")
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, maxnbrs, nbrtype_ptr, nbrdist_ptr) bind(c,name="predict_rxmdtorch")
+    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr) bind(c,name="get_nn_force_torch")
        import :: c_int, c_ptr
-       integer(c_int),value :: natoms, maxnbrs
-       type(c_ptr),value :: nbrtype_ptr, nbrdist_ptr
+       integer(c_int),value :: natoms, maxnbrs, nbuffer
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) bind(c,name="get_maxrc_rxmdnn")
@@ -81,10 +82,10 @@ contains
     subroutine init_rxmdtorch() 
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, maxnbrs, nbrtype_ptr, nbrdist_ptr) 
+    subroutine predict_rxmdtorch(natoms, maxnbrs, pos_ptr, type_ptr) 
        import :: c_int, c_ptr
        integer(c_int),value :: natoms, maxnbrs
-       type(c_ptr),value :: nbrtype_ptr, nbrdist_ptr
+       type(c_ptr),value :: pos_ptr, type_ptr
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 
@@ -209,13 +210,22 @@ integer :: i,j,j1,ity,n_j,stat,idx
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
-call get_nbrlist_rxmdnn(num_atoms, atype, pos, maxrc) 
+f=0.d0
 
-nbrdist_ptr = c_loc(nbrdists%rij(1))
-nbrtype_ptr = c_loc(nbrdists%jtype(1))
-call predict_rxmdtorch(NATOMS,  MAXNEIGHBS, nbrtype_ptr, nbrdist_ptr) 
+pos_ptr = c_loc(pos(1,1))
+type_ptr = c_loc(atype(1))
+force_ptr = c_loc(f(1,1))
+print*,'===================== fortran : position ===================='
+do i=1, num_atoms
+print'(i,4f)',i,pos(i,1:3),atype(i)
+enddo
+call predict_rxmdtorch(NATOMS, NBUFFER, MAXNEIGHBS, pos_ptr, type_ptr, force_ptr) 
+print*,'===================== fortran : force ===================='
+do i=1, num_atoms
+print'(i,4f)',i,f(i,1:3),atype(i)
+enddo
 
-CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+!CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
 end subroutine
 
