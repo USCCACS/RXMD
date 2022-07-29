@@ -5,27 +5,11 @@
 #include "torch/torch.h"
 #include "torch/script.h"
 
-struct Net : torch::nn::Module {
-	Net(int in_dim, int out_dim) {
-		fc1 = register_module("fc1", torch::nn::Linear(in_dim, 20));
-		fc2 = register_module("fc2", torch::nn::Linear(20, 20));
-		fc3 = register_module("fc3", torch::nn::Linear(20, out_dim));
-	}
+using namespace torch::indexing;
 
-	torch::Tensor forward(torch::Tensor x) {
-		x = fc1->forward(x);
-		x = fc2->forward(x);
-		x = fc3->forward(x);
-		return x;
-	}
-
-	torch::nn::Linear fc1{nullptr}, fc2{nullptr}, fc3{nullptr};
-};
-
-#define MAXRC 5.5
+#define MAXRC 2.5
 //#define DEVICE torch::kCUDA
 #define DEVICE torch::kCPU
-
 
 struct RXMDTORCH
 {
@@ -35,33 +19,37 @@ struct RXMDTORCH
 
 	std::vector<torch::jit::script::Module> nets;
 
-	RXMDTORCH(std::string filename)
+	RXMDTORCH(std::string dirname = "")
 	{
 		torch::set_num_threads(1);
 
 		std::cout << "rxmdtorch init" << std::endl;
 
-		try 
+		//std::vector<std::string> filenames = {"net_Pb.pt", "net_Ti.pt", "net_O.pt"}; 
+		std::vector<std::string> filenames = {"H.model_scripted.pt", "N.model_scripted.pt"};
+
+		for (std::string filename : filenames)
 		{
-			nets.push_back(torch::jit::load("net_Pb.pt"));
-			nets.push_back(torch::jit::load("net_Ti.pt"));
-			nets.push_back(torch::jit::load("net_O.pt"));
-		}
-			catch (const c10::Error& e) {
-			std::cerr << "error loading the model\n";
+			filename = dirname + filename;  
+			try 
+			{
+				nets.push_back(torch::jit::load(filename));
+			}
+			catch (const c10::Error& e) 
+			{
+				std::cerr << "error loading the model : " + filename << std::endl;
+			}
 		}
 
-		std::cout << filename << " loaded" << std::endl;
-
-		RS = {1.0, 2.0, 3.0, 4.0, 5.0};
-		ETA = {1.0, 1.5, 2.0};
+		RS = {0.5, 1.0};
+		ETA = {0.8, 1.0, 1.7};
 		RC = MAXRC;
 
 		feature_size = RS.size()*ETA.size();
 
-		//net.to(DEVICE);
+		for(auto net : nets) net.to(DEVICE);
 
-		if (DEVICE == torch::kCPU) torch::set_num_threads(32);
+		//if (DEVICE == torch::kCPU) torch::set_num_threads(32);
 	}
 
 	void get_nn_force(int const natoms, int const nbuffer, int const maxnbrs, 
@@ -73,77 +61,135 @@ struct RXMDTORCH
 		double *force_vec = (double *) force_voidptr; 
 
 		//FIXME copy & align all position data 
-		std::vector<float> pos_vec(3*nbuffer);
+		//std::vector<float> pos_vec(3*nbuffer);
+		std::vector<float> pos(3*nbuffer);
 		for(int i=0; i<nbuffer; i++)
 		{
-			pos_vec[3*i] = (float)pos_vec0[i];
-			pos_vec[3*i+1] = (float)pos_vec0[nbuffer+i];
-			pos_vec[3*i+2] = (float)pos_vec0[2*nbuffer+i];
+			pos[3*i] = (float)pos_vec0[i];
+			pos[3*i+1] = (float)pos_vec0[nbuffer+i];
+			pos[3*i+2] = (float)pos_vec0[2*nbuffer+i];
 		}
 
-		std::vector<torch::Tensor> pos(nbuffer); 
-		for(int i=0; i<nbuffer; i++)
-			pos[i] = torch::from_blob(&pos_vec[3*i], {3}, torch::requires_grad());
-
-		/*
-		for(int i=0; i<nbuffer; i++)
-		{
-			std::cout << "===== " << i << " " << type_vec[i] << " =======\n";
-			std::cout << pos[i] << std::endl;
-		}
-		*/
-
+		float total_energy=0.0;
 		for(int i=0; i<natoms; i++)
 		{
 			int itype = type_vec[i];
 
-			auto g2 = torch::zeros({3*feature_size});
+			std::vector<float> g2_vec(feature_size);
+
+			auto feature_jacobian_self=torch::zeros({feature_size,3});
+			auto feature_jacobian_neighbor=torch::zeros({nbuffer,feature_size,3});
 			for(int j=0; j<nbuffer; j++)
 			{
 				if(i==j) continue;
 				if(type_vec[j] == 0) continue;
+				//auto rij = pos[i] - pos[j];
+				//auto dr = torch::linalg_norm(rij)
 
-				auto dr = torch::linalg_norm(pos[j] - pos[i]);
-				//std::cout << " pos[i] ========= \n";
-				//std::cout << pos[i] << std::endl;
-				//std::cout << " pos[j] ========= \n";
-				//std::cout << pos[j] << std::endl;
-				//std::cout << i << " " << ia << " " << ib << " " << j << " " << dr << std::endl;
-				if(dr.item<float>()>RC) continue;
+				const float dx = pos[3*i-2] - pos[3*j-2];
+				const float dy = pos[3*i-1] - pos[3*j-1];
+				const float dz = pos[3*i] - pos[3*j];
+				const float dr = std::sqrt(dx*dx + dy*dy + dz*dz);
 
-				int stride = (type_vec[j]-1)*feature_size;
+				/*
+				std::cout << "dx,dy,dz " << dx << " " << dy << " " << dz << std::endl;
+				auto rij = torch::tensor({dx,dy,dz}, torch::requires_grad());
+				std::cout << "rji " << rij << std::endl;
+				auto dr = torch::linalg_norm(rij);
+				std::cout << "dr " << dr << std::endl;
+				*/
+
+				//if(dr.item<float>()>RC) continue;
+				if(dr>RC) continue;
 
 				int idx=0;
-				for(int ia=0; ia < (int) RS.size(); ia++)
+				for(int ia=0; ia < (int) ETA.size(); ia++)
 				{
-					auto rij_rs = dr - RS[ia]; 
-					auto fc_rij = 0.5*torch::cos(M_PI*dr/RC);
-
-					for(int ib=0; ib < (int) ETA.size(); ib++)
+					for(int ib=0; ib < (int) RS.size(); ib++)
 					{	
+						auto rij = torch::tensor({dx,dy,dz}, torch::requires_grad());
+						auto dr = torch::linalg_norm(rij);
+						auto rij_rs = dr - RS[ia];
+						auto fc_rij = 0.5*torch::cos(M_PI*dr/RC);
 						auto exp_rij = torch::exp(-ETA[ib] * rij_rs * rij_rs);
-	
-						g2[idx+stride] += exp_rij*fc_rij;
+						//std::cout << "==========================\n";
+
+						auto feature = exp_rij*fc_rij;
+						//std::cout << "feature " << feature << std::endl;
+
+						feature.backward();
+						//std::cout << "rij.grad() " << rij.grad() << std::endl;
+
+						//auto feat_d=dr.grad()*rij/dr;
+						auto feat_d=rij.grad();
+						//std::cout << "feat_d " << feat_d << std::endl;
+
+						for (int ia=0; ia<3; ia++)
+						{
+							feature_jacobian_self.index({idx,ia}) = 
+								feature_jacobian_self.index({idx,ia}) + feat_d[ia];
+							feature_jacobian_neighbor.index({idx,ia}) = 
+								feature_jacobian_neighbor.index({idx,ia}) - feat_d[ia];
+						}
+
+						//g2[idx]+=feature;
+						//std::cout << "feature " << feature << std::endl;
+						g2_vec[idx] += feature.item<float>();
+						idx++;
 					}
-					idx++;
 				}
 			}
 
+			auto g2 = torch::from_blob(g2_vec.data(),{1,feature_size}).requires_grad_();
+			//std::cout << "g2 " << g2 << std::endl;
+
 			std::vector<torch::jit::IValue> inputs;
+
 			inputs.push_back(g2);
-			auto energy = nets[itype-1].forward(inputs).toTensor();
+			//std::cout << "inputs: " << inputs << std::endl;
 
-			energy.backward();
+			auto atomic_energy = nets[itype-1].forward(inputs).toTensor();
+			//std::cout << "atomic_energy: " << atomic_energy << std::endl;
 
-			//std::cout << "====== " << i << " " << itype << " ======" << std::endl;
-			//std::cout << energy << std::endl;
-			//std::cout << g2 << std::endl;
-			//std::cout << pos[i].grad() << std::endl;
+			total_energy += atomic_energy.item<float>();
+			//std::cout << "total_energy: " << total_energy << std::endl;
 
-			auto force = pos[i].grad();
-			force_vec[i] = force[0].item<float>();
-			force_vec[i+nbuffer] = force[1].item<float>();
-			force_vec[i+nbuffer*2] = force[2].item<float>();
+			auto grad_output = torch::ones_like(atomic_energy);
+			//std::cout << "grad_output: " << grad_output << std::endl;
+
+			auto g2_ = g2.index({0,Slice()});
+			//std::cout << "g2_ " << g2_ << std::endl;
+
+			//auto atomic_energy_ = atomic_energy.index({0,Slice()});
+			//std::cout << "atomic_energy_: " << atomic_energy_ << std::endl;
+
+			// torch::autograd::grad returns a std::vector where the first element is the gradient tensor
+ 		        auto gradient = torch::autograd::grad({atomic_energy}, {g2})[0];
+			//std::cout << "gradient " << gradient << std::endl;
+			//std::cout << "feature_jacobian_self " << feature_jacobian_self << std::endl;
+
+			// i-atom force
+			auto force_i_ = torch::matmul(gradient, feature_jacobian_self);
+			auto force_i = force_i_.index({0,Slice()});
+			//std::cout << "force_i: " << force_i << std::endl;
+
+			force_vec[i] += force_i[0].item<float>();
+			force_vec[i+nbuffer] += force_i[1].item<float>();
+			force_vec[i+nbuffer*2] += force_i[2].item<float>();
+
+			// Reaction force from neighbor atoms
+			for(int j=0; j<nbuffer; j++)
+			{	
+				//auto feature_jacobian_j=feature_jacobian_neighbor[j,:,:];
+				auto feature_jacobian_j = feature_jacobian_neighbor.index({j,Slice(None,None)});
+				auto force_j_ = torch::matmul(gradient, feature_jacobian_j);
+				auto force_j = force_j_.index({0,Slice()});
+				//std::cout << "force_j: " << force_j << std::endl;
+
+				force_vec[j] += force_j[0].item<float>();
+				force_vec[j+nbuffer] += force_j[1].item<float>();
+				force_vec[j+nbuffer*2] += force_j[2].item<float>();
+			}
 		}
 	}
 };
@@ -152,7 +198,7 @@ std::unique_ptr<RXMDTORCH> rxmdnn_ptr;
 
 extern "C" void init_rxmdtorch()
 {
-	rxmdnn_ptr = std::make_unique<RXMDTORCH>("nn.pt");
+	rxmdnn_ptr = std::make_unique<RXMDTORCH>("");
 }
 
 extern "C" void get_nn_force_torch(int natoms, int nbuffer, int maxnbrs, 
