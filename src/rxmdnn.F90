@@ -161,7 +161,7 @@ function rxmdnn_param_ctor(path) result(c)
     linein = trim(adjustl(linein0))
 
     if(getstr(linein, token) > 0) then
-       if(token=='aenet'.or.token=='jaxmd') call get_tokens_and_append_model(linein, c%models)
+       if(token=='aenet'.or.token=='jaxmd'.or.token=='torch') call get_tokens_and_append_model(linein, c%models)
     endif
   end do
   10 rewind(iunit)

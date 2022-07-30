@@ -176,7 +176,7 @@ do while (.true.)
 
   if(getstr(linein, token) > 0) then
    
-    if(token=='model'.or.token=='aenet'.or.token=='jaxmd') then
+    if(token=='model'.or.token=='aenet'.or.token=='jaxmd'.or.token=='torch') then
       if(getstr(linein, token)>0) then
         c3 = token
         if(.not.allocated(atomNames)) then
