@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.2)
 
 project(rxmdtorch)
 
-set(CMAKE_PREFIX_PATH /scratch1/knomura/torchapp/libtorch)
-
 find_package(Torch REQUIRED)
 
 set(CMAKE_CXX_FLAGS "-O0 -Wall -Wextra")
