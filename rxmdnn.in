@@ -1,4 +1,5 @@
 ### PTO system ###
 ## model data: element name, AMU, aenet model, cutoff distance
-torch   N  14.0   N.model_scripted.pt  2.5
-torch   H   1.0   H.model_scripted.pt  2.5
+torch   Pb   207.2  Pb.model_scripted.pt  7.5
+torch   Ti   47.87  Ti.model_scripted.pt  7.5
+torch   O    16.00   O.model_scripted.pt  7.5

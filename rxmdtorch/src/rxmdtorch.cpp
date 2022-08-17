@@ -7,7 +7,7 @@
 
 using namespace torch::indexing;
 
-#define MAXRC 2.5
+#define MAXRC 7.5
 //#define DEVICE torch::kCUDA
 #define DEVICE torch::kCPU
 
@@ -15,7 +15,8 @@ struct RXMDTORCH
 {
 	std::vector<float> RS, ETA;
 	float RC;
-	int feature_size;
+	int num_hparams, feature_size;
+	std::map<std::string, int> type_numeric;
 
 	std::vector<torch::jit::script::Module> nets;
 
@@ -25,8 +26,8 @@ struct RXMDTORCH
 
 		std::cout << "rxmdtorch init" << std::endl;
 
-		//std::vector<std::string> filenames = {"net_Pb.pt", "net_Ti.pt", "net_O.pt"}; 
-		std::vector<std::string> filenames = {"H.model_scripted.pt", "N.model_scripted.pt"};
+		//std::vector<std::string> filenames = {"H.model_scripted.pt", "N.model_scripted.pt"};
+		std::vector<std::string> filenames = {"Pb.model_scripted.pt", "Ti.model_scripted.pt", "O.model_scripted.pt"};
 
 		for (std::string filename : filenames)
 		{
@@ -41,13 +42,17 @@ struct RXMDTORCH
 			}
 		}
 
-		RS = {0.5, 1.0};
-		ETA = {0.8, 1.0, 1.7};
+		RS = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0};
+		ETA = {0.5,1.0,3.0};
 		RC = MAXRC;
 
-		feature_size = RS.size()*ETA.size();
+		type_numeric = {{"Pb",1}, {"Ti",2}, {"O",3}};
+
+		num_hparams = RS.size()*ETA.size();
+		feature_size = 3*num_hparams; 
 
 		for(auto net : nets) net.to(DEVICE);
+		for(auto net : nets) net.eval();
 
 		//if (DEVICE == torch::kCPU) torch::set_num_threads(32);
 	}
@@ -71,14 +76,21 @@ struct RXMDTORCH
 		}
 
 		float total_energy=0.0;
+
+		int counter = 0;
 		for(int i=0; i<natoms; i++)
 		{
+			//std::cout << " counter " << counter << std::endl;
+			//std::cout << " ====== " << i << " =============\n";
 			int itype = type_vec[i];
 
 			std::vector<float> g2_vec(feature_size);
 
 			auto feature_jacobian_self=torch::zeros({feature_size,3});
 			auto feature_jacobian_neighbor=torch::zeros({nbuffer,feature_size,3});
+
+auto start = std::chrono::steady_clock::now();
+
 			for(int j=0; j<nbuffer; j++)
 			{
 				if(i==j) continue;
@@ -86,31 +98,41 @@ struct RXMDTORCH
 				//auto rij = pos[i] - pos[j];
 				//auto dr = torch::linalg_norm(rij)
 
-				const float dx = pos[3*i-2] - pos[3*j-2];
-				const float dy = pos[3*i-1] - pos[3*j-1];
-				const float dz = pos[3*i] - pos[3*j];
+
+				const int jtype = type_vec[j];
+				const int stride = (jtype-1)*num_hparams; 
+
+				const float dx = pos[3*i] - pos[3*j];
+				const float dy = pos[3*i+1] - pos[3*j+1];
+				const float dz = pos[3*i+2] - pos[3*j+2];
 				const float dr = std::sqrt(dx*dx + dy*dy + dz*dz);
 
-				/*
-				std::cout << "dx,dy,dz " << dx << " " << dy << " " << dz << std::endl;
-				auto rij = torch::tensor({dx,dy,dz}, torch::requires_grad());
-				std::cout << "rji " << rij << std::endl;
-				auto dr = torch::linalg_norm(rij);
-				std::cout << "dr " << dr << std::endl;
-				*/
+				//std::cout << "dx,dy,dz " << dx << " " << dy << " " << dz << std::endl;
+				auto rij_ = torch::tensor({dx,dy,dz}, torch::requires_grad());
+				//std::cout << "rji " << rij_ << std::endl;
+				auto dr_ = torch::linalg_norm(rij_);
 
 				//if(dr.item<float>()>RC) continue;
 				if(dr>RC) continue;
 
-				int idx=0;
+				auto fc_rij = 0.5*(std::cos(M_PI*dr/RC)+1.0);
+				auto dfc_rij = -0.5*(M_PI/RC)*std::sin(M_PI*dr/RC);
+
+				//std::cout << dr_.item<float>() << " " << jtype << "\n";
+				//counter++; 
+
+				//int idx=0;
+				int idx = stride;
 				for(int ia=0; ia < (int) ETA.size(); ia++)
 				{
 					for(int ib=0; ib < (int) RS.size(); ib++)
 					{	
+						/*
 						auto rij = torch::tensor({dx,dy,dz}, torch::requires_grad());
 						auto dr = torch::linalg_norm(rij);
+
 						auto rij_rs = dr - RS[ia];
-						auto fc_rij = 0.5*torch::cos(M_PI*dr/RC);
+						auto fc_rij = 0.5*(torch::cos(M_PI*dr/RC)+1.0);
 						auto exp_rij = torch::exp(-ETA[ib] * rij_rs * rij_rs);
 						//std::cout << "==========================\n";
 
@@ -128,17 +150,52 @@ struct RXMDTORCH
 						{
 							feature_jacobian_self.index({idx,ia}) = 
 								feature_jacobian_self.index({idx,ia}) + feat_d[ia];
-							feature_jacobian_neighbor.index({idx,ia}) = 
-								feature_jacobian_neighbor.index({idx,ia}) - feat_d[ia];
+							feature_jacobian_neighbor.index({j,idx,ia}) = 
+								feature_jacobian_neighbor.index({j,idx,ia}) - feat_d[ia];
 						}
 
 						//g2[idx]+=feature;
 						//std::cout << "feature " << feature << std::endl;
 						g2_vec[idx] += feature.item<float>();
+						*/
+
+						auto rij_rs = dr - RS[ib];
+						auto exp_rij = std::exp(-ETA[ia] * rij_rs * rij_rs);
+						auto dexp_rij = -2.0*ETA[ia]*exp_rij*rij_rs;
+
+						auto feature = exp_rij*fc_rij;
+						g2_vec[idx] += feature;
+
+						/*
+						if(idx==0) 
+						std::cout << "jtype,idx,eta,rs,feature,fc_rij,exp_rij: " << 
+						jtype << " " << idx << " " << ETA[ia] << " " << RS[ib] << " " << 
+						feature << " " << fc_rij << " " << exp_rij << std::endl;
+						*/
+
+						auto coeff = (exp_rij*dfc_rij + dexp_rij*fc_rij)/dr;
+
+						auto feat_d = torch::tensor({coeff*dx,coeff*dy,coeff*dz}, torch::requires_grad());
+
+						//for (int ia=0; ia<3; ia++)
+						//{
+						//	feature_jacobian_self.index({idx,ia}) = feature_jacobian_self.index({idx,ia}) + feat_d[ia];
+						//	feature_jacobian_neighbor.index({idx,ia}) = feature_jacobian_neighbor.index({idx,ia}) - feat_d[ia];
+						//}
+						
+						feature_jacobian_self.index({idx,Slice()}) = feature_jacobian_self.index({idx,Slice()}) + feat_d;
+						feature_jacobian_neighbor.index({j,idx,Slice()}) = feature_jacobian_neighbor.index({j,idx,Slice()}) - feat_d;
+
 						idx++;
 					}
 				}
 			}
+			//std::cout << "jacobian_self\n" << feature_jacobian_self << std::endl;
+
+auto end = std::chrono::steady_clock::now();
+std::chrono::duration<double> es1 = end-start;
+
+auto start2 = std::chrono::steady_clock::now();
 
 			auto g2 = torch::from_blob(g2_vec.data(),{1,feature_size}).requires_grad_();
 			//std::cout << "g2 " << g2 << std::endl;
@@ -172,11 +229,16 @@ struct RXMDTORCH
 			auto force_i_ = torch::matmul(gradient, feature_jacobian_self);
 			auto force_i = force_i_.index({0,Slice()});
 			//std::cout << "force_i: " << force_i << std::endl;
+			//std::cout << "force_i_: " << force_i_ << std::endl;
 
 			force_vec[i] += force_i[0].item<float>();
 			force_vec[i+nbuffer] += force_i[1].item<float>();
 			force_vec[i+nbuffer*2] += force_i[2].item<float>();
 
+auto end2 = std::chrono::steady_clock::now();
+std::chrono::duration<double> es2 = end2-start2;
+
+auto start3 = std::chrono::steady_clock::now();
 			// Reaction force from neighbor atoms
 			for(int j=0; j<nbuffer; j++)
 			{	
@@ -190,7 +252,13 @@ struct RXMDTORCH
 				force_vec[j+nbuffer] += force_j[1].item<float>();
 				force_vec[j+nbuffer*2] += force_j[2].item<float>();
 			}
+
+auto end3 = std::chrono::steady_clock::now();
+std::chrono::duration<double> es3 = end3-start3;
+
+//std::cout << "elapsed time: " << es1.count() << " " << es2.count() << " " << es3.count()<< "s\n";
 		}
+
 	}
 };
 
