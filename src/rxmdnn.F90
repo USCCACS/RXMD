@@ -58,7 +58,9 @@ module rxmdnn
 
   interface 
     ! initialize rxmdtorch 
-    subroutine init_rxmdtorch() bind(c,name="init_rxmdtorch")
+    subroutine init_rxmdtorch(myrank) bind(c,name="init_rxmdtorch")
+       import :: c_int 
+       integer(c_int),value :: myrank
     end subroutine
 
     subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr) bind(c,name="get_nn_force_torch")
@@ -79,7 +81,9 @@ contains
 
 contains
 
-    subroutine init_rxmdtorch() 
+    subroutine init_rxmdtorch(myrank) 
+       import :: c_int
+       integer(c_int),value :: myrank
     end subroutine
 
     subroutine predict_rxmdtorch(natoms, maxnbrs, pos_ptr, type_ptr) 
@@ -215,17 +219,17 @@ f=0.d0
 pos_ptr = c_loc(pos(1,1))
 type_ptr = c_loc(atype(1))
 force_ptr = c_loc(f(1,1))
-print*,'===================== fortran : position ===================='
-do i=1, num_atoms
-print'(i,4f)',i,pos(i,1:3),atype(i)
-enddo
+!print*,'===================== fortran : position ===================='
+!do i=1, num_atoms
+!print'(i,4f)',i,pos(i,1:3),atype(i)
+!enddo
 call predict_rxmdtorch(NATOMS, NBUFFER, MAXNEIGHBS, pos_ptr, type_ptr, force_ptr) 
-print*,'===================== fortran : force ===================='
-do i=1, num_atoms
-print'(i,4f)',i,f(i,1:3),atype(i)
-enddo
+!print*,'===================== fortran : force ===================='
+!do i=1, num_atoms
+!print'(i,4f)',i,f(i,1:3),atype(i)
+!enddo
 
-!CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
 end subroutine
 

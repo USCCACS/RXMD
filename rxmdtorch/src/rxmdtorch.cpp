@@ -8,11 +8,11 @@
 using namespace torch::indexing;
 
 #define MAXRC 7.5
-//#define DEVICE torch::kCUDA
-#define DEVICE torch::kCPU
 
 struct RXMDTORCH
 {
+	int myrank; 
+
 	std::vector<float> RS, ETA;
 	float RC;
 	int num_hparams, feature_size;
@@ -20,11 +20,28 @@ struct RXMDTORCH
 
 	std::vector<torch::jit::script::Module> nets;
 
-	RXMDTORCH(std::string dirname = "")
+	torch::Device device = torch::kCPU;
+	c10::DeviceIndex device_id = 0; 
+
+	std::string dirname = "";
+
+	RXMDTORCH(int myrank=0)
 	{
 		torch::set_num_threads(1);
 
-		std::cout << "rxmdtorch init" << std::endl;
+
+		if (torch::cuda::is_available()) 
+		{
+			//device = torch::kCUDA; 
+			
+			// for multi-GPU round robin assignment
+			device_id = myrank%torch::cuda::device_count(); 
+			//std::cout << "device_id " << device_id  << std::endl;
+			device = torch::Device({torch::kCUDA, device_id});
+
+			std::cout << "CUDA is available! myrank,dev_id,dev_count : " << myrank << " " << 
+				myrank%torch::cuda::device_count() << " " << torch::cuda::device_count() << std::endl;
+		}
 
 		//std::vector<std::string> filenames = {"H.model_scripted.pt", "N.model_scripted.pt"};
 		std::vector<std::string> filenames = {"Pb.model_scripted.pt", "Ti.model_scripted.pt", "O.model_scripted.pt"};
@@ -51,10 +68,11 @@ struct RXMDTORCH
 		num_hparams = RS.size()*ETA.size();
 		feature_size = 3*num_hparams; 
 
-		for(auto net : nets) net.to(DEVICE);
-		for(auto net : nets) net.eval();
-
-		//if (DEVICE == torch::kCPU) torch::set_num_threads(32);
+		for(auto net : nets) 
+		{
+			net.to(device);
+			net.eval();
+		}
 	}
 
 	void get_nn_force(int const natoms, int const nbuffer, int const maxnbrs, 
@@ -86,8 +104,8 @@ struct RXMDTORCH
 
 			std::vector<float> g2_vec(feature_size);
 
-			auto feature_jacobian_self=torch::zeros({feature_size,3});
-			auto feature_jacobian_neighbor=torch::zeros({nbuffer,feature_size,3});
+			auto feature_jacobian_self=torch::zeros({feature_size,3}, device);
+			auto feature_jacobian_neighbor=torch::zeros({nbuffer,feature_size,3}, device);
 
 auto start = std::chrono::steady_clock::now();
 
@@ -108,7 +126,7 @@ auto start = std::chrono::steady_clock::now();
 				const float dr = std::sqrt(dx*dx + dy*dy + dz*dz);
 
 				//std::cout << "dx,dy,dz " << dx << " " << dy << " " << dz << std::endl;
-				auto rij_ = torch::tensor({dx,dy,dz}, torch::requires_grad());
+				auto rij_ = torch::tensor({dx,dy,dz}, torch::requires_grad()).to(device);
 				//std::cout << "rji " << rij_ << std::endl;
 				auto dr_ = torch::linalg_norm(rij_);
 
@@ -175,7 +193,7 @@ auto start = std::chrono::steady_clock::now();
 
 						auto coeff = (exp_rij*dfc_rij + dexp_rij*fc_rij)/dr;
 
-						auto feat_d = torch::tensor({coeff*dx,coeff*dy,coeff*dz}, torch::requires_grad());
+						auto feat_d = torch::tensor({coeff*dx,coeff*dy,coeff*dz}, torch::requires_grad()).to(device);
 
 						//for (int ia=0; ia<3; ia++)
 						//{
@@ -197,7 +215,7 @@ std::chrono::duration<double> es1 = end-start;
 
 auto start2 = std::chrono::steady_clock::now();
 
-			auto g2 = torch::from_blob(g2_vec.data(),{1,feature_size}).requires_grad_();
+			auto g2 = torch::from_blob(g2_vec.data(),{1,feature_size}).requires_grad_().to(device);
 			//std::cout << "g2 " << g2 << std::endl;
 
 			std::vector<torch::jit::IValue> inputs;
@@ -205,7 +223,7 @@ auto start2 = std::chrono::steady_clock::now();
 			inputs.push_back(g2);
 			//std::cout << "inputs: " << inputs << std::endl;
 
-			auto atomic_energy = nets[itype-1].forward(inputs).toTensor();
+			auto atomic_energy = nets[itype-1].forward(inputs).toTensor().to(device);
 			//std::cout << "atomic_energy: " << atomic_energy << std::endl;
 
 			total_energy += atomic_energy.item<float>();
@@ -264,9 +282,10 @@ std::chrono::duration<double> es3 = end3-start3;
 
 std::unique_ptr<RXMDTORCH> rxmdnn_ptr; 
 
-extern "C" void init_rxmdtorch()
+extern "C" void init_rxmdtorch(int myrank)
 {
-	rxmdnn_ptr = std::make_unique<RXMDTORCH>("");
+	std::cout << "init_rxmdtorch : myrank " << myrank << std::endl;
+	rxmdnn_ptr = std::make_unique<RXMDTORCH>(myrank);
 }
 
 extern "C" void get_nn_force_torch(int natoms, int nbuffer, int maxnbrs, 

@@ -104,7 +104,7 @@ select case (ff_type_flag)
   case(TYPE_RXMDNN)
      !call init_rxmdnn()
      !call init_rxmdnn_hybrid(NATOMS)
-     call init_rxmdtorch()
+     call init_rxmdtorch(myid)
      rxmdnn_param_obj = mdcontext_rxmdnn()
      mdbase%ff => rxmdnn_param_obj
      if(myid==0) then
