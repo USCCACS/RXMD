@@ -30,6 +30,9 @@ module init
   use msd_mod, only : msd_data, msd_initialize
 
   use nnmm_mod, only : nnmmp, nnmd_setup_system, NN, MM
+
+  use harmonic_potential_mod, only : harmo_pot, show_harmonic_potential_params, harmonic_potential_ctor 
+
 contains
 
 !------------------------------------------------------------------------------------------
@@ -264,6 +267,9 @@ if(isSpring .or. msd_data%is_msd) then
   if(myid==0) write(6,fmt='(a,l3)') 'has_initial_pos:', has_initial_pos
 
 endif
+
+harmo_pot = harmonic_potential_ctor()
+if(harmo_pot%apply .and. myid==0) call show_harmonic_potential_params(harmo_pot)
 
 end subroutine
 

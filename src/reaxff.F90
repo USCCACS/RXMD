@@ -189,7 +189,7 @@ do nstep=0, num_mdsteps-1
    qsfp(1:NATOMS)=qsfp(1:NATOMS)+dt*qsfv(1:NATOMS)
 
 !--- always correct the linear momentum when electric field is applied. 
-   if(isEfield) call linear_momentum(atype, v)
+   call linear_momentum(atype, v)
    pos(1:NATOMS,1:3)=pos(1:NATOMS,1:3)+dt*v(1:NATOMS,1:3)
 
 !--- migrate atoms after positions are updated

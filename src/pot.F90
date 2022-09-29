@@ -5,6 +5,8 @@ module force_mod
   use reaxff_param_mod
   use bo_mod
 
+  use harmonic_potential_mod, only : harmo_pot, apply_harmonic_potential
+
 contains
 
 !----------------------------------------------------------------------------------------------------------------------
@@ -65,6 +67,8 @@ CALL E4b()
 
 if(isSpring) call SpringForce(ipos(1,:,:))
 if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
+
+if(harmo_pot%apply) call apply_harmonic_potential(harmo_pot, NATOMS, atype, pos, f)
 
 CALL ForceBondedTerms(NMINCELL)
 

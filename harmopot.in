@@ -1,0 +1,2 @@
+K    1  5.0                                  # num_K, K_values (kcal/mol/A^2)
+atom 2    1   0.00000   11.45600    4.77333  # global Id, k_type, pos

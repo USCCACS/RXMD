@@ -216,7 +216,7 @@ if(find_cmdline_argc('--spring',idx).or.find_cmdline_argc('-s',idx)) then
     read(argv,*) springConst
     if(myrank==0) then
        print'(a60)',repeat('-',60)
-       print'(a30)','Enabling spring force: springConst: '
+       print'(a60)','Enabling spring force: springConst: '
        print'(f10.5)', springConst 
        print'(a60)',repeat('-',60)
     endif

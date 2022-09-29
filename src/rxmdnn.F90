@@ -3,7 +3,7 @@ module rxmdnn
 !------------------------------------------------------------------------------
   use iso_c_binding
 
-  use utils, only : pi, int_to_str
+  use utils, only : pi, int_to_str, token
   use memory_allocator_mod
   use mpi_mod
 
@@ -30,7 +30,7 @@ module rxmdnn
 
   type(rxmdnn_param),target :: rxmdnn_param_obj
 
-  character(len=:),allocatable,private :: token
+  !character(len=:),allocatable,private :: token
 
   ! timing for 1-feature calc & 2-force inference
   real(8),save,private :: tstart(0:3)=0.0, tfinish(0:3)=0.0
@@ -86,10 +86,10 @@ contains
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, maxnbrs, pos_ptr, type_ptr) 
+    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr) 
        import :: c_int, c_ptr
-       integer(c_int),value :: natoms, maxnbrs
-       type(c_ptr),value :: pos_ptr, type_ptr
+       integer(c_int),value :: natoms, maxnbrs, nbuffer
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 

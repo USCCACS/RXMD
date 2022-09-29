@@ -39,6 +39,7 @@ module utils
     character(len=:),allocatable :: str
   end type
 
+  character(len=:),allocatable :: token
 contains
 
 !-------------------------------------------------------------------------------------------
