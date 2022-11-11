@@ -664,25 +664,25 @@ subroutine get_tokens_and_append_remove_domain(linein, removes)
 !------------------------------------------------------------------------------
   character(len=:),allocatable,intent(in out) :: linein
   type(remove),allocatable,intent(in out) :: removes(:)
-  type(remove) :: remove
+  type(remove) :: rem
 
   if (getstr(linein, token) < 0) stop 'error while reading remove xmin'
-  read(token, *) remove%xmin
+  read(token, *) rem%xmin
   if (getstr(linein, token) < 0) stop 'error while reading remove xmax'
-  read(token, *) remove%xmax
+  read(token, *) rem%xmax
   if (getstr(linein, token) < 0) stop 'error while reading remove ymin'
-  read(token, *) remove%ymin
+  read(token, *) rem%ymin
   if (getstr(linein, token) < 0) stop 'error while reading remove ymax'
-  read(token, *) remove%ymax
+  read(token, *) rem%ymax
   if (getstr(linein, token) < 0) stop 'error while reading remove zmin'
-  read(token, *) remove%zmin
+  read(token, *) rem%zmin
   if (getstr(linein, token) < 0) stop 'error while reading remove zmax'
-  read(token, *) remove%zmax
+  read(token, *) rem%zmax
 
   ! allocate zero-sized array
   if(.not.allocated(removes)) allocate(removes(0)) 
 
-  removes = [removes, remove]
+  removes = [removes, rem]
 
   return
 end subroutine
@@ -692,21 +692,21 @@ subroutine get_tokens_and_append_stripe_domain(linein, stripes)
 !------------------------------------------------------------------------------
   character(len=:),allocatable,intent(in out) :: linein
   type(stripe),allocatable,intent(in out) :: stripes(:)
-  type(stripe) :: stripe 
+  type(stripe) :: str 
 
   if (getstr(linein, token) < 0) stop 'error while reading stripe domain type'
-  stripe%dtype = token
+  str%dtype = token
   if (getstr(linein, token) < 0) stop 'error while reading stripe domain dir'
-  read(token, *) stripe%dir
+  read(token, *) str%dir
   if (getstr(linein, token) < 0) stop 'error while reading stripe domain shift'
-  read(token, *) stripe%shift
+  read(token, *) str%shift
   if (getstr(linein, token) < 0) stop 'error while reading num_stripe domains'
-  read(token, *) stripe%num_stripes
+  read(token, *) str%num_stripes
 
   ! allocate zero-sized array
   if(.not.allocated(stripes)) allocate(stripes(0)) 
 
-  stripes = [stripes, stripe]
+  stripes = [stripes, str]
 
   return
 end subroutine
@@ -927,7 +927,7 @@ do while (.true.)
 end do
 10 close(iunit)
 
-if(myid==0) call dp.show()
+!if(myid==0) call dp.show()
 
 end function
 

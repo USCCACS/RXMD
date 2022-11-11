@@ -239,7 +239,7 @@ subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q)
 class(force_field_class),pointer,intent(in out) :: ff
 
 integer,intent(in out) :: num_atoms 
-real(8),intent(in out),allocatable :: atype(:), pos(:,:), q(:), f(:,:)
+real(8),intent(in out),allocatable, target :: atype(:), pos(:,:), q(:), f(:,:)
 
 integer :: i,j,j1,ity,n_j,stat,idx
 

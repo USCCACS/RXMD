@@ -6,13 +6,11 @@
 # LINKER is linker (optional)
 # LIBS are extra needed libraries (optional) 
 
-#MPIF90 = mpiifort -check all -traceback
-MPIF90 = mpiifort 
-FC = ifx -traceback
+MPIF90 = ftn
+FC = ftn
 
-MPIF90_FLAGS = -O0
-
-FC_FLAGS = -O0 -C -DRXMDNN 
+MPIF90_FLAGS = -O2 -fallow-argument-mismatch
+FC_FLAGS = -O2 -fallow-argument-mismatch -C -DRXMDNN 
 
 # LINKER = 
 # LIBS =
