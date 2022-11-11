@@ -63,9 +63,9 @@ module rxmdnn
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr) bind(c,name="get_nn_force_torch")
+    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr) bind(c,name="get_nn_force_torch")
        import :: c_int, c_ptr
-       integer(c_int),value :: natoms, maxnbrs, nbuffer
+       integer(c_int),value :: natoms, nbuffer, nglobal
        type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
     end subroutine
 
@@ -165,7 +165,8 @@ function rxmdnn_param_ctor(path) result(c)
     linein = trim(adjustl(linein0))
 
     if(getstr(linein, token) > 0) then
-       if(token=='aenet'.or.token=='jaxmd'.or.token=='torch') call get_tokens_and_append_model(linein, c%models)
+       if(token=='aenet'.or.token=='torch') call get_tokens_and_append_model(linein, c%models)
+       if(token=='allegro') call get_tokens_and_append_model_allegro(linein, c%models)
     endif
   end do
   10 rewind(iunit)
@@ -175,6 +176,37 @@ function rxmdnn_param_ctor(path) result(c)
   return
 
 contains
+  !------------------------------------------------------------------------------
+  subroutine get_tokens_and_append_model_allegro(linein, models)
+  !------------------------------------------------------------------------------
+    character(len=:),allocatable,intent(in out) :: linein
+    type(rxmdnn_model_params),allocatable,intent(in out) :: models(:)
+    type(rxmdnn_model_params),allocatable :: mbuf(:)
+    character(len=:),allocatable :: modelpath
+    integer :: i, n_elements
+    real(8) :: mass
+  
+    if (getstr(linein, token) < 0) stop 'error while reading modelpath'
+    modelpath = trim(adjustl(token))
+
+    if (getstr(linein, token) < 0) stop 'error while reading n_elements'
+    read(token, *) n_elements
+
+    ! allocate zero-sized array
+    if(.not.allocated(models)) allocate(models(0)) 
+
+    allocate(mbuf(n_elements))
+    do i = 1, n_elements
+       if (getstr(linein, token) < 0) stop 'error while reading element'
+       mbuf(i)%element = trim(adjustl(token))
+       if (getstr(linein, token) < 0) stop 'error while reading mass'
+       read(token, *) mbuf(i)%mass
+       mbuf(i)%filename = modelpath
+       models = [models, mbuf(i)]
+    enddo
+
+    return
+  end subroutine
 
   !------------------------------------------------------------------------------
   subroutine get_tokens_and_append_model(linein, models)
@@ -223,7 +255,7 @@ force_ptr = c_loc(f(1,1))
 !do i=1, num_atoms
 !print'(i,4f)',i,pos(i,1:3),atype(i)
 !enddo
-call predict_rxmdtorch(NATOMS, NBUFFER, MAXNEIGHBS, pos_ptr, type_ptr, force_ptr) 
+call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr) 
 !print*,'===================== fortran : force ===================='
 !do i=1, num_atoms
 !print'(i,4f)',i,f(i,1:3),atype(i)
@@ -423,28 +455,29 @@ real(8),allocatable,intent(in) :: v(:,:)
 integer :: i,ity,cstep
 real(8) :: tt=0.d0, Etotal
 
-!ke=0.d0
-!do i=1, NATOMS
-!   ity=nint(atype(i))
-!   ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
-!enddo
-!
-!call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-!ke = ke/GNATOMS
-!tt = ke*UTEMP
-!GKE = ke ! FIXME for ctmp = (treq*UTEMP0)/( GKE*UTEMP )
-!
+ke=0.d0
+do i=1, NATOMS
+   ity=nint(atype(i))
+   ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+ke = ke/GNATOMS
+tt = ke*UTEMP
+GKE = ke ! FIXME for ctmp = (treq*UTEMP0)/( GKE*UTEMP )
+
 !call MPI_ALLREDUCE (MPI_IN_PLACE, Epot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 !Epot = Epot/GNATOMS
 !Etotal = Epot + ke
-!
-!if(myid==0) then
-!   
-!   cstep = nstep + current_step 
-!
-!   write(6,'(a,i9,es13.5,f10.3,3x,4f10.5)') &
-!        'MDstep,Etotal,T(K),onestep(sec),force_calc,nbr_calc: ', cstep, Epot + ke, tt, tfinish(0:3)-tstart(0:3)
-!endif
+
+if(myid==0) then
+   
+   cstep = nstep + current_step 
+
+   write(6,'(a,i9,es13.5,f10.3,3x,4f10.5)') &
+           'MDstep,Etotal,T(K): ', cstep, ke, tt
+        !'MDstep,Etotal,T(K),onestep(sec),force_calc,nbr_calc: ', cstep, Epot + ke, tt, tfinish(0:3)-tstart(0:3)
+endif
 
 end subroutine
 

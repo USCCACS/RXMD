@@ -1,5 +1,2 @@
-### PTO system ###
-## model data: element name, AMU, aenet model, cutoff distance
-torch   Pb   207.2  Pb.model_scripted.pt  7.5
-torch   Ti   47.87  Ti.model_scripted.pt  7.5
-torch   O    16.00   O.model_scripted.pt  7.5
+## model path: element name, AMU
+allegro pot/tiny_L1.deploy  2  H 1.0  N 14.0

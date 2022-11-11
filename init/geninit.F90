@@ -166,9 +166,11 @@ character(len=256),intent(in) :: fileName
 character(len=256) :: linein0
 character(len=:),allocatable :: linein, token
 character(len=3) :: c3
-integer :: funit, i
+integer :: funit, i, n, ierr
 
 open(newunit=funit,file=trim(fileName),status='old',form='formatted')
+
+print'(a)', repeat('-',60)
 
 do while (.true.)
   read(funit,'(a)',end=10) linein0
@@ -188,10 +190,29 @@ do while (.true.)
       else
         print*,'ERROR: while processing', trim(linein0)
       endif
+
+    else if(token=='allegro') then
+
+      if(getstr(linein, token)>0) print'(2a)','modelpath: ', trim(token)
+      if(getstr(linein, token)>0) read(token,*) n
+      do i=1, n
+         if(getstr(linein, token)>0) then
+           c3 = token
+           if(.not.allocated(atomNames)) then
+             allocate(character(len=3)::atomNames(1))
+             atomNames(1) = c3
+           else
+             atomNames = [atomNames,c3]
+           endif
+           if(getstr(linein, token)>0) print'(3a)', 'element,amu: ', c3, trim(token)
+         endif
+      enddo
     endif
+
   endif
 
 end do
+print'(a)', repeat('-',60)
 
 10 close(funit)
 
