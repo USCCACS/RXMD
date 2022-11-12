@@ -11,11 +11,13 @@ SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 
 OBJS = $(SRCS:.F90=.o)
 
 
-install_root=/soft/datascience/conda/2022-07-19/pytorch/torch
+#install_root=/soft/datascience/conda/2022-07-19/pytorch/torch
+install_root=/scratch1/knomura/torchapp/libtorch
 
 INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
 TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib 
 TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
+MACROS=
 
 
 EXE := ../rxmd

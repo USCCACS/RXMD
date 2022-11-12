@@ -63,10 +63,11 @@ module rxmdnn
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr) bind(c,name="get_nn_force_torch")
-       import :: c_int, c_ptr
+    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, energy) bind(c,name="get_nn_force_torch")
+       import :: c_int, c_double, c_ptr
        integer(c_int),value :: natoms, nbuffer, nglobal
        type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
+       real(c_double) :: energy
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) bind(c,name="get_maxrc_rxmdnn")
@@ -86,10 +87,11 @@ contains
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr) 
-       import :: c_int, c_ptr
+    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, energy) 
+       import :: c_int, c_ptr, c_double
        integer(c_int),value :: natoms, maxnbrs, nbuffer
        type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
+       real(c_double) :: energy
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 
@@ -234,12 +236,13 @@ contains
 end function
 
 !------------------------------------------------------------------------------
-subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q)
+subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, energy)
 !------------------------------------------------------------------------------
 class(force_field_class),pointer,intent(in out) :: ff
 
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable, target :: atype(:), pos(:,:), q(:), f(:,:)
+real(8),intent(in out) :: energy
 
 integer :: i,j,j1,ity,n_j,stat,idx
 
@@ -255,13 +258,16 @@ force_ptr = c_loc(f(1,1))
 !do i=1, num_atoms
 !print'(i,4f)',i,pos(i,1:3),atype(i)
 !enddo
-call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr) 
+call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, energy) 
 !print*,'===================== fortran : force ===================='
 !do i=1, num_atoms
 !print'(i,4f)',i,f(i,1:3),atype(i)
 !enddo
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+
+f(1:num_atoms,:) = f(1:num_atoms,:)*Eev_kcal
+energy = energy*Eev_kcal
 
 end subroutine
 
@@ -273,6 +279,7 @@ use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, s
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
+real(8) :: nn_energy
 
 character(len=:),allocatable :: filebase
 
@@ -281,7 +288,7 @@ integer :: i,ity
 
 if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
-call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q)
+call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy)
 
 filebase = GetFileNameBase(DataDir,-1)
 
@@ -290,7 +297,7 @@ call cpu_time(cpu0)
 !--- set force model
 do nstep=0, num_mdsteps-1
 
-  if(mod(nstep,pstep)==0) call print_e_rxmdnn(atype, v, q)
+  if(mod(nstep,pstep)==0) call print_e_rxmdnn(atype, v, q, nn_energy)
 
   call cpu_time(tstart(0))
 
@@ -335,7 +342,7 @@ do nstep=0, num_mdsteps-1
                   v=v,f=f,q=q,ipos=ipos)
 
    call cpu_time(cpu1)
-   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q)
+   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy)
    call cpu_time(cpu2)
    comp = comp + (cpu2-cpu1)
 
@@ -440,7 +447,7 @@ return
 end subroutine
 
 !-------------------------------------------------------------------------------------------
-subroutine print_e_rxmdnn(atype, v, q)
+subroutine print_e_rxmdnn(atype, v, q, nn_energy)
 use mpi_mod
 use base, only : hh, hhi, natoms, gnatoms, mdbox, myid, ierr, hmas, wt0
 use atoms
@@ -451,9 +458,12 @@ implicit none
 
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: v(:,:)
+real(8),intent(in out) :: nn_energy
 
 integer :: i,ity,cstep
 real(8) :: tt=0.d0, Etotal
+
+call MPI_ALLREDUCE (MPI_IN_PLACE, nn_energy, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 ke=0.d0
 do i=1, NATOMS
@@ -462,20 +472,15 @@ do i=1, NATOMS
 enddo
 
 call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-ke = ke/GNATOMS
-tt = ke*UTEMP
-GKE = ke ! FIXME for ctmp = (treq*UTEMP0)/( GKE*UTEMP )
-
-!call MPI_ALLREDUCE (MPI_IN_PLACE, Epot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
-!Epot = Epot/GNATOMS
-!Etotal = Epot + ke
+tt = ke/GNATOMS*UTEMP
+Etotal = ke + nn_energy 
 
 if(myid==0) then
    
    cstep = nstep + current_step 
 
-   write(6,'(a,i9,es13.5,f10.3,3x,4f10.5)') &
-           'MDstep,Etotal,T(K): ', cstep, ke, tt
+   write(6,'(a,i9,3es13.5,f10.3)') &
+           'MDstep,Etotal,KE,PE,T(K): ', cstep, Etotal, ke, nn_energy, tt
         !'MDstep,Etotal,T(K),onestep(sec),force_calc,nbr_calc: ', cstep, Epot + ke, tt, tfinish(0:3)-tstart(0:3)
 endif
 

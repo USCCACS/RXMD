@@ -78,7 +78,7 @@ struct RXMDNN
 	}
 
 	void get_nn_force(int const nlocal, int const ntotal, int const nbuffer, 
-			void *pos_voidptr, void *type_voidptr, void *force_voidptr)
+			void *pos_voidptr, void *type_voidptr, void *force_voidptr, double &energy)
 	{
 		//std::cout << "nlocal,ntotal,nbuffer" << nlocal << " " << ntotal << " " << nbuffer<< std::endl;
 		double *pos_vec0 = (double *) pos_voidptr;
@@ -152,7 +152,7 @@ struct RXMDNN
 			if(i >= nlocal) continue;
 
 			int edge_counter = cumsum_neigh_per_atom[i];
-			for(int j1 = 0; j1 < nbrlist[i].size(); j1++)
+			for(int j1 = 0; j1 < (int)nbrlist[i].size(); j1++)
 			{
 				int j = nbrlist[i][j1];
 
@@ -201,6 +201,7 @@ struct RXMDNN
   		}
 
 		//std::cout << "total energy eng_vdwl: " << eng_vdwl << std::endl;
+		energy = eng_vdwl;
 	}
 };
 
@@ -231,22 +232,25 @@ extern "C" void init_rxmdtorch(int myrank)
                         ss >> mass[i];
                 }
 
-                std::cout << "modelpath: " << modelpath << std::endl;
-                std::cout << "n_spieces: " << n_spieces<< std::endl;
-                for(int i=0; i<n_spieces; i++) std::cout << element[i] << " " << mass[i] << ", ";
-                std::cout << std::endl;
+		if(myrank == 0)
+		{
+                	std::cout << "modelpath: " << modelpath << std::endl;
+                	std::cout << "n_spieces: " << n_spieces<< std::endl;
+                	for(int i=0; i<n_spieces; i++) std::cout << element[i] << " " << mass[i] << ", ";
+                	std::cout << std::endl;
+		}
         }
 
-	std::cout << "init_rxmdtorch : myrank " << myrank << std::endl;
+	//std::cout << "init_rxmdtorch : myrank " << myrank << std::endl;
 	rxmdnn_ptr = std::make_unique<RXMDNN>(myrank, modelpath);
 }
 
 extern "C" void get_nn_force_torch(int nlocal, int ntotal, int nbuffer, 
-		void *pos_ptr, void *type_ptr, void *force_ptr)
+		void *pos_ptr, void *type_ptr, void *force_ptr, double &energy)
 {
 	//std::cout << "nlocal,nbuffer " << nlocal << " " << nbuffer << std::endl;
 	const auto start = std::chrono::steady_clock::now();
-	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr);
+	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, energy);
 	const auto end = std::chrono::steady_clock::now();
 	//std::cout << "time(s) " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()*1e-6 << std::endl;
 }
