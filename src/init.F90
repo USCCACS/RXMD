@@ -33,6 +33,8 @@ module init
 
   use harmonic_potential_mod, only : harmo_pot, show_harmonic_potential_params, harmonic_potential_ctor 
 
+  use velocity_modifiers_mod, only : gaussian_dist_velocity
+
 contains
 
 !------------------------------------------------------------------------------------------
@@ -183,6 +185,7 @@ if (isSpring) then
   write(6,'(a)') repeat('-',60)
 endif
 
+
 !--- print out parameters and open data file
 if(myid==0) then
    write(6,'(a)') repeat('-',60)
@@ -270,6 +273,9 @@ endif
 
 harmo_pot = harmonic_potential_ctor()
 if(harmo_pot%apply .and. myid==0) call show_harmonic_potential_params(harmo_pot)
+
+!--- set initial velocity if this is the first step
+if(current_step==0) call gaussian_dist_velocity(atype, v)
 
 end subroutine
 

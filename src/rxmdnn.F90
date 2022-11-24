@@ -251,21 +251,15 @@ call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 
 f=0.d0
 
+! for Fortran/C interface
 pos_ptr = c_loc(pos(1,1))
 type_ptr = c_loc(atype(1))
 force_ptr = c_loc(f(1,1))
-!print*,'===================== fortran : position ===================='
-!do i=1, num_atoms
-!print'(i,4f)',i,pos(i,1:3),atype(i)
-!enddo
 call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, energy) 
-!print*,'===================== fortran : force ===================='
-!do i=1, num_atoms
-!print'(i,4f)',i,f(i,1:3),atype(i)
-!enddo
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
+! don't forget to convert energy to kcal/mol
 f(1:num_atoms,:) = f(1:num_atoms,:)*Eev_kcal
 energy = energy*Eev_kcal
 
@@ -357,6 +351,7 @@ enddo
 call OUTPUT(filebase, atype, pos, v, q, v)
 
 !--- update rxff.bin in working directory for continuation run
+filebase = GetFileNameBase(DataDir,-1)
 call WriteBIN(atype, pos, v, q, filebase)
 
 !--- save result if msd_data%is_msd == true
@@ -476,12 +471,8 @@ tt = ke/GNATOMS*UTEMP
 Etotal = ke + nn_energy 
 
 if(myid==0) then
-   
    cstep = nstep + current_step 
-
-   write(6,'(a,i9,3es13.5,f10.3)') &
-           'MDstep,Etotal,KE,PE,T(K): ', cstep, Etotal, ke, nn_energy, tt
-        !'MDstep,Etotal,T(K),onestep(sec),force_calc,nbr_calc: ', cstep, Epot + ke, tt, tfinish(0:3)-tstart(0:3)
+   write(6,'(a,i9,3es13.5,f10.3)') 'MDstep,Etotal,KE,PE,T(K): ', cstep, Etotal, ke, nn_energy, tt
 endif
 
 end subroutine

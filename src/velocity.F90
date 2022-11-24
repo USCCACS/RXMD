@@ -25,10 +25,21 @@ implicit none
 real(8),allocatable,intent(in) :: atype(:)
 real(8),allocatable,intent(in out):: v(:,:)
 real(8),intent(in) :: t_target
-real(8) :: ctmp
+integer :: i, ity
+real(8) :: ctmp, EKinetic
 
-   ctmp = (t_target*UTEMP0)/(GKE*UTEMP)
-   v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
+Ekinetic=0.d0
+
+do i=1, NATOMS
+   ity=nint(atype(i))
+   Ekinetic=Ekinetic+0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Ekinetic=Ekinetic/GNATOMS
+
+ctmp = (t_target*UTEMP0)/(Ekinetic*UTEMP)
+v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
 
 end subroutine
 
