@@ -130,7 +130,7 @@ subroutine xyz_aggregator_reset(this)
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(fileNameBase, atype, pos, v, q, f)
+subroutine OUTPUT(fileNameBase, atype, pos, v, q, f, energy)
 !----------------------------------------------------------------------------------------
 implicit none
 
@@ -138,6 +138,7 @@ character(len=:),allocatable,intent(in) :: fileNameBase
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
 real(8),allocatable,intent(in),optional :: f(:,:)
+real(8),optional :: energy
 
 character(len=:),allocatable :: filename
 
@@ -166,7 +167,7 @@ else
      if( find_cmdline_argc('--xyz_pto',idx)) then
        call WriteXYZ_PTO(fileNameBase, atype, pos, v, q, f)
      else
-       call WriteXYZ(fileNameBase, atype, pos, v, q, f)
+       call WriteXYZ(fileNameBase, atype, pos, v, q, f, energy)
      endif
   endif
 
@@ -603,12 +604,13 @@ end subroutine
 
 
 !--------------------------------------------------------------------------
-subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f)
+subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f, energy)
 !--------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
 real(8),allocatable,intent(in),optional :: f(:,:)
+real(8),intent(in),optional :: energy
 
 character(*),intent(in) :: fileNameBase
 
@@ -620,23 +622,38 @@ integer :: localDataSize
 integer :: fh ! file handler
 
 integer :: OneLineSize, MetaDataSize
-character(60) :: a60
+character(256) :: a256
 character(len=:),allocatable :: OneLine,AllLines
 
 integer :: scanbuf
 
 integer :: ti,tj,tk
+
+character(len=:),allocatable :: header
+integer :: header_size
+
 call system_clock(ti,tk)
 
-MetaDataSize = 9 + 60 + 2
-write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
+
+write(a256, '(a10,f0.2,8f10.2,a2 $)') 'Lattice="', lata,0d0,0d0, 0d0,latb,0d0, 0d0,0d0,latc, '" '
+header=adjustl(trim(a256))
+
+if(present(energy)) then
+  write(a256, '(a10,f0.5 $)') 'energy=', energy
+  header=header//adjustl(trim(a256))
+endif
+header=header//'Properties=species:S:1:pos:R:3:charge:R:1:forces:R:3 pbc="T T T" config_type=md'
+header_size=len(adjustl(trim(header)))
+!print*,header_size, header
+
+MetaDataSize = 9 + header_size + 2
 
 if(isPQEq) then
   ! name + pos(i,1:3) + q(i) + gid + spos(i,1:3) + newline
-  OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
+  OneLineSize = 3 + 60 + 20 + 60 + 9 +  1 
 else if(present(f)) then
   ! name + pos(i,1:3) + q(i) + gid + f(i,1:3) + newline
-  OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
+  OneLineSize = 3 + 60 + 20 + 60 + 9 + 1 
 else
   ! name + pos(i,1:3) + q(i) + gid + newline
   OneLineSize = 3 + 36 + 8 + 9 + 1 
@@ -673,7 +690,7 @@ idx0=1 ! allline index
 if(myid==0) then
   write(AllLines(idx0:idx0+8),'(i9)') GNATOMS; idx0=idx0+9
   write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
-  write(AllLines(idx0:idx0+59),'(a60)') a60; idx0=idx0+60
+  write(AllLines(idx0:idx0+header_size-1),'(a)') header; idx0=idx0+header_size
   write(AllLines(idx0:idx0),'(a1)') new_line('A'); idx0=idx0+1
 endif
 
@@ -695,15 +712,15 @@ do i=1, NATOMS
      write(OneLine(idx1:idx1+7),'(3f8.3)') q(i); idx1=idx1+8
   endif
 
-! global Id
-  write(OneLine(idx1:idx1+8),'(i9)') igd; idx1=idx1+9
-
 ! shell charge positions with high precision for dielectric calculation
   if(isPQEq) then
      write(OneLine(idx1:idx1+59),'(3es20.12)') spos(i,1:3); idx1=idx1+60
   else if(present(f)) then
      write(OneLine(idx1:idx1+59),'(3es20.12)') f(i,1),f(i,2),f(i,3); idx1=idx1+60
   endif
+
+! global Id
+  write(OneLine(idx1:idx1+8),'(i9)') igd; idx1=idx1+9
 
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 

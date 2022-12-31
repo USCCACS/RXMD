@@ -156,7 +156,7 @@ do nstep=0, num_mdsteps-1
 
    if(mod(nstep,fstep)==0) then
       filebase = GetFileNameBase(DataDir,current_step+nstep)
-      call OUTPUT(filebase, atype, pos, v, q)
+      call OUTPUT(filebase, atype, pos, v, q, f, GPEtot)
    endif
 
    if(mod(nstep,sstep)==0.and.mdmode==4) &
@@ -216,7 +216,7 @@ enddo
 
 !--- save the final configurations
 filebase = GetFileNameBase(DataDir,current_step+nstep)
-call OUTPUT(filebase, atype, pos, v, q)
+call OUTPUT(filebase, atype, pos, v, q, f, GPEtot)
 
 !--- update rxff.bin in working directory for continuation run
 filebase = GetFileNameBase(DataDir,-1)

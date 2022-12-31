@@ -81,7 +81,7 @@ real(8),allocatable,target :: frcindx(:)
 integer :: copyptr(0:6)
 
 !--- total, kinetic and potential energies (local and global)
-real(8) :: TE, KE, PE0, GTE, GKE, GPE0
+real(8) :: TE, KE, PE0, GTE, GKE, GPE0, GPEtot
 
 !--- RXMD parameters
 ! <mdmode> determines MD mode

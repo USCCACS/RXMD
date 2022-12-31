@@ -1,7 +1,7 @@
 module force_mod
 
   use base, only : header, lcsize, llist, nacell, &
-                   ipos, isSpring, springconst, hasspringforce
+                   ipos, isSpring, springconst, hasspringforce, GPEtot
   use reaxff_param_mod
   use bo_mod
 
@@ -96,6 +96,9 @@ do i=1, NATOMS
 enddo
 close(81)
 #endif
+
+GPEtot=sum(PE(1:13))
+call MPI_ALLREDUCE (MPI_IN_PLACE, GPEtot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 return
 
