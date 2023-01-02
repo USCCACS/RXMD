@@ -54,7 +54,7 @@ velocity.o : module.o
 
 lists.o : module.o utils.o
 fnn.o : module.o comm.o lists.o fileio.o shortrep.o nnmm.o
-rxmdnn.o : module.o cmdline.o utils.o fileio.o comm.o velocity.o msd.o
+rxmdnn.o : module.o cmdline.o utils.o fileio.o comm.o velocity.o msd.o qeq.o
 
 cmdline.o : utils.o module.o memory.o nnmm.o
 msd.o : utils.o module.o

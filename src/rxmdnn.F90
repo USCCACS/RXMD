@@ -13,6 +13,8 @@ module rxmdnn
   use msd_mod, only : msd_data, msd_add_initial_pos, msd_measure, msd_save
   use velocity_modifiers_mod
   use fileio
+
+  use qeq_mod
  
   implicit none
 
@@ -288,6 +290,7 @@ filebase = GetFileNameBase(DataDir,-1)
 
 call cpu_time(cpu0)
 
+
 !--- set force model
 do nstep=0, num_mdsteps-1
 
@@ -335,8 +338,11 @@ do nstep=0, num_mdsteps-1
    call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
                   v=v,f=f,q=q,ipos=ipos)
 
+   !print*,'ff_type_flag ', ff_type_flag, ff_type_flag == TYPE_NNQEQ
+
    call cpu_time(cpu1)
    call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy)
+   if (ff_type_flag == TYPE_NNQEQ) call QEq(atype, pos, q)
    call cpu_time(cpu2)
    comp = comp + (cpu2-cpu1)
 

@@ -104,7 +104,7 @@ REAL(8) :: ftol
 
 
 character(len=:),allocatable :: forcefield_type
-integer,parameter :: TYPE_REAXFF=1, TYPE_FNN=2, TYPE_RXMDNN=3
+integer,parameter :: TYPE_REAXFF=1, TYPE_FNN=2, TYPE_RXMDNN=3, TYPE_NNQEQ=4
 integer :: ff_type_flag = 0
 logical :: is_reaxff=.false., is_fnn=.false., is_rxmdnn=.false., is_nnmm=.false.
 

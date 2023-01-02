@@ -95,6 +95,7 @@ enddo
 ff_type_flag = TYPE_REAXFF
 if(is_fnn) ff_type_flag = TYPE_FNN
 if(is_rxmdnn) ff_type_flag = TYPE_RXMDNN
+if(find_cmdline_argc('--nnqeq',i)) ff_type_flag = TYPE_NNQEq
 
 select case (ff_type_flag)
 
@@ -120,9 +121,18 @@ select case (ff_type_flag)
      call allocate_nbrdist_rxmdnn(NATOMS)
 
   case(TYPE_REAXFF)
-    call mdcontext_reaxff()
-    call set_potentialtables_reaxff()
-    if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
+     call mdcontext_reaxff()
+     call set_potentialtables_reaxff()
+     if(myid==0) print*,'get_mdcontext_func : mdcontext_reaxff'
+
+  case(TYPE_NNQEq)
+     if(myid==0) print*,'get_mdcontext_func : reaxff & rxmdnn', ff_type_flag
+     call mdcontext_reaxff()
+     call set_potentialtables_reaxff()
+
+     call init_rxmdtorch(myid)
+     rxmdnn_param_obj = mdcontext_rxmdnn()
+     mdbase%ff => rxmdnn_param_obj
 
   case default
     if(myid==0) print*,'ERROR: an unknown force field type found in init(): ', ff_type_flag
@@ -161,6 +171,11 @@ select case (ff_type_flag)
    case(TYPE_REAXFF)
 !--- get cutoff distance based on the bond-order
      call get_cutoff_bondorder(rc, rc2, maxrc, natoms_per_type)
+!--- setup 10[A] radius mesh to avoid visiting unecessary cells 
+     call GetNonbondingMesh()
+
+   case(TYPE_NNQEQ)
+     call get_maxrc_rxmdnn(maxrc)
 !--- setup 10[A] radius mesh to avoid visiting unecessary cells 
      call GetNonbondingMesh()
 
@@ -309,6 +324,10 @@ num_models = size(fp%models)
 
 num_types = num_models
 num_pairs = num_types*(num_types+1)/2
+
+!FIXME for NNQEq. need to reconcile two definisions of mass and atmname.
+if(allocated(mass)) deallocate(mass)
+if(allocated(atmname)) deallocate(atmname)
 
 allocate(mass(num_models), atmname(num_models))
 do i=1, num_models
