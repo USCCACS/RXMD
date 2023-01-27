@@ -68,7 +68,7 @@ CALL E4b()
 if(isSpring) call SpringForce(ipos(1,:,:))
 if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
 
-if(harmo_pot%apply) call apply_harmonic_potential(harmo_pot, NATOMS, atype, pos, f)
+if(harmo_pot%apply) call apply_harmonic_potential(harmo_pot, NATOMS, atype, pos, f, nbrlist, bo, PE(1))
 
 CALL ForceBondedTerms(NMINCELL)
 
