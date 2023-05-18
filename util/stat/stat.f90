@@ -382,8 +382,8 @@ contains
      do i=1, size(oneframe%elems)
         if( get_index(elems1,oneframe%elems(i)%str) < 0 ) then
             ne=ne+1
-            print*,i, ne, elems1(ne)%str, oneframe%elems(i)%str
             elems1(ne)%str = oneframe%elems(i)%str
+            !print*, i, ne, elems1(ne)%str, oneframe%elems(i)%str
         endif
      enddo
 
@@ -395,13 +395,13 @@ contains
      !do j=1, size(c%elems); print*,'foo',i,size(c%elems), c%elems(j)%str; enddo
 
      ! setup neutron scattering length data for existing atom types
-     allocate(c%NSD(0), c%AFF(0))
+     allocate(c%NSD(ne), c%AFF(ne))
      do i=1, size(c%elems)
         do j=1, size(NSD0)
-           if(c%elems(i)%str==NSD0(j)%name) c%NSD = [c%NSD, NSD0(j)]
+           if(c%elems(i)%str==NSD0(j)%name) c%NSD(i) = NSD0(j)
         enddo
         do j=1, size(AFF0)
-           if(c%elems(i)%str==AFF0(j)%name) c%AFF = [c%AFF, AFF0(j)]
+           if(c%elems(i)%str==AFF0(j)%name) c%AFF(i) = AFF0(j)
         enddo
      enddo
 
@@ -469,6 +469,7 @@ contains
     integer :: idx
 
     do idx = 1, size(elems)
+       if(.not. allocated(elems(idx)%str)) cycle
        if (elems(idx)%str==name) return 
     enddo
     idx = -1
