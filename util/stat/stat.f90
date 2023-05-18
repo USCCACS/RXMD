@@ -26,16 +26,18 @@ module stat_mod
      real(8) :: length
   end type
 
-  ! neutron scattering length data are from 
+  ! neutron scattering length data (Coh b) are from 
   !  https://www.nist.gov/ncnr/neutron-scattering-lengths-list
-  type(NSD_type),parameter :: NSD0(14)=[&
+  type(NSD_type),parameter :: NSD0(17)=[&
           NSD_type(name='Ge',length=8.185d-5),  NSD_type(name='Se',length=7.970d-5), &
           NSD_type(name='Sb',length=5.57d-5),   NSD_type(name='Te',length=5.80d-5), & 
           NSD_type(name='C', length=6.646d-5),  NSD_type(name='Si',length=4.1491d-5), &
           NSD_type(name='O', length=5.803d-5),  NSD_type(name='Al',length=3.449d-5), &
           NSD_type(name='H', length=-3.7390d-5),NSD_type(name='Na',length=3.63d-5), &
           NSD_type(name='Cl',length=9.5770d-5), NSD_type(name='Pb',length=9.405d-5), &
-          NSD_type(name='Ti',length=-3.4380d-5),NSD_type(name='N', length=9.36d-5)  &
+          NSD_type(name='Ti',length=-3.4380d-5),NSD_type(name='N', length=9.36d-5),  &
+          NSD_type(name='Li',length=-1.90d-5),  NSD_type(name='K', length=3.63d-5),  &
+          NSD_type(name='Na',length=3.63d-5) &
           ]
 
   type AFF_type ! Atomic Form Factor type
@@ -367,15 +369,30 @@ contains
 
      character(len=2) :: A,B
 
+     integer,parameter :: MAXELEMS=16
+     type(string_array),allocatable :: elems1(:)
+
+     allocate(elems1(MAXELEMS))
+
      c%num_atoms = oneframe%num_atoms
      c%lattice = oneframe%lattice
      c%volume = oneframe%lattice(1)*oneframe%lattice(2)*oneframe%lattice(3)
 
-     allocate(c%elems(0))
+     ne=0
      do i=1, size(oneframe%elems)
-        if( get_index(c%elems,oneframe%elems(i)%str) < 0 ) &
-            c%elems = [c%elems, string_array(oneframe%elems(i)%str)]
+        if( get_index(elems1,oneframe%elems(i)%str) < 0 ) then
+            ne=ne+1
+            print*,i, ne, elems1(ne)%str, oneframe%elems(i)%str
+            elems1(ne)%str = oneframe%elems(i)%str
+        endif
      enddo
+
+     allocate(c%elems(ne))
+     do i=1, ne
+        c%elems(i)%str = elems1(i)%str
+     enddo
+
+     !do j=1, size(c%elems); print*,'foo',i,size(c%elems), c%elems(j)%str; enddo
 
      ! setup neutron scattering length data for existing atom types
      allocate(c%NSD(0), c%AFF(0))
