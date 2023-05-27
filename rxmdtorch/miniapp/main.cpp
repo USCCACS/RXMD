@@ -4,7 +4,7 @@
 
 int main(void)
 {
-	int nlocal=3, ntotal=3, nbuffer=5;
+	int nlocal=4, ntotal=4, nbuffer=100;
 	double energy = -1.0;
 
 	std::vector<double> pos0 = { 
@@ -30,7 +30,6 @@ int main(void)
 	std::cout << "in reproducer main()\n";
 
 	init_rxmdtorch(0);
-
 	get_nn_force_torch(nlocal, ntotal, nbuffer, pos.data(), atype.data(), f.data(), energy);
 
 	for(int i=0; i<4; i++)
