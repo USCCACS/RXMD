@@ -14,12 +14,24 @@ module stat_mod
   end type
 
   real(8),parameter :: BARC0=4d0
-  type(bond_length) :: bond_length0(2) = [ &
-                       bond_length('H','N',1.2d0), &
-                       bond_length('Na','O',3.0d0) &
+!  type(bond_length) :: bond_length0(2) = [ &
+!                       bond_length('H','N',1.2d0), &
+!                       bond_length('Na','O',3.0d0) &
+!                       ]
+!                       !bond_length('H','O',1.0d0), &
+!                       !bond_length('Na','O',2.0d0) &
+
+  type(bond_length) :: bond_length0(9) = [ &
+                       bond_length('H','O',1.2d0), &
+                       bond_length('Na','O',3.3d0), &
+                       bond_length('Li','O',3.0d0), &
+                       bond_length('K','O',3.5d0), &
+                       bond_length('Li','H',3.2d0), &
+                       bond_length('K','H',4.2d0), &
+                       bond_length('Na','H',3.8d0), &
+                       bond_length('H','H',1.8d0), &
+                       bond_length('O','O',3.2d0) &
                        ]
-                       !bond_length('H','O',1.0d0), &
-                       !bond_length('Na','O',2.0d0) &
 
   type NSD_type ! Neutron Scattering Data type
      character(len=2) :: name
@@ -28,12 +40,12 @@ module stat_mod
 
   ! neutron scattering length data (Coh b) are from 
   !  https://www.nist.gov/ncnr/neutron-scattering-lengths-list
-  type(NSD_type),parameter :: NSD0(17)=[&
+  type(NSD_type),parameter :: NSD0(16)=[&
+          NSD_type(name='H', length=6.671d-5), & ! H=-3.7406d-5, D=6.671d-5, T=4.792d-5
           NSD_type(name='Ge',length=8.185d-5),  NSD_type(name='Se',length=7.970d-5), &
           NSD_type(name='Sb',length=5.57d-5),   NSD_type(name='Te',length=5.80d-5), & 
           NSD_type(name='C', length=6.646d-5),  NSD_type(name='Si',length=4.1491d-5), &
           NSD_type(name='O', length=5.803d-5),  NSD_type(name='Al',length=3.449d-5), &
-          NSD_type(name='H', length=-3.7390d-5),NSD_type(name='Na',length=3.63d-5), &
           NSD_type(name='Cl',length=9.5770d-5), NSD_type(name='Pb',length=9.405d-5), &
           NSD_type(name='Ti',length=-3.4380d-5),NSD_type(name='N', length=9.36d-5),  &
           NSD_type(name='Li',length=-1.90d-5),  NSD_type(name='K', length=3.63d-5),  &
@@ -202,7 +214,7 @@ contains
 !-----------------------------------------------------------------------------------------
      class(analysis_context) :: this
      integer :: iunit,ity,jty,kty,k,kk,l
-     real(8) :: dr, rho, dqk, Sxq, Sxq_denom, Snq, Snq_denom, Gnr, Gnr_denom, prefactor, prefactor2, bavalue
+     real(8) :: dr, rho, dqk, Sxq, Sxq_denom, Snq, Snq_denom, Gtotal, Gnr, Gnr_denom, prefactor, prefactor2, bavalue
      character(len=1) :: a1
 
      ! get the number density, rho
@@ -215,14 +227,14 @@ contains
      do ity=1,size(this%elems); 
      do jty=1,size(this%elems)
         write(unit=iunit,fmt='(a12, 1x)', advance='no') & 
-           this%elems(ity)%str//'-'//this%elems(jty)%str//'(gr),'
+           this%elems(ity)%str//'-'//this%elems(jty)%str//'(Gr),'
      enddo; enddo
      do ity=1,size(this%elems);
      do jty=1,size(this%elems)
         write(unit=iunit,fmt='(a12, 1x)', advance='no') & 
-           this%elems(ity)%str//'-'//this%elems(jty)%str//'(nr),'
+           this%elems(ity)%str//'-'//this%elems(jty)%str//'(Nr),'
      enddo; enddo
-     write(unit=iunit,fmt='(a)') ' neutron_gr'
+     write(unit=iunit,fmt='(a)') ' Gtotal,  Gnr'
 
      Gnr_denom = sum(this%NSD(:)%length * this%concentration(:))
      Gnr_denom = Gnr_denom**2
@@ -241,7 +253,7 @@ contains
         prefactor = 4.d0*pi*dr*dr*rho/DRI
         write(unit=iunit,fmt='(f12.5,1x,a1)',advance='no') dr,','
 
-        Gnr = 0.d0
+        Gtotal=0.d0; Gnr = 0.d0
         do ity=1,size(this%elems)
         do jty=1,size(this%elems)
 
@@ -252,13 +264,15 @@ contains
           Gnr = Gnr + this%gr(ity,jty,k) * &
                       this%concentration(ity) * this%concentration(jty) * & 
                       this%NSD(ity)%length * this%NSD(jty)%length
+          Gtotal = Gtotal + this%gr(ity,jty,k) * &
+                      this%concentration(ity) * this%concentration(jty)
         enddo; enddo
 
         do ity=1,size(this%elems)
         do jty=1,size(this%elems)
            write(iunit, fmt='(f12.5,1x,a1)',advance='no') this%nr(ity,jty,k),','
         enddo; enddo
-        write(iunit, fmt='(f12.5)') Gnr/Gnr_denom
+        write(iunit, fmt='(f12.5,a1,f12.5)') Gtotal, ',', Gnr/Gnr_denom
      enddo
 
      close(iunit)

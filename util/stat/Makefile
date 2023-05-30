@@ -1,6 +1,7 @@
 #FC=gfortran
 #FFLAGS=-fcheck=all -fbacktrace 
-FC=ifort
+#FC=ifort
+FC=ifx
 FFLAGS=-check all -traceback -check noarg_temp_created
 
 all:
