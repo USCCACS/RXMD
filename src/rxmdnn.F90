@@ -85,12 +85,10 @@ contains
 contains
 
     subroutine init_rxmdtorch(myrank) 
-       import :: c_int
        integer(c_int),value :: myrank
     end subroutine
 
     subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, energy) 
-       import :: c_int, c_ptr, c_double
        integer(c_int),value :: natoms, maxnbrs, nbuffer
        type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
        real(c_double) :: energy
