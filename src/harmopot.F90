@@ -43,7 +43,7 @@ contains
    character(len=:),allocatable,intent(in) :: message
    character(len=:),allocatable :: buf
    character(64) :: out_fmt
-   integer :: rank, num_size, ierr, mystatus
+   integer :: rank, num_size, ierr, mystatus(MPI_STATUS_SIZE) 
 
    if (myrank==0) then
 
@@ -63,9 +63,9 @@ contains
       enddo
    else
        !print*,myrank, message
-       call MPI_Send(len(message), 1, MPI_INTEGER, 0, 1112, MPI_COMM_WORLD, mystatus, ierr)
+       call MPI_Send(len(message), 1, MPI_INTEGER, 0, 1112, MPI_COMM_WORLD, ierr)
        if (len(message) > 0) &
-           call MPI_Send(message, len(message), MPI_CHARACTER, 0, 1113, MPI_COMM_WORLD, mystatus, ierr)
+           call MPI_Send(message, len(message), MPI_CHARACTER, 0, 1113, MPI_COMM_WORLD, ierr)
    endif
 
   end subroutine
