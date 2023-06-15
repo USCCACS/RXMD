@@ -16,6 +16,8 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
+#define BATCH_SIZE 8192
+
 struct RXMDNN
 {
 	int myrank, nlocal, ntotal; 
@@ -116,81 +118,84 @@ struct RXMDNN
 
 		// Cumulative sum of neighbors, for knowing where to fill in the edges tensor
 		std::vector<int> cumsum_neigh_per_atom(nlocal);
-
 		for(int ii = 1; ii < nlocal; ii++)
 			cumsum_neigh_per_atom[ii] = cumsum_neigh_per_atom[ii-1] + neigh_per_atom[ii-1];
 
 		torch::Tensor pos_tensor = torch::zeros({ntotal, 3});
-		torch::Tensor edges_tensor = torch::zeros({2,nedges}, torch::TensorOptions().dtype(torch::kInt64));
 		torch::Tensor ij2type_tensor = torch::zeros({ntotal}, torch::TensorOptions().dtype(torch::kInt64));
 
 		auto pos = pos_tensor.accessor<float, 2>();
-		auto edges = edges_tensor.accessor<long, 2>();
 		auto ij2type = ij2type_tensor.accessor<long, 1>();
 
 		// set position and type for all atoms including buffer atoms, 
 		// but set complete edge information only for resident atoms. 
 		for(int i = 0; i < ntotal; i++)
 		{
-			//ij2type[i] = type_mapper[itype - 1];
 			ij2type[i] = (int)type_vec[i] - 1;
 
 			pos[i][0] = pos_[3*i];
 			pos[i][1] = pos_[3*i+1];
 			pos[i][2] = pos_[3*i+2];
-
-			//std::cout << ij2type[i] << " " << pos[i][0] << " " << pos[i][1] << " " << pos[i][2] << std::endl;
-
-			if(i >= nlocal) continue;
-
-			int edge_counter = cumsum_neigh_per_atom[i];
-			for(int j1 = 0; j1 < (int)nbrlist[i].size(); j1++)
-			{
-				int j = nbrlist[i][j1];
-
-				// TODO: double check order
-				edges[0][edge_counter] = i;
-				edges[1][edge_counter] = j;
-
-				edge_counter++;
-			}
     		}
+		pos_tensor = pos_tensor.to(device);
+		ij2type_tensor = ij2type_tensor.to(device);
 
-		c10::Dict<std::string, torch::Tensor> input;
-		input.insert("pos", pos_tensor.to(device));
-		input.insert("edge_index", edges_tensor.to(device));
-		input.insert("atom_types", ij2type_tensor.to(device));
-		std::vector<torch::IValue> input_vector(1, input);
-
-		auto output = model.forward(input_vector).toGenericDict();
-
-		torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
-		auto forces = forces_tensor.accessor<float, 2>();
-
-		//torch::Tensor total_energy_tensor = output.at("total_energy").toTensor().cpu(); WRONG WITH MPI
-
-		torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
-		auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
-		float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
-
-		/*
-		std::cout << "atomic energy sum: " << atomic_energy_sum << std::endl;
-		//std::cout << "Total energy: " << total_energy_tensor << "\n";
-		std::cout << "atomic energy shape: " << atomic_energy_tensor.sizes()[0] << "," << atomic_energy_tensor.sizes()[1] << std::endl;
-		std::cout << "atomic energies: " << atomic_energy_tensor << std::endl;
-		*/
-
-		// Write forces and per-atom energies (0-based tags here)
 		double eng_vdwl = 0.0;
 
-		for(int i = 0; i < ntotal; i++)
+		int batch_size = BATCH_SIZE; 
+		int n_batches = nlocal/batch_size; 
+
+		for (int nb = 0; nb <= n_batches; nb++)
 		{
-			force_vec[i] = forces[i][0];
-			force_vec[nbuffer+i] = forces[i][1];
-			force_vec[2*nbuffer+i] = forces[i][2];
-			//if (eflag_atom && i < nlocal) eatom[i] = atomic_energies[i][0];
-			if(i < nlocal) eng_vdwl += atomic_energies[i][0];
-  		}
+			int n_start = nb*batch_size;
+			int n_end = std::min((nb+1)*batch_size, nlocal); 
+
+			//std::cout << n_start << " " << n_end << " " << nlocal << std::endl;
+
+			int nedges = 0;
+			for(int i = n_start; i < n_end; i++) nedges += neigh_per_atom[i];
+
+			torch::Tensor edges_tensor = torch::zeros({2,nedges}, torch::TensorOptions().dtype(torch::kInt64));
+			auto edges = edges_tensor.accessor<long, 2>();
+
+			int iedges = 0; 
+			for(int i = n_start; i < n_end; i++)
+			{
+				for(int j1 = 0; j1 < (int)nbrlist[i].size(); j1++)
+				{
+					int j = nbrlist[i][j1];
+					edges[0][iedges] = i;
+					edges[1][iedges] = j;
+					iedges++;
+				}
+			}
+
+			c10::Dict<std::string, torch::Tensor> input;
+			input.insert("pos", pos_tensor);
+			input.insert("atom_types", ij2type_tensor);
+
+			input.insert("edge_index", edges_tensor.to(device));
+			std::vector<torch::IValue> input_vector(1, input);
+
+			auto output = model.forward(input_vector).toGenericDict();
+
+			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
+			auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
+			float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+
+			torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
+			auto forces = forces_tensor.accessor<float, 2>();
+
+			for(int i = n_start; i < n_end; i++)
+				eng_vdwl += atomic_energies[i][0];
+
+			for (int ii=0; ii<ntotal; ii++)
+			{
+				force_vec[ii] += forces[ii][0];
+				force_vec[nbuffer+ii] += forces[ii][1];
+				force_vec[2*nbuffer+ii] += forces[ii][2];
+			}
+		}
 
 		//std::cout << "total energy eng_vdwl: " << eng_vdwl << std::endl;
 		energy = eng_vdwl;
