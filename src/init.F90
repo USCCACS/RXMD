@@ -24,8 +24,7 @@ module init
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
   use rxmdnn, only : rxmdnn_param, rxmdnn_param_ctor, rxmdnn_param_obj, &
-                     mddriver_rxmdnn, get_maxrc_rxmdnn, allocate_nbrdist_rxmdnn, &
-                     init_rxmdtorch
+                     mddriver_rxmdnn, get_maxrc_rxmdnn, init_rxmdtorch
 
   use msd_mod, only : msd_data, msd_initialize
 
@@ -117,8 +116,6 @@ select case (ff_type_flag)
         print*,'get_mdcontext_func : mdcontext_rxmdnn' 
         call rxmdnn_param_obj%print()
      endif
-
-     call allocate_nbrdist_rxmdnn(NATOMS)
 
   case(TYPE_REAXFF)
      call mdcontext_reaxff()
@@ -218,7 +215,7 @@ if(myid==0) then
    write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,3,0)
    print'(a30,3f12.3)', 'lata,latb,latc:', lata,latb,latc
    print'(a30,3f12.3)', 'lalpha,lbeta,lgamma:', lalpha,lbeta,lgamma
-   write(6,'(a30,2i9)') "NBUFFER, MAXNEIGHBS:", NBUFFER, MAXNEIGHBS
+   write(6,'(a30,2i12)') "NBUFFER, MAXNEIGHBS:", NBUFFER, MAXNEIGHBS
    write(6,'(a)') repeat('-',60)
    write(6,'(a30,a12)') "DataDir :", trim(DataDir)
    write(6,'(a30,2(a12,1x))') &

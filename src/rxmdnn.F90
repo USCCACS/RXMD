@@ -39,22 +39,7 @@ module rxmdnn
 
   real(8) :: maxrc_rxmdnn=0.d0
 
-  type nbrdist_type
-     !real(c_float),allocatable:: rij(:)
-     !integer(c_int),allocatable :: jtype(:)
-
-     ! FIXME dynamics allocation got released in torch side?
-     real(c_float) :: rij(4*NBUFFER*MAXNEIGHBS) 
-     integer(c_int) :: jtype(NBUFFER*MAXNEIGHBS) 
-  end type
-
-  !type(nbrdist_type),allocatable :: nbrdists(:)
-  type(nbrdist_type) :: nbrdists
-
-  integer,allocatable :: ndst_counts(:)
-
-  type(c_ptr) :: nbrdist_ptr, nbrtype_ptr
-  type(c_ptr) :: pos_ptr, type_ptr, force_ptr
+  type(c_ptr) :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
 
 #ifdef RXMDNN
 
@@ -65,10 +50,11 @@ module rxmdnn
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, energy) bind(c,name="get_nn_force_torch")
+    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) &
+                                 bind(c,name="get_nn_force_torch")
        import :: c_int, c_double, c_ptr
        integer(c_int),value :: natoms, nbuffer, nglobal
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
        real(c_double) :: energy
     end subroutine
 
@@ -88,9 +74,9 @@ contains
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, energy) 
+    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) 
        integer(c_int),value :: natoms, maxnbrs, nbuffer
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
        real(c_double) :: energy
     end subroutine
 
@@ -99,23 +85,6 @@ contains
     end subroutine
 
 #endif
-
-
-!------------------------------------------------------------------------------
-subroutine allocate_nbrdist_rxmdnn(num_atoms)
-!------------------------------------------------------------------------------
-  integer,intent(in) :: num_atoms
-
-  ! FIXME dynamics allocation got released in torch side?
-  !allocate(nbrdists%rij(4*MAXNEIGHBS*num_atoms)) 
-  !allocate(nbrdists%jtype(MAXNEIGHBS*num_atoms))
-  nbrdists%rij = 0.d0
-  nbrdists%jtype = 0
-
-  return 
-
-end subroutine
-
 
 !------------------------------------------------------------------------------
 subroutine rxmdnn_param_print(this)
@@ -246,8 +215,27 @@ real(8),intent(in out) :: energy
 
 integer :: i,j,j1,ity,n_j,stat,idx
 
+integer,allocatable,dimension(:),target :: nbrlist_nn
+
+if(.not.allocated(nbrlist_nn)) allocate(nbrlist_nn(NBUFFER*MAXNEIGHBS))
+
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
+call get_nbrlist_rxmdnn(pos, maxrc)
+
+!--- packing
+idx=0
+do i=1, num_atoms
+   idx=idx+1
+   nbrlist_nn(idx)=nbrlist(i,0)
+   !print'(a4,i6 $)','ni: ', nbrlist_nn(idx)
+   do j1=1, nbrlist(i,0)
+      idx=idx+1
+      nbrlist_nn(idx)=nbrlist(i,j1)
+      !print'(i6 $)', nbrlist_nn(idx)
+   enddo
+   !print*
+enddo
 
 f=0.d0
 
@@ -255,7 +243,8 @@ f=0.d0
 pos_ptr = c_loc(pos(1,1))
 type_ptr = c_loc(atype(1))
 force_ptr = c_loc(f(1,1))
-call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, energy) 
+nbrlist_ptr = c_loc(nbrlist_nn(1))
+call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) 
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
@@ -368,22 +357,18 @@ return
 end subroutine
 
 !------------------------------------------------------------------------------
-subroutine get_nbrlist_rxmdnn(num_atoms, atype, pos, rcmax)
+subroutine get_nbrlist_rxmdnn(pos, rcmax)
 !------------------------------------------------------------------------------
-integer,intent(in) :: num_atoms
-real(8),intent(in),allocatable :: atype(:), pos(:,:)
+real(8),intent(in),allocatable :: pos(:,:)
 real(8),intent(in) :: rcmax
 
 real(8) :: rr(3), rr2, rij, dsum 
 integer :: i, j, k, i1, j1, k1, l1, l2, l3, l4, ii, idx
 integer :: c1,c2,c3,ic(3),c4,c5,c6,ity,jty,kty,inxn
 
+call cpu_time(tstart(2))
 
 nbrlist(:,0) = 0
-nbrdists%rij = 0.d0
-nbrdists%jtype = 0
-
-call cpu_time(tstart(2))
 
 !!$omp parallel do default(shared) collapse(3) & 
 !!$omp private(c1,c2,c3,ic,c4,c5,c6,rr,rr2,rij) 
@@ -393,7 +378,6 @@ do c3=0, cc(3)-1
 
   i = header(c1, c2, c3)
   do i1=1, nacell(c1, c2, c3)
-     ity = nint(atype(i))
 
      !print'(3i6,i6,3f10.5)',c1,c2,c3,m,pos(m,1:3)
 
@@ -403,10 +387,10 @@ do c3=0, cc(3)-1
         ic(1:3) = [c1+c4, c2+c5, c3+c6]
 
         j = header(ic(1),ic(2),ic(3))
+        j = header(ic(1),ic(2),ic(3))
         do j1=1, nacell(ic(1), ic(2), ic(3))
 
            if(i/=j) then
-             jty = nint(atype(j))
 
              rr(1:3) = pos(i,1:3) - pos(j,1:3)
              rr2 = sum(rr(1:3)*rr(1:3))
@@ -415,18 +399,6 @@ do c3=0, cc(3)-1
              if(rij<rcmax) then 
                nbrlist(i, 0) = nbrlist(i, 0) + 1
                nbrlist(i, nbrlist(i, 0)) = j
-
-               ii = nbrlist(i,0)
-               idx = (i-1)*4*MAXNEIGHBS+(ii-1)*4
-
-               !print'(3i6,f8.3,4f10.5,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),' before'
-               nbrdists%jtype(idx+1) = jty
-               !print'(a,3i4,i9,i3)','i,j,ii,idx,jtype: ',i,j,ii,idx, nbrdists%jtype(idx+1)
-               nbrdists%rij(idx+1) = rij
-               nbrdists%rij(idx+2:idx+4) = rr(1:3)
-               !print'(3i6,f8.3,4f10.5,i6,1x,a)',i,ity,ii,rij,nbrdists(ity)%rij(idx+1:idx+4),idx,' after'
-
-               !print'(a,3i4,i9,i3,4f)','i,j,ii,idx,jtype,rij: ',i,j,ii,idx, nbrdists%jtype(idx+1), nbrdists%rij(idx+1:idx+4)
              endif
 
            endif
@@ -461,6 +433,9 @@ real(8),intent(in out) :: nn_energy
 
 integer :: i,ity,cstep
 real(8) :: tt=0.d0, Etotal
+real(8),save :: time1 = 0d0
+
+if (time1 == 0.d0) time1 = MPI_WTIME()
 
 call MPI_ALLREDUCE (MPI_IN_PLACE, nn_energy, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
@@ -476,8 +451,10 @@ Etotal = ke + nn_energy
 
 if(myid==0) then
    cstep = nstep + current_step 
-   write(6,'(a,i9,3es13.5,f10.3)') 'MDstep,Etotal,KE,PE,T(K): ', cstep, Etotal, ke, nn_energy, tt
+   write(6,'(a,i9,3es13.5,2f10.3)') 'MDstep,Etotal,KE,PE,T(K),time(s): ', cstep, Etotal, ke, nn_energy, tt, MPI_WTIME()-time1
 endif
+
+time1 = MPI_WTIME()
 
 end subroutine
 

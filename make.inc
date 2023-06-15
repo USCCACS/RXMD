@@ -9,8 +9,8 @@
 # Polaris
 MPIF90 = ftn 
 FC = ftn 
-MPIF90_FLAGS = -O2 -fallow-argument-mismatch -mcmodel=medium
-FC_FLAGS = -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
+MPIF90_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium
+FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
 
 # CARC
 #MPIF90 = mpiifort

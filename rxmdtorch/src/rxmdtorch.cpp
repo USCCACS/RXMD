@@ -78,12 +78,13 @@ struct RXMDNN
 	}
 
 	void get_nn_force(int const nlocal, int const ntotal, int const nbuffer, 
-			void *pos_voidptr, void *type_voidptr, void *force_voidptr, double &energy)
+			void *pos_voidptr, void *type_voidptr, void *force_voidptr, void *nbrlist_voidptr, double &energy)
 	{
 		//std::cout << "nlocal,ntotal,nbuffer" << nlocal << " " << ntotal << " " << nbuffer<< std::endl;
 		double *pos_vec0 = (double *) pos_voidptr;
 		double *type_vec = (double *) type_voidptr;
 		double *force_vec = (double *) force_voidptr;
+		signed int *nbrlist_vec = (signed int *) nbrlist_voidptr;
 
 		std::vector<float> pos_(3*ntotal);
 		for(int i=0; i<ntotal; i++)
@@ -100,25 +101,16 @@ struct RXMDNN
 		std::vector<int> neigh_per_atom(nlocal, 0);
 		std::vector<std::vector<int>> nbrlist(ntotal);
 
+		int c = 0; 
 		for(int i=0; i<nlocal; i++)
                 {
-                        for(int j=0; j<ntotal; j++)
-                        {
-                                if(i==j) continue;
-
-                                if(type_vec[j] == 0) continue;
-
-                                const float dx = pos_[3*i] - pos_[3*j];
-                                const float dy = pos_[3*i+1] - pos_[3*j+1];
-                                const float dz = pos_[3*i+2] - pos_[3*j+2];
-                                const float dr = std::sqrt(dx*dx + dy*dy + dz*dz);
-                                if(dr<cutoff) 
-				{
-					nbrlist[i].push_back(j);
-
-					neigh_per_atom[i]++;
-					nedges++;
-				}
+			signed int ni = nbrlist_vec[c++];
+			for(int j1=0; j1<ni; j1++)
+			{
+				signed int j = nbrlist_vec[c++]-1; // zero-indexed
+				nbrlist[i].push_back(j);
+				neigh_per_atom[i]++;
+				nedges++;
 			}
 		}
 
@@ -137,7 +129,7 @@ struct RXMDNN
 		auto ij2type = ij2type_tensor.accessor<long, 1>();
 
 		// set position and type for all atoms including buffer atoms, 
-		// but set complete edge information only for regident atoms. 
+		// but set complete edge information only for resident atoms. 
 		for(int i = 0; i < ntotal; i++)
 		{
 			//ij2type[i] = type_mapper[itype - 1];
@@ -246,11 +238,11 @@ extern "C" void init_rxmdtorch(int myrank)
 }
 
 extern "C" void get_nn_force_torch(int nlocal, int ntotal, int nbuffer, 
-		void *pos_ptr, void *type_ptr, void *force_ptr, double &energy)
+		void *pos_ptr, void *type_ptr, void *force_ptr, void *nbrlist_ptr, double &energy)
 {
 	//std::cout << "nlocal,nbuffer " << nlocal << " " << nbuffer << std::endl;
 	const auto start = std::chrono::steady_clock::now();
-	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, energy);
+	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy);
 	const auto end = std::chrono::steady_clock::now();
 	//std::cout << "time(s) " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()*1e-6 << std::endl;
 }
