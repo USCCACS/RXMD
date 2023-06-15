@@ -17,7 +17,7 @@ OBJS = $(SRCS:.F90=.o)
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Polaris
-install_root=/soft/datascience/conda/2022-09-08/pytorch/torch
+install_root=/soft/datascience/conda/2022-07-19/pytorch/torch
 TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
 TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
