@@ -18,6 +18,8 @@ int main(void)
 	std::vector<double> atype(nbuffer,0.0);
 	std::vector<double> pos(3*nbuffer,0.0);
 	std::vector<double> f(3*nbuffer,0.0);
+	std::vector<signed int> nbr(nbuffer*10);
+	nbr = {3, 2, 3, 4, 1, 1, 1, 1, 1, 1};
 
 	for(int i=0; i<4; i++)
 	{
@@ -30,7 +32,7 @@ int main(void)
 	std::cout << "in reproducer main()\n";
 
 	init_rxmdtorch(0);
-	get_nn_force_torch(nlocal, ntotal, nbuffer, pos.data(), atype.data(), f.data(), energy);
+	get_nn_force_torch(nlocal, ntotal, nbuffer, pos.data(), atype.data(), f.data(), nbr.data(), energy);
 
 	for(int i=0; i<4; i++)
 		std::cout << "f: " << i << " " << f[i] << " " << f[i+nbuffer] << " " << f[i+2*nbuffer] << std::endl;
