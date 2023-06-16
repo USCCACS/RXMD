@@ -71,6 +71,7 @@ struct RXMDNN
 			std::cout << "modelpath: " << modelpath << std::endl;
 			std::cout << "n_species: " << metadata["n_species"] << std::endl;
 			std::cout << "r_max: " << metadata["r_max"] << std::endl;
+			std::cout << "BATCH_SIZE : " << BATCH_SIZE << std::endl;
 		}
 	}
 
@@ -149,6 +150,7 @@ struct RXMDNN
 		{
 			int n_start = nb*batch_size;
 			int n_end = std::min((nb+1)*batch_size, nlocal); 
+			if (n_start == n_end) break;
 
 			//std::cout << n_start << " " << n_end << " " << nlocal << std::endl;
 
