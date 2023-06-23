@@ -18,8 +18,9 @@ int main(void)
 	std::vector<double> atype(nbuffer,0.0);
 	std::vector<double> pos(3*nbuffer,0.0);
 	std::vector<double> f(3*nbuffer,0.0);
-	std::vector<signed int> nbr(nbuffer*10);
-	nbr = {3, 2, 3, 4, 1, 1, 1, 1, 1, 1};
+	std::vector<signed int> nbr(nbuffer,0); 
+	nbr = {3,2,3,4, 1,1, 1,1, 1,1};
+ 
 
 	for(int i=0; i<4; i++)
 	{
