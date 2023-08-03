@@ -171,7 +171,7 @@ To learn more about **rxmd**, please refer to [RXMD Manual](https://github.com/U
 
 ## 4. License
 
-This project is licensed under the GPU 3.0 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
+This project is licensed under the GPL v3 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
 
 ## 5. Publications
