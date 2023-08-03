@@ -169,7 +169,7 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 
 ## 4. License
 
-This project is licensed under the GPU 3.0 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
+This project is licensed under the GPL v3.0 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
 
 ## 5. Selected Publications
