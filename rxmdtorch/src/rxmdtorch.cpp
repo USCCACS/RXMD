@@ -16,6 +16,9 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
+#include <filesystem>
+namespace fs = std::filesystem;
+
 #define BATCH_SIZE 8192
 
 struct RXMDNN
@@ -26,7 +29,7 @@ struct RXMDNN
 
 	double cutoff; 
 
-	torch::jit::script::Module model;
+	std::vector<torch::jit::script::Module> model;
 
 	RXMDNN(int myrank, std::string modelpath)
 	{
@@ -60,8 +63,17 @@ struct RXMDNN
 			{"allow_tf32", ""}
 		};
 
-		model = torch::jit::load(modelpath, device, metadata);
-		model.eval();
+		if (fs::is_directory(modelpath))
+		{
+			for (const auto & entry : fs::directory_iterator(modelpath))
+			{
+				if (not fs::is_directory(entry.path()))
+					model.push_back(torch::jit::load(entry.path(), device, metadata));
+			}
+		} else {
+			model.push_back(torch::jit::load(modelpath, device, metadata));
+		}
+		for (auto & m : model) m.eval();
 
 		cutoff = std::stod(metadata["r_max"]);
 
@@ -72,6 +84,7 @@ struct RXMDNN
 			std::cout << "n_species: " << metadata["n_species"] << std::endl;
 			std::cout << "r_max: " << metadata["r_max"] << std::endl;
 			std::cout << "BATCH_SIZE : " << BATCH_SIZE << std::endl;
+			std::cout << "model.size(): " << model.size() << std::endl;
 		}
 	}
 
@@ -172,30 +185,45 @@ struct RXMDNN
 				}
 			}
 
-			c10::Dict<std::string, torch::Tensor> input;
-			input.insert("pos", pos_tensor);
-			input.insert("atom_types", ij2type_tensor);
 
-			input.insert("edge_index", edges_tensor.to(device));
-			std::vector<torch::IValue> input_vector(1, input);
+			for (auto & m : model)
+			{
+				c10::Dict<std::string, torch::Tensor> input;
 
-			auto output = model.forward(input_vector).toGenericDict();
+				input.insert("pos", pos_tensor);
+				input.insert("atom_types", ij2type_tensor);
 
-			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
-			auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
-			float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+				input.insert("edge_index", edges_tensor.to(device));
+				std::vector<torch::IValue> input_vector(1, input);
 
-			torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
-			auto forces = forces_tensor.accessor<float, 2>();
+				auto output = m.forward(input_vector).toGenericDict();
 
-			for(int i = n_start; i < n_end; i++)
-				eng_vdwl += atomic_energies[i][0];
+				torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
+				auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
+				float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
 
+				torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
+				auto forces = forces_tensor.accessor<float, 2>();
+
+				for(int i = n_start; i < n_end; i++)
+					eng_vdwl += atomic_energies[i][0];
+
+				for (int ii=0; ii<ntotal; ii++)
+				{
+					force_vec[ii] += forces[ii][0];
+					force_vec[nbuffer+ii] += forces[ii][1];
+					force_vec[2*nbuffer+ii] += forces[ii][2];
+				}
+			}
+
+			// model average
+			int model_size = model.size();
+			eng_vdwl /= model_size;
 			for (int ii=0; ii<ntotal; ii++)
 			{
-				force_vec[ii] += forces[ii][0];
-				force_vec[nbuffer+ii] += forces[ii][1];
-				force_vec[2*nbuffer+ii] += forces[ii][2];
+				force_vec[ii] /= model_size;
+				force_vec[nbuffer+ii] /= model_size;
+				force_vec[2*nbuffer+ii] /= model_size;
 			}
 		}
 
