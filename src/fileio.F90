@@ -642,7 +642,7 @@ if(present(energy)) then
   write(a256, '(a10,f0.5 $)') 'energy=', energy
   header=header//adjustl(trim(a256))
 endif
-header=header//'Properties=species:S:1:pos:R:3:charge:R:1:forces:R:3 pbc="T T T" config_type=md'
+header=header//'Properties=species:S:1:pos:R:3:charge:R:1:forces:R:3:id:I:1 pbc="T T T" config_type=md'
 header_size=len(adjustl(trim(header)))
 !print*,header_size, header
 
