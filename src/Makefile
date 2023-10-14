@@ -17,15 +17,17 @@ OBJS = $(SRCS:.F90=.o)
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Polaris
-install_root=/soft/datascience/conda/2022-07-19/pytorch/torch
-TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
-TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
+#install_root=/soft/datascience/conda/2022-07-19/pytorch/torch
+#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
+#TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Sunspot
-#install_root=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/torch
-#install_root_ext=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/intel_extension_for_pytorch
+#install_root=/soft/datascience/aurora_models_frameworks-2023.2/lib/python3.9/site-packages/torch
+#install_root_ext=/soft/datascience/aurora_models_frameworks-2023.2/lib/python3.9/site-packages/intel_extension_for_pytorch/
 #TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -L${install_root_ext}/lib -Wl,-R${install_root_ext}/lib
-#TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu -lintel-ext-pt-cpu 
+#TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu -lintel-ext-pt-cpu
+TORCHLIB_DIRS=-L../rxmdtorch/build 
+TORCHLIBS=-lrxmdtorch
 
 INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
 
