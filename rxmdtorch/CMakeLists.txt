@@ -1,30 +1,25 @@
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
-
-project(rxmdtorch LANGUAGES CXX)
-
-option(RXMD_ENABLE_IPEX "Enable use of IPEX on Intel Accelerators when using Torch" OFF)
+####################################
+# Set C++ for building torch
+####################################
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(${PROJECT_NAME} src/rxmdtorch.cpp)
+set(TORCH_SRCS src/rxmdtorch.cpp)
+add_library(torch_rxmd ${TORCH_SRCS})
 
-#####################################
-# Torch
-#####################################
-find_package(Torch REQUIRED)
-target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}")
-
-if(RXMD_ENABLE_IPEX)
-  find_package(IPEX REQUIRED)
-  target_link_libraries(${PROJECT_NAME} "${TORCH_IPEX_LIBRARIES}")
+if(IPEX_FOUND)
+  target_link_libraries(torch_rxmd "${TORCH_IPEX_LIBRARIES}")
+  target_link_libraries(torch_rxmd PUBLIC SYCL::host)
+  target_link_libraries(torch_rxmd PUBLIC SYCL::device)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_IPEX_CXX_FLAGS}")
+elseif(TORCH_FOUND)
+  target_link_libraries(torch_rxmd "${TORCH_LIBRARIES}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 endif()
 
-#####################################
-
-#set(CMAKE_CXX_FLAGS "-O0 -Wall -Wextra")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fs\
 anitize=address")
 set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-point\
