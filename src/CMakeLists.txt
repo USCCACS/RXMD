@@ -29,7 +29,7 @@ set(src_rxmd
 
 add_library(mpi_wrapper INTERFACE)
 if(ENABLE_MPI)
-  target_link_libraries(mpi_wrapper PUBLIC MPI::MPI_Fortran)
+  target_link_libraries(mpi_wrapper INTERFACE MPI::MPI_Fortran)
 else()
   target_compile_definitions(mpi_wrapper PRIVATE NOMPI)
 endif()
