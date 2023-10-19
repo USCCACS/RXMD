@@ -14,7 +14,6 @@ project(
   LANGUAGES Fortran CXX)
 
 set(PROJECT_CMAKE ${rxmd_SOURCE_DIR}/CMake)
-list(APPEND CMAKE_MODULE_PATH ${rxmd_SOURCE_DIR}/CMake)
 
 #####################################################################
 # Build and install options
@@ -72,24 +71,10 @@ elseif(RXMD_ENABLE_TORCH)
 endif()
 
 if(IPEX_FOUND)
-# if(NOT "x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xIntelLLVM")
-#   message(FATAL_ERROR "Support for SYCL requires LLVM-based Intel oneAPI compiler (icpx).")
-#  endif()
-#  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 2023.0)
-#    message(FATAL_ERROR "RXMD with IPEX Requires Intel oneAPI 2023.0 or higher!")
-  endif()
-  add_library(SYCL::host INTERFACE IMPORTED)
-  add_library(SYCL::device INTERFACE IMPORTED)
   find_package(
-    IntelDPCPP
+    IntelSYCL
     REQUIRED
-    CONFIGS
-    IntelDPCPPConfig-modified.cmake
-    PATHS
-    ${PROJECT_CMAKE}
-    NO_DEFAULT_PATH)
-  target_link_libraries(SYCL::host INTERFACE OneAPI::DPCPP-host)
-  target_link_libraries(SYCL::device INTERFACE OneAPI::DPCPP-device)
+  )
 endif()
 ######################################################################
 message(STATUS "Ready to parse RXMD source tree")
