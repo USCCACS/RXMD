@@ -8,14 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(TORCH_SRCS src/rxmdtorch.cpp)
 add_library(torch_rxmd ${TORCH_SRCS})
+target_link_libraries(torch_rxmd PRIVATE torch)
+
 
 if(IPEX_FOUND)
   target_link_libraries(torch_rxmd PUBLIC "${TORCH_IPEX_LIBRARIES}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_IPEX_CXX_FLAGS}")
-elseif(TORCH_FOUND)
-  target_link_libraries(torch_rxmd "${TORCH_LIBRARIES}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-omit-frame-pointer -fs\
