@@ -80,4 +80,6 @@ endif()
 message(STATUS "Ready to parse RXMD source tree")
 ######################################################################
 add_subdirectory(src)
-add_subdirectory(rxmdtorch)
+if(RXMD_ENABLE_TORCH)
+  add_subdirectory(rxmdtorch)
+endif()

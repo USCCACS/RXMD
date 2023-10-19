@@ -14,7 +14,6 @@ set(src_rxmd
     module.F90
     msd.F90
     nnmm.F90
-    nompi.F90
     pot.F90
     pqeq.F90
     qeq.F90
@@ -27,15 +26,19 @@ set(src_rxmd
     utils.F90
     velocity.F90)
 
-add_library(mpi_wrapper INTERFACE)
 if(ENABLE_MPI)
+  add_library(mpi_wrapper INTERFACE)
   target_link_libraries(mpi_wrapper INTERFACE MPI::MPI_Fortran)
 else()
-  target_compile_definitions(mpi_wrapper PRIVATE NOMPI)
+  add_library(mpi_wrapper nompi.F90)
+  target_compile_definitions(mpi_wrapper INTERFACE NOMPI)
 endif()
 
 add_library(lib_rxmd ${src_rxmd})
 target_link_libraries(lib_rxmd PUBLIC mpi_wrapper)
 
 add_executable(rxmd main.F90)
-target_link_libraries(rxmd PUBLIC lib_rxmd torch_rxmd)
+target_link_libraries(rxmd PUBLIC lib_rxmd)
+if(RXMD_ENABLE_TORCH)
+  target_link_libraries(rxmd PUBLIC torch_rxmd)
+endif()
