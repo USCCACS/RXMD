@@ -38,6 +38,7 @@ add_library(lib_rxmd ${src_rxmd})
 target_link_libraries(lib_rxmd PUBLIC mpi_wrapper)
 
 add_executable(rxmd main.F90)
+set_target_properties(rxmd PROPERTIES LINKER_LANGUAGE Fortran)
 target_link_libraries(rxmd PUBLIC lib_rxmd)
 if(RXMD_ENABLE_TORCH)
   target_link_libraries(rxmd PUBLIC torch_rxmd)
