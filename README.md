@@ -107,7 +107,7 @@ rxff.bin
 + RXMD build options
     + `RXMD_ENABLE_MPI` Set this variable to on `ON` (default) to compile for distributed parallelization with MPI.  Otherwise set to `OFF`.
     + `RXMD_ENABLE_TORCH` Set this variable to `ON` to use PyTorch libraries for machine learning tasks. Set to `OFF` by default
-    + `RXMD_ENABLE_IPEX` Set this variable to `ON` to optimized features for INtel hardware. Set to `OFF` by default.
+    + `RXMD_ENABLE_IPEX` Set this variable to `ON` to optimized features for Intel hardware. Set to `OFF` by default.
 	
 ## 4. How to run
 
