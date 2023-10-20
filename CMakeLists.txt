@@ -13,6 +13,10 @@ project(
   DESCRIPTION "RXMD: Linear Scalable Parallel ReaxFF Molecular Dynamics Simulator"
   LANGUAGES Fortran CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 set(PROJECT_CMAKE ${rxmd_SOURCE_DIR}/CMake)
 
 #####################################################################
@@ -50,32 +54,21 @@ endif()
 #-------------------------------------------------------------------
 # Check Torch installation
 #-------------------------------------------------------------------
-add_library(rxmd_torch INTERFACE)
+add_library(rxmd_torchlibs INTERFACE)
 
-if(RXMD_ENABLE_IPEX)
-  find_package(IPEX REQUIRED)
-  if(NOT IPEX_FOUND)
-    message(
-      FATAL_ERROR
-      "Intel Extensios for PyTorch are not found. Provide path to IPEXConfig.cmake"
-    )
-  endif()
-elseif(RXMD_ENABLE_TORCH)
+if(RXMD_ENABLE_TORCH)
   find_package(Torch REQUIRED)
-  if(NOT TORCH_FOUND)
-    message(
-      FATAL_ERROR
-        "Torch support not found. Provide path to TorchConfig.cmake"
-    )
-  endif()  
+
+  if(RXMD_ENABLE_IPEX)
+    find_package(IPEX REQUIRED)
+    target_link_libraries(rxmd_torchlibs INTERFACE intel-ext-pt-gpu)
+    find_package(IntelSYCL REQUIRED)
+    target_link_libraries(rxmd_torchlibs INTERFACE IntelSYCL::SYCL_CXX)
+  endif()
+
+  target_link_libraries(rxmd_torchlibs INTERFACE torch)
 endif()
 
-if(IPEX_FOUND)
-  find_package(
-    IntelSYCL
-    REQUIRED
-  )
-endif()
 ######################################################################
 message(STATUS "Ready to parse RXMD source tree")
 ######################################################################
