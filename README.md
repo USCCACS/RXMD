@@ -100,8 +100,16 @@ Makefile.inc  doc/          init/         rxmd*         src/          util/
 rxmd $ ls DAT/
 rxff.bin
 ```
-
-## 3. How to run
+## 3. CMake options
++ General build options
+    + `CMAKE_Fortran_COMPILER` Specify the executable for compiling Fortran files
+    + `CMAKE_CXX_COMPILER` Specify the executable for compiling C++ files 
++ RXMD build options
+    + `RXMD_ENABLE_MPI` Set this variable to on `ON` (default) to compile for distributed parallelization with MPI.  Otherwise set to `OFF`.
+    + `RXMD_ENABLE_TORCH` Set this variable to `ON` to use PyTorch libraries for machine learning tasks. Set to `OFF` by default
+    + `RXMD_ENABLE_IPEX` Set this variable to `ON` to optimized features for Intel hardware. Set to `OFF` by default.
+	
+## 4. How to run
 
 Default input parameters are set to run a single process job. In **rxmd.in**, the parameter **vprocs** defines how many MPI ranks in x, y, and z directions. Make sure you have **1 1 1** here. 
 
@@ -169,7 +177,7 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 
 To learn more about **rxmd**, please refer to [RXMD Manual](https://github.com/USCCACS/rxmd/blob/master/doc/ReaxFF/RXMDManual.md).
 
-## 4. License
+## 5. License
 
 This project is licensed under the GPL v3 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
