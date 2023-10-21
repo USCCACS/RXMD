@@ -61,8 +61,17 @@ if(RXMD_ENABLE_TORCH)
   if(RXMD_ENABLE_IPEX)
     find_package(IPEX REQUIRED)
     target_link_libraries(rxmd_torchlibs INTERFACE intel-ext-pt-gpu)
-    find_package(IntelSYCL REQUIRED)
+    find_package(
+      IntelSYCL
+      REQUIRED
+      CONFIGS
+      IntelSYCLConfig-modified.cmake
+      PATHS
+      ${PROJECT_CMAKE}
+      NO_DEFAULT_PATH
+      )
     target_link_libraries(rxmd_torchlibs INTERFACE IntelSYCL::SYCL_CXX)
+    target_link_libraries(rxmd_torchlibs INTERFACE IntelSYCL::SYCL_RUNTIME)
   endif()
 
   target_link_libraries(rxmd_torchlibs INTERFACE torch)
