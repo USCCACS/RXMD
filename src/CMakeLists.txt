@@ -34,12 +34,15 @@ else()
   target_compile_definitions(mpi_wrapper INTERFACE NOMPI)
 endif()
 
-add_library(lib_rxmd ${src_rxmd})
-target_link_libraries(lib_rxmd PUBLIC mpi_wrapper)
-
-add_executable(rxmd main.F90)
-set_target_properties(rxmd PROPERTIES LINKER_LANGUAGE Fortran)
-target_link_libraries(rxmd PUBLIC lib_rxmd)
+add_library(rxmd ${src_rxmd})
+target_link_libraries(rxmd PUBLIC mpi_wrapper)
 if(RXMD_ENABLE_TORCH)
   target_link_libraries(rxmd PUBLIC torch_rxmd)
 endif()
+
+add_executable(rxmd_exe main.F90)
+set_target_properties(rxmd_exe PROPERTIES LINKER_LANGUAGE Fortran
+                                          RUNTIME_OUTPUT_DIRECTORY ${rxmd_BINARY_DIR}/bin)
+install(TARGETS rxmd_exe RUNTIME DESTINATION bin)
+
+target_link_libraries(rxmd_exe PUBLIC rxmd)
