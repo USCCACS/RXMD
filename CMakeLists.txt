@@ -16,11 +16,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(PROJECT_CMAKE ${rxmd_SOURCE_DIR}/CMake)
-
 #####################################################################
 # Build and install options
 ######################################################################
+# add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_TOOLCHAIN_FILE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+set(PROJECT_CMAKE ${rxmd_SOURCE_DIR}/CMake)
 
 #--------------------------------------------------------------------
 # PyTorch, MPI related build options
@@ -57,15 +64,17 @@ add_library(rxmd_torchlibs INTERFACE)
 
 if(RXMD_ENABLE_TORCH)
   find_package(Torch REQUIRED)
+  target_link_libraries(rxmd_torchlibs INTERFACE ${TORCH_LIBRARIES})
 
   if(RXMD_ENABLE_IPEX)
     find_package(IPEX REQUIRED)
     target_link_libraries(rxmd_torchlibs INTERFACE intel-ext-pt-gpu)
+    cmake_path(GET IPEX_GPU_CORE_LIBRARY PARENT_PATH IPEX_GPU_CORE_LIBRARY_DIR)
+    target_link_options(rxmd_torchlibs INTERFACE -Wl,-rpath,${IPEX_GPU_CORE_LIBRARY_DIR})
+
     find_package(IntelSYCL REQUIRED)
     target_link_libraries(rxmd_torchlibs INTERFACE IntelSYCL::SYCL_CXX)
   endif()
-
-  target_link_libraries(rxmd_torchlibs INTERFACE torch)
 endif()
 
 ######################################################################
