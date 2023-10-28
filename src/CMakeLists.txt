@@ -38,6 +38,7 @@ add_library(rxmd ${src_rxmd})
 target_link_libraries(rxmd PUBLIC mpi_wrapper)
 if(RXMD_ENABLE_TORCH)
   target_link_libraries(rxmd PUBLIC torch_rxmd)
+  target_compile_definitions(rxmd PUBLIC RXMDNN)
 endif()
 
 add_executable(rxmd_exe main.F90)
