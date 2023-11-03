@@ -16,10 +16,15 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
-#include <filesystem>
-namespace fs = std::filesystem;
-
 #define BATCH_SIZE 8192
+
+struct model_spec
+{
+	std::string modelpath;
+	int n_spieces;
+	std::vector<std::string> element;
+	std::vector<double> mass;
+};
 
 struct RXMDNN
 {
@@ -31,7 +36,7 @@ struct RXMDNN
 
 	std::vector<torch::jit::script::Module> model;
 
-	RXMDNN(int myrank, std::string modelpath)
+	RXMDNN(int myrank, std::vector<model_spec> model_specs)
 	{
 		if(torch::cuda::is_available())
 		{
@@ -63,16 +68,12 @@ struct RXMDNN
 			{"allow_tf32", ""}
 		};
 
-		if (fs::is_directory(modelpath))
+		for (const auto & mspec : model_specs)
 		{
-			for (const auto & entry : fs::directory_iterator(modelpath))
-			{
-				if (not fs::is_directory(entry.path()))
-					model.push_back(torch::jit::load(entry.path(), device, metadata));
-			}
-		} else {
-			model.push_back(torch::jit::load(modelpath, device, metadata));
+			//std::cout << "loading model.. " << mspec.modelpath << std::endl;
+			model.push_back(torch::jit::load(mspec.modelpath, device, metadata));
 		}
+		
 		for (auto & m : model) m.eval();
 
 		cutoff = std::stod(metadata["r_max"]);
@@ -80,7 +81,8 @@ struct RXMDNN
 		if(myrank == 0) 
 		{
 			std::cout << "Allegro is using device " << device << "\n";
-			std::cout << "modelpath: " << modelpath << std::endl;
+			for (const auto & mspec : model_specs)
+				std::cout << "modelpath: " << mspec.modelpath << std::endl;
 			std::cout << "n_species: " << metadata["n_species"] << std::endl;
 			std::cout << "r_max: " << metadata["r_max"] << std::endl;
 			std::cout << "BATCH_SIZE : " << BATCH_SIZE << std::endl;
@@ -234,8 +236,11 @@ struct RXMDNN
 
 std::unique_ptr<RXMDNN> rxmdnn_ptr; 
 
+
 extern "C" void init_rxmdtorch(int myrank)
 {
+	std::vector<model_spec> model_specs; 
+
         std::ifstream in("rxmdnn.in");
         std::string line, word, modelpath;
         while (std::getline(in,line))
@@ -244,32 +249,41 @@ extern "C" void init_rxmdtorch(int myrank)
 
                 std::stringstream ss(line);
 
-                int n_spieces=0;
+		model_spec mspec; 
+
+                int n_spieces;
 
                 ss >> word; // model name
                 ss >> modelpath;
                 ss >> n_spieces;
 
-                std::vector<std::string> element(n_spieces);
-                std::vector<double> mass(n_spieces);
+		mspec.modelpath = modelpath;
+		mspec.n_spieces = n_spieces;
+
+                std::string element;
+                double mass;
 
                 for(int i=0; i<n_spieces; i++)
                 {
-                        ss >> element[i];
-                        ss >> mass[i];
+                        ss >> element; ss >> mass;
+
+			mspec.element.push_back(element);
+			mspec.mass.push_back(mass);
                 }
 
 		if(myrank == 0)
 		{
-                	std::cout << "modelpath: " << modelpath << std::endl;
-                	std::cout << "n_spieces: " << n_spieces<< std::endl;
-                	for(int i=0; i<n_spieces; i++) std::cout << element[i] << " " << mass[i] << ", ";
+                	std::cout << "modelpath: " << mspec.modelpath << std::endl;
+                	std::cout << "n_spieces: " << mspec.n_spieces<< std::endl;
+                	for(int i=0; i<n_spieces; i++) std::cout << mspec.element[i] << " " << mspec.mass[i] << ", ";
                 	std::cout << std::endl;
 		}
+
+		model_specs.push_back(mspec);
         }
 
 	//std::cout << "init_rxmdtorch : myrank " << myrank << std::endl;
-	rxmdnn_ptr = std::make_unique<RXMDNN>(myrank, modelpath);
+	rxmdnn_ptr = std::make_unique<RXMDNN>(myrank, model_specs);
 }
 
 extern "C" void get_nn_force_torch(int nlocal, int ntotal, int nbuffer, 
