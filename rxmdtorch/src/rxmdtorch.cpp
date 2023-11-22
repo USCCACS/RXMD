@@ -16,8 +16,8 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
-#define BATCH_SIZE 4096
-//#define BATCH_SIZE 8192
+//#define BATCH_SIZE 4096
+#define BATCH_SIZE 8192
 //#define BATCH_SIZE 16384
 
 struct model_spec
@@ -56,7 +56,8 @@ struct RXMDNN
 			device = c10::Device(torch::kCUDA,deviceidx);
 
   		} else {
-			device = torch::kCPU;
+			//device = torch::kCPU;
+			device = c10::DeviceType::XPU;
 		};
 
 		std::unordered_map<std::string, std::string> metadata = {
