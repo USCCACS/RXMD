@@ -39,7 +39,7 @@ module rxmdnn
 
   real(8) :: maxrc_rxmdnn=0.d0
 
-  type(c_ptr) :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
+  type(c_ptr) :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
 
 #ifdef RXMDNN
 
@@ -50,12 +50,12 @@ module rxmdnn
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) &
+    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) &
                                  bind(c,name="get_nn_force_torch")
        import :: c_int, c_double, c_ptr
        integer(c_int),value :: natoms, nbuffer, nglobal
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
-       real(c_double) :: energy
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
+       real(c_double) :: energy, evar
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) bind(c,name="get_maxrc_rxmdnn")
@@ -74,10 +74,10 @@ contains
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) 
+    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) 
        integer(c_int),value :: natoms, maxnbrs, nbuffer
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
-       real(c_double) :: energy
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
+       real(c_double) :: energy, evar
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 
@@ -205,13 +205,13 @@ contains
 end function
 
 !------------------------------------------------------------------------------
-subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, energy)
+subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, energy, evar)
 !------------------------------------------------------------------------------
 class(force_field_class),pointer,intent(in out) :: ff
 
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable, target :: atype(:), pos(:,:), q(:), f(:,:)
-real(8),intent(in out) :: energy
+real(8),intent(in out) :: energy, evar
 
 integer :: i,j,j1,ity,n_j,stat,idx
 
@@ -237,14 +237,16 @@ do i=1, num_atoms
    !print*
 enddo
 
-f=0.d0
+f=0.d0; q=0.d0
 
 ! for Fortran/C interface
 pos_ptr = c_loc(pos(1,1))
 type_ptr = c_loc(atype(1))
 force_ptr = c_loc(f(1,1))
 nbrlist_ptr = c_loc(nbrlist_nn(1))
-call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) 
+fvar_ptr = c_loc(q(1)) ! use q to store force uncertainty
+call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) 
+!print'(a,3es15.5)','myid,energy,evar,fvar:',energy,evar,fvar
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
 
@@ -262,7 +264,7 @@ use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, s
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
-real(8) :: nn_energy
+real(8) :: nn_energy, nn_evar
 
 character(len=:),allocatable :: filebase
 
@@ -271,7 +273,7 @@ integer :: i,ity
 
 if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
-call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy)
+call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy, nn_evar)
 
 filebase = GetFileNameBase(DataDir,-1)
 
@@ -328,7 +330,7 @@ do nstep=0, num_mdsteps-1
    !print*,'ff_type_flag ', ff_type_flag, ff_type_flag == TYPE_NNQEQ
 
    call cpu_time(cpu1)
-   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy)
+   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy, nn_evar)
    if (ff_type_flag == TYPE_NNQEQ) call QEq(atype, pos, q)
    call cpu_time(cpu2)
    comp = comp + (cpu2-cpu1)
