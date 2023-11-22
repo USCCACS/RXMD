@@ -17,8 +17,8 @@ OBJS = $(SRCS:.F90=.o)
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Polaris
-install_root=/soft/datascience/conda/2022-07-19/pytorch/torch
-TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
+install_root=/soft/datascience/conda/2023-10-04/pytorch/torch
+TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -Wl,-R/opt/cray/pe/gcc/11.2.0/snos/lib64
 TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Sunspot
@@ -43,7 +43,7 @@ rxmdnn: $(OBJS)
 
 rxmdtorch: $(OBJS) 
 	make -C ../rxmdtorch/build
-	$(MPIF90) $(MPIF90_FLAGS) $(TORCHLIB_DIRS) $(MACROS) -o $(EXE) $(OBJS) $(LIBS) $(TORCHLIBS) -lstdc++ 
+	$(MPIF90) $(MPIF90_FLAGS) $(TORCHLIB_DIRS) $(MACROS) -o $(EXE) $(OBJS) $(LIBS) $(TORCHLIBS) -lstdc++
 
 #cg.o : fileio.o
 #main.F90 : cg.o

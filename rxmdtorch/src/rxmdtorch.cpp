@@ -16,7 +16,9 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
-#define BATCH_SIZE 8192
+#define BATCH_SIZE 4096
+//#define BATCH_SIZE 8192
+//#define BATCH_SIZE 16384
 
 struct model_spec
 {
@@ -96,13 +98,15 @@ struct RXMDNN
 	}
 
 	void get_nn_force(int const nlocal, int const ntotal, int const nbuffer, 
-			void *pos_voidptr, void *type_voidptr, void *force_voidptr, void *nbrlist_voidptr, double &energy)
+			void *pos_voidptr, void *type_voidptr, void *force_voidptr, void *nbrlist_voidptr, double &energy, 
+			double evar, void *fvar_voidptr)
 	{
 		//std::cout << "nlocal,ntotal,nbuffer" << nlocal << " " << ntotal << " " << nbuffer<< std::endl;
 		double *pos_vec0 = (double *) pos_voidptr;
 		double *type_vec = (double *) type_voidptr;
 		double *force_vec = (double *) force_voidptr;
 		signed int *nbrlist_vec = (signed int *) nbrlist_voidptr;
+		double *fvar_vec = (double *) fvar_voidptr;
 
 		std::vector<float> pos_(3*ntotal);
 		for(int i=0; i<ntotal; i++)
@@ -187,7 +191,6 @@ struct RXMDNN
 				}
 			}
 
-
 			for (auto & m : model)
 			{
 				c10::Dict<std::string, torch::Tensor> input;
@@ -215,6 +218,11 @@ struct RXMDNN
 					force_vec[ii] += forces[ii][0];
 					force_vec[nbuffer+ii] += forces[ii][1];
 					force_vec[2*nbuffer+ii] += forces[ii][2];
+
+					fvar_vec[ii] += 
+						forces[ii][0]*forces[ii][0] + 
+						forces[ii][1]*forces[ii][1] + 
+						forces[ii][2]*forces[ii][2];
 				}
 			}
 
@@ -226,6 +234,12 @@ struct RXMDNN
 				force_vec[ii] /= model_size;
 				force_vec[nbuffer+ii] /= model_size;
 				force_vec[2*nbuffer+ii] /= model_size;
+
+				double favesq = force_vec[ii]*force_vec[ii] + 
+					force_vec[nbuffer+ii]*force_vec[nbuffer+ii] + 
+					force_vec[2*nbuffer+ii]*force_vec[2*nbuffer+ii];
+
+				fvar_vec[ii] = fvar_vec[ii]/model_size - favesq;
 			}
 		}
 
@@ -287,11 +301,12 @@ extern "C" void init_rxmdtorch(int myrank)
 }
 
 extern "C" void get_nn_force_torch(int nlocal, int ntotal, int nbuffer, 
-		void *pos_ptr, void *type_ptr, void *force_ptr, void *nbrlist_ptr, double &energy)
+		void *pos_ptr, void *type_ptr, void *force_ptr, void *nbrlist_ptr, double &energy, 
+		double &evar, void *fvar_ptr)
 {
 	//std::cout << "nlocal,nbuffer " << nlocal << " " << nbuffer << std::endl;
 	const auto start = std::chrono::steady_clock::now();
-	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy);
+	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr);
 	const auto end = std::chrono::steady_clock::now();
 	//std::cout << "time(s) " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()*1e-6 << std::endl;
 }
