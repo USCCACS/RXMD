@@ -223,6 +223,7 @@ call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q,
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 call get_nbrlist_rxmdnn(pos, maxrc)
 
+
 !--- packing
 idx=0
 do i=1, num_atoms
@@ -245,7 +246,8 @@ type_ptr = c_loc(atype(1))
 force_ptr = c_loc(f(1,1))
 nbrlist_ptr = c_loc(nbrlist_nn(1))
 fvar_ptr = c_loc(q(1)) ! use q to store force uncertainty
-call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) 
+if(NATOMS>0) &
+   call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) 
 !print'(a,3es15.5)','myid,energy,evar,fvar:',energy,evar,fvar
 
 CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)

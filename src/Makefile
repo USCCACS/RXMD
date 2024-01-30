@@ -21,8 +21,9 @@ OBJS = $(SRCS:.F90=.o)
 #TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -Wl,-R/opt/cray/pe/gcc/11.2.0/snos/lib64
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
-#Sunspot
-install_root=/lus/gila/projects/NAQMC_RMD_aesp_CNDA/knomura/libs/libtorch
+#Sunspot/Aurora
+#install_root=/lus/gila/projects/NAQMC_RMD_aesp_CNDA/knomura/libs/libtorch
+install_root=/lus/gecko/projects/NAQMC_RMD_aesp_CNDA/knomura/libtorch
 TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -L${install_root}/lib -Wl,-R${install_root}/lib
 TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu -lintel-ext-pt-cpu
 

@@ -24,8 +24,9 @@ end type
 !integer,parameter :: MAXNEIGHBS=50  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS10=200 !<MAXNEIGHBS>: Max # of Ngbs within the taper function cutoff. 
 
+integer,parameter :: NBUFFER=25000000
 !integer,parameter :: NBUFFER=10000000
-integer,parameter :: NBUFFER=100000
+!integer,parameter :: NBUFFER=100000
 integer,parameter :: MAXNEIGHBS=100  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 !integer,parameter :: MAXNEIGHBS=40  !<MAXNEIGHBS>: Max # of Ngbs one atom may have. 
 

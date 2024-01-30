@@ -17,8 +17,8 @@
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
 //#define BATCH_SIZE 4096
-#define BATCH_SIZE 8192
-//#define BATCH_SIZE 16384
+//#define BATCH_SIZE 8192
+#define BATCH_SIZE 16384
 
 struct model_spec
 {
@@ -38,8 +38,10 @@ struct RXMDNN
 
 	std::vector<torch::jit::script::Module> model;
 
-	RXMDNN(int myrank, std::vector<model_spec> model_specs)
+	RXMDNN(int _myrank, std::vector<model_spec> model_specs)
 	{
+		myrank = _myrank; 
+
 		if(torch::cuda::is_available())
 		{
 
@@ -138,7 +140,7 @@ struct RXMDNN
 		}
 
 		// Cumulative sum of neighbors, for knowing where to fill in the edges tensor
-		std::vector<int> cumsum_neigh_per_atom(nlocal);
+		std::vector<int> cumsum_neigh_per_atom(nlocal, 0);
 		for(int ii = 1; ii < nlocal; ii++)
 			cumsum_neigh_per_atom[ii] = cumsum_neigh_per_atom[ii-1] + neigh_per_atom[ii-1];
 
