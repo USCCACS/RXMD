@@ -1,2 +1,4 @@
 ## model path: element name, AMU
-allegro pot/deployed.pth 2  H 1.0  N 14.0
+#allegro pot/sioh-1.pth 3  H 1.0  O 15.999  Si 28.0855
+#allegro pot/sioh-2.pth 3  H 1.0  O 15.999  Si 28.0855
+allegro pot/stopto.deploy 4  Pb 207.2  Sr 87.62 Ti 47.867 O 16.0

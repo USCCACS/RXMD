@@ -850,6 +850,123 @@ return
 end
 
 !--------------------------------------------------------------------------
+subroutine ReadPSTO(atype, rreal, v, q, f, fileName)
+!--------------------------------------------------------------------------
+implicit none
+
+character(*),intent(in) :: fileName
+real(8),allocatable,dimension(:),intent(inout) :: atype,q
+real(8),allocatable,dimension(:,:),intent(inout) :: rreal,v,f
+
+integer :: i,i1
+
+integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
+integer (kind=MPI_OFFSET_KIND) :: fileSize
+integer :: localDataSize, metaDataSize, scanbuf
+integer :: fh ! file handler
+
+integer :: nmeta
+integer,allocatable :: idata(:)
+real(8),allocatable :: dbuf(:)
+real(8) :: ddata(6), d10(10)
+
+real(8) :: rnorm(NBUFFER,3), mat(3,3)
+integer :: j
+
+!=== # of unit cells ===
+!integer :: mx=4,my=4,mz=4
+!integer :: mx=20,my=20,mz=20
+integer :: mx=50,my=50,mz=50
+
+integer :: ix,iy,iz,nn, ii
+integer(8) :: iigd
+
+integer :: ti,tj,tk
+
+integer,parameter :: ntot=5
+real(8) :: pos0(ntot*3)
+integer :: atype0(ntot)
+
+real(8) :: drnd(3)
+integer :: num_seed
+integer,allocatable :: seeds(:)
+
+!--- initialize random seed with MPI rank
+call random_seed(size=num_seed)
+allocate(seeds(num_seed))
+seeds=myid
+call random_seed(put=seeds)
+
+call system_clock(ti,tk)
+
+!--- allocate arrays
+if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocator(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocator(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocator(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocator(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocator(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
+f(:,:)=0.0d0
+
+pos0=(/ &
+1.000000000d0,   1.000000000d0,   1.000000000d0, &
+0.500000000d0,   0.500000000d0,   0.537699952d0, &
+0.500000000d0,   0.500000000d0,   0.111800048d0, &
+1.000000000d0,   0.500000000d0,   0.617399904d0, &
+0.500000000d0,   1.000000000d0,   0.617399904d0  &
+/)
+
+atype0=(/1, 3, 4, 4, 4/)  ! Pb-1, Sr-2, Ti-3, O-4
+
+!--- local unit cell parameters
+lata=3.90200d0
+latb=3.90200d0
+latc=4.15600d0
+lalpha=90.0000d0
+lbeta=90.0000d0
+lgamma=90.0000d0
+
+iigd = mx*my*mz*ntot*myid ! for global ID
+nn=0
+do ix=0,mx-1
+do iy=0,my-1
+do iz=0,mz-1
+   do ii=1,ntot
+      nn=nn+1
+      rreal(nn,1:3) = pos0(3*ii-2:3*ii)+(/ix,iy,iz/)  ! repeat unit cell
+      rreal(nn,1:3) = rreal(nn,1:3)+vID(1:3)*(/mx,my,mz/) ! adding the box origin
+      rreal(nn,1:3) = rreal(nn,1:3)*(/lata,latb,latc/) ! real coords
+      call random_number(drnd)
+      drnd(1:3) = (2.d0*drnd(1:3)-1.d0)*0.001d0
+      !rreal(nn,1:3) = rreal(nn,1:3) + drnd(1:3)
+      rreal(nn,1:3) = rreal(nn,1:3) - 1d-3
+      atype(nn) = dble(atype0(ii)) + (iigd+nn)*1d-13
+   enddo
+enddo; enddo; enddo
+NATOMS=nn
+
+!--- update to glocal cell parameters
+lata=lata*mx*vprocs(1)
+latb=latb*my*vprocs(2)
+latc=latc*mz*vprocs(3)
+
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+do i=1, 3
+do j=1, 3
+   HH(i,j,0)=mat(i,j)
+enddo; enddo
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
+
+call system_clock(tj,tk)
+it_timer(22)=it_timer(22)+(tj-ti)
+
+return
+end
+
+
+!--------------------------------------------------------------------------
 subroutine ReadH2O(atype, rreal, v, q, f, fileName)
 !--------------------------------------------------------------------------
 implicit none
@@ -876,7 +993,7 @@ integer :: j
 !=== # of unit cells ===
 integer :: mx=2,my=1,mz=1
 
-integer :: ix,iy,iz,ntot, imos2
+integer :: ix,iy,iz,ntot, ii
 integer(8) :: iigd
 
 integer :: ti,tj,tk
@@ -939,12 +1056,12 @@ ntot=0
 do ix=0,mx-1
 do iy=0,my-1
 do iz=0,mz-1
-   do imos2=1,nH2O
+   do ii=1,nH2O
       ntot=ntot+1
-      rreal(ntot,1:3) = pos0(3*imos2-2:3*imos2)+(/ix,iy,iz/)  ! repeat unit cell
+      rreal(ntot,1:3) = pos0(3*ii-2:3*ii)+(/ix,iy,iz/)  ! repeat unit cell
       rreal(ntot,1:3) = rreal(ntot,1:3)+vID(1:3)*(/mx,my,mz/) ! adding the box origin
       rreal(ntot,1:3) = rreal(ntot,1:3)*(/lata,latb,latc/) ! real coords
-      atype(ntot) = dble(atype0(imos2)) + (iigd+ntot)*1d-13
+      atype(ntot) = dble(atype0(ii)) + (iigd+ntot)*1d-13
    enddo 
 enddo; enddo; enddo
 NATOMS=ntot
@@ -997,11 +1114,15 @@ integer :: j
 !integer :: mx=1,my=1,mz=1
 !integer :: mx=32,my=32,mz=32
 !integer :: mx=4,my=4,mz=4
-integer :: mx=8,my=8,mz=8
 !integer :: mx=16,my=16,mz=32
 !integer :: mx=64,my=64,mz=64
 !integer :: mx=48,my=48,mz=48
 !integer :: mx=36,my=36,mz=36
+!integer :: mx=35,my=35,mz=35
+!integer :: mx=28,my=28,mz=28
+!integer :: mx=30,my=30,mz=30
+!integer :: mx=24,my=24,mz=24
+integer :: mx=36,my=36,mz=36
 
 integer :: ix,iy,iz,nn, ii
 integer(8) :: iigd

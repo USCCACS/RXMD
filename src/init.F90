@@ -9,7 +9,7 @@ module init
   use pqeq_mod, only : PQEq, initialize_eField, initialize_pqeq
   use force_mod, only : force_reaxff
   use memory_allocator_mod
-  use fileio, only : ReadBIN, ReadXYZ, ReadH2O, ReadSiOH, xyz_agg
+  use fileio, only : ReadBIN, ReadXYZ, ReadH2O, ReadSiOH, ReadPSTO, xyz_agg
 
   use lists_mod, only: getnonbondingmesh 
 
@@ -144,7 +144,7 @@ else if(is_nnmm .and. find_cmdline_argc('--start_from_nnmm',i)) then
   call nnmd_setup_system(atype, pos, v, q, f, atmname, nnmmp, NN, MM)
 else
   !call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
-  call ReadSiOH(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+  call ReadPSTO(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
 endif
 
 !--- get global number of atoms by summing up each type. 

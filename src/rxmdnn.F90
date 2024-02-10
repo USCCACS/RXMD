@@ -238,6 +238,8 @@ do i=1, num_atoms
    !print*
 enddo
 
+!print'(a,2i6)','myid,maxnbr: ',myid, maxval(nbrlist(:,0))
+
 f=0.d0; q=0.d0
 
 ! for Fortran/C interface

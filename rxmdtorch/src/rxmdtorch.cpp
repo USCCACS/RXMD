@@ -16,9 +16,12 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
-//#define BATCH_SIZE 4096
+#define BATCH_SIZE 4096
 //#define BATCH_SIZE 8192
-#define BATCH_SIZE 16384
+//#define BATCH_SIZE 16384
+//#define BATCH_SIZE 32768
+//#define BATCH_SIZE 262144
+//#define BATCH_SIZE 1048576
 
 struct model_spec
 {
@@ -92,6 +95,13 @@ struct RXMDNN
 			std::cout << "r_max: " << metadata["r_max"] << std::endl;
 			std::cout << "BATCH_SIZE : " << BATCH_SIZE << std::endl;
 			std::cout << "model.size(): " << model.size() << std::endl;
+
+			std::cout << "PyTorch version from parts: "
+				<< TORCH_VERSION_MAJOR << "."
+				<< TORCH_VERSION_MINOR << "."
+				<< TORCH_VERSION_PATCH << std::endl;
+				std::cout << "PyTorch version: " << TORCH_VERSION << std::endl;
+
 		}
 	}
 
@@ -104,7 +114,9 @@ struct RXMDNN
 			void *pos_voidptr, void *type_voidptr, void *force_voidptr, void *nbrlist_voidptr, double &energy, 
 			double evar, void *fvar_voidptr)
 	{
-		//std::cout << "nlocal,ntotal,nbuffer" << nlocal << " " << ntotal << " " << nbuffer<< std::endl;
+		//std::cout << "myrank,nlocal,ntotal,nbuffer: " << 
+		//	myrank << " " << nlocal << " " << ntotal << " " << nbuffer<< std::endl;
+
 		double *pos_vec0 = (double *) pos_voidptr;
 		double *type_vec = (double *) type_voidptr;
 		double *force_vec = (double *) force_voidptr;
@@ -172,6 +184,7 @@ struct RXMDNN
 		{
 			int n_start = nb*batch_size;
 			int n_end = std::min((nb+1)*batch_size, nlocal); 
+
 			if (n_start == n_end) break;
 
 			//std::cout << n_start << " " << n_end << " " << nlocal << std::endl;
@@ -194,8 +207,13 @@ struct RXMDNN
 				}
 			}
 
+			//std::cout << "myrank,nb/n_batches,iedges : " << myrank << 
+			//	" " << nb << " / " << n_batches << " : " << iedges << std::endl;
+
 			for (auto & m : model)
 			{
+				//std::cout << "in model loop" << std::endl;
+
 				c10::Dict<std::string, torch::Tensor> input;
 
 				input.insert("pos", pos_tensor);
@@ -204,6 +222,7 @@ struct RXMDNN
 				input.insert("edge_index", edges_tensor.to(device));
 				std::vector<torch::IValue> input_vector(1, input);
 
+				//std::cout << "before calling m.forward.. " << std::endl;
 				auto output = m.forward(input_vector).toGenericDict();
 
 				torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
