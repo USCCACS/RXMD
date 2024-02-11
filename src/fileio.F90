@@ -876,7 +876,11 @@ integer :: j
 !=== # of unit cells ===
 !integer :: mx=4,my=4,mz=4
 !integer :: mx=20,my=20,mz=20
-integer :: mx=50,my=50,mz=50
+!integer :: mx=50,my=50,mz=50
+integer :: mx=24,my=24,mz=24
+
+character(MAXSTRLENGTH) :: argv
+integer :: idx 
 
 integer :: ix,iy,iz,nn, ii
 integer(8) :: iigd
@@ -898,6 +902,12 @@ seeds=myid
 call random_seed(put=seeds)
 
 call system_clock(ti,tk)
+
+if(find_cmdline_argc('--mxyz',idx)) then
+  call get_command_argument(idx+1,argv);  read(argv,*) mx
+  call get_command_argument(idx+2,argv);  read(argv,*) my
+  call get_command_argument(idx+3,argv);  read(argv,*) mz
+endif
 
 !--- allocate arrays
 if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
