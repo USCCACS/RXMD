@@ -292,7 +292,7 @@ end subroutine
 !------------------------------------------------------------------------------
 subroutine mddriver_fnn(mdbase, mdsteps) 
 use utils, only : UTEMP, UTEMP0
-use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, scale_temperature
+use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, elementwise_scaling_temperature
 !------------------------------------------------------------------------------
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: mdsteps
@@ -361,7 +361,7 @@ do ia=1, size(step_params)
 
 !--- element-wise velocity scaling
      if(mod(nstep,sstep)==0.and.mdmode==7) &
-        call scale_temperature(atype, v)
+        call elementwise_scaling_temperature(atype, v, treq)
 
      if(mod(nstep,sstep)==0.and.mdmode==8) &
         call adjust_temperature(atype, v)

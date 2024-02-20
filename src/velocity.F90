@@ -1,8 +1,9 @@
 module velocity_modifiers_mod
 
   use mpi_mod
-  use utils, only : UTEMP0, UTEMP, matinv
+  use utils, only : UTEMP0, UTEMP, matinv, find_cmdline_argc
   use base, only : NATOMS, GNATOMS, mass, treq, KE, GKE, myid, ierr, dthm, hmas, atmname, vmag_factor
+
 
 contains
 
@@ -17,6 +18,37 @@ real(8),intent(in) :: scaling_factor
    v(1:NATOMS,1:3)=scaling_factor*v(1:NATOMS,1:3)
 
 end subroutine
+
+!------------------------------------------------------------------------------------------
+function ramp_to_target_temperature(myrank, current_step, total_step) result (new_target)
+!------------------------------------------------------------------------------------------
+implicit none
+integer,intent(in) :: myrank, current_step, total_step 
+integer :: idx
+character(16) :: argv
+real(8) :: ratio, tstart, tfinal, new_target
+
+if(find_cmdline_argc('--tramp',idx)) then
+  
+  call get_command_argument(idx+1,argv); read(argv,*) tstart
+  call get_command_argument(idx+2,argv); read(argv,*) tfinal
+  ratio = dble(current_step)/total_step
+  new_target = ratio*tfinal + (1d0-ratio)*tstart
+
+  if(myrank==0) then
+     print'(a)'
+     print'(a)', "updating tartget temperature:"
+     print'(a,2f8.2)', "  tstart[K], tfinal[K]: ", tstart, tfinal
+     print'(a,2i9)',   "  current_step,total_step: ", current_step, total_step
+     print'(a,2f8.2)', "  ratio,new_target[K]: ", ratio, new_target 
+     print'(a)'
+  endif
+
+  new_target = new_target/UTEMP0 ! from K to Reax unit
+
+endif
+
+end function
 
 !------------------------------------------------------------------------------------------
 subroutine scale_to_target_temperature(atype, v, t_target)
@@ -150,11 +182,12 @@ return
 end
 
 !-----------------------------------------------------------------------
-subroutine scale_temperature(atype, v)
+subroutine elementwise_scaling_temperature(atype, v, treq)
 !-----------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
 real(8),allocatable,intent(in out):: v(:,:)
+real(8),intent(in) :: treq
 
 integer :: i,ity
 integer,parameter :: MAX_ELEMENT=20

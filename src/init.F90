@@ -143,8 +143,11 @@ if(isRunFromXYZ) then
 else if(is_nnmm .and. find_cmdline_argc('--start_from_nnmm',i)) then
   call nnmd_setup_system(atype, pos, v, q, f, atmname, nnmmp, NN, MM)
 else
-  !call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
-  call ReadPSTO(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+  if(find_cmdline_argc('--start-from-psto',i)) then
+     call ReadPSTO(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+  else
+     call ReadBIN(atype, pos, v, q, f, trim(DataDir)//"/rxff.bin")
+  endif
 endif
 
 !--- get global number of atoms by summing up each type. 

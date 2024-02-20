@@ -172,7 +172,7 @@ do nstep=0, num_mdsteps-1
 
 !--- element-wise velocity scaling
    if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call scale_temperature(atype, v)
+      call elementwise_scaling_temperature(atype, v, treq)
 
    if(mod(nstep,sstep)==0.and.mdmode==8) &
       call adjust_temperature(atype, v)
