@@ -17,16 +17,14 @@ OBJS = $(SRCS:.F90=.o)
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Polaris
-#install_root=/soft/datascience/conda/2023-10-04/pytorch/torch
-#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -Wl,-R/opt/cray/pe/gcc/11.2.0/snos/lib64
-#TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
+install_root=/lus/grand/projects/QuantMatManufact/knomura/libtorch
+TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
+TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
-#Sunspot/Aurora
-#install_root=/lus/gila/projects/NAQMC_RMD_aesp_CNDA/knomura/libs/libtorch
-install_root=/lus/gecko/projects/NAQMC_RMD_aesp_CNDA/knomura/libtorch
-TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -L${install_root}/lib -Wl,-R${install_root}/lib
-TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu -lintel-ext-pt-cpu
-
+#Sunspot
+#install_root=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/torch
+#install_root_ext=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/intel_extension_for_pytorch
+#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -L${install_root_ext}/lib -Wl,-R${install_root_ext}/lib
 #TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu -lintel-ext-pt-cpu 
 
 INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
@@ -45,7 +43,7 @@ rxmdnn: $(OBJS)
 
 rxmdtorch: $(OBJS) 
 	make -C ../rxmdtorch/build
-	$(MPIF90) $(MPIF90_FLAGS) $(TORCHLIB_DIRS) $(MACROS) -o $(EXE) $(OBJS) $(LIBS) $(TORCHLIBS) -lstdc++
+	$(MPIF90) $(MPIF90_FLAGS) $(TORCHLIB_DIRS) $(MACROS) -o $(EXE) $(OBJS) $(LIBS) $(TORCHLIBS) -lstdc++ 
 
 #cg.o : fileio.o
 #main.F90 : cg.o
