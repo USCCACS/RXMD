@@ -1340,7 +1340,8 @@ integer :: i,i1
 integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
 integer (kind=MPI_OFFSET_KIND) :: fileSize
 integer :: localDataSize, metaDataSize, scanbuf
-integer :: fh ! file handler
+TYPE(MPI_Info) :: info
+TYPE(MPI_File) :: fh
 
 integer :: nmeta
 integer,allocatable :: idata(:)
@@ -1351,6 +1352,11 @@ real(8) :: rnorm(NBUFFER,3), mat(3,3)
 integer :: j
 
 integer :: ti,tj,tk
+
+integer :: idx
+character(64) :: argv
+real(8) :: buf
+
 call system_clock(ti,tk)
 
 
@@ -1430,6 +1436,12 @@ deallocate(dbuf)
 
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
+
+if( find_cmdline_argc('--strain',idx)) then
+   call get_command_argument(idx+1,argv); read(argv,*) buf; lata=lata*(1.d0+buf)
+   call get_command_argument(idx+2,argv); read(argv,*) buf; latb=latb*(1.d0+buf)
+   call get_command_argument(idx+3,argv); read(argv,*) buf; latc=latc*(1.d0+buf)
+endif
 
 call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
