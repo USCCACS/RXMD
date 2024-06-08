@@ -17,7 +17,7 @@ OBJS = $(SRCS:.F90=.o)
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Polaris
-install_root=/lus/grand/projects/QuantMatManufact/knomura/libtorch
+install_root=/lus/eagle/projects/NAQMC_RMD_aesp/knomura/libtorch
 TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
 TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
