@@ -294,7 +294,7 @@ mm=0.d0; Gmm=0.d0
 do i=1, NATOMS
    ity = nint(atype(i))
    mm = mm + mass(ity)
-   com(1:3) = mass(ity)*pos(i,1:3)
+   com(1:3) = com(1:3) + mass(ity)*pos(i,1:3)
 enddo
 
 call MPI_ALLREDUCE(MPI_IN_PLACE, mm, 1, MPI_DOUBLE_PRECISION, MPI_SUM,  MPI_COMM_WORLD, ierr)
