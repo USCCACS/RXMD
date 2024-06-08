@@ -413,3 +413,71 @@ deallocate(seeds)
 end subroutine
 
 end module
+
+!-------------------------------------------------------------------------------------------
+module element_name_manager
+!-------------------------------------------------------------------------------------------
+
+  type single_element_type
+     character(len=:),allocatable :: name
+     integer :: atomic
+     logical :: set
+  endtype
+
+  type elements_type
+     type(single_element_type),allocatable :: e(:)
+     character(len=:),allocatable :: str 
+  end type
+
+  type(elements_type) :: elements0, elements
+
+  integer,parameter :: BUF_LEN=5
+  character(len=BUF_LEN) :: a5
+
+contains
+
+  subroutine set_initial_lookup_table()
+     integer :: i
+
+     if(.not.allocated(elements0%e)) allocate(elements0%e(0))
+
+     elements0%e = [elements0%e, single_element_type(name="Pb",atomic=82,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Sr",atomic=38,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Ti",atomic=22,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="O",atomic=8,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="N",atomic=7,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Si",atomic=14,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="H",atomic=1,set=.false.)]
+
+     do i=1, size(elements0%e)
+        write(a5,'(a5)') elements0%e(i)%name
+        elements0%str=elements0%str//adjustl(a5)
+     enddo
+
+  end subroutine
+
+  subroutine add_elem(elems, elem)
+     character(len=*),intent(in) :: elem
+     type(elements_type),intent(in out) :: elems
+     integer :: idx
+
+     if(.not.allocated(elems%e)) allocate(elems%e(0))
+
+     idx=get_loc(elements0%str, elem) 
+     elements0%e(idx)%set = .true. 
+
+     elems%e = [elems%e, elements0%e(idx)]
+
+     write(a5,'(a5)') elements0%e(idx)%name
+     elems%str= elems%str//adjustl(a5)
+  end subroutine
+
+  function get_loc(element_buffer, elem) result(loc)
+     character(len=:),allocatable :: element_buffer
+     character(len=*) :: elem
+     integer :: loc
+     loc = index(element_buffer, elem)
+     if (loc > 0) loc = (loc-1)/BUF_LEN + 1
+  end function
+
+end module 

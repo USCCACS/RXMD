@@ -298,6 +298,8 @@ end subroutine
 !------------------------------------------------------------------------------------------
 function mdcontext_rxmdnn() result(fp)
 !------------------------------------------------------------------------------------------
+use element_name_manager
+
 implicit none
 
 integer :: i,j, ity, num_models
@@ -338,6 +340,17 @@ enddo
 
 !--- set md dirver function 
 mddriver_func => mddriver_rxmdnn
+
+call set_initial_lookup_table()
+if(myid==0) then
+   do i=1, size(fp%models)
+      call add_elem(elements, fp%models(i)%element)
+   enddo
+
+   do i=1, size(elements%e)
+      print'(a3,i3,a3,i6)','INFO: Added ', i, elements%e(i)%name, elements%e(i)%atomic
+   enddo
+endif
 
 end function
 

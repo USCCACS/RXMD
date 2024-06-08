@@ -39,7 +39,9 @@ struct RXMDNN
 
 	double cutoff; 
 
-	std::vector<torch::jit::script::Module> model;
+	std::vector<torch::jit::script::Module> models;
+	torch::jit::script::Module model;
+	int current_model_id = 0; 
 
 	RXMDNN(int _myrank, std::vector<model_spec> model_specs)
 	{
@@ -79,10 +81,13 @@ struct RXMDNN
 		for (const auto & mspec : model_specs)
 		{
 			//std::cout << "loading model.. " << mspec.modelpath << std::endl;
-			model.push_back(torch::jit::load(mspec.modelpath, device, metadata));
+			models.push_back(torch::jit::load(mspec.modelpath, device, metadata));
 		}
 		
-		for (auto & m : model) m.eval();
+		for (auto & m : models) m.eval();
+
+		current_model_id = 0; 
+		update_current_model(current_model_id);
 
 		cutoff = std::stod(metadata["r_max"]);
 
@@ -94,7 +99,7 @@ struct RXMDNN
 			std::cout << "n_species: " << metadata["n_species"] << std::endl;
 			std::cout << "r_max: " << metadata["r_max"] << std::endl;
 			std::cout << "BATCH_SIZE : " << BATCH_SIZE << std::endl;
-			std::cout << "model.size(): " << model.size() << std::endl;
+			std::cout << "model.size(): " << models.size() << std::endl;
 
 			std::cout << "PyTorch version from parts: "
 				<< TORCH_VERSION_MAJOR << "."
@@ -105,14 +110,28 @@ struct RXMDNN
 		}
 	}
 
+	int get_num_models()
+	{
+		return models.size();
+	}
+
+	void update_current_model(int const id)
+	{
+		if (id >= models.size()) 
+			std::cout << "ERROR: model id> model.size():  " 
+				<< id << " " << models.size() << std::endl;
+
+		model = models[id];
+	}
+
 	double get_maxrc()
 	{
 		return cutoff; 
 	}
 
 	void get_nn_force(int const nlocal, int const ntotal, int const nbuffer, 
-			void *pos_voidptr, void *type_voidptr, void *force_voidptr, void *nbrlist_voidptr, double &energy, 
-			double evar, void *fvar_voidptr)
+			void *pos_voidptr, void *type_voidptr, void *force_voidptr, void *nbrlist_voidptr, 
+			double &energy)
 	{
 		//std::cout << "myrank,nlocal,ntotal,nbuffer: " << 
 		//	myrank << " " << nlocal << " " << ntotal << " " << nbuffer<< std::endl;
@@ -121,7 +140,6 @@ struct RXMDNN
 		double *type_vec = (double *) type_voidptr;
 		double *force_vec = (double *) force_voidptr;
 		signed int *nbrlist_vec = (signed int *) nbrlist_voidptr;
-		double *fvar_vec = (double *) fvar_voidptr;
 
 		std::vector<float> pos_(3*ntotal);
 		for(int i=0; i<ntotal; i++)
@@ -210,59 +228,35 @@ struct RXMDNN
 			//std::cout << "myrank,nb/n_batches,iedges : " << myrank << 
 			//	" " << nb << " / " << n_batches << " : " << iedges << std::endl;
 
-			for (auto & m : model)
-			{
-				//std::cout << "in model loop" << std::endl;
+			c10::Dict<std::string, torch::Tensor> input;
 
-				c10::Dict<std::string, torch::Tensor> input;
+			input.insert("pos", pos_tensor);
+			input.insert("atom_types", ij2type_tensor);
 
-				input.insert("pos", pos_tensor);
-				input.insert("atom_types", ij2type_tensor);
+			input.insert("edge_index", edges_tensor.to(device));
+			std::vector<torch::IValue> input_vector(1, input);
 
-				input.insert("edge_index", edges_tensor.to(device));
-				std::vector<torch::IValue> input_vector(1, input);
+			//std::cout << "before calling m.forward.. " << std::endl;
+			//auto output = model.forward(input_vector).toGenericDict();
+			torch::Dict<c10::IValue,c10::IValue> output = model.forward(input_vector).toGenericDict();
 
-				//std::cout << "before calling m.forward.. " << std::endl;
-				auto output = m.forward(input_vector).toGenericDict();
+			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
+			auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
+			float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
 
-				torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
-				auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
-				float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+			torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
+			auto forces = forces_tensor.accessor<float, 2>();
 
-				torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
-				auto forces = forces_tensor.accessor<float, 2>();
+			for(int i = n_start; i < n_end; i++)
+				eng_vdwl += atomic_energies[i][0];
 
-				for(int i = n_start; i < n_end; i++)
-					eng_vdwl += atomic_energies[i][0];
-
-				for (int ii=0; ii<ntotal; ii++)
-				{
-					force_vec[ii] += forces[ii][0];
-					force_vec[nbuffer+ii] += forces[ii][1];
-					force_vec[2*nbuffer+ii] += forces[ii][2];
-
-					fvar_vec[ii] += 
-						forces[ii][0]*forces[ii][0] + 
-						forces[ii][1]*forces[ii][1] + 
-						forces[ii][2]*forces[ii][2];
-				}
-			}
-
-			// model average
-			int model_size = model.size();
-			eng_vdwl /= model_size;
 			for (int ii=0; ii<ntotal; ii++)
 			{
-				force_vec[ii] /= model_size;
-				force_vec[nbuffer+ii] /= model_size;
-				force_vec[2*nbuffer+ii] /= model_size;
-
-				double favesq = force_vec[ii]*force_vec[ii] + 
-					force_vec[nbuffer+ii]*force_vec[nbuffer+ii] + 
-					force_vec[2*nbuffer+ii]*force_vec[2*nbuffer+ii];
-
-				fvar_vec[ii] = fvar_vec[ii]/model_size - favesq;
+				force_vec[ii] += forces[ii][0];
+				force_vec[nbuffer+ii] += forces[ii][1];
+				force_vec[2*nbuffer+ii] += forces[ii][2];
 			}
+
 		}
 
 		//std::cout << "total energy eng_vdwl: " << eng_vdwl << std::endl;
@@ -323,14 +317,25 @@ extern "C" void init_rxmdtorch(int myrank)
 }
 
 extern "C" void get_nn_force_torch(int nlocal, int ntotal, int nbuffer, 
-		void *pos_ptr, void *type_ptr, void *force_ptr, void *nbrlist_ptr, double &energy, 
-		double &evar, void *fvar_ptr)
+		void *pos_ptr, void *type_ptr, void *force_ptr, void *nbrlist_ptr, double &energy)
 {
 	//std::cout << "nlocal,nbuffer " << nlocal << " " << nbuffer << std::endl;
 	const auto start = std::chrono::steady_clock::now();
-	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr);
+	rxmdnn_ptr->get_nn_force(nlocal, ntotal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy);
 	const auto end = std::chrono::steady_clock::now();
 	//std::cout << "time(s) " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()*1e-6 << std::endl;
+}
+
+extern "C" void get_num_models_rxmdnn(int & n_models)
+{
+	n_models = rxmdnn_ptr->get_num_models();
+	//std::cout << "get_num_models " << n_models << std::endl;
+}
+
+extern "C" void update_current_model_rxmdnn(int const id)
+{
+	rxmdnn_ptr->update_current_model(id);
+	//std::cout << "update_current_model " << id << std::endl;
 }
 
 extern "C" void get_maxrc_rxmdnn(double & maxrc)

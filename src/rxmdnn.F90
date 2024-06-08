@@ -41,6 +41,14 @@ module rxmdnn
 
   type(c_ptr) :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
 
+  type nn_stat_type
+    integer :: num_models
+    real(8) :: emean, evar, fvar_max
+    real(8),allocatable :: fvar(:,:)
+  end type
+
+  type(nn_stat_type) :: nn_stat
+
 #ifdef RXMDNN
 
   interface 
@@ -50,12 +58,22 @@ module rxmdnn
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) &
+    subroutine predict_force_rxmdnn(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) &
                                  bind(c,name="get_nn_force_torch")
        import :: c_int, c_double, c_ptr
        integer(c_int),value :: natoms, nbuffer, nglobal
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
-       real(c_double) :: energy, evar
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
+       real(c_double) :: energy 
+    end subroutine
+
+    subroutine update_current_model_rxmdnn(id) bind(c,name="update_current_model_rxmdnn")
+        import :: c_int
+        integer(c_int),value :: id 
+    end subroutine
+
+    subroutine get_num_models_rxmdnn(num_models) bind(c,name="get_num_models_rxmdnn")
+        import :: c_int
+        integer(c_int) :: num_models
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) bind(c,name="get_maxrc_rxmdnn")
@@ -74,10 +92,20 @@ contains
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_rxmdtorch(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) 
+    subroutine predict_force_rxmdnn(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) 
        integer(c_int),value :: natoms, maxnbrs, nbuffer
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
-       real(c_double) :: energy, evar
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
+       real(c_double) :: energy 
+    end subroutine
+
+    subroutine update_current_model_rxmdnn(id)
+        import :: c_int
+        integer(c_int),value :: id 
+    end subroutine
+
+    subroutine get_num_models_rxmdnn(num_models)
+        import :: c_int
+        integer(c_int) :: num_models
     end subroutine
 
     subroutine get_maxrc_rxmdnn(maxrc) 
@@ -85,6 +113,33 @@ contains
     end subroutine
 
 #endif
+
+!------------------------------------------------------------------------------
+subroutine update_nn_stat(ns, num_models, num_atoms, esum, e2sum, fsum, f2sum)
+!------------------------------------------------------------------------------
+  type(nn_stat_type),intent(in out) :: ns 
+  integer,intent(in) :: num_models, num_atoms
+  real(8),intent(in) :: esum, e2sum, fsum(num_atoms,3), f2sum(num_atoms,3)
+
+  real(8) :: fvar_max
+
+  ns%num_models = num_models
+
+  ! energy mean & variance
+  ns%emean = esum/num_models
+  ns%evar = e2sum/num_models - ns%emean**2
+
+  ! force mean & variance
+  if(.not.allocated(ns%fvar)) allocate(ns%fvar(num_atoms,3))
+
+  ns%fvar(1:num_atoms,1:3) = f2sum(1:num_atoms,1:3)/num_models - &
+                             (fsum(1:num_atoms,1:3)/num_models)**2
+
+  fvar_max = maxval(ns%fvar)
+  call MPI_ALLREDUCE(MPI_IN_PLACE, fvar_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, MPI_COMM_WORLD, ierr)
+  ns%fvar_max = fvar_max
+
+end subroutine
 
 !------------------------------------------------------------------------------
 subroutine rxmdnn_param_print(this)
@@ -205,24 +260,28 @@ contains
 end function
 
 !------------------------------------------------------------------------------
-subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, energy, evar)
+subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, nn_stat)
 !------------------------------------------------------------------------------
+!use param_dftd
+
 class(force_field_class),pointer,intent(in out) :: ff
 
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable, target :: atype(:), pos(:,:), q(:), f(:,:)
-real(8),intent(in out) :: energy, evar
+type(nn_stat_type),intent(in out) :: nn_stat 
 
-integer :: i,j,j1,ity,n_j,stat,idx
+integer :: i,j,j1,ity,jty, n_j,stat,idx
 
 integer,allocatable,dimension(:),target :: nbrlist_nn
+
+integer :: num_models, id
+real(8) :: Enn, esum, e2sum, fsum(num_atoms, 3), f2sum(num_atoms, 3)
 
 if(.not.allocated(nbrlist_nn)) allocate(nbrlist_nn(NBUFFER*MAXNEIGHBS))
 
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
 call get_nbrlist_rxmdnn(pos, maxrc)
-
 
 !--- packing
 idx=0
@@ -238,25 +297,44 @@ do i=1, num_atoms
    !print*
 enddo
 
-!print'(a,2i6)','myid,maxnbr: ',myid, maxval(nbrlist(:,0))
+call get_num_models_rxmdnn(num_models) 
 
-f=0.d0; q=0.d0
+esum=0.d0; e2sum=0.d0
+fsum=0.d0; f2sum=0.d0 
+do id = 1, num_models
+
+  !print'(a,i3)','=== INFO === current_model id: ', id-1
+  call update_current_model_rxmdnn(id-1)
+
+  f=0.d0; Enn=0.d0
 
 ! for Fortran/C interface
-pos_ptr = c_loc(pos(1,1))
-type_ptr = c_loc(atype(1))
-force_ptr = c_loc(f(1,1))
-nbrlist_ptr = c_loc(nbrlist_nn(1))
-fvar_ptr = c_loc(q(1)) ! use q to store force uncertainty
-if(NATOMS>0) &
-   call predict_rxmdtorch(NATOMS, copyptr(6) , NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy, evar, fvar_ptr) 
-!print'(a,3es15.5)','myid,energy,evar,fvar:',energy,evar,fvar
+  pos_ptr = c_loc(pos(1,1))
+  type_ptr = c_loc(atype(1))
+  force_ptr = c_loc(f(1,1))
+  nbrlist_ptr = c_loc(nbrlist_nn(1))
+  if(NATOMS>0) &
+    call predict_force_rxmdnn(NATOMS, copyptr(6), NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, Enn) 
+  !print'(a,3es15.5)','myid,energy:',Enn
 
-CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+  call MPI_ALLREDUCE(MPI_IN_PLACE, Enn, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+  esum = esum + Enn; e2sum = e2sum + Enn**2
+
+  CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+
+  fsum(1:num_atoms,1:3) = fsum(1:num_atoms,1:3) + f(1:num_atoms, 1:3)
+  f2sum(1:num_atoms,1:3) = f2sum(1:num_atoms,1:3) + f(1:num_atoms, 1:3)**2
+
+enddo
 
 ! don't forget to convert energy to kcal/mol
-f(1:num_atoms,:) = f(1:num_atoms,:)*Eev_kcal
-energy = energy*Eev_kcal
+esum = esum*Eev_kcal; e2sum = e2sum*Eev_kcal**2
+fsum = fsum*Eev_kcal; f2sum = f2sum*Eev_kcal**2
+
+! predicted force 
+f(1:num_atoms,1:3) = fsum(1:num_atoms,1:3)/num_models
+
+call update_nn_stat(nn_stat, num_models, num_atoms, esum, e2sum, fsum, f2sum)
 
 end subroutine
 
@@ -268,7 +346,7 @@ use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, e
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
-real(8) :: nn_energy, nn_evar
+type(nn_stat_type) :: nn_stat
 
 character(len=:),allocatable :: filebase
 
@@ -277,7 +355,7 @@ integer :: i,ity
 
 if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
-call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy, nn_evar)
+call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_stat)
 
 filebase = GetFileNameBase(DataDir,-1)
 
@@ -290,13 +368,14 @@ do nstep=0, num_mdsteps-1
   if(mod(nstep,sstep)==0) &
      treq = ramp_to_target_temperature(myid, nstep, num_mdsteps) 
 
-  if(mod(nstep,pstep)==0) call print_e_rxmdnn(atype, v, q, nn_energy)
+  if(mod(nstep,pstep)==0) call print_e_rxmdnn(atype, v, q, nn_stat)
 
   call cpu_time(tstart(0))
 
   if(mod(nstep,fstep)==0) then
      filebase = GetFileNameBase(DataDir,current_step+nstep)
      call OUTPUT(filebase, atype, pos, v, q, v)
+     !call OUTPUT(filebase, atype, pos, v, q, nn_stat%fvar)
   endif
 
   if(mod(nstep,sstep)==0.and.mdmode==4) &
@@ -337,7 +416,7 @@ do nstep=0, num_mdsteps-1
    !print*,'ff_type_flag ', ff_type_flag, ff_type_flag == TYPE_NNQEQ
 
    call cpu_time(cpu1)
-   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_energy, nn_evar)
+   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_stat)
    if (ff_type_flag == TYPE_NNQEQ) call QEq(atype, pos, q)
    call cpu_time(cpu2)
    comp = comp + (cpu2-cpu1)
@@ -427,7 +506,7 @@ return
 end subroutine
 
 !-------------------------------------------------------------------------------------------
-subroutine print_e_rxmdnn(atype, v, q, nn_energy)
+subroutine print_e_rxmdnn(atype, v, q, ns)
 use mpi_mod
 use base, only : hh, hhi, natoms, gnatoms, mdbox, myid, ierr, hmas, wt0
 use atoms
@@ -438,15 +517,15 @@ implicit none
 
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: v(:,:)
-real(8),intent(in out) :: nn_energy
+type(nn_stat_type),intent(in out) :: ns 
 
 integer :: i,ity,cstep
-real(8) :: tt=0.d0, Etotal
+real(8) :: tt=0.d0, Enn, Etotal
 real(8),save :: time1 = 0d0
 
 if (time1 == 0.d0) time1 = MPI_WTIME()
 
-call MPI_ALLREDUCE (MPI_IN_PLACE, nn_energy, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+Enn = ns%emean
 
 ke=0.d0
 do i=1, NATOMS
@@ -456,11 +535,14 @@ enddo
 
 call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 tt = ke/GNATOMS*UTEMP
-Etotal = ke + nn_energy 
+Etotal = ke + Enn 
 
 if(myid==0) then
    cstep = nstep + current_step 
-   write(6,'(a,i9,3es13.5,2f10.3)') 'MDstep,Etotal,KE,PE,T(K),time(s): ', cstep, Etotal, ke, nn_energy, tt, MPI_WTIME()-time1
+   write(6,'(a35,i9,3es13.5,2f10.3)') 'MDstep,Etotal,KE,PE,T(K),time(s): ', cstep, Etotal, ke, Enn, tt, MPI_WTIME()-time1
+   if(ns%num_models > 1) &
+           write(6,'(a35,i9,3es15.5,f10.3)') 'MDstep,Estdev(frac),Emean,Fvar_max,T(K): ', &
+           cstep,sqrt(ns%evar)/abs(ns%emean), ns%emean, ns%fvar_max, tt
 endif
 
 time1 = MPI_WTIME()
@@ -468,4 +550,3 @@ time1 = MPI_WTIME()
 end subroutine
 
 end module
-
