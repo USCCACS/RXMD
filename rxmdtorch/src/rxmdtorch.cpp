@@ -2,6 +2,8 @@
 #include <chrono>
 #include <memory>
 
+#include <tuple>
+#include <future>
 #include <algorithm>
 #include <vector>
 #include <cmath>
@@ -62,9 +64,14 @@ struct RXMDNN
 
 			device = c10::Device(torch::kCUDA,deviceidx);
 
-  		} else {
-			//device = torch::kCPU;
+  		} else if(torch::xpu::is_available()) {
+
 			device = c10::DeviceType::XPU;
+
+		} else{
+
+			device = torch::kCPU;
+
 		};
 
 		std::unordered_map<std::string, std::string> metadata = {
@@ -108,6 +115,7 @@ struct RXMDNN
 				std::cout << "PyTorch version: " << TORCH_VERSION << std::endl;
 
 		}
+
 	}
 
 	int get_num_models()
@@ -193,52 +201,85 @@ struct RXMDNN
 		pos_tensor = pos_tensor.to(device);
 		ij2type_tensor = ij2type_tensor.to(device);
 
-		double eng_vdwl = 0.0;
 
 		int batch_size = BATCH_SIZE; 
 		int n_batches = nlocal/batch_size; 
+
+		typedef torch::Dict<c10::IValue,c10::IValue> output_t;
+		std::vector<std::future<std::tuple<output_t, int, int>>> outputs;
+
+		bool model_parallel = false; 
+		//bool model_parallel = true; 
 
 		for (int nb = 0; nb <= n_batches; nb++)
 		{
 			int n_start = nb*batch_size;
 			int n_end = std::min((nb+1)*batch_size, nlocal); 
 
+			//std::cout << "n_start,n_end: " << n_start << " " << n_end << std::endl;
+
 			if (n_start == n_end) break;
 
-			//std::cout << n_start << " " << n_end << " " << nlocal << std::endl;
+			outputs.push_back(std::async(
+				model_parallel ? std::launch::async : std::launch::deferred, [&, n_start, n_end] {
 
-			int nedges = 0;
-			for(int i = n_start; i < n_end; i++) nedges += neigh_per_atom[i];
+				//std::cout << "nb,n_start,n_end,nlocal: " << nb << " " 
+				//<< n_start << " " << n_end << " " << nlocal << std::endl;
 
-			torch::Tensor edges_tensor = torch::zeros({2,nedges}, torch::TensorOptions().dtype(torch::kInt64));
-			auto edges = edges_tensor.accessor<long, 2>();
+				int nedges = 0;
+				for(int i = n_start; i < n_end; i++) nedges += neigh_per_atom[i];
 
-			int iedges = 0; 
-			for(int i = n_start; i < n_end; i++)
-			{
-				for(int j1 = 0; j1 < (int)nbrlist[i].size(); j1++)
+				torch::Tensor edges_tensor = torch::zeros({2,nedges}, torch::TensorOptions().dtype(torch::kInt64));
+				auto edges = edges_tensor.accessor<long, 2>();
+
+				int iedges = 0; 
+				for(int i = n_start; i < n_end; i++)
 				{
-					int j = nbrlist[i][j1];
-					edges[0][iedges] = i;
-					edges[1][iedges] = j;
-					iedges++;
+					for(int j1 = 0; j1 < (int)nbrlist[i].size(); j1++)
+					{
+						int j = nbrlist[i][j1];
+						edges[0][iedges] = i;
+						edges[1][iedges] = j;
+						iedges++;
+					}
 				}
+
+				//std::cout << "myrank,nb/n_batches,iedges : " << myrank << 
+				//	" " << nb << " / " << n_batches << " : " << iedges << std::endl;
+
+				c10::Dict<std::string, torch::Tensor> input;
+
+				input.insert("pos", pos_tensor);
+				input.insert("atom_types", ij2type_tensor);
+
+				input.insert("edge_index", edges_tensor.to(device));
+				std::vector<torch::IValue> input_vector(1, input);
+
+				//std::cout << "before calling m.forward.. " << std::endl;
+				//auto output = model.forward(input_vector).toGenericDict();
+				return std::make_tuple(model.forward(input_vector).toGenericDict(), n_start, n_end);
+				}
+			));
+		}
+
+		double eng_vdwl = 0.0;
+		for (auto &out_future: outputs) 
+		{
+			auto out_tuple = out_future.get(); 
+			/*
+			try { 
+				auto out_tuple = out_future.get(); 
+			} catch (const std::exception &e) {
+				std::cout << e.what() << std::endl;
+				exit(1);
 			}
+			*/
 
-			//std::cout << "myrank,nb/n_batches,iedges : " << myrank << 
-			//	" " << nb << " / " << n_batches << " : " << iedges << std::endl;
+		       	output_t output = std::get<0>(out_tuple);
+			int n_start = std::get<1>(out_tuple);
+			int n_end = std::get<2>(out_tuple);
 
-			c10::Dict<std::string, torch::Tensor> input;
-
-			input.insert("pos", pos_tensor);
-			input.insert("atom_types", ij2type_tensor);
-
-			input.insert("edge_index", edges_tensor.to(device));
-			std::vector<torch::IValue> input_vector(1, input);
-
-			//std::cout << "before calling m.forward.. " << std::endl;
-			//auto output = model.forward(input_vector).toGenericDict();
-			torch::Dict<c10::IValue,c10::IValue> output = model.forward(input_vector).toGenericDict();
+			//std::cout << "n_start,n_end: " << n_start << " " << n_end << std::endl;
 
 			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
 			auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
@@ -247,8 +288,7 @@ struct RXMDNN
 			torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
 			auto forces = forces_tensor.accessor<float, 2>();
 
-			for(int i = n_start; i < n_end; i++)
-				eng_vdwl += atomic_energies[i][0];
+			for(int i = n_start; i < n_end; i++) eng_vdwl += atomic_energies[i][0];
 
 			for (int ii=0; ii<ntotal; ii++)
 			{
@@ -256,7 +296,6 @@ struct RXMDNN
 				force_vec[nbuffer+ii] += forces[ii][1];
 				force_vec[2*nbuffer+ii] += forces[ii][2];
 			}
-
 		}
 
 		//std::cout << "total energy eng_vdwl: " << eng_vdwl << std::endl;
