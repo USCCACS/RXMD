@@ -18,13 +18,6 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
-#define BATCH_SIZE 4096
-//#define BATCH_SIZE 8192
-//#define BATCH_SIZE 16384
-//#define BATCH_SIZE 32768
-//#define BATCH_SIZE 262144
-//#define BATCH_SIZE 1048576
-
 struct model_spec
 {
 	std::string modelpath;
@@ -38,6 +31,7 @@ struct RXMDNN
 	int myrank, nlocal, ntotal; 
 	int deviceidx, devicecount; 
 	torch::Device device = torch::kCPU;
+	std::vector<torch::Device> devices; 
 
 	double cutoff; 
 
@@ -45,7 +39,9 @@ struct RXMDNN
 	torch::jit::script::Module model;
 	int current_model_id = 0; 
 
-	RXMDNN(int _myrank, std::vector<model_spec> model_specs)
+	std::vector<model_spec> model_specs;
+
+	RXMDNN(int _myrank, std::vector<model_spec> _model_specs) : model_specs(_model_specs)
 	{
 		myrank = _myrank; 
 
@@ -63,6 +59,8 @@ struct RXMDNN
 			}
 
 			device = c10::Device(torch::kCUDA,deviceidx);
+			for (int deviceidx = 0; deviceidx < torch::cuda::device_count(); deviceidx++)
+				devices.push_back(c10::Device(torch::kCUDA,deviceidx));
 
   		} else if(torch::xpu::is_available()) {
 
@@ -87,11 +85,16 @@ struct RXMDNN
 
 		for (const auto & mspec : model_specs)
 		{
-			//std::cout << "loading model.. " << mspec.modelpath << std::endl;
-			models.push_back(torch::jit::load(mspec.modelpath, device, metadata));
+			for (auto & dev : devices)
+			{
+				std::cout << "loading model.. " << mspec.modelpath << std::endl;
+				models.push_back(torch::jit::load(mspec.modelpath, dev, metadata));
+			}
 		}
 		
 		for (auto & m : models) m.eval();
+		for (auto & m : models) torch::jit::optimize_for_inference(m);
+
 
 		current_model_id = 0; 
 		update_current_model(current_model_id);
@@ -105,8 +108,7 @@ struct RXMDNN
 				std::cout << "modelpath: " << mspec.modelpath << std::endl;
 			std::cout << "n_species: " << metadata["n_species"] << std::endl;
 			std::cout << "r_max: " << metadata["r_max"] << std::endl;
-			std::cout << "BATCH_SIZE : " << BATCH_SIZE << std::endl;
-			std::cout << "model.size(): " << models.size() << std::endl;
+			std::cout << "model.size(): " << model_specs.size() << std::endl;
 
 			std::cout << "PyTorch version from parts: "
 				<< TORCH_VERSION_MAJOR << "."
@@ -120,7 +122,7 @@ struct RXMDNN
 
 	int get_num_models()
 	{
-		return models.size();
+		return model_specs.size();
 	}
 
 	void update_current_model(int const id)
@@ -182,34 +184,42 @@ struct RXMDNN
 		for(int ii = 1; ii < nlocal; ii++)
 			cumsum_neigh_per_atom[ii] = cumsum_neigh_per_atom[ii-1] + neigh_per_atom[ii-1];
 
-		torch::Tensor pos_tensor = torch::zeros({ntotal, 3});
-		torch::Tensor ij2type_tensor = torch::zeros({ntotal}, torch::TensorOptions().dtype(torch::kInt64));
+		std::vector<torch::Tensor> pos_tensors; 
+		std::vector<torch::Tensor> ij2type_tensors;
 
-		auto pos = pos_tensor.accessor<float, 2>();
-		auto ij2type = ij2type_tensor.accessor<long, 1>();
+		for (auto & dev : devices)
+		{
+			torch::Tensor pos_tensor = torch::zeros({ntotal, 3});
+			torch::Tensor ij2type_tensor = torch::zeros({ntotal}, torch::TensorOptions().dtype(torch::kInt64));
+
+			auto pos = pos_tensor.accessor<float, 2>();
+			auto ij2type = ij2type_tensor.accessor<long, 1>();
 
 		// set position and type for all atoms including buffer atoms, 
 		// but set complete edge information only for resident atoms. 
-		for(int i = 0; i < ntotal; i++)
-		{
-			ij2type[i] = (int)type_vec[i] - 1;
+			for(int i = 0; i < ntotal; i++)
+			{
+				ij2type[i] = (int)type_vec[i] - 1;
 
-			pos[i][0] = pos_[3*i];
-			pos[i][1] = pos_[3*i+1];
-			pos[i][2] = pos_[3*i+2];
-    		}
-		pos_tensor = pos_tensor.to(device);
-		ij2type_tensor = ij2type_tensor.to(device);
+				pos[i][0] = pos_[3*i];
+				pos[i][1] = pos_[3*i+1];
+				pos[i][2] = pos_[3*i+2];
+    			}
+
+			pos_tensors.push_back(pos_tensor.to(dev));
+			ij2type_tensors.push_back(ij2type_tensor.to(dev));
+		}
 
 
-		int batch_size = BATCH_SIZE; 
+		int batch_size = std::ceil(nlocal/devices.size()); 
 		int n_batches = nlocal/batch_size; 
+		std::cout << "batch_size,n_batches: " << batch_size << " " << n_batches << std::endl;
 
 		typedef torch::Dict<c10::IValue,c10::IValue> output_t;
 		std::vector<std::future<std::tuple<output_t, int, int>>> outputs;
 
-		bool model_parallel = false; 
-		//bool model_parallel = true; 
+		//bool model_parallel = false; 
+		bool model_parallel = true; 
 
 		for (int nb = 0; nb <= n_batches; nb++)
 		{
@@ -221,7 +231,7 @@ struct RXMDNN
 			if (n_start == n_end) break;
 
 			outputs.push_back(std::async(
-				model_parallel ? std::launch::async : std::launch::deferred, [&, n_start, n_end] {
+				model_parallel ? std::launch::async : std::launch::deferred, [&, nb, n_start, n_end] {
 
 				//std::cout << "nb,n_start,n_end,nlocal: " << nb << " " 
 				//<< n_start << " " << n_end << " " << nlocal << std::endl;
@@ -249,15 +259,16 @@ struct RXMDNN
 
 				c10::Dict<std::string, torch::Tensor> input;
 
-				input.insert("pos", pos_tensor);
-				input.insert("atom_types", ij2type_tensor);
+				input.insert("pos", pos_tensors[nb]);
+				input.insert("atom_types", ij2type_tensors[nb]);
 
-				input.insert("edge_index", edges_tensor.to(device));
+				auto dev = c10::Device(torch::kCUDA,nb);
+				input.insert("edge_index", edges_tensor.to(devices[nb]));
 				std::vector<torch::IValue> input_vector(1, input);
 
 				//std::cout << "before calling m.forward.. " << std::endl;
 				//auto output = model.forward(input_vector).toGenericDict();
-				return std::make_tuple(model.forward(input_vector).toGenericDict(), n_start, n_end);
+				return std::make_tuple(models[nb].forward(input_vector).toGenericDict(), n_start, n_end);
 				}
 			));
 		}
@@ -265,37 +276,37 @@ struct RXMDNN
 		double eng_vdwl = 0.0;
 		for (auto &out_future: outputs) 
 		{
-			auto out_tuple = out_future.get(); 
-			/*
 			try { 
+				//out_future.wait();
 				auto out_tuple = out_future.get(); 
+
+			       	output_t output = std::get<0>(out_tuple);
+				int n_start = std::get<1>(out_tuple);
+				int n_end = std::get<2>(out_tuple);
+
+				//std::cout << "n_start,n_end: " << n_start << " " << n_end << std::endl;
+
+				torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
+				auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
+				float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
+
+				torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
+				auto forces = forces_tensor.accessor<float, 2>();
+
+				for(int i = n_start; i < n_end; i++) eng_vdwl += atomic_energies[i][0];
+
+				for (int ii=0; ii<ntotal; ii++)
+				{
+					force_vec[ii] += forces[ii][0];
+					force_vec[nbuffer+ii] += forces[ii][1];
+					force_vec[2*nbuffer+ii] += forces[ii][2];
+				}
+
 			} catch (const std::exception &e) {
 				std::cout << e.what() << std::endl;
 				exit(1);
 			}
-			*/
 
-		       	output_t output = std::get<0>(out_tuple);
-			int n_start = std::get<1>(out_tuple);
-			int n_end = std::get<2>(out_tuple);
-
-			//std::cout << "n_start,n_end: " << n_start << " " << n_end << std::endl;
-
-			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
-			auto atomic_energies = atomic_energy_tensor.accessor<float, 2>();
-			float atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<float>()[0];
-
-			torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
-			auto forces = forces_tensor.accessor<float, 2>();
-
-			for(int i = n_start; i < n_end; i++) eng_vdwl += atomic_energies[i][0];
-
-			for (int ii=0; ii<ntotal; ii++)
-			{
-				force_vec[ii] += forces[ii][0];
-				force_vec[nbuffer+ii] += forces[ii][1];
-				force_vec[2*nbuffer+ii] += forces[ii][2];
-			}
 		}
 
 		//std::cout << "total energy eng_vdwl: " << eng_vdwl << std::endl;
