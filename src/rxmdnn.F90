@@ -130,7 +130,7 @@ subroutine update_nn_stat(ns, num_models, num_atoms, esum, e2sum, fsum, f2sum)
   ns%evar = e2sum/num_models - ns%emean**2
 
   ! force mean & variance
-  if(.not.allocated(ns%fvar)) allocate(ns%fvar(num_atoms,3))
+  if(.not.allocated(ns%fvar)) allocate(ns%fvar(NBUFFER,3))
 
   ns%fvar(1:num_atoms,1:3) = f2sum(1:num_atoms,1:3)/num_models - &
                              (fsum(1:num_atoms,1:3)/num_models)**2
@@ -352,7 +352,6 @@ character(len=:),allocatable :: filebase
 
 integer :: i,ity
 
-
 if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
 call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_stat)
@@ -365,12 +364,9 @@ call cpu_time(cpu0)
 !--- set force model
 do nstep=0, num_mdsteps-1
 
-  if(mod(nstep,sstep)==0) &
-     treq = ramp_to_target_temperature(myid, nstep, num_mdsteps) 
+  call cpu_time(tstart(0))
 
   if(mod(nstep,pstep)==0) call print_e_rxmdnn(atype, v, q, nn_stat)
-
-  call cpu_time(tstart(0))
 
   if(mod(nstep,fstep)==0) then
      filebase = GetFileNameBase(DataDir,current_step+nstep)
@@ -378,53 +374,59 @@ do nstep=0, num_mdsteps-1
      !call OUTPUT(filebase, atype, pos, v, q, nn_stat%fvar)
   endif
 
+  if(mod(nstep,sstep)==0 .and. is_tramp) &
+     treq = ramp_to_target_temperature(myid, nstep, num_mdsteps) 
+
   if(mod(nstep,sstep)==0.and.mdmode==4) &
       v(1:NATOMS,1:3)=vsfact*v(1:NATOMS,1:3)
 
-   if(mod(nstep,sstep)==0.and.mdmode==5) &
-      call scale_to_target_temperature(atype, v, treq)
+  if(mod(nstep,sstep)==0.and.mdmode==5) &
+     call scale_to_target_temperature(atype, v, treq)
 
-   if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
-      call gaussian_dist_velocity(atype, v)
+  if(mod(nstep,sstep)==0.and.(mdmode==0.or.mdmode==6)) &
+     call gaussian_dist_velocity(atype, v)
 
 !--- element-wise velocity scaling
-   if(mod(nstep,sstep)==0.and.mdmode==7) &
-      call elementwise_scaling_temperature(atype, v, treq)
+  if(mod(nstep,sstep)==0.and.mdmode==7) &
+     call elementwise_scaling_temperature(atype, v, treq)
 
-   if(mod(nstep,sstep)==0.and.mdmode==8) &
-      call adjust_temperature(atype, v)
+  if(mod(nstep,sstep)==0.and.mdmode==8) &
+     call adjust_temperature(atype, v)
 
-   if(mod(nstep,sstep)==0.and.mdmode==9) &
-      call maximally_preserving_BD(atype, v, vsfact) 
+  if(mod(nstep,sstep)==0.and.mdmode==9) &
+     call maximally_preserving_BD(atype, v, vsfact) 
+
+  if(is_vfceiling) &
+     call velocity_and_force_ceiling(myid, atype, v, f, treq)
 
 !--- MSD measurements
-   call msd_add_initial_pos(msd_data, nstep, NATOMS, pos, ipos)
-   call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
+  call msd_add_initial_pos(msd_data, nstep, NATOMS, pos, ipos)
+  call msd_measure(msd_data, nstep, NATOMS, atype, pos, ipos)
 
 !--- total force may not be zero with FNN. fix linear momentum every pstep.
-   if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
+  if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
 
 !--- update velocity & position
-   call vkick(1.d0, atype, v, f)
+  call vkick(1.d0, atype, v, f)
 
-   pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
+  pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
 
 !--- migrate atoms after positions are updated
-   call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
+  call COPYATOMS(imode=MODE_MOVE_FNN,dr=dr_zero,atype=atype,pos=pos, &
                   v=v,f=f,q=q,ipos=ipos)
 
    !print*,'ff_type_flag ', ff_type_flag, ff_type_flag == TYPE_NNQEQ
 
-   call cpu_time(cpu1)
-   call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_stat)
-   if (ff_type_flag == TYPE_NNQEQ) call QEq(atype, pos, q)
-   call cpu_time(cpu2)
-   comp = comp + (cpu2-cpu1)
+  call cpu_time(cpu1)
+  call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_stat)
+  if (ff_type_flag == TYPE_NNQEQ) call QEq(atype, pos, q)
+  call cpu_time(cpu2)
+  comp = comp + (cpu2-cpu1)
 
 !--- update velocity
-   call vkick(1.d0, atype, v, f)
+  call vkick(1.d0, atype, v, f)
 
-   call cpu_time(tfinish(0))
+  call cpu_time(tfinish(0))
 
 enddo
 

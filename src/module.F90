@@ -92,7 +92,6 @@ integer :: mdmode
 integer :: nstep=0, ntime_step, current_step
 !<vsfact> velocity scaling factor, <dt> one time step
 real(8) :: treq, vsfact, dt, dmt
-real(8) :: vmag_factor  ! October 09, 5:24pm
 
 integer :: sstep
 !--- output file format 
@@ -137,6 +136,8 @@ character(len=:),allocatable :: FFPath, DataDir, ParmPath, RunFromXYZPath
 !     Example) In case atom type, position and velocity to be sent,  ne = 1+3+3 = 7
 integer :: ns, nr, na, ne
 
+logical :: is_vfceiling = .false.
+logical :: is_tramp = .false.
 
 !-- variables for timing
 integer,parameter :: MAXTIMERS=30

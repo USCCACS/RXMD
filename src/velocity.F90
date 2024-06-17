@@ -2,7 +2,7 @@ module velocity_modifiers_mod
 
   use mpi_mod
   use utils, only : UTEMP0, UTEMP, matinv, find_cmdline_argc
-  use base, only : NATOMS, GNATOMS, mass, treq, KE, GKE, myid, ierr, dthm, hmas, atmname, vmag_factor
+  use base, only : NATOMS, GNATOMS, mass, treq, KE, GKE, myid, ierr, dthm, hmas, atmname
 
 
 contains
@@ -51,12 +51,12 @@ endif
 end function
 
 !------------------------------------------------------------------------------------------
-subroutine scale_to_target_temperature(atype, v, t_target)
+subroutine scale_to_target_temperature(atype, v, treq)
 !------------------------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:)
 real(8),allocatable,intent(in out):: v(:,:)
-real(8),intent(in) :: t_target
+real(8),intent(in) :: treq 
 integer :: i, ity
 real(8) :: ctmp, EKinetic
 
@@ -70,8 +70,10 @@ enddo
 call MPI_ALLREDUCE(MPI_IN_PLACE, Ekinetic, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 Ekinetic=Ekinetic/GNATOMS
 
-ctmp = (t_target*UTEMP0)/(Ekinetic*UTEMP)
-v(1:NATOMS,1:3)=sqrt(ctmp)*v(1:NATOMS,1:3)
+ctmp = sqrt( (treq*UTEMP0)/(Ekinetic*UTEMP) )
+v(1:NATOMS,1:3)=ctmp*v(1:NATOMS,1:3)
+
+!print*,'myid,ctmp,treq,Ekinetic: ', myid,ctmp,treq,Ekinetic
 
 end subroutine
 
@@ -182,6 +184,50 @@ return
 end
 
 !-----------------------------------------------------------------------
+subroutine velocity_and_force_ceiling(myrank, atype, v, f, treq)
+!-----------------------------------------------------------------------
+implicit none
+integer,intent(in) :: myrank
+real(8),allocatable,intent(in) :: atype(:)
+real(8),allocatable,intent(in out):: v(:,:), f(:,:)
+real(8),intent(in) :: treq
+
+integer :: i, ity, idx, n
+character(16) :: argv
+real(8) :: ctmp, alpha, valpha, falpha
+
+if(find_cmdline_argc('--vfceiling',idx)) then
+  call get_command_argument(idx+1,argv); read(argv,*) alpha
+  call get_command_argument(idx+2,argv); read(argv,*) valpha
+  call get_command_argument(idx+3,argv); read(argv,*) falpha
+else
+  print'(a)', 'WARNING: velocity_and_force_ceiling() was called without --vfceiling'
+  return
+endif
+
+n = 0
+do i = 1, NATOMS
+  ity = nint(atype(i))
+  ctmp = 0.5d0*mass(ity)*sum(v(i,1:3)*v(i,1:3))
+  ctmp = sqrt( (treq*UTEMP0)/(ctmp*UTEMP) )
+  if (ctmp > alpha) then
+    v(i,1:3)=v(i,1:3)*valpha
+    f(i,1:3)=f(i,1:3)*falpha
+    n = n + 1
+  endif
+enddo
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
+if(myrank==0) print'(a,3f8.3,i6)', &
+        'INFO: alpha,valpha,falpha,n: ', alpha, valpha, falpha, n
+
+call linear_momentum(atype, v)
+
+return
+end
+
+
+!-----------------------------------------------------------------------
 subroutine elementwise_scaling_temperature(atype, v, treq)
 !-----------------------------------------------------------------------
 implicit none
@@ -192,10 +238,6 @@ real(8),intent(in) :: treq
 integer :: i,ity
 integer,parameter :: MAX_ELEMENT=20
 real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
-
-! October 8th, 2020
-real(8) :: AverageVelocity(MAX_ELEMENT), vmag
-integer :: vcounter
 
 Ekinetic(:,:)=0.d0
 
@@ -219,24 +261,10 @@ do ity=1, MAX_ELEMENT
    endif
 enddo
 
-! October 8th, 2020
-do ity=1, size(mass)
-   AverageVelocity(ity) = sqrt(2.d0*Ekinetic(2,ity)/( Ekinetic(1,ity)*mass(ity) ) )
-enddo
-
-vcounter=0
 do i=1, NATOMS
    ity=nint(atype(i))
    v(i,1:3)=ctmp(ity)*v(i,1:3)
-   vmag = sqrt(sum(v(i,1:3)*v(i,1:3)))
-   if(vmag > vmag_factor*AverageVelocity(ity)) then
-      v(i,1:3) = v(i,1:3)*vmag_factor*AverageVelocity(ity)/vmag
-      vcounter = vcounter + 1
-   endif
 enddo
-
-call MPI_ALLREDUCE(MPI_IN_PLACE, vcounter, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
-if(myid==0) print'(a,i12)', 'INFO: vcounter: ', vcounter
 
 call linear_momentum(atype, v)
 
