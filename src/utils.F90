@@ -445,6 +445,8 @@ contains
      elements0%e = [elements0%e, single_element_type(name="Sr",atomic=38,set=.false.)]
      elements0%e = [elements0%e, single_element_type(name="Ti",atomic=22,set=.false.)]
      elements0%e = [elements0%e, single_element_type(name="O",atomic=8,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Mn",atomic=25,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Y",atomic=39,set=.false.)]
      elements0%e = [elements0%e, single_element_type(name="N",atomic=7,set=.false.)]
      elements0%e = [elements0%e, single_element_type(name="Si",atomic=14,set=.false.)]
      elements0%e = [elements0%e, single_element_type(name="H",atomic=1,set=.false.)]
@@ -477,7 +479,12 @@ contains
      character(len=*) :: elem
      integer :: loc
      loc = index(element_buffer, elem)
-     if (loc > 0) loc = (loc-1)/BUF_LEN + 1
+     if (loc > 0) then
+        loc = (loc-1)/BUF_LEN + 1
+     else
+        print'(2a)','Undefined element found. Please add it to set_initial_lookup_table(): ', elem
+        stop 
+     endif
   end function
 
 end module 
