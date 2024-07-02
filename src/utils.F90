@@ -441,15 +441,21 @@ contains
 
      if(.not.allocated(elements0%e)) allocate(elements0%e(0))
 
-     elements0%e = [elements0%e, single_element_type(name="Pb",atomic=82,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="Sr",atomic=38,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="Ti",atomic=22,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="O",atomic=8,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="Mn",atomic=25,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="Y",atomic=39,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="N",atomic=7,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="H", atomic=1,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Li",atomic=3,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="N", atomic=7,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="O", atomic=8,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Na",atomic=11,set=.false.)]
      elements0%e = [elements0%e, single_element_type(name="Si",atomic=14,set=.false.)]
-     elements0%e = [elements0%e, single_element_type(name="H",atomic=1,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="S", atomic=16,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="K", atomic=19,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Ti",atomic=22,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Mn",atomic=25,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Sr",atomic=38,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Y", atomic=39,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Mo",atomic=42,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Ba",atomic=56,set=.false.)]
+     elements0%e = [elements0%e, single_element_type(name="Pb",atomic=82,set=.false.)]
 
      do i=1, size(elements0%e)
         write(a5,'(a5)') elements0%e(i)%name
