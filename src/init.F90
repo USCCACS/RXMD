@@ -13,13 +13,6 @@ module init
 
   use lists_mod, only: getnonbondingmesh 
 
-  use fnn, only : fnn_param, fnn_param_obj, get_cutoff_fnn, &
-                  num_pairs, num_types, mddriver_fnn, get_max_cutoff
-  use fnnin_parser, only : fnn_param_ctor 
-  use aenet, only : aenet_init, aenet_load_potential, aenet_print_info
-  use symmfunc, only : sf_set_table
-  use mod_short_repulsion, only : initialize_short_repulsion, short_rep
-
   use reaxff_param_mod, only : chi, eta, mddriver_reaxff, &
       get_cutoff_bondorder, set_potentialtables_reaxff, get_forcefield_params_reaxff
 
@@ -92,23 +85,13 @@ enddo
 
 !--- ff-dependent setup
 ff_type_flag = TYPE_REAXFF
-if(is_fnn) ff_type_flag = TYPE_FNN
+!if(is_fnn) ff_type_flag = TYPE_FNN
 if(is_rxmdnn) ff_type_flag = TYPE_RXMDNN
 if(find_cmdline_argc('--nnqeq',i)) ff_type_flag = TYPE_NNQEq
 
 select case (ff_type_flag)
 
-  case(TYPE_FNN)
-     fnn_param_obj = mdcontext_fnn()
-     mdbase%ff => fnn_param_obj
-     if(myid==0) then
-        print*,'get_mdcontext_func : mdcontext_fnn' 
-        call fnn_param_obj%print()
-     endif
-
   case(TYPE_RXMDNN)
-     !call init_rxmdnn()
-     !call init_rxmdnn_hybrid(NATOMS)
      call init_rxmdtorch(myid)
      rxmdnn_param_obj = mdcontext_rxmdnn()
      mdbase%ff => rxmdnn_param_obj
@@ -163,8 +146,8 @@ GNATOMS = sum(natoms_per_type)
 
 !--- setup ff-dependent cutoff distances
 select case (ff_type_flag)
-   case(TYPE_FNN)
-     call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fnn_param_obj))
+   !case(TYPE_FNN)
+   !  call get_cutoff_fnn(rc, rc2, maxrc, get_max_cutoff(fnn_param_obj))
 
    case(TYPE_RXMDNN)
      call get_maxrc_rxmdnn(maxrc)
@@ -269,9 +252,6 @@ endif
 !--- MSD constractor
 call msd_initialize(m=msd_data, atom_name=atmname, total_steps=ntime_step, onestep_fs = dt*UTIME)
 
-!--- intialize short repulsion for neuralnet MD 
-call initialize_short_repulsion(short_rep, atmname)
-
 if(xyz_num_stack>1) call xyz_agg%init(GNATOMS, xyz_num_stack)
 
 !--- keep initial position
@@ -312,7 +292,7 @@ type(rxmdnn_param) :: fp
 
 character(len=2), dimension(:), allocatable  :: atom_types
 character(len=:), allocatable :: filename
-integer :: stat
+integer :: stat, num_types, num_pairs
 
 if((.not.isRunFromXYZ) .and. (myid==0)) verbose=.true.
 
@@ -351,60 +331,6 @@ if(myid==0) then
       print'(a3,i3,a3,i6)','INFO: Added ', i, elements%e(i)%name, elements%e(i)%atomic
    enddo
 endif
-
-end function
-
-!------------------------------------------------------------------------------------------
-function mdcontext_fnn() result(fp)
-!------------------------------------------------------------------------------------------
-implicit none
-
-integer :: i,j, ity, num_models
-integer,allocatable :: dims(:)
-character(len=:),allocatable :: path
-character(len=1) :: xyz_suffix(3)=['x','y','z']
-
-logical :: verbose=.false.
-
-type(fnn_param) :: fp
-
-character(len=2), dimension(:), allocatable  :: atom_types
-character(len=:), allocatable :: filename
-integer :: stat
-
-if((.not.isRunFromXYZ) .and. (myid==0)) verbose=.true.
-
-!FIXME path needs to given from cmdline
-filename = 'fnn.in'
-fp = fnn_param_ctor(filename)
-
-!--- FNN specific output 
-if(myid==0) call fp%print()
-
-num_models = size(fp%models)
-
-num_types = num_models
-num_pairs = num_types*(num_types+1)/2
-
-allocate( mass(num_models), atmname(num_models) )
-do i=1, num_models
-   atmname(i) = fp%models(i)%element
-   mass(i) = fp%models(i)%mass
-enddo
-
-call aenet_init(atmname, stat)
-do i = 1, size(atmname)
-   call aenet_load_potential(i, fp%models(i)%filename, .false., .false., stat)
-   !print*,i, atmname, fp%models(i)%filename
-enddo
-
-if(myid==0) call aenet_print_info()
-
-!---set function tables
-call sf_set_table()
-
-!--- set md dirver function 
-mddriver_func => mddriver_fnn
 
 end function
 

@@ -7,19 +7,19 @@ include ../make.inc
 
 %.o: %.mod
 
-SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 remd_pot_ANN_original.F90 fnn.F90 shortrep.F90 symmfunc.F90 rxmdnn.F90 nnmm.F90 stepmod.F90 harmopot.F90
+SRCS = module.F90 utils.F90 memory.F90 velocity.F90 pot.F90 fileio.F90 comm.F90 init.F90 bo.F90 qeq.F90 reaxff.F90 main.F90 pqeq.F90 cmdline.F90 lists.F90 msd.F90 ensembles.F90 constant.F90 rxmdnn.F90 nnmm.F90 stepmod.F90 harmopot.F90
 OBJS = $(SRCS:.F90=.o)
 
 
 #CARC
-#install_root=/scratch1/knomura/torchapp/libtorch
-#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
-#TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
-
-#Polaris
-install_root=/lus/eagle/projects/NAQMC_RMD_aesp/knomura/libtorch
+install_root=/scratch1/knomura/libtorch
 TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
 TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
+
+#Polaris
+#install_root=/lus/eagle/projects/NAQMC_RMD_aesp/knomura/libtorch
+#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
+#TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Sunspot
 #install_root=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/torch
@@ -56,16 +56,13 @@ harmopot.o : utils.o module.o
 
 shortrep.o : module.o fileio.o utils.o
 
-remd_pot_ANN_original.o : constant.o symmfunc.o
-
-module.o : utils.o memory.o remd_pot_ANN_original.o
+module.o : utils.o memory.o
 
 fileio.o : module.o harmopot.o
 comm.o : module.o
 velocity.o : module.o
 
 lists.o : module.o utils.o
-fnn.o : module.o comm.o lists.o fileio.o shortrep.o nnmm.o
 rxmdnn.o : module.o cmdline.o utils.o fileio.o comm.o velocity.o msd.o qeq.o
 
 cmdline.o : utils.o module.o memory.o nnmm.o
@@ -75,7 +72,7 @@ ensembles.o : module.o
 
 bo.o : reaxff.o
 pot.o : reaxff.o bo.o comm.o pqeq.o qeq.o harmopot.o
-init.o : reaxff.o fileio.o pot.o fnn.o shortrep.o rxmdnn.o nnmm.o
+init.o : reaxff.o fileio.o pot.o rxmdnn.o nnmm.o
 qeq.o : reaxff.o comm.o lists.o
 pqeq.o : reaxff.o comm.o lists.o
 

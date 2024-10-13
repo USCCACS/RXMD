@@ -7,16 +7,16 @@
 # LIBS are extra needed libraries (optional) 
 
 # Polaris
-MPIF90 = ftn 
-FC = ftn 
-MPIF90_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium
-FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
+#MPIF90 = ftn 
+#FC = ftn 
+#MPIF90_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium
+#FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
 
 # CARC
-#MPIF90 = mpiifort
-#FC = ifx
-#MPIF90_FLAGS = -O2 
-#FC_FLAGS = -O2 -C -DRXMDNN 
+MPIF90 = mpiifort
+FC = ifx
+MPIF90_FLAGS = -O2 
+FC_FLAGS = -O2 -DRXMDNN 
 
 # Sunspot
 #MPIF90 = mpifort
