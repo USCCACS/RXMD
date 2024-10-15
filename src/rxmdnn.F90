@@ -261,6 +261,7 @@ end function
 
 !------------------------------------------------------------------------------
 subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, nn_stat)
+use nnip_modifier, only : shortrep, shparams
 !------------------------------------------------------------------------------
 !use param_dftd
 
@@ -276,6 +277,7 @@ integer,allocatable,dimension(:),target :: nbrlist_nn
 
 integer :: num_models, id
 real(8) :: Enn, esum, e2sum, fsum(num_atoms, 3), f2sum(num_atoms, 3)
+real(8) :: Erep
 
 if(.not.allocated(nbrlist_nn)) allocate(nbrlist_nn(NBUFFER*MAXNEIGHBS))
 
@@ -336,12 +338,17 @@ f(1:num_atoms,1:3) = fsum(1:num_atoms,1:3)/num_models
 
 call update_nn_stat(nn_stat, num_models, num_atoms, esum, e2sum, fsum, f2sum)
 
+if (shparams%flag) &
+   call shortrep(myid, num_atoms, atype, pos, nbrlist, f, shparams, NBUFFER, MAXNEIGHBS)
+
+
 end subroutine
 
 !------------------------------------------------------------------------------
 subroutine mddriver_rxmdnn(mdbase, num_mdsteps) 
 use utils, only : UTEMP, UTEMP0
 use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, elementwise_scaling_temperature
+use nnip_modifier, only : ceiling_array, ceparams, shortrep, shparams
 !------------------------------------------------------------------------------
 type(mdbase_class),intent(in out) :: mdbase
 integer,intent(in) :: num_mdsteps
@@ -407,7 +414,13 @@ do nstep=0, num_mdsteps-1
   if(mod(nstep,pstep)==0) call linear_momentum(atype, v)
 
 !--- update velocity & position
+  if (mod(nstep,sstep)==0 .and. ceparams%flag) &
+      call ceiling_array(myid, NATOMS, f, 0.5d0*dt, ceparams%max_velocity, atype, dthm)
+
   call vkick(1.d0, atype, v, f)
+
+  if (mod(nstep,sstep)==0.and.ceparams%flag) &
+      call ceiling_array(myid, NATOMS, v, dt, ceparams%max_disp)
 
   pos(1:natoms,1:3)=pos(1:natoms,1:3)+dt*v(1:natoms,1:3)
 
@@ -424,6 +437,9 @@ do nstep=0, num_mdsteps-1
   comp = comp + (cpu2-cpu1)
 
 !--- update velocity
+  if (mod(nstep,sstep)==0.and.ceparams%flag) &
+      call ceiling_array(myid, NATOMS, f, 0.5d0*dt, ceparams%max_velocity, atype, dthm)
+
   call vkick(1.d0, atype, v, f)
 
   call cpu_time(tfinish(0))

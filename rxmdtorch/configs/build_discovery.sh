@@ -3,4 +3,4 @@
 rm -rfv build
 mkdir build
 cd build
-cmake -DCMAKE_PREFIX_PATH=/scratch1/knomura/torchapp/libtorch .. && make
+cmake -DCMAKE_PREFIX_PATH=/scratch1/knomura/libtorch .. && make

@@ -63,8 +63,8 @@ struct RXMDNN
 			device = c10::Device(torch::kCUDA,deviceidx);
 
   		} else {
-			//device = torch::kCPU;
-			device = c10::DeviceType::XPU;
+			device = torch::kCPU;
+			//device = c10::DeviceType::XPU;
 		};
 
 		std::unordered_map<std::string, std::string> metadata = {

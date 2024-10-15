@@ -71,13 +71,17 @@ end subroutine
 !-------------------------------------------------------------------------------------------
 subroutine get_cmdline_args(myrank, eFieldDir, eFieldStrength)
 !-------------------------------------------------------------------------------------------
+use nnip_modifier, only : ceiling_params_ctor, ceparams, shortrep_params_ctor, shparams
+
 implicit none
+
 integer,intent(in) :: myrank
 integer :: eFieldDir
 real(8) :: eFieldStrength 
 
 integer :: ity,idx, ii, ia, ib
 character(MAXSTRLENGTH) :: argv
+character(len=:),allocatable :: str
 
 if(command_argument_count()>0) then
   if(myid==0) then
@@ -137,11 +141,18 @@ else
     FFPath=trim(adjustl(FFPath0))
 endif
 
-if(find_cmdline_argc('--fnn',idx).or.find_cmdline_argc('-fnn',idx)) then
-    is_fnn=.true.
+if(find_cmdline_argc('--ceparams',idx).or.find_cmdline_argc('-ceparams',idx)) then
     call get_command_argument(idx+1,argv)
-    ParmPath=trim(adjustl(argv))
-    FFPath=""
+    str = trim(adjustl(argv))
+    ceparams = ceiling_params_ctor(str)
+    if(myid==0) call ceparams%show()
+endif
+
+if(find_cmdline_argc('--shparams',idx).or.find_cmdline_argc('-shparams',idx)) then
+    call get_command_argument(idx+1,argv)
+    str = trim(adjustl(argv))
+    shparams = shortrep_params_ctor(str)
+    if(myid==0) call shparams%show()
 endif
 
 if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
