@@ -261,7 +261,7 @@ end function
 
 !------------------------------------------------------------------------------
 subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, nn_stat)
-use nnip_modifier, only : shortrep, shparams
+use nnip_modifier, only : shortrep, shparams, springpot, spparams
 !------------------------------------------------------------------------------
 !use param_dftd
 
@@ -340,6 +340,9 @@ call update_nn_stat(nn_stat, num_models, num_atoms, esum, e2sum, fsum, f2sum)
 
 if (shparams%flag) &
    call shortrep(myid, num_atoms, atype, pos, nbrlist, f, shparams, NBUFFER, MAXNEIGHBS)
+
+if (spparams%flag) &
+   call springpot(myid, num_atoms, atype, pos, nbrlist, f, spparams, NBUFFER, MAXNEIGHBS)
 
 
 end subroutine

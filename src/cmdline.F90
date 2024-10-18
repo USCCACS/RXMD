@@ -71,7 +71,9 @@ end subroutine
 !-------------------------------------------------------------------------------------------
 subroutine get_cmdline_args(myrank, eFieldDir, eFieldStrength)
 !-------------------------------------------------------------------------------------------
-use nnip_modifier, only : ceiling_params_ctor, ceparams, shortrep_params_ctor, shparams
+use nnip_modifier, only : ceiling_params_ctor, ceparams, &
+                          shortrep_params_ctor, shparams, &
+                          springpot_params_ctor, spparams
 
 implicit none
 
@@ -152,6 +154,13 @@ if(find_cmdline_argc('--shparams',idx).or.find_cmdline_argc('-shparams',idx)) th
     call get_command_argument(idx+1,argv)
     str = trim(adjustl(argv))
     shparams = shortrep_params_ctor(str)
+    if(myid==0) call shparams%show()
+endif
+
+if(find_cmdline_argc('--spparams',idx).or.find_cmdline_argc('-spparams',idx)) then
+    call get_command_argument(idx+1,argv)
+    str = trim(adjustl(argv))
+    spparams = springpot_params_ctor(str)
     if(myid==0) call shparams%show()
 endif
 
