@@ -1,0 +1,2 @@
+3                           # number of elements
+2 3   5.0  0.98  1.0  1.2   # A(eV), r0(A), rc_in(A), rc_out(A)
