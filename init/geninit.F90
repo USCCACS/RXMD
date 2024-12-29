@@ -163,7 +163,7 @@ implicit none
 !----------------------------------------------------------------
 character(len=256),intent(in) :: fileName
 
-character(len=256) :: linein0
+character(len=1024) :: linein0
 character(len=:),allocatable :: linein, token
 character(len=3) :: c3
 integer :: funit, i, n, ierr
