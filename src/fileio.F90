@@ -1341,7 +1341,7 @@ integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
 integer (kind=MPI_OFFSET_KIND) :: fileSize
 integer :: localDataSize, metaDataSize, scanbuf
 TYPE(MPI_Info) :: info
-TYPE(MPI_File) :: fh
+integer :: fh
 
 integer :: nmeta
 integer,allocatable :: idata(:)

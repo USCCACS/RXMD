@@ -110,7 +110,7 @@ logical :: is_reaxff=.false., is_fnn=.false., is_rxmdnn=.false., is_nnmm=.false.
 
 !--- natoms_per_type() is used to clear unused cutoff distance for ReaxFF
 !--- see get_cutoff_bondorder()
-integer,parameter :: MAX_ATOMTYPE=16
+integer,parameter :: MAX_ATOMTYPE=128
 integer(8) :: natoms_per_type(MAX_ATOMTYPE)=0
 
 !--- dthm=dt/(2*mass), hmas=mass/2
