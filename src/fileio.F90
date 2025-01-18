@@ -130,14 +130,14 @@ subroutine xyz_aggregator_reset(this)
 end subroutine
 
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(fileNameBase, atype, pos, v, q, f, energy)
+subroutine OUTPUT(fileNameBase, atype, pos, v, q, f, avirial, energy)
 !----------------------------------------------------------------------------------------
 implicit none
 
 character(len=:),allocatable,intent(in) :: fileNameBase
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
-real(8),allocatable,intent(in),optional :: f(:,:)
+real(8),allocatable,intent(in),optional :: f(:,:), avirial(:,:)
 real(8),optional :: energy
 
 character(len=:),allocatable :: filename
@@ -166,8 +166,10 @@ else
   if(isXYZ) then
      if( find_cmdline_argc('--xyz_pto',idx)) then
        call WriteXYZ_PTO(fileNameBase, atype, pos, v, q, f)
+     else if( present(avirial) ) then
+       call WriteXYZ(fileNameBase, atype=atype, pos=pos, v=v, q=q, f=f, avirial=avirial, energy=energy)
      else
-       call WriteXYZ(fileNameBase, atype, pos, v, q, f, energy)
+       call WriteXYZ(fileNameBase, atype=atype, pos=pos, v=v, q=q, f=f)
      endif
   endif
 
@@ -604,12 +606,12 @@ end subroutine
 
 
 !--------------------------------------------------------------------------
-subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f, energy)
+subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f, avirial, energy)
 !--------------------------------------------------------------------------
 implicit none
 real(8),allocatable,intent(in) :: atype(:), q(:)
 real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
-real(8),allocatable,intent(in),optional :: f(:,:)
+real(8),allocatable,intent(in),optional :: f(:,:), avirial(:,:)
 real(8),intent(in),optional :: energy
 
 character(*),intent(in) :: fileNameBase
@@ -634,28 +636,30 @@ integer :: header_size
 
 call system_clock(ti,tk)
 
-
-write(a256, '(a10,f0.2,8f10.2,a2 $)') 'Lattice="', lata,0d0,0d0, 0d0,latb,0d0, 0d0,0d0,latc, '" '
+write(a256, '(a10,9f10.2,a2 $)') 'Lattice="', HH(1,1:3,0),HH(2,1:3,0), HH(3,1:3,0), '" '
 header=adjustl(trim(a256))
 
 if(present(energy)) then
   write(a256, '(a10,f0.5 $)') 'energy=', energy
   header=header//adjustl(trim(a256))
 endif
-header=header//'Properties=species:S:1:pos:R:3:charge:R:1:forces:R:3:id:I:1 pbc="T T T" config_type=md'
+header=header//'pbc="T T T" config_type=md Properties=species:S:1:pos:R:3:charge:R:1:forces:R:3:id:I:1'
 header_size=len(adjustl(trim(header)))
 !print*,header_size, header
 
 MetaDataSize = 9 + header_size + 2
 
 if(isPQEq) then
-  ! name + pos(i,1:3) + q(i) + gid + spos(i,1:3) + newline
+  ! name + pos(i,1:3) + q(i) + spos(i,1:3) + gid + newline
   OneLineSize = 3 + 60 + 20 + 60 + 9 +  1 
+else if(present(avirial)) then ! FIXME  make f&avirial composable?
+  ! name + pos(i,1:3) + q(i) + astress(i,1:6) + gid + newline
+  OneLineSize = 3 + 60 + 20 + 120 + 9 + 1 
 else if(present(f)) then
-  ! name + pos(i,1:3) + q(i) + gid + f(i,1:3) + newline
+  ! name + pos(i,1:3) + q(i) + f(i,1:3) + gid + newline
   OneLineSize = 3 + 60 + 20 + 60 + 9 + 1 
 else
-  ! name + pos(i,1:3) + q(i) + gid + newline
+  ! name + pos(i,1:3) + q(i) + newline + gid
   OneLineSize = 3 + 36 + 8 + 9 + 1 
 endif
 
@@ -704,8 +708,8 @@ do i=1, NATOMS
   write(OneLine(idx1:idx1+2),'(a3)') atmname(ity); idx1=idx1+3
 
 ! atom positions. with high precision for dielectric calculation
-  if(isPQEq.or.present(f)) then
-     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1),pos(i,2),pos(i,3); idx1=idx1+60
+  if(isPQEq.or.present(f).or.present(avirial)) then
+     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1:3); idx1=idx1+60
      write(OneLine(idx1:idx1+19),'(es20.12)') q(i); idx1=idx1+20
   else
      write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
@@ -715,8 +719,10 @@ do i=1, NATOMS
 ! shell charge positions with high precision for dielectric calculation
   if(isPQEq) then
      write(OneLine(idx1:idx1+59),'(3es20.12)') spos(i,1:3); idx1=idx1+60
+  else if(present(avirial)) then !FIXME f&avirial composable?
+     write(OneLine(idx1:idx1+119),'(6es20.12)') avirial(i,1:6); idx1=idx1+120
   else if(present(f)) then
-     write(OneLine(idx1:idx1+59),'(3es20.12)') f(i,1),f(i,2),f(i,3); idx1=idx1+60
+     write(OneLine(idx1:idx1+59),'(3es20.12)') f(i,1:3); idx1=idx1+60
   endif
 
 ! global Id
@@ -1340,8 +1346,8 @@ integer :: i,i1
 integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
 integer (kind=MPI_OFFSET_KIND) :: fileSize
 integer :: localDataSize, metaDataSize, scanbuf
-TYPE(MPI_Info) :: info
-TYPE(MPI_File) :: fh
+integer :: info
+integer :: fh
 
 integer :: nmeta
 integer,allocatable :: idata(:)

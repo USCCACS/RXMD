@@ -236,7 +236,7 @@ real(8),allocatable,intent(in out):: v(:,:)
 real(8),intent(in) :: treq
 
 integer :: i,ity
-integer,parameter :: MAX_ELEMENT=20
+integer,parameter :: MAX_ELEMENT=128
 real(8) :: Ekinetic(2,MAX_ELEMENT), ctmp(MAX_ELEMENT)
 
 Ekinetic(:,:)=0.d0

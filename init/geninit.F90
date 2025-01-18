@@ -204,7 +204,8 @@ do while (.true.)
            else
              atomNames = [atomNames,c3]
            endif
-           if(getstr(linein, token)>0) print'(3a)', 'element,amu: ', c3, trim(token)
+           if(getstr(linein, token)>0) print'(a20,a6,1x,a6)', 'element,amu: ', trim(c3), trim(token)
+           !print*,c3, size(atomNames)
          endif
       enddo
     endif

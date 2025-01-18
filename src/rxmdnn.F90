@@ -39,12 +39,19 @@ module rxmdnn
 
   real(8) :: maxrc_rxmdnn=0.d0
 
-  type(c_ptr) :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr
+  type(c_ptr) :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, fvar_ptr, aux_ptr
 
   type nn_stat_type
     integer :: num_models
     real(8) :: emean, evar, fvar_max
     real(8),allocatable :: fvar(:,:)
+
+    integer :: nstress = 0
+
+    real(8) :: stress(6) = 0.d0
+    real(8) :: skin(6) = 0.d0
+    real(8) :: spot(6) = 0.d0
+    real(8) :: spot_from_model(6) = 0.d0
   end type
 
   type(nn_stat_type) :: nn_stat
@@ -58,12 +65,11 @@ module rxmdnn
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_force_rxmdnn(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) &
+    subroutine predict_force_rxmdnn(natoms, nglobal, nbuffer, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, aux_ptr) &
                                  bind(c,name="get_nn_force_torch")
        import :: c_int, c_double, c_ptr
        integer(c_int),value :: natoms, nbuffer, nglobal
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
-       real(c_double) :: energy 
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, aux_ptr
     end subroutine
 
     subroutine update_current_model_rxmdnn(id) bind(c,name="update_current_model_rxmdnn")
@@ -92,10 +98,9 @@ contains
        integer(c_int),value :: myrank
     end subroutine
 
-    subroutine predict_force_rxmdnn(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, energy) 
+    subroutine predict_force_rxmdnn(natoms, nbuffer, maxnbrs, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, aux_ptr) 
        integer(c_int),value :: natoms, maxnbrs, nbuffer
-       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr
-       real(c_double) :: energy 
+       type(c_ptr),value :: pos_ptr, type_ptr, force_ptr, nbrlist_ptr, aux_ptr
     end subroutine
 
     subroutine update_current_model_rxmdnn(id)
@@ -177,7 +182,7 @@ end function
 function rxmdnn_param_ctor(path) result(c)
 !------------------------------------------------------------------------------
   character(len=:),allocatable,intent(in) :: path
-  character(256) :: linein0
+  character(1024) :: linein0
   character(len=:),allocatable :: linein 
 
   integer :: iunit
@@ -260,7 +265,7 @@ contains
 end function
 
 !------------------------------------------------------------------------------
-subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, nn_stat)
+subroutine get_force_rxmdnn(ff, num_atoms, atype, pos, f, q, ns)
 use nnip_modifier, only : shortrep, shparams, springpot, spparams
 !------------------------------------------------------------------------------
 !use param_dftd
@@ -269,7 +274,7 @@ class(force_field_class),pointer,intent(in out) :: ff
 
 integer,intent(in out) :: num_atoms 
 real(8),intent(in out),allocatable, target :: atype(:), pos(:,:), q(:), f(:,:)
-type(nn_stat_type),intent(in out) :: nn_stat 
+type(nn_stat_type),intent(in out) :: ns
 
 integer :: i,j,j1,ity,jty, n_j,stat,idx
 
@@ -277,9 +282,11 @@ integer,allocatable,dimension(:),target :: nbrlist_nn
 
 integer :: num_models, id
 real(8) :: Enn, esum, e2sum, fsum(num_atoms, 3), f2sum(num_atoms, 3)
-real(8) :: Erep
+
+real(4),allocatable,target :: aux(:) ! 1-pxx, 2-pyy, 3-pzz, 4-pyz, 5-pzx, 6-pxy, 7-energy
 
 if(.not.allocated(nbrlist_nn)) allocate(nbrlist_nn(NBUFFER*MAXNEIGHBS))
+if(.not.allocated(aux)) allocate(aux(7))
 
 call COPYATOMS(imode = MODE_COPY_FNN, dr=lcsize(1:3), atype=atype, pos=pos, q=q, ipos=ipos)
 call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
@@ -308,21 +315,36 @@ do id = 1, num_models
   !print'(a,i3)','=== INFO === current_model id: ', id-1
   call update_current_model_rxmdnn(id-1)
 
-  f=0.d0; Enn=0.d0
+  f=0.d0; Enn=0.d0; aux=0.0; 
+  avirial=0d0 !FIXME assuming the stress is evaluated by the last model in input file
 
 ! for Fortran/C interface
   pos_ptr = c_loc(pos(1,1))
   type_ptr = c_loc(atype(1))
   force_ptr = c_loc(f(1,1))
   nbrlist_ptr = c_loc(nbrlist_nn(1))
+  aux_ptr = c_loc(aux(1))
+
   if(NATOMS>0) &
-    call predict_force_rxmdnn(NATOMS, copyptr(6), NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, Enn) 
+    call predict_force_rxmdnn(NATOMS, copyptr(6), NBUFFER, pos_ptr, type_ptr, force_ptr, nbrlist_ptr, aux_ptr) 
+
+  ns%spot_from_model(1:6) = ns%spot_from_model(1:6) + aux(1:6)
+  Enn = aux(7)
   !print'(a,3es15.5)','myid,energy:',Enn
+
+  do i=1, copyptr(6)
+    avirial(i,1) = f(i,1)*pos(i,1)
+    avirial(i,2) = f(i,2)*pos(i,2)
+    avirial(i,3) = f(i,3)*pos(i,3) 
+    avirial(i,4) = f(i,2)*pos(i,3)
+    avirial(i,5) = f(i,3)*pos(i,1)
+    avirial(i,6) = f(i,1)*pos(i,2)
+  enddo
 
   call MPI_ALLREDUCE(MPI_IN_PLACE, Enn, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
   esum = esum + Enn; e2sum = e2sum + Enn**2
 
-  CALL COPYATOMS(imode=MODE_CPBK, dr=dr_zero, atype=atype, pos=pos, f=f, q=q)
+  CALL COPYATOMS(imode=MODE_CPBK_WSTR, dr=dr_zero, atype=atype, pos=pos, f=f, q=q, avirial=avirial)
 
   fsum(1:num_atoms,1:3) = fsum(1:num_atoms,1:3) + f(1:num_atoms, 1:3)
   f2sum(1:num_atoms,1:3) = f2sum(1:num_atoms,1:3) + f(1:num_atoms, 1:3)**2
@@ -333,10 +355,27 @@ enddo
 esum = esum*Eev_kcal; e2sum = e2sum*Eev_kcal**2
 fsum = fsum*Eev_kcal; f2sum = f2sum*Eev_kcal**2
 
+! stress calculation
+ns%nstress = ns%nstress + 1
+
+do i = 1, 6
+  ns%spot(i) = ns%spot(i) + sum(avirial(1:NATOMS,i))
+enddo
+
+do i = 1, NATOMS
+  ity = nint(atype(i))
+  ns%skin(1) = ns%skin(1) + mass(ity)*v(i,1)*v(i,1)
+  ns%skin(2) = ns%skin(2) + mass(ity)*v(i,2)*v(i,2)
+  ns%skin(3) = ns%skin(3) + mass(ity)*v(i,3)*v(i,3)
+  ns%skin(4) = ns%skin(4) + mass(ity)*v(i,2)*v(i,3)
+  ns%skin(5) = ns%skin(5) + mass(ity)*v(i,3)*v(i,1)
+  ns%skin(6) = ns%skin(6) + mass(ity)*v(i,1)*v(i,2)
+enddo
+
 ! predicted force 
 f(1:num_atoms,1:3) = fsum(1:num_atoms,1:3)/num_models
 
-call update_nn_stat(nn_stat, num_models, num_atoms, esum, e2sum, fsum, f2sum)
+call update_nn_stat(ns, num_models, num_atoms, esum, e2sum, fsum, f2sum)
 
 if (shparams%flag) &
    call shortrep(myid, num_atoms, atype, pos, nbrlist, f, shparams, NBUFFER, MAXNEIGHBS)
@@ -380,8 +419,8 @@ do nstep=0, num_mdsteps-1
 
   if(mod(nstep,fstep)==0) then
      filebase = GetFileNameBase(DataDir,current_step+nstep)
-     call OUTPUT(filebase, atype, pos, v, q, v)
-     !call OUTPUT(filebase, atype, pos, v, q, nn_stat%fvar)
+     !call OUTPUT(filebase, atype, pos, v=v, q=q, f=f, avirial=avirial)
+     call OUTPUT(filebase, atype=atype, pos=pos, v=v, q=q, f=f, avirial=avirial)
   endif
 
   if(mod(nstep,sstep)==0 .and. is_tramp) &
@@ -450,7 +489,8 @@ do nstep=0, num_mdsteps-1
 enddo
 
 !--- save the final configurations
-call OUTPUT(filebase, atype, pos, v, q, v)
+call OUTPUT(filebase, atype, pos, v=v, q=q, f=v)
+!call OUTPUT(filebase, atype, pos, v=v, q=q, f=f, avirial=avirial)
 
 !--- update rxff.bin in working directory for continuation run
 filebase = GetFileNameBase(DataDir,-1)
@@ -554,9 +594,14 @@ do i=1, NATOMS
    ke = ke + hmas(ity)*sum(v(i,1:3)*v(i,1:3))
 enddo
 
-call MPI_ALLREDUCE (MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, ke, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 tt = ke/GNATOMS*UTEMP
 Etotal = ke + Enn 
+
+call MPI_ALLREDUCE(MPI_IN_PLACE, ns%skin, size(ns%skin), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, ns%spot, size(ns%spot), MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
+call MPI_ALLREDUCE(MPI_IN_PLACE, ns%spot_from_model, size(ns%spot_from_model), &
+        MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, ierr)
 
 if(myid==0) then
    cstep = nstep + current_step 
@@ -564,7 +609,20 @@ if(myid==0) then
    if(ns%num_models > 1) &
            write(6,'(a35,i9,3es15.5,f10.3)') 'MDstep,Estdev(frac),Emean,Fvar_max,T(K): ', &
            cstep,sqrt(ns%evar)/abs(ns%emean), ns%emean, ns%fvar_max, tt
+
+   !print'(a15,6es15.5)','stress: ', ns%stress(1:6)/ns%nstress/MDBOX
+   print'(a15,6es15.5)','  skin(atomic): ', ns%skin(1:6)
+   print'(a15,6es15.5)','  spot(atomic): ', ns%spot(1:6)
+   print'(a15,6es15.5)','  spot(model): ', ns%spot_from_model(1:6)
+   ns%stress = ns%stress + (ns%skin + ns%spot*Eev_kcal)/MDBOX*USTRS
+   print'(a15,6f15.3)', '  stress(GPa): ', ns%stress/ns%nstress
 endif
+
+!ns%nstress = 0
+!ns%stress = 0.d0
+ns%spot_from_model= 0.d0
+ns%spot = 0.d0
+ns%skin= 0.d0
 
 time1 = MPI_WTIME()
 

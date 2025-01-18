@@ -3,7 +3,7 @@ module communication_mod
   use mpi_mod
   use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr, target_node, &
                    copyptr, frcindx, nstep, pstep, it_timer, has_initial_pos,  na, ne, ns, nr, &
-                   MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, &
+                   MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, MODE_CPBK_WSTR, NE_CPBK_WSTR, &
                    MODE_COPY_FNN, MODE_MOVE_FNN
 
   use atoms
@@ -11,7 +11,7 @@ module communication_mod
 
 contains
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr, atype, pos, v, f, q, ipos)
+subroutine COPYATOMS(imode, dr, atype, pos, v, f, q, ipos, avirial)
 !
 ! TODO: update notes here
 !
@@ -54,7 +54,7 @@ end type
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
 real(8),allocatable,target,intent(in out) :: atype(:),pos(:,:)
-real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:),ipos(:,:,:)
+real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:),ipos(:,:,:), avirial(:,:)
 
 logical,allocatable :: commflag(:)
 type(pack1darray),allocatable :: pack1d(:)
@@ -87,7 +87,7 @@ do dflag=1, 6
    tn2 = target_node(dinv(dflag))
    ixyz = is_xyz(dflag)
    
-   if(imode==MODE_CPBK) then  ! communicate with neighbors in reversed order
+   if(imode==MODE_CPBK .or. imode==MODE_CPBK_WSTR) then  ! communicate with neighbors in reversed order
       tn1 = target_node(7-dinv(dflag)) ! <-[563412] 
       tn2 = target_node(7-dflag) ! <-[654321] 
       ixyz = is_xyz(7-dflag)        ! <-[332211]
@@ -291,6 +291,9 @@ select case(imode)
    case(MODE_CPBK)
       ne = NE_CPBK
 
+   case(MODE_CPBK_WSTR)
+      ne = NE_CPBK_WSTR
+
    case default
       print'(a,i3)', "ERROR: imode doesn't match in COPYATOMS: ", imode
 
@@ -472,6 +475,20 @@ if(imode==MODE_CPBK) then
       ns=ns+ne
    enddo
 
+else if(imode==MODE_CPBK_WSTR) then
+
+   is = 7 - dflag !<- [654321] reversed order direction flag
+
+   n = copyptr(is) - copyptr(is-1) + 1
+   call CheckSizeThenReallocate(sbuffer,n*ne)
+
+   do n=copyptr(is-1)+1, copyptr(is)
+      sbuffer(ns+1) = dble(frcindx(n))
+      sbuffer(ns+2:ns+4) = f(n,1:3)
+      sbuffer(ns+5:ns+10) = avirial(n,1:6)
+      ns=ns+ne
+   enddo
+
 else
 
 !--- # of elements to be sent. should be more than enough. 
@@ -557,6 +574,17 @@ if(imode == MODE_CPBK) then
       ine=i*ne
       m = nint(rbuffer(ine+1))
       f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
+   enddo
+
+else if(imode == MODE_CPBK_WSTR) then  
+
+   do i=0, nr/ne-1
+!--- get current index <ine> in <rbuffer(1:nr)>.
+!--- Append the transferred forces into the original position of force array.
+      ine=i*ne
+      m = nint(rbuffer(ine+1))
+      f(m,1:3) = f(m,1:3) + rbuffer(ine+2:ine+4)
+      avirial(m,1:6) = avirial(m,1:6) + rbuffer(ine+5:ine+10)
    enddo
 
 else

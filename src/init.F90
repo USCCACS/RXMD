@@ -171,6 +171,9 @@ end select
 !--- index array for returning reaction force
 call allocator(frcindx,1,NBUFFER)
 
+!--- atomic virial
+call allocator(avirial,1,NBUFFER,1,10)
+
 !--- TODO where to put the spring force extention? 
 !--- for spring force
 if (isSpring) then
@@ -328,7 +331,7 @@ if(myid==0) then
    enddo
 
    do i=1, size(elements%e)
-      print'(a3,i3,a3,i6)','INFO: Added ', i, elements%e(i)%name, elements%e(i)%atomic
+      print'(a20,i3,a3,i6)','INFO: Added ', i, elements%e(i)%name, elements%e(i)%atomic
    enddo
 endif
 

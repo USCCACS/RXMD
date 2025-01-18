@@ -32,10 +32,11 @@ integer,parameter :: MAXNEIGHBS=200 !<MAXNEIGHBS>: Max # of Ngbs one atom may ha
 !<NE_COPY>,<NE_MOVE>,<NE_CPBK> :: Number of Elements to COPY, MOVE atoms and CoPy BacK force. 
 integer,parameter :: MODE_COPY = 1, MODE_MOVE = 2, MODE_CPBK = 3
 integer,parameter :: MODE_QCOPY1 = 4, MODE_QCOPY2 = 5
+integer,parameter :: MODE_CPBK_WSTR = 9
 
 integer,parameter :: MODE_COPY_FNN=11, MODE_MOVE_FNN=12
 
-integer,parameter :: NE_CPBK = 4
+integer,parameter :: NE_CPBK = 4, NE_CPBK_WSTR = 10
 
 real(8),parameter :: dr_zero(3) = [0.d0, 0.d0, 0.d0]
 
@@ -44,7 +45,7 @@ integer,parameter :: MAXLAYERS=5
 
 ! position, atom type, velocity, force & charge
 real(8),allocatable,dimension(:),target :: atype, q
-real(8),allocatable,dimension(:,:),target :: pos, v, f
+real(8),allocatable,dimension(:,:),target :: pos, v, f, avirial
 
 character(2),allocatable :: atmname(:)  
 real(8),allocatable :: mass(:)          
@@ -110,7 +111,7 @@ logical :: is_reaxff=.false., is_fnn=.false., is_rxmdnn=.false., is_nnmm=.false.
 
 !--- natoms_per_type() is used to clear unused cutoff distance for ReaxFF
 !--- see get_cutoff_bondorder()
-integer,parameter :: MAX_ATOMTYPE=16
+integer,parameter :: MAX_ATOMTYPE=128
 integer(8) :: natoms_per_type(MAX_ATOMTYPE)=0
 
 !--- dthm=dt/(2*mass), hmas=mass/2
