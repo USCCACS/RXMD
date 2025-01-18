@@ -99,7 +99,6 @@ integer :: sstep
 logical :: isBinary=.false., isBondFile=.false., isPDB=.false., isXYZ=.false.
 !--- output format flags, explained in 'rxmdopt.in'
 integer :: fstep, pstep
-integer :: xyz_num_stack=1
 !--- conjugate_gradient tolerance of energy convergence 
 REAL(8) :: ftol   
 

@@ -6,7 +6,7 @@ use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc, put_rn
 use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
-                 xyz_num_stack, is_vfceiling, is_tramp, &
+                 is_vfceiling, is_tramp, &
                  forcefield_type, is_fnn, is_reaxff, is_rxmdnn, is_nnmm
 
 use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
@@ -447,11 +447,6 @@ endif
 if(find_cmdline_argc('--qstep',idx)) then
     call get_command_argument(idx+1,argv)
     read(argv,*) qstep
-endif
-
-if(find_cmdline_argc('--xyz_num_stack',idx)) then
-    call get_command_argument(idx+1,argv)
-    read(argv,*) xyz_num_stack
 endif
 
 if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 

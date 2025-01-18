@@ -9,7 +9,7 @@ module init
   use pqeq_mod, only : PQEq, initialize_eField, initialize_pqeq
   use force_mod, only : force_reaxff
   use memory_allocator_mod
-  use fileio, only : ReadBIN, ReadXYZ, ReadH2O, ReadSiOH, ReadPSTO, xyz_agg
+  use fileio, only : ReadBIN, ReadXYZ, ReadH2O, ReadSiOH, ReadPSTO
 
   use lists_mod, only: getnonbondingmesh 
 
@@ -197,7 +197,7 @@ if(myid==0) then
    write(6,'(a30,i3, i10, i10)') "MDMODE CURRENTSTEP NTIMESTEP:", &
                                   mdmode, current_step, ntime_step
    write(6,'(a30,f12.3,f8.3,i9,f8.3)') 'treq,vsfact,sstep:',treq*UTEMP0, vsfact, sstep 
-   write(6,'(a30,3i6)') 'fstep,pstep,xyz_num_stack:', fstep,pstep,xyz_num_stack
+   write(6,'(a30,3i6)') 'fstep,pstep:', fstep,pstep
    write(6,'(a30,i24,i24)') "NATOMS GNATOMS:", NATOMS, GNATOMS
    write(6,'(a30,3f12.3)') "LBOX:",LBOX(1:3)
    write(6,'(a30,3f15.3)') "Hmatrix [A]:",HH(1:3,1,0)
@@ -254,8 +254,6 @@ endif
 
 !--- MSD constractor
 call msd_initialize(m=msd_data, atom_name=atmname, total_steps=ntime_step, onestep_fs = dt*UTIME)
-
-if(xyz_num_stack>1) call xyz_agg%init(GNATOMS, xyz_num_stack)
 
 !--- keep initial position
 if(isSpring .or. msd_data%is_msd) then
