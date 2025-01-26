@@ -262,19 +262,86 @@ contains
     return
   end function
 
+!----------------------------------------------------------------
+! get inverse of m1 and save to m2
+  subroutine matinv(m1,m2)
+!----------------------------------------------------------------
+  implicit none
+  real(8) :: m1(3,3), m2(3,3), detm
+  
+  m2(1,1) = m1(2,2)*m1(3,3)-m1(2,3)*m1(3,2)
+  m2(1,2) = m1(1,3)*m1(3,2)-m1(1,2)*m1(3,3)
+  m2(1,3) = m1(1,2)*m1(2,3)-m1(1,3)*m1(2,2)
+  m2(2,1) = m1(2,3)*m1(3,1)-m1(2,1)*m1(3,3)
+  m2(2,2) = m1(1,1)*m1(3,3)-m1(1,3)*m1(3,1)
+  m2(2,3) = m1(1,3)*m1(2,1)-m1(1,1)*m1(2,3)
+  m2(3,1) = m1(2,1)*m1(3,2)-m1(2,2)*m1(3,1)
+  m2(3,2) = m1(1,2)*m1(3,1)-m1(1,1)*m1(3,2)
+  m2(3,3) = m1(1,1)*m1(2,2)-m1(1,2)*m1(2,1)
+  
+  detm = m1(1,1)*m1(2,2)*m1(3,3) + m1(1,2)*m1(2,3)*m1(3,1) &
+       + m1(1,3)*m1(2,1)*m1(3,2) - m1(1,3)*m1(2,2)*m1(3,1) &
+       - m1(1,2)*m1(2,1)*m1(3,3) - m1(1,1)*m1(2,3)*m1(3,2)
+  
+  m2(:,:) = m2(:,:)/detm
+  
+  return
+  end subroutine
+
+!----------------------------------------------------------------
+  subroutine get_hmatrix(lattice, hh, hinv)
+!----------------------------------------------------------------
+  implicit none
+  real(8),intent(in) :: lattice(6)
+  real(8),intent(in out) :: hh(3,3), hinv(3,3)
+  real(8) :: la,lb,lc, angle1,angle2,angle3
+  real(8) :: hh1, hh2 , lal, lbe, lga
+  real(8) :: pi=datan(1.d0)*4.d0
+
+  la = lattice(1)
+  lb = lattice(2)
+  lc = lattice(3)  
+  angle1 = lattice(4)
+  angle2 = lattice(5)
+  angle3 = lattice(6)
+  
+  !--- convet unit for angles
+  lal=angle1*pi/180.d0
+  lbe=angle2*pi/180.d0
+  lga=angle3*pi/180.d0
+  
+  !--- construct H-matrix
+  hh1=lc*(cos(lal)-cos(lbe)*cos(lga))/sin(lga)
+  hh2=lc*sqrt( 1.d0-cos(lal)**2-cos(lbe)**2-cos(lga)**2 + &
+               2*cos(lal)*cos(lbe)*cos(lga) )/sin(lga)
+  
+  hh(1,1)=la
+  hh(2,1)=0.d0
+  hh(3,1)=0.d0
+  hh(1,2)=lb*cos(lga)
+  hh(2,2)=lb*sin(lga)
+  hh(3,2)=0.d0
+  hh(1,3)=lc*cos(lbe)
+  hh(2,3)=hh1
+  hh(3,3)=hh2
+  
+  call matinv(hh,hinv)
+  
+  return 
+  end subroutine
+
+
 !-----------------------------------------------------------------------------------------
   function get_mdframe_from_xyzfile(xyzpath, ac) result(c)
 !-----------------------------------------------------------------------------------------
      type(mdframe) :: c
      type(analysis_context),optional,intent(in out) :: ac
 
-
      character(len=*),intent(in) :: xyzpath
      character(len=3) :: cbuf
 
-     real(8) :: lattice(9)
-
      integer :: i,iunit
+     integer :: ix,iy,iz
 
      ! save original filename
      c%filename = trim(adjustl(xyzpath))
@@ -282,12 +349,7 @@ contains
      open(newunit=iunit,file=xyzpath,status='old',form='formatted')
      read(unit=iunit,fmt=*) c%num_atoms
      read(unit=iunit,fmt=*) c%lattice(1:6)
-
-     !read(unit=iunit,fmt=*) lattice(1:9)
-     !c%lattice(1)=lattice(1)
-     !c%lattice(2)=lattice(5)
-     !c%lattice(3)=lattice(9)
-     !c%lattice(4:6)=90d0
+     call get_hmatrix(c%lattice, c%hh, c%hinv)
 
      allocate(c%pos(c%num_atoms,3),c%v(c%num_atoms,3),c%f(c%num_atoms,3))
      allocate(c%elems(c%num_atoms),c%q(c%num_atoms), c%itype(c%num_atoms))
