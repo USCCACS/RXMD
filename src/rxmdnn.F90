@@ -612,8 +612,8 @@ if(myid==0) then
 
    !print'(a15,6es15.5)','stress: ', ns%stress(1:6)/ns%nstress/MDBOX
    print'(a15,6es15.5)','  skin(atomic): ', ns%skin(1:6)
-   print'(a15,6es15.5)','  spot(atomic): ', ns%spot(1:6)
-   print'(a15,6es15.5)','  spot(model): ', ns%spot_from_model(1:6)
+   print'(a15,6es15.5)','  spot(atomic): ', ns%spot(1:6)*Eev_kcal
+   print'(a15,6es15.5)','  spot(model): ', ns%spot_from_model(1:6)*Eev_kcal
    ns%stress = ns%stress + (ns%skin + ns%spot*Eev_kcal)/MDBOX*USTRS
    print'(a15,6f15.3)', '  stress(GPa): ', ns%stress/ns%nstress
 endif

@@ -24,8 +24,11 @@ character(len=:),allocatable :: filename
 integer :: idx
 
 if(isBinary) call WriteBIN(atype,pos,v,q,fileNameBase)
+
 if(isBondFile) call WriteBND(fileNameBase)
+
 if(isPDB) call WritePDB(fileNameBase)
+
 if(isXYZ) then
    if( find_cmdline_argc('--xyz_pto',idx)) then
      call WriteXYZ_PTO(fileNameBase, atype, pos, v, q, f)
@@ -59,24 +62,40 @@ integer :: fh ! file handler
 integer :: BNDLineSize, baseCharPerAtom
 integer,parameter :: MaxBNDLineSize=4096
 character(MaxBNDLineSize) :: BNDOneLine
-real(8),parameter :: BNDcutoff=0.3d0
+real(8),parameter :: minBO=0.3d0
+real(8) :: rr(0:3), RCcutoff=-1.d0, edge_value=0.d0
 
 character(len=:),allocatable :: BNDAllLines
 
 integer :: scanbuf
 
+character(256) :: argv
+
 integer :: ti,tj,tk
 call system_clock(ti,tk)
+
+! switch to use distance instead of BO as cutoff
+if(find_cmdline_argc('--bnd_rc',idx)) then
+   call get_command_argument(idx+1,argv)
+   read(argv,*) RCcutoff
+endif
 
 ! precompute the total # of neighbors
 m=0
 do i=1, NATOMS
+
+!--- count if edge value is less than cutoff
    do j1 = 1, nbrlist(i,0)
-!--- don't count if BO is less than BNDcutoff.
-       if(BO(0,i,j1) > BNDcutoff) then 
-           m=m+1
-       endif
+     if (RCcutoff > 0.d0) then
+        j = nbrlist(i,j1)
+        rr(1:3) = pos(j,1:3)-pos(i,1:3)
+        rr(0) = sqrt(sum(rr(1:3)*rr(1:3)))
+        if (RCcutoff > rr(0)) m = m + 1
+     else if(BO(0,i,j1) > minBO) then 
+        m = m + 1
+     endif
    enddo
+
 enddo
 
 200 format(i12.12,1x,3f12.3,1x,2i3,20(1x,i12.12,f6.3)) 
@@ -128,12 +147,21 @@ do i=1, NATOMS
 !--- get global ID for j-atom
       jgd = l2g(atype(j))
 
-!--- if bond order is less than 0.3, ignore the bond.
-      if( BO(0,i,j1) < 0.3d0) cycle
+!--- ignore if edge value is less than cutoff
+      edge_value = -1d0
+      if (RCcutoff > 0.d0) then
+        rr(1:3) = pos(j,1:3)-pos(i,1:3)
+        rr(0) = sqrt(sum(rr(1:3)*rr(1:3)))
+        if (RCcutoff > rr(0)) edge_value = rr(0)
+      else
+        if (BO(0,i,j1) > minBO) edge_value = BO(0,i,j1)
+      endif
 
-      bndlist(0) = bndlist(0) + 1
-      bndlist(bndlist(0)) = jgd
-      bndordr(bndlist(0)) = BO(0,i,j1)
+      if (edge_value>0d0) then
+        bndlist(0) = bndlist(0) + 1
+        bndlist(bndlist(0)) = jgd
+        bndordr(bndlist(0)) = edge_value
+      endif
    enddo
 
    BNDOneLine=""
@@ -497,7 +525,7 @@ integer :: header_size
 
 call system_clock(ti,tk)
 
-write(a256, '(a10,9f10.2,a2 $)') 'Lattice="', HH(1,1:3,0),HH(2,1:3,0), HH(3,1:3,0), '" '
+write(a256, '(a10,9f10.2,a2 $)') 'Lattice="', HH(1:3,1,0),HH(1:3,2,0), HH(1:3,3,0), '" '
 header=adjustl(trim(a256))
 
 if(present(energy)) then

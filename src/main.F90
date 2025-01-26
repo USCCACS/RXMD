@@ -16,14 +16,14 @@ integer :: i,ity,it1,it2,irt
 type(mdbase_class) :: mdbase
 
 integer :: resultlen
-character(len=8) :: hostname
+character(len=64) :: hostname
 
 call MPI_INIT(ierr)
 call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
 call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, ierr)
 
 call mpi_get_processor_name(hostname, resultlen, ierr) 
-print'(a,1x,i9,1x,a)','INFO: myid,hostname ', myid, hostname
+print'(a,1x,i9,1x,a64)','INFO: myid,hostname ', myid, trim(adjustl(hostname))
 
 if(myid==0)  print'(a30)', 'rxmd has started'
 
