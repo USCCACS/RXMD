@@ -13,10 +13,11 @@
 #FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
 
 # CARC
-MPIF90 = mpiifx
-FC = mpiifx
-MPIF90_FLAGS = -O2 
-FC_FLAGS = -O2 -DRXMDNN 
+MPIF90 = mpifort
+FC = mpifort
+MPIF90_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium
+FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
+
 
 # Sunspot
 #MPIF90 = mpifort
