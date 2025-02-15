@@ -13,8 +13,8 @@
 #FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
 
 # CARC
-MPIF90 = mpiifort
-FC = ifx
+MPIF90 = mpiifx
+FC = mpiifx
 MPIF90_FLAGS = -O2 
 FC_FLAGS = -O2 -DRXMDNN 
 
