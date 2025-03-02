@@ -12,20 +12,19 @@ OBJS = $(SRCS:.F90=.o)
 
 
 #CARC
-install_root=/scratch1/knomura/libtorch
-TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
-TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
+#install_root=/scratch1/knomura/libtorch
+#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
+#TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
 #Polaris
 #install_root=/lus/eagle/projects/NAQMC_RMD_aesp/knomura/libtorch
 #TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib
 #TORCHLIBS=-ltorch_cpu -ltorch_cuda -lc10 -lrxmdtorch
 
-#Sunspot
-#install_root=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/torch
-#install_root_ext=/soft/datascience/aurora_models_frameworks-2023.1/lib/python3.9/site-packages/intel_extension_for_pytorch
-#TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -L${install_root_ext}/lib -Wl,-R${install_root_ext}/lib
-#TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu -lintel-ext-pt-cpu 
+#Sunspot/Aurora
+install_root=/lus/flare/projects/NAQMC_RMD_aesp_CNDA/knomura/libtorch
+TORCHLIB_DIRS=-L../rxmdtorch/build -L${install_root}/lib -Wl,-R${install_root}/lib -L${install_root}/lib -Wl,-R${install_root}/lib
+TORCHLIBS=-ltorch_cpu -ltorch  -lc10 -lrxmdtorch -lintel-ext-pt-gpu
 
 INCLUDE_DIRS=-I${install_root}/include -I${install_root}/include/torch/csrc/api/include 
 
@@ -54,7 +53,7 @@ stepmod.o : utils.o module.o
 
 harmopot.o : utils.o module.o
 
-nnip_modifiler.o : module.o 
+nnip_modifier.o : module.o 
 
 module.o : utils.o memory.o
 
@@ -63,9 +62,9 @@ comm.o : module.o
 velocity.o : module.o
 
 lists.o : module.o utils.o
-rxmdnn.o : module.o cmdline.o utils.o fileio.o comm.o velocity.o msd.o qeq.o nnip_modifiler.o
+rxmdnn.o : module.o cmdline.o utils.o fileio.o comm.o velocity.o msd.o qeq.o nnip_modifier.o
 
-cmdline.o : utils.o module.o memory.o nnmm.o nnip_modifiler.o
+cmdline.o : utils.o module.o memory.o nnmm.o nnip_modifier.o
 msd.o : utils.o module.o
 reaxff.o : cmdline.o utils.o fileio.o comm.o velocity.o msd.o
 ensembles.o : module.o
