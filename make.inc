@@ -13,17 +13,16 @@
 #FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
 
 # CARC
+#MPIF90 = mpiifort
+#FC = ifx
+#MPIF90_FLAGS = -O2
+#FC_FLAGS = -O2 -C -DRXMDNN
+
+# Sunspot/Aurora
 MPIF90 = mpifort
 FC = mpifort
-MPIF90_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium
-FC_FLAGS = -C -O2 -fallow-argument-mismatch -mcmodel=medium -DRXMDNN 
-
-
-# Sunspot
-#MPIF90 = mpifort
-#FC = mpifort
-#MPIF90_FLAGS = -O2 -check all
-#FC_FLAGS = -O2 -check all -DRXMDNN
+MPIF90_FLAGS = -O2 -traceback
+FC_FLAGS = -O2 -traceback -DRXMDNN
 
 # LINKER = 
 # LIBS =
