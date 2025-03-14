@@ -45,6 +45,7 @@ program main
      mdf = get_mdframe_from_xyzfile(filenames(n)%str, ac=ac)
      nbrlist = nbrlist_ctor_from_mdframe(mdf)
 
+     ! calculate neighborlist first, then get gr&ba later.
      do i1=1, mdf%num_atoms
         ity = mdf%itype(i1)
         rr1(1:3) = mdf%pos(i1,1:3)
@@ -62,8 +63,6 @@ program main
               ir = rr(0)*DRI + 1
 
               if(rr(0) < RCUT) then
-                 !ac%gr(ity,jty,ir)=ac%gr(ity,jty,ir)+1.d0
-
                  atom = base_atom_type(pos=[rr2(1),rr2(2),rr2(3)], &
                                        itype=jty, rr=rr(0), ir=ir, id=j1)
 
@@ -106,7 +105,7 @@ program main
         
              cosine = sum(rr1(1:3)*rr2(1:3))
              theta = acos(cosine)*180d0/pi
-             idx = int(theta) + 1
+             idx = min(int(theta) + 1, NTABLES_BA)
 
              ac%ba(jty,ity,kty,idx) = ac%ba(jty,ity,kty,idx)+0.5d0
              ac%ba(kty,ity,jty,idx) = ac%ba(kty,ity,jty,idx)+0.5d0

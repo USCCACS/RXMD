@@ -44,7 +44,7 @@ module stat_mod
 
   ! neutron scattering length data (Coh b) are from 
   !  https://www.nist.gov/ncnr/neutron-scattering-lengths-list
-  type(NSD_type),parameter :: NSD0(18)=[&
+  type(NSD_type),parameter :: NSD0(19)=[&
           NSD_type(name='H', length=6.671d-5), & ! H=-3.7406d-5, D=6.671d-5, T=4.792d-5
           NSD_type(name='Ge',length=8.185d-5),  NSD_type(name='Se',length=7.970d-5), &
           NSD_type(name='Sb',length=5.57d-5),   NSD_type(name='Te',length=5.80d-5), & 
@@ -53,9 +53,8 @@ module stat_mod
           NSD_type(name='Cl',length=9.5770d-5), NSD_type(name='Pb',length=9.405d-5), &
           NSD_type(name='Ti',length=-3.4380d-5),NSD_type(name='N', length=9.36d-5),  &
           NSD_type(name='Li',length=-1.90d-5),  NSD_type(name='K', length=3.63d-5),  &
-          NSD_type(name='Na',length=3.63d-5), &
-          ! FIXME. find value from NIST site
-          NSD_type(name='Ca',length=3.63d-5), NSD_type(name='Si',length=3.63d-5) & 
+          NSD_type(name='Na',length=3.63d-5), NSD_type(name='Ca',length=4.70d-5), &
+          NSD_type(name='Y',length=7.75d-5), NSD_type(name='Mn',length=-3.73d-5) &
           ]
 
   type AFF_type ! Atomic Form Factor type
@@ -67,7 +66,7 @@ module stat_mod
 
   ! atomic form factor data are taken from
   ! http://lampx.tugraz.at/~hadley/ss1/crystaldiffraction/atomicformfactors/formfactors.php
-  type(AFF_type),parameter :: AFF0(9)=[ &
+  type(AFF_type),parameter :: AFF0(12)=[ &
           AFF_type(name='H', a=[0.489918d0,0.262003d0,0.196767d0,0.049879d0], &
                    b=[20.6593d0,7.74039d0,49.5519d0,2.20159d0], c=0.001305d0 ), &
           AFF_type(name='O', a=[3.0485d0, 2.2868d0, 1.5463d0, 0.867d0], &
@@ -82,11 +81,14 @@ module stat_mod
                    b=[3.285d0, 8.8422d0, 0.3136d0, 129.424d0], c=0.676), &
           AFF_type(name='K', a=[8.2186d0, 7.4398d0, 1.0519d0, 0.8659d0], &
                    b=[12.7949d0, 0.7748d0, 213.187d0, 41.6841d0], c=1.4228d0), &
+          AFF_type(name='Ca', a=[15.6348, -0.0074, 7.9518, 0.6089],&  ! Ca^2+
+                   b=[8.4372, 10.3116, 0.8537, 25.9905], c=-14.875),&
           !FIXME find value from tugarz size
-          AFF_type(name='Ca', a=[8.2186d0, 7.4398d0, 1.0519d0, 0.8659d0], &
-                   b=[12.7949d0, 0.7748d0, 213.187d0, 41.6841d0], c=1.4228d0), &
-          AFF_type(name='Si', a=[8.2186d0, 7.4398d0, 1.0519d0, 0.8659d0], &
-                   b=[12.7949d0, 0.7748d0, 213.187d0, 41.6841d0], c=1.4228d0) &
+          AFF_type(name='Si', a=[1d0,1d0,1d0,1d0],b=[1d0,1d0,1d0,1d0],c=1d0), &
+          AFF_type(name='Y', a=[1d0,1d0,1d0,1d0],b=[1d0,1d0,1d0,1d0],c=1d0), &
+          AFF_type(name='Mn', a=[1d0,1d0,1d0,1d0],b=[1d0,1d0,1d0,1d0],c=1d0), &
+          ! template
+          AFF_type(name='X', a=[1d0,1d0,1d0,1d0],b=[1d0,1d0,1d0,1d0],c=1d0)&
           ]
 
 
