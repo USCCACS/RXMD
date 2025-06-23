@@ -1,6 +1,6 @@
 #!/bin/sh
 module load cmake
-module load oneapi/release/2024.2.1
+module load oneapi/release/2025.0.5
  
 rm -rfv build
 mkdir build
