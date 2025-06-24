@@ -412,6 +412,56 @@ deallocate(seeds)
 
 end subroutine
 
+!------------------------------------------------------------------------------
+subroutine remove_atoms_within_rc(myrank, NATOMS, GNATOMS, rc, pos, vel, frc, atype, nbrlist)
+!------------------------------------------------------------------------------
+integer,intent(in) :: myrank
+integer,intent(in),allocatable :: nbrlist(:,:)
+real(8),intent(in) :: rc
+
+real(8),intent(in out),allocatable :: pos(:,:), vel(:,:), frc(:,:), atype(:)
+integer,intent(in out) :: NATOMS
+integer(8),intent(in out) :: GNATOMS
+
+character(16) :: argv
+real(8) :: rr(3), rr2, rij
+integer :: i, j, ity, jty, idx, ndiff 
+integer(8) :: n8 
+
+do i = 1, NATOMS
+   gid = l2g(atype(i))
+   do j1 = 1, nbrlist(i, 0)
+      j = nbrlist(i, j1)
+      gjd = l2g(atype(j))
+      rr(1:3) = pos(i,1:3) - pos(j,1:3)
+      rr2 = sum(rr(1:3)*rr(1:3))
+      rij = sqrt(rr2)
+      if (rij < rc .and. gid>gjd) atype(i) = -1.d0
+   enddo
+enddo
+
+!--- update NATOMS
+n8 = 0 
+do i = 1, NATOMS
+   if(atype(i) < 0.d0) cycle
+   n8 = n8 + 1
+   atype(n8) = atype(i)
+   pos(n8,1:3) = pos(i,1:3)
+   vel(n8,1:3) = vel(i,1:3)
+   frc(n8,1:3) = frc(i,1:3)
+enddo
+
+!ndiff = NATOMS - n8
+!call MPI_ALLREDUCE(MPI_IN_PLACE, ndiff, 1, MPI_INTEGER, MPI_SUM,  MPI_COMM_WORLD, ierr)
+!call MPI_ALLREDUCE(n8, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+!if (myrank == 0) print'(a,i6,i9)','ndiff,GNATOMS: ', ndiff, GNATOMS
+NATOMS = n8 
+
+return
+
+end subroutine
+
+
 end module
 
 !-------------------------------------------------------------------------------------------

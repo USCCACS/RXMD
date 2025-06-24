@@ -152,6 +152,8 @@ subroutine rxmdnn_param_print(this)
   class(rxmdnn_param), intent(in) :: this
   integer :: ia
 
+  if(.not. verbose) return
+
   write(*,fmt='(a)') repeat('=',80)
   do ia=1, size(this%models)
 
@@ -388,7 +390,7 @@ end subroutine
 
 !------------------------------------------------------------------------------
 subroutine mddriver_rxmdnn(mdbase, num_mdsteps) 
-use utils, only : UTEMP, UTEMP0
+use utils, only : UTEMP, UTEMP0, remove_atoms_within_rc
 use velocity_modifiers_mod, only : gaussian_dist_velocity, adjust_temperature, elementwise_scaling_temperature
 use nnip_modifier, only : ceiling_array, ceparams, shortrep, shparams
 !------------------------------------------------------------------------------
@@ -397,6 +399,10 @@ integer,intent(in) :: num_mdsteps
 real(8) :: ctmp,cpu0,cpu1,cpu2,comp=0.d0
 type(nn_stat_type) :: nn_stat
 
+integer :: idx
+character(8) :: argv
+real(8) :: rc
+
 character(len=:),allocatable :: filebase
 
 integer :: i,ity
@@ -404,6 +410,13 @@ integer :: i,ity
 if(reset_velocity_random.or.current_step==0) call gaussian_dist_velocity(atype, v)
 
 call get_force_rxmdnn(mdbase%ff, natoms, atype, pos, f, q, nn_stat)
+
+if(find_cmdline_argc('--remove_atoms',idx)) then
+  call get_command_argument(idx+1,argv); read(argv,*) rc
+
+  call remove_atoms_within_rc(myid, NATOMS, GNATOMS, rc, pos, v, f, atype, nbrlist)
+  call MPI_ALLREDUCE(NATOMS, GNATOMS, 1, MPI_INTEGER8, MPI_SUM,  MPI_COMM_WORLD, ierr)
+endif
 
 filebase = GetFileNameBase(DataDir,-1)
 
