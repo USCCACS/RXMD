@@ -328,9 +328,11 @@ if(myid==0) then
       call add_elem(elements, fp%models(i)%element)
    enddo
 
-   do i=1, size(elements%e)
-      print'(a20,i3,a3,i6)','INFO: Added ', i, elements%e(i)%name, elements%e(i)%atomic
-   enddo
+   if(verbose) then
+      do i=1, size(elements%e)
+         print'(a20,i3,a3,i6)','INFO: Added ', i, elements%e(i)%name, elements%e(i)%atomic
+      enddo
+   endif
 endif
 
 end function

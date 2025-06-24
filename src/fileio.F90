@@ -1338,6 +1338,12 @@ if( find_cmdline_argc('--strain',idx)) then
    call get_command_argument(idx+3,argv); read(argv,*) buf; latc=latc*(1.d0+buf)
 endif
 
+if( find_cmdline_argc('--shear',idx)) then
+   call get_command_argument(idx+1,argv); read(argv,*) buf; lalpha = lalpha + buf
+   call get_command_argument(idx+2,argv); read(argv,*) buf; lbeta = lbeta + buf
+   call get_command_argument(idx+3,argv); read(argv,*) buf; lgamma = lgamma + buf
+endif
+
 call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
 do j=1, 3
