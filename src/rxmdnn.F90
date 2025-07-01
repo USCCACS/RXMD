@@ -348,6 +348,8 @@ do id = 1, num_models
 
   CALL COPYATOMS(imode=MODE_CPBK_WSTR, dr=dr_zero, atype=atype, pos=pos, f=f, q=q, avirial=avirial)
 
+  call apply_model_weights_to_force(num_models, id, num_atoms, f)
+
   fsum(1:num_atoms,1:3) = fsum(1:num_atoms,1:3) + f(1:num_atoms, 1:3)
   f2sum(1:num_atoms,1:3) = f2sum(1:num_atoms,1:3) + f(1:num_atoms, 1:3)**2
 
@@ -374,9 +376,6 @@ do i = 1, NATOMS
   ns%skin(6) = ns%skin(6) + mass(ity)*v(i,1)*v(i,2)
 enddo
 
-! predicted force 
-f(1:num_atoms,1:3) = fsum(1:num_atoms,1:3)/num_models
-
 call update_nn_stat(ns, num_models, num_atoms, esum, e2sum, fsum, f2sum)
 
 if (shparams%flag) &
@@ -384,6 +383,34 @@ if (shparams%flag) &
 
 if (spparams%flag) &
    call springpot(myid, num_atoms, atype, pos, nbrlist, f, spparams, NBUFFER, MAXNEIGHBS)
+
+contains 
+
+!------------------------------------------------------------------------------
+ subroutine apply_model_weights_to_force(num_models, model_id, num_atoms, f)
+    integer,intent(in) :: num_models, model_id, num_atoms
+    real(8),intent(in out),allocatable,target :: f(:,:)
+    character(16) :: argv
+
+    integer :: idx
+    real(8) :: weight
+
+    if(find_cmdline_argc('--model_weights',idx)) then
+      call get_command_argument(idx+model_id,argv); read(argv,*) weight
+    else
+      weight = 1d0/num_models
+    endif
+
+    if(verbose) then
+      print'(a,2i4,f8.3)',&
+              'applying model weights(num_models,model_id,weight): ', &
+              num_models, model_id, weight
+    endif
+
+    f(1:num_atoms, 1:3) = f(1:num_atoms, 1:3)*weight 
+
+ end subroutine
+!------------------------------------------------------------------------------
 
 
 end subroutine

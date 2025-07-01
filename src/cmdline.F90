@@ -3,7 +3,7 @@ module cmdline_args
 !-------------------------------------------------------------------------------------------
 use mpi_mod
 use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc, put_rng_seed
-use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
+use base, only : verbose, myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
                  mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
                  isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
                  is_vfceiling, is_tramp, &
@@ -105,6 +105,8 @@ if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
     call MPI_FINALIZE(ierr)
     stop
 endif
+
+if(find_cmdline_argc('--verbose',idx)) verbose = .true.
 
 inquire(file='rxmdnn.in', exist=is_rxmdnn)
 if(is_rxmdnn) then
