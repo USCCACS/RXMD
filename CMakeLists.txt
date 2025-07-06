@@ -43,6 +43,15 @@ set(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
 # Find PyTorch for rxmdnn target
 find_package(Torch REQUIRED)
 
+# Set RPATH settings to ensure PyTorch libraries can be found at runtime
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+
+# Set RPATH to include PyTorch library directories
+if(TORCH_LIBRARY_DIRS)
+  set(CMAKE_INSTALL_RPATH "${TORCH_LIBRARY_DIRS}")
+endif()
+
 # Find rxmdnn
 add_subdirectory(src)
 
