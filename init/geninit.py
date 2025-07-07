@@ -5,6 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import ase
 from ase.io import read,write
+from decimal import Decimal
 
 def vector_to_sequential_id(indices, vprocs):
 	return indices[0] + indices[1]*vprocs[0] + indices[2]*vprocs[0]*vprocs[1]
@@ -50,7 +51,8 @@ class geninit:
 
 		shifted_positions = []
 		for d in self.atoms.get_scaled_positions():
-			shifted_positions.append(np.array([p-m for m, p in zip(minxyz, d)]))
+			fractional_pos = [(Decimal(p)-Decimal(m))%Decimal(1.0) for m, p in zip(minxyz, d)]
+			shifted_positions.append(np.array(fractional_pos, dtype=np.float64))
 
 		per_node_atoms = {}
 
@@ -128,3 +130,4 @@ g = geninit(
 	outputxyz = args.outputxyz,
 	outputbin = args.outputbin,
 	)
+

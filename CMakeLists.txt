@@ -33,6 +33,12 @@ endif()
 
 message(STATUS "CMAKE_Fortran_COMPILER_ID: ${CMAKE_Fortran_COMPILER_ID}")
 
+if(PLATFORM_GPU STREQUAL "NVIDIA")
+  message(STATUS "NVIDIA GPU detected: ${PLATFORM_GPU}")
+elseif(PLATFORM_GPU STREQUAL "INTEL")
+  message(STATUS "Intel GPU detected: ${PLATFORM_GPU}")
+endif()
+
 # Find MPI
 find_package(MPI REQUIRED)
 
