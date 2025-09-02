@@ -50,6 +50,7 @@ set_target_properties(rxmdnn PROPERTIES
 
 target_link_libraries(rxmdnn PRIVATE
   MPI::MPI_Fortran
+  MPI::MPI_CXX
   stdc++
   rxmdtorch
   ${TORCH_LIBRARIES}
