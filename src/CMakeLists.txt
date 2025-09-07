@@ -25,20 +25,6 @@ set(RXMD_SOURCES
   nnip_modifier.F90
 )
 
-
-
-## Build main rxmd executable
-#add_executable(rxmd ${RXMD_SOURCES})
-#
-## Set target properties
-#set_target_properties(rxmd PROPERTIES
-#  Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules
-#)
-#
-## Link MPI libraries
-#target_link_libraries(rxmd PRIVATE MPI::MPI_Fortran)
-
-
 # Build rxmdnn executable (with C++ support)
 add_executable(rxmdnn ${RXMD_SOURCES})
 

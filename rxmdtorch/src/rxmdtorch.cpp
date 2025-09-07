@@ -409,3 +409,10 @@ extern "C" void get_maxrc_rxmdnn(double & maxrc)
 	maxrc = rxmdnn_ptr->get_maxrc();
 	//std::cout << "get_maxrc_rxmdnn " << maxrc << std::endl;
 }
+
+extern "C" void shutdown_rxmdnn(int ierr)
+{
+	rxmdnn_ptr.reset();
+	if(rxmdnn_ptr == nullptr) ierr = 0;
+	//std::cout << "shutdown_rxmdnn" << ierr << std::endl;
+}

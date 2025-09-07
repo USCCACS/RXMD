@@ -86,6 +86,12 @@ module rxmdnn
         import :: c_double
         real(c_double) :: maxrc
     end subroutine
+
+    subroutine shutdown_rxmdnn(ierr) bind(c,name="shutdown_rxmdnn")
+        import :: c_int
+        integer(c_int) :: ierr
+    end subroutine
+
   end interface
 
 contains
@@ -115,6 +121,11 @@ contains
 
     subroutine get_maxrc_rxmdnn(maxrc) 
         real(c_double) :: maxrc
+    end subroutine
+
+    subroutine shutdown_rxmdnn(ierr)
+        import :: c_int
+        integer(c_int) :: ierr
     end subroutine
 
 #endif
@@ -541,6 +552,8 @@ call msd_save(msd_data)
 
 call cpu_time(cpu2)
 if(myid==0) print'(a,2f12.5)','comp, total (sec): ', comp, cpu2-cpu0
+
+call shutdown_rxmdnn(ierr)
 
 return
 end subroutine
