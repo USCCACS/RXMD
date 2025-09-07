@@ -16,12 +16,17 @@
 #include <torch/script.h>
 #include <torch/csrc/jit/runtime/graph_executor.h>
 
+#include <torch/csrc/inductor/aoti_package/model_package_loader.h>
+
 #define BATCH_SIZE 4096
 //#define BATCH_SIZE 8192
 //#define BATCH_SIZE 16384
 //#define BATCH_SIZE 32768
 //#define BATCH_SIZE 262144
 //#define BATCH_SIZE 1048576
+//
+
+//#define AOTINDUCTOR
 
 struct model_spec
 {
@@ -39,8 +44,16 @@ struct RXMDNN
 
 	double cutoff; 
 
-	std::vector<torch::jit::script::Module> models;
-	torch::jit::script::Module model;
+#if defined(AOTINDUCTOR)
+	std::vector<std::unique_ptr<torch::inductor::AOTIModelPackageLoader>> models;
+	torch::inductor::AOTIModelPackageLoader* model;
+	std::vector<std::string> model_input_order;
+	std::vector<std::string> model_output_order;
+#else
+	std::vector<std::unique_ptr<torch::jit::script::Module>> models;
+	torch::jit::script::Module* model;
+#endif
+
 	int current_model_id = 0; 
 
 	RXMDNN(int _myrank, std::vector<model_spec> model_specs)
@@ -81,10 +94,27 @@ struct RXMDNN
 		for (const auto & mspec : model_specs)
 		{
 			//std::cout << "loading model.. " << mspec.modelpath << std::endl;
-			models.push_back(torch::jit::load(mspec.modelpath, device, metadata));
+#if defined(AOTINDUCTOR)
+			models.push_back(std::make_unique<torch::inductor::AOTIModelPackageLoader>(mspec.modelpath));
+#else
+			models.push_back(std::make_unique<torch::jit::script::Module>(torch::jit::load(mspec.modelpath, device, metadata)));
+#endif
 		}
-		
-		for (auto & m : models) m.eval();
+
+
+#if defined(AOTINDUCTOR)
+		// set up input and output order
+		model_input_order = {"pos", "edge_index", "atom_types"};
+		model_output_order = {"atomic_energy", "forces", "virial"};
+		metadata = models[0]->get_metadata();
+
+		bool allow_tf32 = std::stoi(metadata["allow_tf32"]);
+		// see https://pytorch.org/docs/stable/notes/cuda.html
+		at::globalContext().setAllowTF32CuBLAS(allow_tf32);
+		at::globalContext().setAllowTF32CuDNN(allow_tf32);
+#else
+		for (auto & m : models) m->eval();
+#endif
 
 		current_model_id = 0; 
 		update_current_model(current_model_id);
@@ -121,7 +151,7 @@ struct RXMDNN
 			std::cout << "ERROR: model id> model.size():  " 
 				<< id << " " << models.size() << std::endl;
 
-		model = models[id];
+		model = models.at(id).get();
 	}
 
 	double get_maxrc()
@@ -175,10 +205,14 @@ struct RXMDNN
 		for(int ii = 1; ii < nlocal; ii++)
 			cumsum_neigh_per_atom[ii] = cumsum_neigh_per_atom[ii-1] + neigh_per_atom[ii-1];
 
-		torch::Tensor pos_tensor = torch::zeros({ntotal, 3});
-		torch::Tensor ij2type_tensor = torch::zeros({ntotal}, torch::TensorOptions().dtype(torch::kInt64));
-
+#if defined(AOTINDUCTOR)
+		torch::Tensor pos_tensor = torch::zeros({ntotal, 3}).to(torch::kFloat64);
+		auto pos = pos_tensor.accessor<double, 2>();
+#else
+		torch::Tensor pos_tensor = torch::zeros({ntotal, 3}).to(torch::kFloat32);
 		auto pos = pos_tensor.accessor<float, 2>();
+#endif
+		torch::Tensor ij2type_tensor = torch::zeros({ntotal}, torch::TensorOptions().dtype(torch::kInt64));
 		auto ij2type = ij2type_tensor.accessor<long, 1>();
 
 		// set position and type for all atoms including buffer atoms, 
@@ -233,20 +267,44 @@ struct RXMDNN
 
 			input.insert("pos", pos_tensor);
 			input.insert("atom_types", ij2type_tensor);
-
 			input.insert("edge_index", edges_tensor.to(device));
+
+#if defined(AOTINDUCTOR)
+			std::vector<torch::Tensor> input_vector;
+                        for (const std::string &input_field : model_input_order) {
+                                input_vector.push_back(input.at(input_field));
+                        }
+
+			std::vector<torch::Tensor> output_vector = model->run(input_vector);
+
+			c10::Dict<std::string, torch::Tensor> output;
+			std::vector<torch::Tensor>::iterator tensor_it = output_vector.begin();
+			for (const std::string& key : model_output_order) {
+				output.insert(key, *tensor_it++);
+			}
+
+			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").cpu();
+
+			torch::Tensor forces_tensor = output.at("forces").cpu();
+			auto forces = forces_tensor.accessor<double, 2>();
+
+			torch::Tensor v_tensor = output.at("virial").cpu();
+			auto v = v_tensor.accessor<double,3>();
+#else
 			std::vector<torch::IValue> input_vector(1, input);
-
-			//std::cout << "before calling m.forward.. " << std::endl;
-			//auto output = model.forward(input_vector).toGenericDict();
-			torch::Dict<c10::IValue,c10::IValue> output = model.forward(input_vector).toGenericDict();
-
-			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
-			auto atomic_energies = atomic_energy_tensor.accessor<double, 2>();
-			auto atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<double>()[0];
+			torch::Dict<c10::IValue,c10::IValue> output = model->forward(input_vector).toGenericDict();
 
 			torch::Tensor forces_tensor = output.at("forces").toTensor().cpu();
 			auto forces = forces_tensor.accessor<float, 2>();
+
+			torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
+			auto v = v_tensor.accessor<float,3>();
+
+			torch::Tensor atomic_energy_tensor = output.at("atomic_energy").toTensor().cpu();
+#endif
+
+			auto atomic_energies = atomic_energy_tensor.accessor<double, 2>();
+			auto atomic_energy_sum = atomic_energy_tensor.sum().data_ptr<double>()[0];
 
 			for(int i = n_start; i < n_end; i++)
 				eng_vdwl += atomic_energies[i][0];
@@ -257,9 +315,6 @@ struct RXMDNN
 				force_vec[nbuffer+ii] += forces[ii][1];
 				force_vec[2*nbuffer+ii] += forces[ii][2];
 			}
-
-			torch::Tensor v_tensor = output.at("virial").toTensor().cpu();
-			auto v = v_tensor.accessor<float,3>();
 
 			//std::cout << "nb,v_tensor: " << nb << " " << v_tensor << std::endl;
 			aux_vec[0] += v[0][0][0];
@@ -282,31 +337,31 @@ extern "C" void init_rxmdtorch(int myrank)
 {
 	std::vector<model_spec> model_specs; 
 
-        std::ifstream in("rxmdnn.in");
-        std::string line, word, modelpath;
-        while (std::getline(in,line))
-        {
-                if (line[0]=='#') continue;
+	std::ifstream in("rxmdnn.in");
+	std::string line, word, modelpath;
+	while (std::getline(in,line))
+	{
+		if (line[0]=='#') continue;
 
-                std::stringstream ss(line);
+		std::stringstream ss(line);
 
 		model_spec mspec; 
 
-                int n_spieces;
+		int n_spieces;
 
-                ss >> word; // model name
-                ss >> modelpath;
-                ss >> n_spieces;
+		ss >> word; // model name
+		ss >> modelpath;
+		ss >> n_spieces;
 
 		mspec.modelpath = modelpath;
 		mspec.n_spieces = n_spieces;
 
-                std::string element;
-                double mass;
+		std::string element;
+		double mass;
 
-                for(int i=0; i<n_spieces; i++)
-                {
-                        ss >> element; ss >> mass;
+		for(int i=0; i<n_spieces; i++)
+		{
+			ss >> element; ss >> mass;
 
 			mspec.element.push_back(element);
 			mspec.mass.push_back(mass);
