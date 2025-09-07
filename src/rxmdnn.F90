@@ -184,7 +184,7 @@ end function
 function rxmdnn_param_ctor(path) result(c)
 !------------------------------------------------------------------------------
   character(len=:),allocatable,intent(in) :: path
-  character(1024) :: linein0
+  character(2048) :: linein0
   character(len=:),allocatable :: linein 
 
   integer :: iunit
