@@ -26,7 +26,7 @@
 //#define BATCH_SIZE 1048576
 //
 
-//#define AOTINDUCTOR
+#define AOTINDUCTOR
 
 struct model_spec
 {
