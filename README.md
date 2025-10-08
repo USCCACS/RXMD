@@ -37,19 +37,16 @@ Intel oneAPI DPC++/C++ Compiler 2025.1
 
 ## 1. Getting Started
 
-To get started,  clone this repository to your computer. 
-```
-~$ git clone https://github.com/USCCACS/rxmd.git
+To get started, clone this repository to your computer. 
+```bash
+git clone https://github.com/USCCACS/rxmd.git
+cd rxmd
 ```
 
 ## 2. How to build RXMD
 
 ### 2.1 Working Directory
-Frist, change working directory to **rxmd/**
-```
-~$ cd rxmd-master
-```
-you will see following files and directories.
+After cloning, you will find the following directory structure in `rxmd`. `src/` contains all rxmd source codes and `init/` has a program and input files to generate an initial configurations for simulation. 
 
 ```
 rxmd $ ls
@@ -71,84 +68,89 @@ rxmd $ ls
 └── util
 ```
 
-Here, two directories, **src/** and **init/**, are especially important for you. **src/** contains all rxmd source codes and **init/** has a program and input files to generate an initial configurations for simulation. 
-
 ### 2.2 Build with CMake
 
-Use the script `build.sh` uses CMake 3.16 to manage building the source code on your hardware.
+Use the script `build.sh` uses CMake (min version 3.16) to manage building the source code on your hardware. This script will first build the `rxmdtorch` library and links it to create the `rxmd` executable in the `bin` directory.
 
-This script will first build the `rxmdtorch` library and link this to the executable `rxmd` in the `bin` directory.
-
-In order for CMake to find the libraries and packages at the time of build generation, ensure the adding directories to the PATH environment variable before using the build script.
+In order for CMake to find the necessary libraries and packages at the time of build generation, make sure of adding them to the PATH environment variable before using the build script.
 
 #### 2.2.1 Example build on Aurora
 
-Load a version of oneAPI and Python compiler with
-```
+1. **Load a version of oneAPI and Python compiler**
+```bash
 module load cmake
 module load frameworks
 module use /soft/compilers/oneapi/2025.1.3/modulefiles/oneapi/public/
 module load 2025.1.3
 ```
 
-Install IPEX and PyTorch version which are suitable for the oneAPI version which is loaded. It is advisable to do this on your virtual environment by doing `source /path/to/new/venv/bin/activate`
-```
+2. **Install IPEX and PyTorch version**
+The IPEX install must be suitable for the the oneAPI version which is loaded. Additionaly, it is recommended to do this in a Python virtual environment 
+```bash
+# Activate your virtual environment
+# source /path/to/new/venv/bin/activate
+
 python -m pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/xpu
 python -m pip install intel-extension-for-pytorch==2.8.10+xpu oneccl_bind_pt==2.8.0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/
 ```
-At any given time newer versins can be installed from the [IPEX page](https://github.com/intel/intel-extension-for-pytorch).
+For newer versions of oneAPI/PyTorch, please refer the [IPEX page](https://github.com/intel/intel-extension-for-pytorch).
 
-Finally, build by using the CMakeLists.txt in the project directory
-```
+3. **Build the project**
+You can either use CMake directly
+```bash
 cmake .. -DCMAKE_PREFIX_PATH=`python -c 'import torch; print(torch.utils.cmake_prefix_path)'`
 make -j 16
 ```
-or the build script
+or run the provided build script.
+```bash
+sh build.sh
 ```
-~/RXMD> sh build.sh
-```
 
-### 2.3 Prepare Initial Geometry
+## 3. Preparing for a Simulation
 
-Next step is to generate initial MD geometry. This is done with the help of the `geninit.py` script which is located inside the `init` directory.
+### 3.1 Prepare Initial Geometry
 
-`geninit.py` reads a geometry file (input.xyz by default), and a replication parameter to replicate the geometry and save the entire initial MD geometry into `rxff.bin` file. The generated `rxff.bin` should then be placed in the `DAT/` directory for the `rxmd` executable to find.
+Next step is to generate initial MD geometry. This is done with the `geninit.py` script in the `init/` directory.
 
-sample usage
-```
+`geninit.py` reads a geometry file (input.xyz by default), replicates it based on given parameters and saves the output geometry into `rxff.bin` file. The generated `rxff.bin` must be placed in the `DAT/` directory for the `rxmd` executable to find it.
+
+Example usage
+```bash
+cd init
 python geninit.py -i ../tobe.xyz -em ../rxmdnn.in
 cp rxff.bin ../DAT/
+cd ..
 ```
 
-### 2.4 Load Machine Learning Interatomic Potential Model
+### 3.2 Load Machine Learning Interatomic Potential Model
 
-The first line of the `rxmdnn.in` file is written in the following format:
+The first line of the `rxmdnn.in` specfies the MLIP model and species parameters:
 ```
 <model name> <path to MLIP model> <atomic number> [<species> <atomic number>]
 ```
 
-One such model which is available to use can be downloaded from [here](https://zenodo.org/records/14915165/files/afm256_01_HL.pt)
+A pre-trained model is available for downloaded [here](https://zenodo.org/records/14915165/files/afm256_01_HL.pt)
 
 With the `rxmd` executable, initial geomerty input `DAT/rxff.bin` in place and the MLIP potential specified in `rxmdnn.in` with the species, you are ready to start a simulation.
 
-## 3. How to run
+## 4. How to run
 
-Default input parameters are set to run a single process job. In **rxmd.in**, the parameter **vprocs** defines how many MPI ranks in x, y, and z directions. Make sure you have **1 1 1** here. 
+By default, the input parameters are set to run as a single process. In `rxmd.in`, the parameter `vprocs` defines how many MPI ranks in x, y, and z directions. Make sure you have `1 1` here. 
 
 ```
-rxmd $ grep vprocs rxmd.in 
+$ grep vprocs rxmd.in 
 1 1 1                <vprocs>
 ```
 
-To run single MPI rank job on a typical Linux computer, from the project directory you can simply type
-```
-rxmd $ ./bin/rxmd
+To run a single MPI rank job from the project directory, execute
+```bash
+./bin/rxmd
 ```
 
-How to run a multi process job depends on which MPI library you use, but most likely **mpirun** just works for you. 
+To run a multi-process job, it depends on which MPI library you use, but most likely `mpirun` just works for you. 
 
-```
-rxmd $ mpirun -np nprocessors ./bin/rxmd
+```bash
+mpirun -np nprocessors ./bin/rxmd
 ```
 
 If you see following outputs, congratulations! You have everything working.
@@ -199,12 +201,12 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 
 To learn more about **rxmd**, please refer to [RXMD Manual](https://github.com/USCCACS/rxmd/blob/master/doc/ReaxFF/RXMDManual.md).
 
-## 4. License
+## 5. License
 
 This project is licensed under the GPL v3 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
 
-## 5. Publications
+## 6. Publications
 * Mechanochemistry of shock-induced nanobubble collapse near silica in water
 K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Applied Physics Letters 101, 073108: 1-4  (2012)](http://aip.scitation.org/doi/10.1063/1.4746270)
