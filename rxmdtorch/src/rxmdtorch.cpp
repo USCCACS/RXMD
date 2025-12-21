@@ -24,9 +24,8 @@
 //#define BATCH_SIZE 32768
 //#define BATCH_SIZE 262144
 //#define BATCH_SIZE 1048576
-//
 
-#define AOTINDUCTOR
+//#define AOTINDUCTOR
 
 struct model_spec
 {
@@ -75,9 +74,14 @@ struct RXMDNN
 
 			device = c10::Device(torch::kCUDA,deviceidx);
 
-  		} else {
+		}
+		if(torch::xpu::is_available())
+		{
+			device = c10::DeviceType::XPU;
+  		}
+		else
+		{
 			device = torch::kCPU;
-			//device = c10::DeviceType::XPU;
 		};
 
 		std::unordered_map<std::string, std::string> metadata = {
