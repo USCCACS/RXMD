@@ -75,7 +75,7 @@ struct RXMDNN
 			device = c10::Device(torch::kCUDA,deviceidx);
 
 		}
-		if(torch::xpu::is_available())
+		else if(torch::xpu::is_available())
 		{
 			device = c10::DeviceType::XPU;
   		}
