@@ -4,121 +4,153 @@
 
 ## 0. Prerequisites
 
-**rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will need 1) a Fortran compiler that supports OpenMP, and 2) MPI (Message Passing Interface) library for parallel and distributed simulation. Modern Fortran compilers natively support OpenMP, and you can find many freely available MPI libraries online. Please refer to MPI library developer website about how to install their library. 
+**rxmd** is designed to be simple, portable and minimally dependent on 3rd party library. You will need 1) a Fortran compiler that supports OpenMP, and 2) MPI (Message Passing Interface) library for parallel and distributed simulation. Modern Fortran compilers natively support OpenMP, and you can find many freely available MPI libraries online. Please refer to MPI library developer website about how to install their library. 3) PyTorch machine learning framework 4) C++ Compiler
 
 **rxmd** has been tested on following environments.
 
-### - Fortan Compiler: 
+### Fortan Compiler: 
 ```
 GNU Fortran (GCC) 6.1.0
 Intel Fortran (IFORT) 17.0.4
 IBM XL Fortran V14.1
+Intel Fortran Compiler 2025.1
 ```
-### - MPI library: 
+
+### MPI library: 
 ```
 OpenMPI 1.8.8
 MPICH2
 MVAPICH2 
 Cray Mpich 7.6.0
+Intel MPI Library 2025.1
+```
+
+### PyTorch
+```
+PyTorch 2.8
+```
+
+### C++ Compiler
+```
+Intel oneAPI DPC++/C++ Compiler 2025.1
 ```
 
 ## 1. Getting Started
 
-To get started,  clone this repository to your computer. 
-```
-~$ git clone https://github.com/USCCACS/rxmd.git
+To get started, clone this repository to your computer. 
+```bash
+git clone https://github.com/USCCACS/rxmd.git
+cd rxmd
 ```
 
 ## 2. How to build RXMD
 
 ### 2.1 Working Directory
-Frist, change working directory to **rxmd/**
-```
-~$ cd rxmd-master
-```
-you will see following files and directories.
+After cloning, you will find the following directory structure in `rxmd`. `src/` contains all rxmd source codes and `init/` has a program and input files to generate an initial configurations for simulation. 
 
 ```
 rxmd $ ls
-DAT/          conf/         config/         ffield        regtests/     src/          util/
-make.inc      Makefile      doc/          init/         rxmd.in       unittests/
+.
+├── build.sh
+├── CMakeLists.txt
+├── config
+├── DAT
+├── docs
+├── examples
+├── init
+├── LICENSE.md
+├── pot
+├── README.md
+├── regtests
+├── rxmdtorch
+├── src
+├── unittests
+└── util
 ```
 
-Here, two directories, **src/** and **init/**, are especially important for you. **src/** contains all rxmd source codes and **init/** has a program and input files to generate an initial configurations for simulation. 
+### 2.2 Build with CMake
 
-### 2.2 Configure Makefiles
+Use the script `build.sh` uses CMake (min version 3.16) to manage building the source code on your hardware. This script will first build the `rxmdtorch` library and links it to create the `rxmd` executable in the `bin` directory.
 
-There is an important file called **make.inc** that you might need to modify according to your computing environment. 
+In order for CMake to find the necessary libraries and packages at the time of build generation, make sure of adding them to the PATH environment variable before using the build script.
 
-- **make.inc** defines which compiler you like to use to build the **rxmd** and **geninit** executable. **geninit** is created inside **init/** directory and is used to generate intial configuration for simulation.
+#### 2.2.1 Example build on Aurora
 
-- **config/** directory contains an example **make.inc** file called **make_example.inc**, and several other make.inc (make_hpc.inc,make_xl.inc) file containing predefined compiler settings for various machines. Copy the approprite file from **config/** inside the rxmd directory as make.inc. Each make.inc file has several compiler flags options. Enable the flags that you want use, and also do not forget disable macros you don't want to use. 
-
-- **FC** variable in **make.inc**  is used to build software to generate intial configuration, called **geninit**. Any Fortran or MPI compiler that supports [the stream I/O](https://docs.oracle.com/cd/E19205-01/819-5262/aeuca/index.html) can be used here. 
-
-- **Makefile** contains commands to create the executable **geninit** and **rxmd**. For example, **make all** creates the executable **geninit** inside the the init folder and **rxmd** inside rxmd directory. Whereas, **make init** creates only the executable **geninit**  and  **make rxmd** creates **rxmd** executable.
-
-- Each **init** and **src** has **Makefile** containing commands to create the executable **geninit** and **rxmd**, respectively. **Makefile** in rxmd directory calls these files to create the necessary executables.
-
-Example 1) Linux Computer with Intel Compiler
-
-Many HPC centers have Intel Fortran compiler and its MPI binding installed. If this is the case, copy the **make_hpc.inc** from **config/** as **make.inc**. It should look as shown below
-
-- **make.inc** 
-```
-# Intel Compiler
-MPIF90 = mpif90
-FC = ifort
+1. **Load a version of oneAPI and Python compiler**
+```bash
+module load cmake
+module load frameworks
+module use /soft/compilers/oneapi/2025.1.3/modulefiles/oneapi/public/
+module load 2025.1.3
 ```
 
-### 2.3 Prepare Initial Geometry
+2. **Install IPEX and PyTorch version**
+The IPEX install must be suitable for the the oneAPI version which is loaded. Additionaly, it is recommended to do this in a Python virtual environment 
+```bash
+# Activate your virtual environment
+# source /path/to/new/venv/bin/activate
 
-Next step is to generate initial MD geometry. Type the make command shown below. 
-
+python -m pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/xpu
+python -m pip install intel-extension-for-pytorch==2.8.10+xpu oneccl_bind_pt==2.8.0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/
 ```
-rxmd $ make -C init/
-```
+For newer versions of oneAPI/PyTorch, please refer the [IPEX page](https://github.com/intel/intel-extension-for-pytorch).
 
-This compiles the standalone application **geninit**, read a geometry file (init.xyz by default) in **init/** directory, replicate the geometry and save the entire initial MD geometry into **rxff.bin** file, and then place **rxff.bin** file in **DAT/** directory. 
-
-### 2.4 Build RXMD
-
-Type the command below to build the **rxmd** executable.
-
+3. **Build the project**
+You can either use CMake directly
+```bash
+cmake .. -DCMAKE_PREFIX_PATH=`python -c 'import torch; print(torch.utils.cmake_prefix_path)'`
+make -j 16
 ```
-rxmd $ make -C src/
-```
-
-Check to see if you the **rxmd** executable and the initial geomerty input **DAT/rxff.bin** in place, then you are ready to start a simulation.
-
-```
-rxmd $ ls
-DAT/          conf/         ffield        regtests/     rxmd.in       unittests/
-Makefile.inc  doc/          init/         rxmd*         src/          util/
-```
-```
-rxmd $ ls DAT/
-rxff.bin
+or run the provided build script.
+```bash
+sh build.sh
 ```
 
-## 3. How to run
+## 3. Preparing for a Simulation
 
-Default input parameters are set to run a single process job. In **rxmd.in**, the parameter **vprocs** defines how many MPI ranks in x, y, and z directions. Make sure you have **1 1 1** here. 
+### 3.1 Prepare Initial Geometry
+
+Next step is to generate initial MD geometry. This is done with the `geninit.py` script in the `init/` directory.
+
+`geninit.py` reads a geometry file (input.xyz by default), replicates it based on given parameters and saves the output geometry into `rxff.bin` file. The generated `rxff.bin` must be placed in the `DAT/` directory for the `rxmd` executable to find it.
+
+Example usage
+```bash
+cd init
+python geninit.py -i ../tobe.xyz -em ../rxmdnn.in
+cp rxff.bin ../DAT/
+cd ..
+```
+
+### 3.2 Load Machine Learning Interatomic Potential Model
+
+The first line of the `rxmdnn.in` specfies the MLIP model and species parameters:
+```
+<model name> <path to MLIP model> <atomic number> [<species> <atomic number>]
+```
+
+A pre-trained model is available for downloaded [here](https://zenodo.org/records/14915165/files/afm256_01_HL.pt)
+
+With the `rxmd` executable, initial geomerty input `DAT/rxff.bin` in place and the MLIP potential specified in `rxmdnn.in` with the species, you are ready to start a simulation.
+
+## 4. How to run
+
+By default, the input parameters are set to run as a single process. In `rxmd.in`, the parameter `vprocs` defines how many MPI ranks in x, y, and z directions. Make sure you have `1 1` here. 
 
 ```
-rxmd $ grep vprocs rxmd.in 
+$ grep vprocs rxmd.in 
 1 1 1                <vprocs>
 ```
 
-To run single MPI rank job on a typical Linux computer, you can simply type
-```
-rxmd $ ./rxmd
+To run a single MPI rank job from the project directory, execute
+```bash
+./bin/rxmd
 ```
 
-How to run a multi process job depends on which MPI library you use, but most likely **mpirun** just works for you. 
+To run a multi-process job, it depends on which MPI library you use, but most likely `mpirun` just works for you. 
 
-```
-rxmd $ mpirun -np nprocessors ./rxmd
+```bash
+mpirun -np nprocessors ./bin/rxmd
 ```
 
 If you see following outputs, congratulations! You have everything working.
@@ -169,12 +201,12 @@ nstep  TE  PE  KE: 1-Ebond 2-(Elnpr,Eover,Eunder) 3-(Eval,Epen,Ecoa) 4-(Etors,Ec
 
 To learn more about **rxmd**, please refer to [RXMD Manual](https://github.com/USCCACS/rxmd/blob/master/doc/ReaxFF/RXMDManual.md).
 
-## 4. License
+## 5. License
 
 This project is licensed under the GPL v3 license - see the [LICENSE.md](https://github.com/USCCACS/rxmd/blob/master/LICENSE.md) file for details
 
 
-## 5. Publications
+## 6. Publications
 * Mechanochemistry of shock-induced nanobubble collapse near silica in water
 K. Nomura, R. K. Kalia, A. Nakano, and P. Vashishta,
 [Applied Physics Letters 101, 073108: 1-4  (2012)](http://aip.scitation.org/doi/10.1063/1.4746270)
