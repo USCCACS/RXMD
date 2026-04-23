@@ -1,6 +1,17 @@
+module communication_mod
+
+  use mpi_mod
+  use base, only : hh, hhi, obox, lbox, natoms, myid, myparity, ierr, target_node, &
+                   copyptr, frcindx, nstep, pstep, it_timer, has_initial_pos,  na, ne, ns, nr, &
+                   MODE_COPY, MODE_MOVE, MODE_CPBK, MODE_QCOPY1, MODE_QCOPY2, NE_CPBK, &
+                   MODE_COPY_FNN, MODE_MOVE_FNN
+
+  use atoms
+  use memory_allocator_mod
+
+contains
 !--------------------------------------------------------------------------------------------------------------
-subroutine COPYATOMS(imode, dr, atype, pos, v, f, q)
-use atoms
+subroutine COPYATOMS(imode, dr, atype, pos, v, f, q, ipos)
 !
 ! TODO: update notes here
 !
@@ -42,12 +53,10 @@ end type
 
 integer,intent(IN) :: imode 
 real(8),intent(IN) :: dr(3)
-real(8),target :: atype(NBUFFER), q(NBUFFER)
-real(8),target :: pos(NBUFFER,3),v(NBUFFER,3),f(NBUFFER,3)
+real(8),allocatable,target,intent(in out) :: atype(:),pos(:,:)
+real(8),allocatable,target,optional,intent(in out) :: q(:),v(:,:),f(:,:),ipos(:,:,:)
 
-real(8),target :: nipos(NBUFFER,3)  
-
-logical :: commflag(NBUFFER)
+logical,allocatable :: commflag(:)
 type(pack1darray),allocatable :: pack1d(:)
 type(pack2darray),allocatable :: pack2d(:)
 type(pack2darray),allocatable :: norm2d(:)
@@ -61,7 +70,14 @@ integer,parameter :: dinv(6)=(/2,1,4,3,6,5/)
 integer,parameter :: cptridx(6)=(/0,0,2,2,4,4/)
 integer,parameter :: is_xyz(6)=(/1,1,2,2,3,3/)  !<- [xxyyzz]
 
+!<sbuffer> send buffer, <rbuffer> receive buffer
+real(8),allocatable :: sbuffer(:), rbuffer(:)
+
 call system_clock(tti,tk)
+
+if(.not.allocated(commflag)) allocate(commflag(size(atype)))
+if(.not.allocated(sbuffer)) call allocator(sbuffer, 1, size(atype))
+if(.not.allocated(rbuffer)) call allocator(rbuffer, 1, size(atype))
 
 call initialize(imode)
 
@@ -87,10 +103,10 @@ enddo
 
 call finalize(imode)
 
-!--- for array size stat
+!--- for array size stat. this better be a class not exposing nstep&pstep. 
 if(mod(nstep,pstep)==0) then
   ni=nstep/pstep+1
-  if(imode==MODE_MOVE) maxas(ni,4)=na/ne
+  if(imode==MODE_MOVE.or.imode==MODE_MOVE_FNN) maxas(ni,4)=na/ne
   if(imode==MODE_COPY) maxas(ni,5)=na/ne
 endif
 
@@ -99,13 +115,14 @@ it_timer(4)=it_timer(4)+(ttj-tti)
 
 return
 
-CONTAINS 
+contains
+
 !--------------------------------------------------------------------------------------------------------------
 subroutine initialize(imode)
 implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: imode
-integer :: a, np2d, np1d, nn2d
+integer :: i, a, np2d, np1d, nn2d
 
 !--- clear total # of copied atoms, sent atoms, recieved atoms
 na=0;ns=0;nr=0
@@ -116,6 +133,61 @@ copyptr(0)=NATOMS
 
 !--- set the number of data per atom 
 select case(imode)
+
+   case(MODE_MOVE_FNN)
+
+      np2d=2; np1d=2; nn2d=1
+      if(has_initial_pos) then
+         np2d=np2d+size(ipos,dim=1) ! for multi init MSD
+         nn2d=nn2d+size(ipos,dim=1) ! for multi init MSD
+      endif
+
+      allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
+      ne = size(pack2d)*3+size(pack1d)
+
+      a=1
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
+      pack2d(a)%ptr=>v; a=a+1 
+
+      if(has_initial_pos) then
+         do i=1, size(ipos,dim=1)
+            pack2d(a)%ptr=>ipos(i,:,:); pack2d(a)%shift=.true.; a=a+1
+         enddo
+      endif
+
+      a=1
+      pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>q;     a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos;  a=a+1
+      if(has_initial_pos) then
+         do i=1, size(ipos,dim=1)
+            norm2d(a)%ptr=>ipos(i,:,:); a=a+1
+         enddo
+      endif
+
+   case(MODE_COPY_FNN)
+
+      np2d=1; np1d=2; nn2d=1
+
+      allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
+      ne = size(pack2d)*3+size(pack1d)
+
+      a=1
+      pack2d(a)%ptr=>pos; pack2d(a)%shift=.true.; a=a+1
+
+      a=1
+      pack1d(a)%ptr=>atype; a=a+1
+      pack1d(a)%ptr=>frcindx; pack1d(a)%cpbk=.true.; a=a+1
+
+      a=1
+      norm2d(a)%ptr=>pos
+
+      do a=1, NATOMS
+         frcindx(a)=a
+      enddo
+
    case(MODE_COPY)
 
       np2d=1; np1d=7; nn2d=1
@@ -151,9 +223,9 @@ select case(imode)
       np2d=2; np1d=6; nn2d=1
 
       if(isPQEq) np2d=np2d+1 ! for spos
-      if(isSpring) then
-         np2d=np2d+1 ! for nipos
-         nn2d=nn2d+1 ! for nipos
+      if(has_initial_pos) then
+         np2d=np2d+size(ipos,dim=1) ! for multi init MSD
+         nn2d=nn2d+size(ipos,dim=1) ! for multi init MSD
       endif
 
       allocate(pack2d(np2d),pack1d(np1d),norm2d(nn2d))
@@ -165,8 +237,10 @@ select case(imode)
       if(isPQEq) then
          pack2d(a)%ptr=>spos; pack2d(a)%shift=.false.; a=a+1
       endif
-      if(isSpring) then
-         pack2d(a)%ptr=>nipos; pack2d(a)%shift=.true.; a=a+1
+      if(has_initial_pos) then
+         do i=1, size(ipos,dim=1)
+            pack2d(a)%ptr=>ipos(i,:,:); pack2d(a)%shift=.true.; a=a+1
+         enddo
       endif
 
       a=1
@@ -180,8 +254,10 @@ select case(imode)
       a=1
       norm2d(a)%ptr=>pos;  a=a+1
 
-      if(isSpring) then
-         norm2d(a)%ptr=>nipos; a=a+1
+      if(has_initial_pos) then
+         do i=1, size(ipos,dim=1)
+            norm2d(a)%ptr=>ipos(i,:,:); a=a+1
+         enddo
       endif
 
    case(MODE_QCOPY1)
@@ -222,7 +298,7 @@ end select
 !--- Get the normalized local coordinate will be used through this function. 
 if(allocated(norm2d)) then
    do a=1,size(norm2d)
-      call xu2xs_inplace(max(copyptr(6),NATOMS),norm2d(a)%ptr)
+      call xu2xs_inplace(hhi,obox,max(copyptr(6),NATOMS),norm2d(a)%ptr)
    enddo
 endif
 
@@ -235,7 +311,7 @@ implicit none
 integer,intent(in) :: imode
 integer :: i,a
 
-if(imode==MODE_MOVE) then
+if(imode==MODE_MOVE.or.imode==MODE_MOVE_FNN) then
 !--- remove atoms which are transfered to neighbor nodes.
 !--- if atype is smaller than zero (this is done in store_atoms), ignore the atom.
    ni=0
@@ -259,7 +335,7 @@ endif
 !--- by here, we got new atom positions in the normalized coordinate, need to update real coordinates.
 if(allocated(norm2d)) then
    do a=1,size(norm2d)
-      call xs2xu_inplace(copyptr(6),norm2d(a)%ptr)
+      call xs2xu_inplace(hh,obox,copyptr(6),norm2d(a)%ptr)
    enddo
 endif
 
@@ -275,7 +351,7 @@ implicit none
 !--------------------------------------------------------------------------------------------------------------
 integer,intent(in) :: dflag
 real(8),intent(in) :: dr(3)
-logical,intent(inout) :: commflag(NBUFFER)
+logical,allocatable,intent(inout) :: commflag(:)
 integer :: i
 
 !--- start buffering data depending on modes. all copy&move modes use buffer size, dr, to select atoms.
@@ -437,7 +513,7 @@ else
         endif
 
 !--- In append_atoms subroutine, atoms with <atype>==-1 will be removed
-        if(imode==MODE_MOVE) atype(n) = -1.d0 
+        if(imode==MODE_MOVE.or.imode==MODE_MOVE_FNN) atype(n) = -1.d0 
 
 !--- increment the number of atoms to be sent 
         ns = ns + ne
@@ -454,6 +530,7 @@ end subroutine store_atoms
 
 !--------------------------------------------------------------------------------------------------------------
 subroutine append_atoms(dflag, imode)
+use base, only : nbuffer
 use atoms
 ! <append_atoms> append copied information into arrays
 ! shared variables::  <ns>, <nr>, <na>, <ne>, <sbuffer()>, <rbuffer()>
@@ -595,3 +672,5 @@ endif
 end subroutine
 
 end subroutine COPYATOMS
+
+end module

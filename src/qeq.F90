@@ -1,6 +1,15 @@
+module qeq_mod
+
+  use base, only : myid, lata, latb, latc
+  use atoms
+  use reaxff_param_mod
+  use memory_allocator_mod
+  use lists_mod
+
+contains
 !------------------------------------------------------------------------------
 subroutine QEq(atype, pos, q)
-use atoms; use parameters
+  use communication_mod
 ! Two vector electronegativity equilization routine
 !
 ! The linkedlist cell size is determined by the cutoff length of bonding 
@@ -12,11 +21,10 @@ use atoms; use parameters
 !-------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), pos(NBUFFER,3)
-real(8),intent(out) :: q(NBUFFER)
-real(8) :: vdummy(1,1), fdummy(1,1)
+real(8),allocatable,intent(in out) :: atype(:), pos(:,:)
+real(8),allocatable,intent(in out) :: q(:)
 
-integer :: i,j,l2g
+integer :: i,j
 integer :: i1,j1,k1, nmax
 real(8) :: Gnew(2), Gold(2) 
 real(8) :: Est, GEst1, GEst2, g_h(2), h_hsh(2)
@@ -67,8 +75,8 @@ open(91,file="qeqdump"//trim(rankToString(myid))//".txt")
 #endif
 
 !--- copy atomic coords and types from neighbors, used in qeq_initialize()
-call COPYATOMS(MODE_COPY, QCopyDr, atype, pos, vdummy, fdummy, q)
-call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
+call COPYATOMS(imode=MODE_COPY, dr=QCopyDr, atype=atype, pos=pos, q=q)
+call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell)
 
 call qeq_initialize()
 
@@ -83,14 +91,14 @@ enddo
 
 !--- after the initialization, only the normalized coords are necessary for COPYATOMS()
 !--- The atomic coords are converted back to real at the end of this function.
-call COPYATOMS(MODE_QCOPY1,QCopyDr, atype, pos, vdummy, fdummy, q)
+call COPYATOMS(imode=MODE_QCOPY1,dr=QCopyDr, atype=atype, pos=pos, q=q)
 call get_gradient(Gnew)
 
 !--- Let the initial CG direction be the initial gradient direction
 hs(1:NATOMS) = gs(1:NATOMS)
 ht(1:NATOMS) = gt(1:NATOMS)
 
-call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
+call COPYATOMS(imode=MODE_QCOPY2, dr=QCopyDr, atype=atype, pos=pos, q=q)
 
 GEst2=1.d99
 do nstep_qeq=0, nmax-1
@@ -150,7 +158,7 @@ do nstep_qeq=0, nmax-1
   q(1:NATOMS) = qs(1:NATOMS) - mu*qt(1:NATOMS)
 
 !--- update new charges of buffered atoms.
-  call COPYATOMS(MODE_QCOPY1,QCopyDr, atype, pos, vdummy, fdummy, q)
+  call COPYATOMS(imode=MODE_QCOPY1, dr=QCopyDr, atype=atype, pos=pos, q=q)
 
 !--- save old residues.  
   Gold(:) = Gnew(:)
@@ -161,7 +169,7 @@ do nstep_qeq=0, nmax-1
   ht(1:NATOMS) = gt(1:NATOMS) + (Gnew(2)/Gold(2))*ht(1:NATOMS)
 
 !--- update new conjugate direction for buffered atoms.
-  call COPYATOMS(MODE_QCOPY2,QCopyDr, atype, pos, vdummy, fdummy, q)
+  call COPYATOMS(imode=MODE_QCOPY2, dr=QCopyDr, atype=atype, pos=pos, q=q)
 
 enddo
 
@@ -181,7 +189,6 @@ CONTAINS
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine qeq_initialize()
-use atoms; use parameters; use MemoryAllocator
 ! This subroutine create a neighbor list with cutoff length = 10[A] and save the hessian into <hessian>.  
 ! <nbrlist> and <hessian> will be used for different purpose later.
 !-----------------------------------------------------------------------------------------------------------------------
@@ -269,7 +276,6 @@ end subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine get_hsh(Est,hshs_sum,hsht_sum)
-use atoms; use parameters
 ! This subroutine updates hessian*cg array <hsh> and the electrostatic energy <Est>.  
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
@@ -321,7 +327,6 @@ end subroutine
 subroutine get_gradient(Gnew)
 ! Update gradient vector <g> and new residue <Gnew>
 !-----------------------------------------------------------------------------------------------------------------------
-use atoms; use parameters
 implicit none
 real(8),intent(OUT) :: Gnew(2)
 real(8) :: eta_ity, ggnew(2)
@@ -363,3 +368,5 @@ it_timer(19)=it_timer(19)+(tj-ti)
 end subroutine
 
 end subroutine QEq
+
+end module

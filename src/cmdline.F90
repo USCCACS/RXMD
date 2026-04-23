@@ -1,8 +1,18 @@
 !-------------------------------------------------------------------------------------------
 module cmdline_args
-use atoms
-implicit none
 !-------------------------------------------------------------------------------------------
+use mpi_mod
+use utils, only : getstr, UTIME, UTEMP0, MAXSTRLENGTH, find_cmdline_argc, put_rng_seed
+use base, only : myid, vprocs, ierr, dt, fstep, pstep, ftol, isbinary, isbondfile, ispdb, isxyz, isrunfromxyz, &
+                 mdmode, ntime_step, ParmPath, ParmPath0, DataDir, DataDir0, FFPath, FFPath0, RunFromXYZPath, &
+                 isSpring, springConst, forcefield_type, sstep, treq, vsfact, rng_seed, reset_velocity_random, &
+                 vmag_factor, xyz_num_stack, &
+                 forcefield_type, is_fnn, is_reaxff
+
+use atoms, only : lex_fqs, lex_k, lex_w2,  NMAXQEq, qeq_tol, qstep, isqeq, & 
+                  isEfield, isLG, isPQEq, isPolarizable, PQEqParmPath, &
+                  ntype_pqeq, ntype_pqeq2, Elempqeq, x0pqeq, j0pqeq, Zpqeq, Rcpqeq, Rspqeq, Kspqeq, &
+                  alphacc, alphasc, alphass
 
 interface get_token_and_set_value
    module procedure set_r8, set_i4, set_l, set_str
@@ -62,7 +72,7 @@ integer,intent(in) :: myrank
 integer :: eFieldDir
 real(8) :: eFieldStrength 
 
-integer :: ity,idx
+integer :: ity,idx, ii, ia, ib
 character(MAXSTRLENGTH) :: argv
 
 if(command_argument_count()>0) then
@@ -86,20 +96,42 @@ if(find_cmdline_argc('--help',idx).or.find_cmdline_argc('-h',idx)) then
     stop
 endif
 
+inquire(file='fnn.in', exist=is_fnn)
+if(is_fnn) then
+  ParmPath='fnn.in'
+  FFPath=""
+endif
+
+inquire(file='ffield', exist=is_reaxff)
+if(is_reaxff) ParmPath='ffield'
+
 if(find_cmdline_argc('--rxmdin',idx).or.find_cmdline_argc('-in',idx)) then
     call get_command_argument(idx+1,argv)
     ParmPath=trim(adjustl(argv))
+else
+    ParmPath=trim(adjustl(ParmPath0))
 endif
-call get_rxmd_parms(ParmPath)
 
 if(find_cmdline_argc('--ffield',idx).or.find_cmdline_argc('-ff',idx)) then
+    is_reaxff=.true.
     call get_command_argument(idx+1,argv)
     FFPath=trim(adjustl(argv))
+else
+    FFPath=trim(adjustl(FFPath0))
+endif
+
+if(find_cmdline_argc('--fnn',idx).or.find_cmdline_argc('-fnn',idx)) then
+    is_fnn=.true.
+    call get_command_argument(idx+1,argv)
+    ParmPath=trim(adjustl(argv))
+    FFPath=""
 endif
 
 if(find_cmdline_argc('--outDir',idx).or.find_cmdline_argc('-o',idx)) then
     call get_command_argument(idx+1,argv)
     DataDir=trim(adjustl(argv))
+else
+    DataDir=trim(adjustl(DataDir0))
 endif
 
 if(find_cmdline_argc('--run_from_xyz',idx).or.find_cmdline_argc('-runxyz',idx)) then
@@ -143,6 +175,17 @@ if(isEfield .and. myrank==0) then
    print'(a60)',repeat('-',60)
 endif
 
+if(find_cmdline_argc('--seed',idx)) then
+   call get_command_argument(idx+1,argv)
+   read(argv,'(i9)') rng_seed 
+   call put_rng_seed(rng_seed, myrank)
+   if(myrank==0) print*,'INFO: random number seed has been set.', rng_seed
+endif
+
+if(find_cmdline_argc('--random_velocity',idx).or.find_cmdline_argc('-randomv',idx)) then
+   reset_velocity_random = .true.
+   if(myrank==0) print*,'INFO: initialize random velocity before MD loop.', reset_velocity_random
+endif
 
 
 if(find_cmdline_argc('--lg',idx).or.find_cmdline_argc('-lg',idx)) then
@@ -166,7 +209,7 @@ end subroutine
 
 !-------------------------------------------------------------------------------------------
 subroutine get_pqeq_parms(PQEqParmPath)
-use MemoryAllocator
+use memory_allocator_mod
 implicit none
 !-------------------------------------------------------------------------------------------
 character(MAXSTRLENGTH),intent(in) :: PQEqParmPath
@@ -239,7 +282,7 @@ end
 subroutine get_rxmd_parms(rxmdParmPath)
 implicit none
 !-------------------------------------------------------------------------------------------
-character(MAXSTRLENGTH),intent(in) :: rxmdParmPath
+character(len=:),allocatable,intent(in) :: rxmdParmPath
 character(MAXSTRLENGTH) :: argv, linein0
 character(len=:),allocatable :: linein, token
 integer :: idx
@@ -262,6 +305,7 @@ do while (.true.)
          call get_token_and_set_value(linein, treq)
          call get_token_and_set_value(linein, vsfact)
          call get_token_and_set_value(linein, sstep)
+         call get_token_and_set_value(linein, vmag_factor)
       case ('io_step')
          call get_token_and_set_value(linein, fstep)
          call get_token_and_set_value(linein, pstep)
@@ -284,13 +328,6 @@ do while (.true.)
          call get_token_and_set_value(linein, Lex_k)
       case ('CG_tol')
          call get_token_and_set_value(linein, ftol)
-      case ('efield')
-         isEfield=.true.
-         call get_token_and_set_value(linein, eFieldDir)
-         call get_token_and_set_value(linein, eFieldStrength)
-      case ('PQEqParm')
-         isPQEq=.true.
-         call get_token_and_set_value(linein, PQEqParmPath)
       case default
          if(myid==0) print*,'ERROR: '//trim(token)//' is not found'
          stop
@@ -373,70 +410,31 @@ if(find_cmdline_argc('--qstep',idx)) then
     read(argv,*) qstep
 endif
 
+if(find_cmdline_argc('--vmag_factor',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) vmag_factor
+endif
+
+if(find_cmdline_argc('--xyz_num_stack',idx)) then
+    call get_command_argument(idx+1,argv)
+    read(argv,*) xyz_num_stack
+endif
+
 if(find_cmdline_argc('--isBinary',idx)) isBinary=.true. 
 if(find_cmdline_argc('--isBondFile',idx)) isBondFile=.true. 
 if(find_cmdline_argc('--isPDB',idx)) isPDB=.true. 
 if(find_cmdline_argc('--isXYZ',idx)) isXYZ=.true. 
 
+
+!--- time unit conversion from [fs] -> time unit
+dt = dt/UTIME
+
+!--- temperature unit conversion from [K]
+treq = treq/UTEMP0
+
+!--- square the spring const in the extended Lagrangian method 
+Lex_w2=2.d0*Lex_k/dt/dt
+
 end subroutine
-
-!-------------------------------------------------------------------------------------------
-integer function getstr(linein,lineout)
-implicit none
-!-------------------------------------------------------------------------------------------
-
-character(len=:),allocatable,intent(in out) :: linein,lineout
-integer :: pos1
-
-!--- remove whitespace 
-linein = adjustl(linein)
-
-!--- return if black line
-if(len(linein)==0) then
-  getstr=-2
-  return
-endif
-
-!--- return if it's a comment line or entirely whitespace
-if(linein(1:1)=='#' .or. linein == repeat(' ', len(linein)) ) then
-   getstr=-1
-   return
-endif
-
-! find position in linein to get a token. if whitespace is not found, take entire line
-pos1=index(linein,' ')-1
-if(pos1==-1) pos1=len(linein)
-
-lineout=linein(1:pos1)
-linein=linein(pos1+1:)
-getstr=len(lineout)
-
-return
-end
-
-!-------------------------------------------------------------------------------------------
-logical function find_cmdline_argc(key,idx)
-implicit none
-!-------------------------------------------------------------------------------------------
-integer,intent(inout) :: idx
-character(*) :: key
-
-integer :: i
-character(MAXSTRLENGTH) :: argv
-
-do i=1, command_argument_count()
-   call get_command_argument(i,argv)
-   if(index(argv,trim(adjustl(key))//' ')/=0) then ! trailing zero to distinguish '-foo ' and '-fooo'
-      idx=i
-      find_cmdline_argc=.true.
-      return
-   endif
-enddo
-
-idx=-1
-find_cmdline_argc=.false.
-
-return
-end function
 
 end module

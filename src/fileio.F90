@@ -1,23 +1,168 @@
 module fileio
 
+  use mpi_mod
+  use utils, only : l2g, get_boxparameters
+  use base
+  use atoms
+  use memory_allocator_mod
+
+type :: xyz_aggregator
+  logical :: use_aggregator = .false.
+  integer :: num_stack, num_total_atoms
+  integer :: stack_counter = 0
+  real(8),allocatable :: buf_pos(:), buf_type(:)
+  contains
+    procedure :: init => xyz_aggregator_init 
+    procedure :: gather => xyz_aggregator_gather_atom_data
+    procedure :: save => xyz_aggregator_save_into_file
+    procedure :: reset => xyz_aggregator_reset
+end type
+
+type(xyz_aggregator) :: xyz_agg
+
 contains
+
 !----------------------------------------------------------------------------------------
-subroutine OUTPUT(atype, pos, v, q, fileNameBase)
-use atoms 
+subroutine xyz_aggregator_init(this, num_total_atoms, num_stack)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+  integer,intent(in) :: num_stack
+  integer(8),intent(in) :: num_total_atoms
+
+  this%stack_counter = 0
+
+  this%use_aggregator = .true.
+  this%num_stack = num_stack
+  this%num_total_atoms = num_total_atoms
+
+  allocate(this%buf_pos(3*this%num_total_atoms*this%num_stack))
+  allocate(this%buf_type(this%num_total_atoms*this%num_stack))
+  this%buf_pos=0.d0; this%buf_type=0.d0
+
+  if(myid==0) then
+    print*,'stack_counter,use_aggregator,num_stack,num_total_atoms: ', &
+          this%stack_counter,this%use_aggregator,this%num_stack,this%num_total_atoms
+    print*,'shape(buf_pos), shape(buf_type): ',shape(this%buf_pos), shape(this%buf_type)
+  endif
+
+  return
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_gather_atom_data(this,num_atoms,atype,pos)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+  integer,intent(in) :: num_atoms
+  real(8),allocatable,intent(in) :: atype(:)
+  real(8),allocatable,intent(in) :: pos(:,:)
+
+  integer :: i,ii,ii3,igid,offset 
+
+  offset = this%stack_counter*this%num_total_atoms
+
+  print*,'entering gather(): ', this%stack_counter,offset, size(this%buf_type)
+
+  do i=1, num_atoms
+     igid = l2g(atype(i))
+     ii = offset+igid  ! offset is zero-indexed, but igid is 1-indexed
+     this%buf_type(ii) = atype(i)
+
+     ii3 = ii*3 ! 1-indexed multiplied by 3, so the 1st element is ii3-2
+     this%buf_pos(ii3-2:ii3) = pos(i,1:3)
+  enddo
+
+  call mpi_allreduce(mpi_in_place, this%buf_pos(3*offset+1), 3*this%num_total_atoms, &
+                     mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+  call mpi_allreduce(mpi_in_place, this%buf_type(offset+1), this%num_total_atoms, &
+                     mpi_double_precision, mpi_sum, mpi_comm_world, ierr)
+
+  this%stack_counter = this%stack_counter + 1
+
+  return
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_save_into_file(this,myrank,filename)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+  character(len=:),allocatable,intent(in) :: filename
+  integer,intent(in) :: myrank
+
+  integer :: i,ii,ii3, istack, iunit, offset
+
+  if(myrank/=0) return  ! only master rank save data
+
+  open(newunit=iunit,file=filename,form='formatted')
+
+  do istack=0, this%num_stack-1
+
+    write(iunit,'(i9)') this%num_total_atoms
+    write(iunit,'(3f12.5,3f8.3,a,i5)')  lata,latb,latc,lalpha,lbeta,lgamma, ' stack ', istack
+
+    offset = istack*this%num_total_atoms
+
+    do i=1, this%num_total_atoms
+      ii = offset + i
+      ii3 = ii*3
+       
+      ity = nint(this%buf_type(ii))
+      !print*,'i,ity,atmname(ity),buf_pos(ii3-2:ii)',istack,i,ity,atmname(ity),this%buf_type(ii),this%buf_pos(ii3-2:ii3)
+
+      write(iunit,'(a,3f10.5,i6)') atmname(ity), this%buf_pos(ii3-2:ii3), l2g(this%buf_type(ii))
+    enddo
+
+  enddo
+
+  close(iunit)
+
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine xyz_aggregator_reset(this)
+!----------------------------------------------------------------------------------------
+  class(xyz_aggregator),intent(in out) :: this
+
+  ! reset everything
+  this%stack_counter = 0
+  this%buf_pos = 0.d0
+  this%buf_type = 0.d0
+
+end subroutine
+
+!----------------------------------------------------------------------------------------
+subroutine OUTPUT(fileNameBase, atype, pos, v, q, f)
 !----------------------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: pos(NBUFFER,3),v(NBUFFER,3)
-character(*),intent(in) :: fileNameBase
+character(len=:),allocatable,intent(in) :: fileNameBase
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
+real(8),allocatable,intent(in),optional :: f(:,:)
 
-if(isBinary) then
-  call WriteBIN(atype,pos,v,q,fileNameBase)
+character(len=:),allocatable :: filename
+
+if(xyz_num_stack>1) then
+
+  call xyz_agg%gather(NATOMS,atype,pos)
+
+  if(xyz_agg%stack_counter == xyz_agg%num_stack) then
+
+    if(isBinary) call WriteBIN(atype,pos,v,q,fileNameBase)
+
+    filename = fileNameBase//"-agg.xyz" 
+    call xyz_agg%save(myid, filename)
+    call xyz_agg%reset()
+
+  endif
+
+else
+
+  if(isBinary) call WriteBIN(atype,pos,v,q,fileNameBase)
+  if(isBondFile) call WriteBND(fileNameBase)
+  if(isPDB) call WritePDB(fileNameBase)
+  if(isXYZ) call WriteXYZ(fileNameBase, atype, pos, v, q, f)
+
 endif
-
-if(isBondFile) call WriteBND(fileNameBase)
-if(isPDB) call WritePDB(fileNameBase)
-if(isXYZ) call WriteXYZ(fileNameBase)
 
 return
 
@@ -28,10 +173,9 @@ subroutine WriteBND(fileNameBase)
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
 integer :: i, ity, j, j1, jty, m
-integer :: l2g
 real(8) :: bndordr(MAXNEIGHBS)
 integer :: igd,jgd,bndlist(0:MAXNEIGHBS)
 
@@ -149,13 +293,12 @@ end subroutine
 
 !--------------------------------------------------------------------------
 subroutine WritePDB(fileNameBase)
-use parameters
 !--------------------------------------------------------------------------
 implicit none
 
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
-integer :: i, ity, igd, l2g
+integer :: i, ity, igd 
 real(8) :: tt=0.d0, ss=0.d0
 
 integer (kind=MPI_OFFSET_KIND) :: offset
@@ -238,14 +381,16 @@ it_timer(21)=it_timer(21)+(tj-ti)
 end subroutine
 
 !--------------------------------------------------------------------------
-subroutine WriteXYZ(fileNameBase)
-use parameters
+subroutine WriteXYZ(fileNameBase, atype, pos, v, q, f)
 !--------------------------------------------------------------------------
 implicit none
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: pos(:,:),v(:,:)
+real(8),allocatable,intent(in),optional :: f(:,:)
 
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+character(*),intent(in) :: fileNameBase
 
-integer :: i, ity, idx1, idx0 , l2g, igd
+integer :: i, ity, idx1, idx0 , igd
 
 integer (kind=MPI_OFFSET_KIND) :: offset
 integer (kind=MPI_OFFSET_KIND) :: fileSize
@@ -266,6 +411,9 @@ write(a60,'(3f12.5,3f8.3)')  lata,latb,latc,lalpha,lbeta,lgamma
 
 if(isPQEq) then
   ! name + pos(i,1:3) + q(i) + gid + spos(i,1:3) + newline
+  OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
+else if(present(f)) then
+  ! name + pos(i,1:3) + q(i) + gid + f(i,1:3) + newline
   OneLineSize = 3 + 60 + 20 + 9 + 60 + 1 
 else
   ! name + pos(i,1:3) + q(i) + gid + newline
@@ -317,8 +465,8 @@ do i=1, NATOMS
   write(OneLine(idx1:idx1+2),'(a3)') atmname(ity); idx1=idx1+3
 
 ! atom positions. with high precision for dielectric calculation
-  if(isPQEq) then
-     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1:3); idx1=idx1+60
+  if(isPQEq.or.present(f)) then
+     write(OneLine(idx1:idx1+59),'(3es20.12)') pos(i,1),pos(i,2),pos(i,3); idx1=idx1+60
      write(OneLine(idx1:idx1+19),'(es20.12)') q(i); idx1=idx1+20
   else
      write(OneLine(idx1:idx1+35),'(3f12.5)') pos(i,1:3); idx1=idx1+36
@@ -331,7 +479,10 @@ do i=1, NATOMS
 ! shell charge positions with high precision for dielectric calculation
   if(isPQEq) then
      write(OneLine(idx1:idx1+59),'(3es20.12)') spos(i,1:3); idx1=idx1+60
+  else if(present(f)) then
+     write(OneLine(idx1:idx1+59),'(3es20.12)') f(i,1),f(i,2),f(i,3); idx1=idx1+60
   endif
+
   write(OneLine(idx1:idx1),'(a1)') new_line('A'); idx1=idx1+1
 
   write(AllLines(idx0:idx0+OneLineSize-1),'(a)') OneLine; idx0=idx0+OneLineSize
@@ -358,7 +509,6 @@ end subroutine OUTPUT
 
 !--------------------------------------------------------------------------
 subroutine ReadXYZ(atype, rreal, v, q, f, fileName)
-use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
 implicit none
 
@@ -366,13 +516,14 @@ character(*),intent(in) :: fileName
 real(8),allocatable,dimension(:),intent(inout) :: atype,q
 real(8),allocatable,dimension(:,:),intent(inout) :: rreal,v,f
 
-real(8) :: dbuf6(6), mat(3,3)
+real(8) :: dbuf6(6), mat(3,3), mati(3,3)
 
 integer :: ti,tj,tk
 
 integer :: i,j,i1, ntot, iigd, num_unit, funit
 real(8),allocatable :: pos0(:)
 integer,allocatable :: atype0(:)
+character(2) :: c2
 
 call system_clock(ti,tk)
 
@@ -380,13 +531,23 @@ if(myid==0) then
   open(newunit=funit, file=trim(filename), status='old', form='formatted')
 
   read(funit,fmt=*) num_unit
-  allocate(pos0(3*num_unit), atype0(num_unit))
+  allocate(atype0(num_unit), pos0(3*num_unit))
 
   read(funit,fmt=*) dbuf6(1:6)
 
   do i = 1, num_unit
-!FIXME: here, user needs to convert element name to cooresponding integer beforehand. a better way to handle this? 
-     read(funit,fmt=*) atype0(i),pos0(i*3-2:i*3) 
+     read(funit,fmt=*) c2,pos0(i*3-2:i*3) 
+
+     do j=1, 3
+        call assert( pos0((i-1)*3+j)>0.d0, 'ERROR: negative coordinate found in ReaxXYZ(): '//trim(filename))
+     enddo
+
+!TODO: use atmname to get the element-to-integer mapping.
+!      atmname has to be set based on the input files, e.g. ffield or ffn.in.
+     do i1=1, size(atmname)
+       if(c2(1:2) == atmname(i1)) exit
+     enddo
+     atype0(i)=i1
   enddo
 
   close(funit)
@@ -399,40 +560,48 @@ call MPI_Bcast(dbuf6,size(dbuf6),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 lata=dbuf6(1); latb=dbuf6(2); latc=dbuf6(3)
 lalpha=dbuf6(4); lbeta=dbuf6(5); lgamma=dbuf6(6)
 
-call MPI_Bcast(atype0,num_unit,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(pos0,3*num_unit,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(atype0,size(atype0),MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(pos0,size(pos0),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 
 !--- allocate arrays
-if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
-if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
-if(.not.allocated(rreal)) call allocatord2d(rreal,1,NBUFFER,1,3)
-if(.not.allocated(v)) call allocatord2d(v,1,NBUFFER,1,3)
-if(.not.allocated(f)) call allocatord2d(f,1,NBUFFER,1,3)
-if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
-if(.not.allocated(qsfv)) call allocatord1d(qsfv,1,NBUFFER)
+if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocator(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocator(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocator(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocator(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocator(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
 f(:,:)=0.0
 
 iigd = num_unit*myid ! for global ID
-ntot=0
 do i=1,num_unit
-   ntot=ntot+1
-   rreal(ntot,1:3) = pos0(3*i-2:3*i) + vID(1:3) ! adding the box origin
-   rreal(ntot,1:3) = rreal(ntot,1:3)*(/lata,latb,latc/) ! real coords
-   atype(ntot) = dble(atype0(i)) + (iigd+ntot)*1d-13
+   pos(i,1:3) = pos0(i*3-2:i*3)
+   atype(i) = dble(atype0(i)) + (iigd+i)*1d-13
 enddo 
-NATOMS=ntot
+
+!--- assuming XYZ format is in the real coordinates given for one domain. 
+!    To run multiple domain job, normalize the coords, update H-matrix, 
+!    update the box origin, then scale back to the real coords. 
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call matinv(mat,mati)
+call xu2xs_inplace(mati,[0.d0,0.d0,0.d0],num_unit,pos)
+
+NATOMS=num_unit
 
 !--- update to glocal cell parameters
 lata=lata*vprocs(1)
 latb=latb*vprocs(2)
 latc=latc*vprocs(3)
 
-call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
 do j=1, 3
    HH(i,j,0)=mat(i,j)
 enddo; enddo
-call UpdateBoxParams()
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
+
+call xs2xu_inplace(hh,obox,num_unit,pos)
 
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
@@ -441,8 +610,126 @@ return
 end
 
 !--------------------------------------------------------------------------
+subroutine ReadH2O(atype, rreal, v, q, f, fileName)
+!--------------------------------------------------------------------------
+implicit none
+
+character(*),intent(in) :: fileName
+real(8),allocatable,dimension(:),intent(inout) :: atype,q
+real(8),allocatable,dimension(:,:),intent(inout) :: rreal,v,f
+
+integer :: i,i1
+
+integer (kind=MPI_OFFSET_KIND) :: offset, offsettmp
+integer (kind=MPI_OFFSET_KIND) :: fileSize
+integer :: localDataSize, metaDataSize, scanbuf
+integer :: fh ! file handler
+
+integer :: nmeta
+integer,allocatable :: idata(:)
+real(8),allocatable :: dbuf(:)
+real(8) :: ddata(6), d10(10)
+
+real(8) :: rnorm(NBUFFER,3), mat(3,3)
+integer :: j
+
+!=== # of unit cells ===
+integer :: mx=2,my=1,mz=1
+
+integer :: ix,iy,iz,ntot, imos2, iigd
+
+integer :: ti,tj,tk
+
+integer,parameter :: nH2O=24
+real(8) :: pos0(nH2O*3)
+integer :: atype0(nH2O)
+
+call system_clock(ti,tk)
+
+!--- allocate arrays
+if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocator(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocator(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocator(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocator(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocator(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
+f(:,:)=0.0
+
+pos0=(/ &
+5.000000D-01, 1.666262D-01, 7.617751D-01,&
+5.000000D-01, 1.666262D-01, 8.729921D-01,&
+6.550273D-01, 2.179985D-01, 7.240675D-01,&
+0.000001D+00, 3.333738D-01, 6.381704D-01,&
+0.000001D+00, 4.364829D-01, 6.760142D-01,&
+1.543963D-01, 2.815157D-01, 6.760142D-01,&
+0.000001D+00, 6.666262D-01, 7.617751D-01,&
+0.000001D+00, 6.666262D-01, 8.729921D-01,&
+1.550273D-01, 7.179985D-01, 7.240675D-01,&
+0.999999D+00, 3.333738D-01, 2.617751D-01,&
+8.456037D-01, 2.815157D-01, 2.240675D-01,&
+0.999999D+00, 3.333738D-01, 3.729921D-01,&
+5.000000D-01, 8.333738D-01, 2.617751D-01,&
+5.000000D-01, 8.333738D-01, 3.729921D-01,&
+3.456037D-01, 7.815157D-01, 2.240675D-01,&
+5.000000D-01, 8.333738D-01, 6.381704D-01,&
+4.995793D-01, 9.364829D-01, 6.760142D-01,&
+6.543963D-01, 7.815157D-01, 6.760142D-01,&
+0.999999D+00, 6.666262D-01, 1.381704D-01,&
+0.999999D+00, 5.635171D-01, 1.760142D-01,&
+8.449727D-01, 7.179985D-01, 1.760142D-01,&
+5.000000D-01, 1.666262D-01, 1.381704D-01,&
+4.995793D-01, 6.351712D-02, 1.760142D-01,&
+3.449727D-01, 2.179985D-01, 1.760142D-01 &
+/)
+
+atype0=(/2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1, 2,1,1/)
+
+!--- local unit cell parameters
+lata=4.5181d0
+latb=lata*sqrt(3.d0)
+latc=7.346d0
+lalpha=90.0000d0
+lbeta=90.0000d0
+lgamma=90.0000d0
+
+iigd = mx*my*mz*nH2O*myid ! for global ID
+ntot=0
+do ix=0,mx-1
+do iy=0,my-1
+do iz=0,mz-1
+   do imos2=1,nH2O
+      ntot=ntot+1
+      rreal(ntot,1:3) = pos0(3*imos2-2:3*imos2)+(/ix,iy,iz/)  ! repeat unit cell
+      rreal(ntot,1:3) = rreal(ntot,1:3)+vID(1:3)*(/mx,my,mz/) ! adding the box origin
+      rreal(ntot,1:3) = rreal(ntot,1:3)*(/lata,latb,latc/) ! real coords
+      atype(ntot) = dble(atype0(imos2)) + (iigd+ntot)*1d-13
+   enddo 
+enddo; enddo; enddo
+NATOMS=ntot
+
+!--- update to glocal cell parameters
+lata=lata*mx*vprocs(1)
+latb=latb*my*vprocs(2)
+latc=latc*mz*vprocs(3)
+
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+do i=1, 3
+do j=1, 3
+   HH(i,j,0)=mat(i,j)
+enddo; enddo
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
+
+call system_clock(tj,tk)
+it_timer(22)=it_timer(22)+(tj-ti)
+
+return
+end
+
+
+!--------------------------------------------------------------------------
 subroutine ReadBIN(atype, rreal, v, q, f, fileName)
-use atoms; use MemoryAllocator
 !--------------------------------------------------------------------------
 implicit none
 
@@ -478,7 +765,14 @@ nmeta=4+nprocs+1
 allocate(idata(nmeta))
 metaDataSize = 4*nmeta + 8*6
 
+if(myid==0) write(6,'(2a)') 'INFO: Opening file in ReadBIN(): ', trim(fileName)
 call MPI_File_Open(MPI_COMM_WORLD,trim(fileName),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ierr)
+
+if(ierr > 0) then
+   if(myid==0) write(6,'(2a)') 'MPI_File_Open Error in ReadBIN(): ', trim(fileName)
+   call MPI_Finalize(ierr)
+   stop
+endif
 
 ! read metadata at the beginning of file
 offsettmp=0
@@ -516,13 +810,13 @@ call MPI_File_Seek(fh,offset,MPI_SEEK_SET,ierr)
 allocate(dbuf(10*NATOMS))
 call MPI_File_Read(fh,dbuf,10*NATOMS,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
 
-if(.not.allocated(atype)) call allocatord1d(atype,1,NBUFFER)
-if(.not.allocated(q)) call allocatord1d(q,1,NBUFFER)
-if(.not.allocated(rreal)) call allocatord2d(rreal,1,NBUFFER,1,3)
-if(.not.allocated(v)) call allocatord2d(v,1,NBUFFER,1,3)
-if(.not.allocated(f)) call allocatord2d(f,1,NBUFFER,1,3)
-if(.not.allocated(qsfp)) call allocatord1d(qsfp,1,NBUFFER)
-if(.not.allocated(qsfv)) call allocatord1d(qsfv,1,NBUFFER)
+if(.not.allocated(atype)) call allocator(atype,1,NBUFFER)
+if(.not.allocated(q)) call allocator(q,1,NBUFFER)
+if(.not.allocated(rreal)) call allocator(rreal,1,NBUFFER,1,3)
+if(.not.allocated(v)) call allocator(v,1,NBUFFER,1,3)
+if(.not.allocated(f)) call allocator(f,1,NBUFFER,1,3)
+if(.not.allocated(qsfp)) call allocator(qsfp,1,NBUFFER)
+if(.not.allocated(qsfv)) call allocator(qsfv,1,NBUFFER)
 f(:,:)=0.0
 
 do i=1, NATOMS
@@ -539,14 +833,18 @@ deallocate(dbuf)
 call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 call MPI_File_Close(fh,ierr)
 
-call GetBoxParams(mat,lata,latb,latc,lalpha,lbeta,lgamma)
+call get_boxparameters(mat,lata,latb,latc,lalpha,lbeta,lgamma)
 do i=1, 3
 do j=1, 3
    HH(i,j,0)=mat(i,j)
 enddo; enddo
-call UpdateBoxParams()
 
-call xs2xu(NATOMS,rnorm,rreal)
+! Check: box params are updated first time here but cutoff distance is determined 
+! based on ffield params. give a flag? 
+call update_box_params(vprocs, vid, hh, lata, latb, latc, maxrc, &
+                       cc, lcsize, hhi, mdbox, lbox, obox)
+
+call xs2xu(hh,obox,NATOMS,rnorm,rreal)
 
 call system_clock(tj,tk)
 it_timer(22)=it_timer(22)+(tj-ti)
@@ -556,13 +854,12 @@ end
 
 !--------------------------------------------------------------------------
 subroutine WriteBIN(atype, rreal, v, q, fileNameBase)
-use atoms
 !--------------------------------------------------------------------------
 implicit none
 
-real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
-real(8),intent(in) :: rreal(NBUFFER,3),v(NBUFFER,3)
-character(MAXSTRLENGTH),intent(in) :: fileNameBase
+real(8),allocatable,intent(in) :: atype(:), q(:)
+real(8),allocatable,intent(in) :: rreal(:,:),v(:,:)
+character(len=:),allocatable,intent(in) :: fileNameBase
 
 integer :: i,j
 
@@ -580,7 +877,7 @@ real(8) :: rnorm(NBUFFER,3)
 integer :: ti,tj,tk
 call system_clock(ti,tk)
 
-call xu2xs(NATOMS,rreal,rnorm)
+call xu2xs(hhi,obox,NATOMS,rreal,rnorm)
 
 if(.not. isBinary) return
 
