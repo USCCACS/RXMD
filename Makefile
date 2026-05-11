@@ -9,6 +9,8 @@ default:
 	@echo "   clean"
 
 .PHONY: clean all rxmd init
+# both init and rxmd
+
 all:
 	cd init && $(MAKE)
 	cd src && $(MAKE)

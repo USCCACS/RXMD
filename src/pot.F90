@@ -1,29 +1,23 @@
-module force_mod
-
-  use base, only : header, lcsize, llist, nacell, &
-                   ipos, isSpring, springconst, hasspringforce
-  use reaxff_param_mod
-  use bo_mod
-
-contains
-
 !----------------------------------------------------------------------------------------------------------------------
-subroutine force_reaxff(num_atoms, atype, pos, f, q)
-use communication_mod
-use pqeq_mod
-use lists_mod
+subroutine FORCE(atype, pos, f, q)
+use parameters
+!use atoms 
+use pqeq_vars
 !----------------------------------------------------------------------------------------------------------------------
 implicit none
 
-integer,intent(in out) :: num_atoms
-real(8),allocatable,intent(in out) :: atype(:), q(:)
-real(8),allocatable,intent(in out) :: pos(:,:), f(:,:)
+real(8),intent(in) :: atype(NBUFFER), q(NBUFFER)
+real(8),intent(in) :: pos(NBUFFER,3)
+real(8),intent(inout) :: f(NBUFFER,3)
+
+real(8) :: vdummy(1,1) !-- dummy v for COPYATOM. it works as long as the array dimension matches
 
 integer :: i, j, k
+integer :: l2g
 real(8) :: dr(3)
 
-integer :: itype(size(atype)) !-- integer part of atype
-integer :: gtype(size(atype)) !-- global ID from atype
+integer :: itype(NBUFFER) !-- integer part of atype
+integer :: gtype(NBUFFER) !-- global ID from atype
 
 ccbnd(:) = 0.d0
 cdbnd(:) = 0.d0
@@ -31,12 +25,12 @@ f(:,:) = 0.d0
 PE(:) = 0.d0
 
 !--- cache atoms and create linkedlist for bonding and non-bonding neighbor lists. 
-call COPYATOMS(imode=MODE_COPY, dr=NMINCELL*lcsize(1:3), atype=atype, pos=pos, f=f, q=q) 
+call COPYATOMS(MODE_COPY,NMINCELL*lcsize(1:3),atype,pos,vdummy,f,q) 
 
-call LINKEDLIST(atype, pos, lcsize, header, llist, nacell)
-call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell)
+call LINKEDLIST(atype, pos, lcsize, header, llist, nacell, cc, MAXLAYERS)
+call LINKEDLIST(atype, pos, nblcsize, nbheader, nbllist, nbnacell, nbcc, MAXLAYERS_NB)
 
-call neighborlist(NMINCELL, atype, pos, inxn2)
+call NEIGHBORLIST(NMINCELL, atype, pos)
 call GetNonbondingPairList(pos)
 
 !--- get atom type and global ids
@@ -63,7 +57,7 @@ CALL E3b()
 CALL E4b()
 !$omp end parallel 
 
-if(isSpring) call SpringForce(ipos(1,:,:))
+if(isSpring) call SpringForce()
 if(isEfield) call EEfield(PE(13),NATOMS,pos,q,f,atype,Eev_kcal)
 
 CALL ForceBondedTerms(NMINCELL)
@@ -77,7 +71,7 @@ do i=1, NBUFFER
    astr(6)=astr(6)+pos(i,1)*f(i,2)
 enddo
 
-CALL COPYATOMS(imode=MODE_CPBK, dr=[0.d0, 0.d0, 0.d0], atype=atype, pos=pos, f=f, q=q) 
+CALL COPYATOMS(MODE_CPBK,[0.d0, 0.d0, 0.d0], atype, pos, vdummy, f, q) 
 
 #ifdef RFDUMP
 open(81,file="rfdump"//trim(rankToString(myid))//".txt")
@@ -98,11 +92,11 @@ return
 CONTAINS 
 
 !----------------------------------------------------------------------
-subroutine SpringForce(ipos)
+subroutine SpringForce()
 implicit none
 !----------------------------------------------------------------------
 integer :: i,ity
-real(8) :: rr(3),dr, ipos(:,:)
+real(8) :: rr(3),dr
 
 do i=1, NATOMS
    ity=nint(atype(i))
@@ -117,6 +111,7 @@ end subroutine
 
 !----------------------------------------------------------------------
 subroutine ForceBondedTerms(nlayer)
+use atoms
 !----------------------------------------------------------------------
 implicit none
 integer,intent(IN) :: nlayer
@@ -151,6 +146,7 @@ end subroutine
 
 !-------------------------------------------------------------------------------------
 subroutine Elnpr()
+use parameters;use atoms
 !-------------------------------------------------------------------------------------
 implicit none
 
@@ -321,6 +317,7 @@ END subroutine
 
 !------------------------------------------------------------------------------------
 subroutine E3b()
+use parameters; use atoms
 !------------------------------------------------------------------------------------
 implicit none
 integer :: i,j,k, i1,j1,k1, ity,jty,kty, inxn, n,n1
@@ -558,9 +555,9 @@ it_timer(11)=it_timer(11)+(tj-ti)
 !$omp end master
 
 END subroutine
-
 !----------------------------------------------------------------------------------------------------------------------
 subroutine Ehb()
+use parameters; use atoms
 ! Note: 02-09-05 <kn>
 ! To find out hydrogen bonding combinations, <vnhbp> (one atom parameter, 2nd row, 8th column) is used to 
 ! identify whether an atoms is hydrogen or not, <vnhbp>=1 for H, <vnhbp>=2 for O,N,S and <vnhbp>=0 for others. 
@@ -677,6 +674,7 @@ end subroutine
 
 !----------------------------------------------------------------------------------------------------------
 subroutine ENbond()
+use parameters; use atoms
 !----------------------------------------------------------------------------------------------------------
 !  This subroutine calculates the energy and the forces due to the Van der Waals and Coulomb terms 
 !----------------------------------------------------------------------------------------------------------
@@ -784,6 +782,7 @@ END subroutine
 
 !----------------------------------------------------------------------------------------------------------
 subroutine ENbond_PQEq()
+use parameters; use atoms
 !----------------------------------------------------------------------------------------------------------
 !  This subroutine calculates the energy and the forces due to the Van der Waals and Coulomb terms 
 !----------------------------------------------------------------------------------------------------------
@@ -925,6 +924,7 @@ END subroutine
 
 !-----------------------------------------------------------------------------------------------------------------------
 subroutine Ebond()
+use atoms; use parameters 
 !-----------------------------------------------------------------------------------------------------------------------
 implicit none
 integer :: i,j, i1,j1, ity, jty, inxn
@@ -978,6 +978,7 @@ end subroutine
 
 !--------------------------------------------------------------------------------------------------------------
 subroutine E4b()
+use atoms; use parameters
 !--------------------------------------------------------------------------------------------------------------
 implicit none
 integer :: i,j,k,l, i1,j1,k1,l1, k2, ity,jty,kty,lty, inxn
@@ -1541,6 +1542,4 @@ use atoms
    
 end subroutine 
 
-END subroutine force_reaxff
-
-end module
+END subroutine FORCE
